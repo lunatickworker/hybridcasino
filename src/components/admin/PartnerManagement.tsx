@@ -139,6 +139,12 @@ export function PartnerManagement() {
     max_withdrawal_amount: 1000000,
     daily_withdrawal_limit: 5000000
   });
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [transferTargetPartner, setTransferTargetPartner] = useState<Partner | null>(null);
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferMemo, setTransferMemo] = useState("");
+  const [transferMode, setTransferMode] = useState<'deposit' | 'withdrawal'>('deposit');
+  const [transferLoading, setTransferLoading] = useState(false);
 
   // 특정 파트너의 커미션 조회
   const loadPartnerCommissionById = async (partnerId: string) => {
@@ -738,16 +744,20 @@ export function PartnerManagement() {
         try {
           const { getAdminOpcode, isMultipleOpcode } = await import('../../lib/opcodeHelper');
           
-          // 임시 파트너 객체 생성 (parent_id를 사용하여 대본사 찾기)
-          const tempPartner = {
-            id: parentId || authState.user?.id || '',
-            partner_type: formData.partner_type as any,
-            parent_id: parentId,
-            username: formData.username,
-            nickname: formData.nickname
-          } as any;
+          // ✅ 현재 로그인한 관리자 정보로 OPCODE 조회 (생성될 파트너 정보 아님!)
+          console.log('🔍 [OPCODE 조회] authState.user:', {
+            id: authState.user?.id,
+            username: authState.user?.username,
+            partner_type: authState.user?.partner_type,
+            level: authState.user?.level,
+            parent_id: authState.user?.parent_id
+          });
           
-          const opcodeInfo = await getAdminOpcode(tempPartner);
+          if (!authState.user) {
+            throw new Error('로그인 정보를 찾을 수 없습니다.');
+          }
+          
+          const opcodeInfo = await getAdminOpcode(authState.user as any);
           
           let apiOpcode: string;
           let apiSecretKey: string;

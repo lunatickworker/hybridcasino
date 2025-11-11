@@ -2,7 +2,7 @@
 import './consoleFilter';
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { projectId } from '../utils/supabase/info';
+import { projectId } from '../utils/supabase';
 
 const supabaseUrl = `https://${projectId}.supabase.co`;
 const supabaseServiceRoleKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkdW9manpzaXRvYXVqeWp2dWl4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MjA0MjM2NywiZXhwIjoyMDc3NjE4MzY3fQ.f7-ToINwNyv7tNm6TfoZ_SDMaX2D4BLdKoSfZ6HD8dc';

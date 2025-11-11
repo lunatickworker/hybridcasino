@@ -274,10 +274,11 @@ async function createOroPlayAccount(
 }
 
 /**
- * 대본사 ID 찾기 (재귀 탐색)
+ * Lv1 시스템관리자 ID 찾기 (재귀 탐색)
+ * ✅ api_configs는 Lv1에만 있으므로, 항상 Lv1까지 올라가야 함
  */
 async function findHeadOfficeId(partnerId: string): Promise<string> {
-  console.log('    🔸 [대본사찾기] 시작 파트너 ID:', partnerId);
+  console.log('    🔸 [Lv1찾기] 시작 파트너 ID:', partnerId);
   
   const { data: partner } = await supabase
     .from('partners')
@@ -286,21 +287,42 @@ async function findHeadOfficeId(partnerId: string): Promise<string> {
     .single();
   
   if (!partner) {
-    console.error('    ❌ [대본사찾기] 파트너 정보 없음');
+    console.error('    ❌ [Lv1찾기] 파트너 정보 없음');
     throw new Error('파트너 정보를 찾을 수 없습니다');
   }
   
-  console.log('    🔍 [대본사찾기] 파트너 타입:', partner.partner_type);
+  console.log('    🔍 [Lv1찾기] 파트너 타입:', partner.partner_type);
   
-  // 이미 대본사이거나 시스템 관리자면 그대로 사용
-  if (partner.partner_type === 'head_office' || partner.partner_type === 'system_admin') {
-    console.log('    ✅ [대본사찾기] 현재 파트너가 대본사/시스템관리자');
+  // ✅ 시스템 관리자(Lv1)를 찾으면 바로 반환
+  if (partner.partner_type === 'system_admin') {
+    console.log('    ✅ [Lv1찾기] Lv1 시스템관리자 찾음:', partner.id);
     return partner.id;
   }
   
-  // 상위 파트너 탐색
+  // ✅ Lv2(대본사)인 경우, parent_id(Lv1)로 올라감
+  if (partner.partner_type === 'head_office') {
+    console.log('    🔼 [Lv1찾기] Lv2 대본사 발견, 상위 Lv1로 이동');
+    if (!partner.parent_id) {
+      throw new Error('Lv2 대본사의 상위 Lv1을 찾을 수 없습니다');
+    }
+    
+    const { data: lv1Partner } = await supabase
+      .from('partners')
+      .select('id, partner_type')
+      .eq('id', partner.parent_id)
+      .single();
+    
+    if (lv1Partner?.partner_type === 'system_admin') {
+      console.log('    ✅ [Lv1찾기] Lv1 시스템관리자 찾음:', lv1Partner.id);
+      return lv1Partner.id;
+    } else {
+      throw new Error('Lv2의 상위 파트너가 Lv1이 아닙니다');
+    }
+  }
+  
+  // 상위 파트너 탐색 (Lv3~Lv7)
   if (partner.parent_id) {
-    console.log('    🔼 [대본사찾기] 상위 파트너 탐색 시작');
+    console.log('    🔼 [Lv1찾기] 상위 파트너 탐색 시작');
     let currentId = partner.parent_id;
     let attempts = 0;
     
@@ -311,11 +333,33 @@ async function findHeadOfficeId(partnerId: string): Promise<string> {
         .eq('id', currentId)
         .single();
       
-      console.log(`    🔍 [대본사찾기] 시도 ${attempts + 1}: 타입=${parentPartner?.partner_type}`);
+      console.log(`    🔍 [Lv1찾기] 시도 ${attempts + 1}: 타입=${parentPartner?.partner_type}`);
       
-      if (parentPartner?.partner_type === 'head_office') {
-        console.log('    ✅ [대본사찾기] 대본사 찾음:', parentPartner.id);
+      // ✅ Lv1 시스템관리자를 찾으면 반환
+      if (parentPartner?.partner_type === 'system_admin') {
+        console.log('    ✅ [Lv1찾기] Lv1 시스템관리자 찾음:', parentPartner.id);
         return parentPartner.id;
+      }
+      
+      // ✅ Lv2 대본사를 찾으면, 그 상위(Lv1)로 이동
+      if (parentPartner?.partner_type === 'head_office') {
+        console.log('    🔼 [Lv1찾기] Lv2 대본사 발견, 상위 Lv1로 이동');
+        if (!parentPartner.parent_id) {
+          throw new Error('Lv2 대본사의 상위 Lv1을 찾을 수 없습니다');
+        }
+        
+        const { data: lv1Partner } = await supabase
+          .from('partners')
+          .select('id, partner_type')
+          .eq('id', parentPartner.parent_id)
+          .single();
+        
+        if (lv1Partner?.partner_type === 'system_admin') {
+          console.log('    ✅ [Lv1찾기] Lv1 시스템관리자 찾음:', lv1Partner.id);
+          return lv1Partner.id;
+        } else {
+          throw new Error('Lv2의 상위 파트너가 Lv1이 아닙니다');
+        }
       }
       
       currentId = parentPartner?.parent_id || null;
@@ -323,8 +367,8 @@ async function findHeadOfficeId(partnerId: string): Promise<string> {
     }
   }
   
-  console.error('    ❌ [대본사찾기] 대본사를 찾을 수 없음');
-  throw new Error('상위 대본사를 찾을 수 없습니다');
+  console.error('    ❌ [Lv1찾기] Lv1 시스템관리자를 찾을 수 없음');
+  throw new Error('상위 Lv1 시스템관리자를 찾을 수 없습니다');
 }
 
 /**
