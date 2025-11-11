@@ -1,0 +1,931 @@
+import { useState, useEffect } from "react";
+import { Button } from "../ui/button";
+import { Badge } from "../ui/badge";
+import { Avatar, AvatarFallback } from "../ui/avatar";
+import { 
+  LogOut, Bell,
+  TrendingUp, TrendingDown, Users, Wallet, AlertTriangle
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
+import { useAuth } from "../../hooks/useAuth";
+import { useBalance } from "../../contexts/BalanceContext";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { Partner, DashboardStats } from "../../types";
+import { formatCurrency, formatNumber } from "../../lib/utils";
+import { toast } from "sonner@2.0.3";
+import { supabase } from "../../lib/supabase";
+import { AnimatedCurrency } from "../common/AnimatedNumber";
+import { getInfo } from "../../lib/investApi";
+import { getAgentBalance, getOroPlayToken } from "../../lib/oroplayApi";
+import { LanguageSwitcher } from "./LanguageSwitcher";
+
+interface AdminHeaderProps {
+  user: Partner;
+  wsConnected: boolean;
+  onToggleSidebar: () => void;
+  onRouteChange?: (route: string) => void;
+  currentRoute?: string;
+}
+
+export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange, currentRoute }: AdminHeaderProps) {
+  const { logout } = useAuth();
+  const { t } = useLanguage();
+  const { balance, investBalance, oroplayBalance, loading: balanceLoading, error: balanceError, lastSyncTime, useInvestApi, useOroplayApi } = useBalance(); // ✅ API 활성화 상태 추가
+
+  console.log('🔍 [AdminHeader] useBalance 값:', {
+    balance,
+    investBalance,
+    oroplayBalance,
+    balanceLoading,
+    balanceError,
+    userLevel: user?.level
+  });
+
+  // 사용자 정보가 없으면 기본 헤더 표시
+  if (!user) {
+    return (
+      <div className="w-full px-6 py-3.5 h-[72px] flex items-center border-b border-slate-200 bg-white/95">
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground">{t.common.loading}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const [stats, setStats] = useState<DashboardStats>({
+    total_users: 0,
+    total_balance: 0,
+    daily_deposit: 0,
+    daily_withdrawal: 0,
+    daily_net_deposit: 0,
+    casino_betting: 0,
+    slot_betting: 0,
+    total_betting: 0,
+    online_users: 0,
+    pending_approvals: 0,
+    pending_messages: 0,
+    pending_deposits: 0,
+    pending_withdrawals: 0,
+  });
+  
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [showLv2Warning, setShowLv2Warning] = useState(false);
+  const [isSyncingInvest, setIsSyncingInvest] = useState(false);
+  const [isSyncingOroplay, setIsSyncingOroplay] = useState(false);
+
+  // =====================================================
+  // Invest 보유금 수동 동기화 (카드 클릭 시)
+  // =====================================================
+  const handleSyncInvestBalance = async () => {
+    if (user.level !== 1) {
+      toast.error('Lv1 시스템관리자만 API 잔고를 조회할 수 있습니다.');
+      return;
+    }
+
+    setIsSyncingInvest(true);
+    try {
+      console.log('💰 [AdminHeader] Invest 보유금 수동 동기화 시작');
+
+      // opcode, secretKey 조회
+      const { data: apiConfig, error: configError } = await supabase
+        .from('api_configs')
+        .select('invest_opcode, invest_secret_key')
+        .eq('partner_id', user.id)
+        .single();
+
+      if (configError || !apiConfig || !apiConfig.invest_opcode || !apiConfig.invest_secret_key) {
+        throw new Error('Invest API 설정을 찾을 수 없습니다.');
+      }
+
+      // GET /api/info 호출
+      const result = await getInfo(apiConfig.invest_opcode, apiConfig.invest_secret_key);
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      // API 응답에서 balance 파싱
+      let newBalance = 0;
+      if (result.data && typeof result.data === 'object') {
+        if (result.data.DATA?.balance !== undefined) {
+          newBalance = parseFloat(result.data.DATA.balance) || 0;
+        } else if (result.data.balance !== undefined) {
+          newBalance = parseFloat(result.data.balance) || 0;
+        }
+      }
+
+      console.log('✅ [AdminHeader] Invest API 응답:', { balance: newBalance });
+
+      // api_configs 업데이트
+      const { error: updateError } = await supabase
+        .from('api_configs')
+        .update({
+          invest_balance: newBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('partner_id', user.id);
+
+      if (updateError) {
+        throw new Error(`DB 업데이트 실패: ${updateError.message}`);
+      }
+
+      toast.success(`Invest 보유금 동기화 완료: ₩${newBalance.toLocaleString()}`);
+    } catch (error: any) {
+      console.error('❌ [AdminHeader] Invest 보유금 동기화 실패:', error);
+      toast.error(`Invest 보유금 동기화 실패: ${error.message}`);
+    } finally {
+      setIsSyncingInvest(false);
+    }
+  };
+
+  // =====================================================
+  // OroPlay 보유금 수동 동기화 (카드 클릭 시)
+  // =====================================================
+  const handleSyncOroplayBalance = async () => {
+    if (user.level !== 1) {
+      toast.error('Lv1 시스템관리자만 API 잔고를 조회할 수 있습니다.');
+      return;
+    }
+
+    setIsSyncingOroplay(true);
+    try {
+      console.log('💰 [AdminHeader] OroPlay 보유금 수동 동기화 시작');
+
+      // 토큰 조회 (자동 갱신 포함)
+      const token = await getOroPlayToken(user.id);
+
+      // GET /agent/balance 호출
+      const balance = await getAgentBalance(token);
+
+      console.log('✅ [AdminHeader] OroPlay API 응답:', { balance });
+
+      // api_configs 업데이트
+      const { error: updateError } = await supabase
+        .from('api_configs')
+        .update({
+          oroplay_balance: balance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('partner_id', user.id);
+
+      if (updateError) {
+        throw new Error(`DB 업데이트 실패: ${updateError.message}`);
+      }
+
+      toast.success(`OroPlay 보유금 동기화 완료: ₩${balance.toLocaleString()}`);
+    } catch (error: any) {
+      console.error('❌ [AdminHeader] OroPlay 보유금 동기화 실패:', error);
+      toast.error(`OroPlay 보유금 동기화 실패: ${error.message}`);
+    } finally {
+      setIsSyncingOroplay(false);
+    }
+  };
+
+  // ✅ 실제 데이터 로드 (사용자 + 관리자 입출금 포함) - 계층 구조 필터링
+  useEffect(() => {
+    const fetchHeaderStats = async () => {
+      try {
+        console.log('📊 헤더 통계 조회 시작 (계층 필터링):', { id: user.id, level: user.level });
+        
+        // 오늘 날짜 (KST 기준)
+        const now = new Date();
+        const kstOffset = 9 * 60 * 60 * 1000;
+        const kstDate = new Date(now.getTime() + kstOffset);
+        const todayStart = new Date(kstDate.getFullYear(), kstDate.getMonth(), kstDate.getDate());
+        const todayStartISO = new Date(todayStart.getTime() - kstOffset).toISOString();
+        
+        // 🔍 Hierarchical filtering: self + child partners' users
+        let allowedUserIds: string[] = [];
+        
+        if (user.level === 1) {
+          // System admin: all users
+          const { data: allUsers } = await supabase
+            .from('users')
+            .select('id');
+          allowedUserIds = allUsers?.map(u => u.id) || [];
+          console.log('🔑 [System Admin] All users:', allowedUserIds.length);
+        } else {
+          // Partner: child partners + own users
+          const { data: hierarchicalPartners, error: hierarchyError } = await supabase
+            .rpc('get_hierarchical_partners', { p_partner_id: user.id });
+          
+          if (hierarchyError) {
+            console.error('❌ Child partners fetch failed:', hierarchyError);
+          }
+          
+          const partnerIds = [user.id, ...(hierarchicalPartners?.map((p: any) => p.id) || [])];
+          console.log('🔑 [Target Partners]', partnerIds.length, 'partners:', {
+            self: user.id,
+            children: hierarchicalPartners?.length || 0
+          });
+          
+          // Get users with these partners as referrer_id
+          const { data: partnerUsers, error: usersError } = await supabase
+            .from('users')
+            .select('id, username, referrer_id')
+            .in('referrer_id', partnerIds);
+          
+          if (usersError) {
+            console.error('❌ Partner users fetch failed:', usersError);
+          }
+          
+          allowedUserIds = partnerUsers?.map(u => u.id) || [];
+          console.log('🔑 [Partner Users]', allowedUserIds.length, 'users', 
+            allowedUserIds.length === 0 ? '(normal: no users yet)' : '');
+          
+          // Debug: users by referrer_id
+          if (partnerUsers && partnerUsers.length > 0) {
+            const usersByReferrer = partnerUsers.reduce((acc: any, u: any) => {
+              acc[u.referrer_id] = (acc[u.referrer_id] || 0) + 1;
+              return acc;
+            }, {});
+            console.log('📊 [Users by Partner]:', usersByReferrer);
+          }
+        }
+
+        // No users = empty stats (normal situation)
+        if (allowedUserIds.length === 0) {
+          console.log('ℹ️ No users assigned. Initializing stats to 0.');
+          setStats(prev => ({
+            ...prev,
+            daily_deposit: 0,
+            daily_withdrawal: 0,
+            daily_net_deposit: 0,
+            online_users: 0,
+            pending_approvals: 0,
+            pending_messages: 0,
+            pending_deposits: 0,
+            pending_withdrawals: 0,
+          }));
+          setTotalUsers(0);
+          return;
+        }
+
+        // 1️⃣ 입금 합계 (deposit + admin_deposit) - 소속 사용자만
+        const { data: depositData, error: depositError } = await supabase
+          .from('transactions')
+          .select('amount')
+          .in('transaction_type', ['deposit', 'admin_deposit'])
+          .eq('status', 'completed')
+          .gte('created_at', todayStartISO)
+          .in('user_id', allowedUserIds);
+
+        if (depositError) {
+          console.error('❌ 입금 조회 실패:', depositError);
+        }
+
+        const dailyDeposit = depositData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+
+        // 2️⃣ 출금 합계 (withdrawal + admin_withdrawal) - 소속 사용자만
+        const { data: withdrawalData, error: withdrawalError } = await supabase
+          .from('transactions')
+          .select('amount')
+          .in('transaction_type', ['withdrawal', 'admin_withdrawal'])
+          .eq('status', 'completed')
+          .gte('created_at', todayStartISO)
+          .in('user_id', allowedUserIds);
+
+        if (withdrawalError) {
+          console.error('❌ 출금 조회 실패:', withdrawalError);
+        }
+
+        const dailyWithdrawal = withdrawalData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+
+        // 3️⃣ 온라인 사용자 수 - 소속 사용자만
+        const { count: onlineCount } = await supabase
+          .from('game_launch_sessions')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'active')
+          .in('user_id', allowedUserIds);
+
+        // 4️⃣ 전체 회원 수 - 소속 사용자만
+        const totalUserCount = allowedUserIds.length;
+
+        // 🔔 5️⃣ 가입승인 대기 수 - 소속 사용자만
+        const { count: pendingApprovalsCount } = await supabase
+          .from('users')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending')
+          .in('id', allowedUserIds);
+
+        // 🔔 6️⃣ 고객문의 대기 수 (messages 테이블에서 status='unread' 또는 'read' - 답변 전 상태)
+        const { count: pendingMessagesCount } = await supabase
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .in('status', ['unread', 'read'])
+          .eq('message_type', 'normal')
+          .eq('receiver_type', 'partner')
+          .is('parent_id', null);
+
+        // 🔔 7️⃣ 입금요청 대기 수 - 소속 사용자만
+        const { count: pendingDepositsCount } = await supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('transaction_type', 'deposit')
+          .eq('status', 'pending')
+          .in('user_id', allowedUserIds);
+
+        // 🔔 8️⃣ 출금요청 대기 수 - 소속 사용자만
+        const { count: pendingWithdrawalsCount } = await supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('transaction_type', 'withdrawal')
+          .eq('status', 'pending')
+          .in('user_id', allowedUserIds);
+
+        // 💰 9️⃣ 총 잔고 (소속 사용자들의 balance 합계)
+        const { data: usersBalanceData } = await supabase
+          .from('users')
+          .select('balance')
+          .in('id', allowedUserIds);
+        
+        const totalBalance = usersBalanceData?.reduce((sum, u) => sum + Number(u.balance || 0), 0) || 0;
+
+        console.log('💰 헤더 입출금 (계층 필터링):', { 
+          총잔고: totalBalance,
+          입금: dailyDeposit, 
+          출금: dailyWithdrawal,
+          순입출금: dailyDeposit - dailyWithdrawal,
+          온라인: onlineCount || 0,
+          전체회원: totalUserCount || 0,
+          소속사용자수: allowedUserIds.length
+        });
+
+        console.log('🔔 헤더 실시간 알림 (직접 계산):', {
+          가입승인: pendingApprovalsCount || 0,
+          고객문의: pendingMessagesCount || 0,
+          입금요청: pendingDepositsCount || 0,
+          출금요청: pendingWithdrawalsCount || 0,
+        });
+        
+        setStats(prev => ({
+          ...prev,
+          total_balance: totalBalance,
+          daily_deposit: dailyDeposit,
+          daily_withdrawal: dailyWithdrawal,
+          daily_net_deposit: dailyDeposit - dailyWithdrawal,
+          online_users: onlineCount || 0,
+          pending_approvals: pendingApprovalsCount || 0,
+          pending_messages: pendingMessagesCount || 0,
+          pending_deposits: pendingDepositsCount || 0,
+          pending_withdrawals: pendingWithdrawalsCount || 0,
+        }));
+        
+        setTotalUsers(totalUserCount || 0);
+        
+        console.log('✅ 헤더 통계 업데이트 완료 (계층 필터링 적용)');
+        
+        // Lv2 전용: 5% 경고 체크
+        if (user.level === 2) {
+          checkLv2Warning(totalBalance);
+        }
+      } catch (error) {
+        console.error('❌ 헤더 통계 로드 실패:', error);
+      }
+    };
+    
+    fetchHeaderStats();
+    
+    console.log('🔔 헤더 Realtime 구독 시작:', user.id);
+    
+    // ✅ Realtime 구독 1: transactions 변경 시 즉시 업데이트
+    const transactionChannel = supabase
+      .channel('header_transactions')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions'
+        },
+        (payload) => {
+          console.log('💰 [헤더 알림] transactions 변경 감지:', payload.eventType);
+          fetchHeaderStats(); // 즉시 갱신
+          
+          // 새 입금/출금 요청 시 토스트 알림
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const transaction = payload.new as any;
+            
+            if (transaction.status === 'pending') {
+              if (transaction.transaction_type === 'deposit') {
+                toast.info('새로운 입금 요청이 있습니다.', {
+                  description: `금액: ₩${Number(transaction.amount).toLocaleString()} | 회원: ${transaction.user_id}`,
+                  duration: 10000,
+                  action: {
+                    label: '확인',
+                    onClick: () => {
+                      if (onRouteChange) {
+                        onRouteChange('/admin/transactions#deposit-request');
+                      }
+                    }
+                  }
+                });
+              } else if (transaction.transaction_type === 'withdrawal') {
+                toast.warning('새로운 출금 요청이 있습니다.', {
+                  description: `금액: ₩${Number(transaction.amount).toLocaleString()} | 회원: ${transaction.user_id}`,
+                  duration: 10000,
+                  action: {
+                    label: '확인',
+                    onClick: () => {
+                      if (onRouteChange) {
+                        onRouteChange('/admin/transactions#withdrawal-request');
+                      }
+                    }
+                  }
+                });
+              }
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // ✅ Realtime 구독 2: users 변경 시 즉시 업데이트 (가입승인, 잔고 변경)
+    const usersChannel = supabase
+      .channel('header_users')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'users'
+        },
+        (payload) => {
+          console.log('🔔 [헤더 알림] users 변경 감지 (가입승인):', payload.eventType);
+          fetchHeaderStats(); // 즉시 갱신
+          
+          // 새 가입 요청 시 토스트 알림
+          if (payload.eventType === 'INSERT' && payload.new && (payload.new as any).status === 'pending') {
+            toast.info('새로운 가입 신청이 있습니다.', {
+              description: `회원 아이디: ${(payload.new as any).username}`,
+              duration: 8000,
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    // ✅ Realtime 구독 3: messages 변경 시 즉시 업데이트 (고객문의)
+    const messagesChannel = supabase
+      .channel('header_messages')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages'
+        },
+        (payload) => {
+          console.log('🔔 [Header Alert] messages change detected (customer inquiry):', payload.eventType);
+          fetchHeaderStats(); // Immediate refresh
+          
+          // Toast notification for new customer inquiry (user to partner message)
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const newMsg = payload.new as any;
+            if (newMsg.message_type === 'normal' && 
+                newMsg.sender_type === 'user' && 
+                newMsg.receiver_type === 'partner' &&
+                !newMsg.parent_id) {
+              toast.info(t.header.newDeposit || 'New customer inquiry', {
+                description: `Subject: ${newMsg.subject || 'Inquiry'}`,
+                duration: 8000,
+                action: {
+                  label: '확인',
+                  onClick: () => {
+                    if (onRouteChange) {
+                      onRouteChange('/admin/customer-service');
+                    }
+                  }
+                }
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('🔕 헤더 Realtime 구독 해제');
+      supabase.removeChannel(transactionChannel);
+      supabase.removeChannel(usersChannel);
+      supabase.removeChannel(messagesChannel);
+    };
+  }, [user.id]);
+
+  // 베팅 알림 상태
+  const [bettingAlerts, setBettingAlerts] = useState({
+    all_betting: 0,
+    large_betting: 0,
+    high_win: 0,
+    suspicious: 0,
+  });
+
+  // 실시간 통계 업데이트
+  useEffect(() => {
+    // Supabase Realtime으로 베팅 내역 모니터링
+    const bettingChannel = supabase
+      .channel('betting_alerts')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'game_records'
+        },
+        (payload) => {
+          const record = payload.new as any;
+          
+          // 모든 베팅 알림
+          setBettingAlerts(prev => ({
+            ...prev,
+            all_betting: prev.all_betting + 1
+          }));
+
+          // 대량 베팅 알림 (10만원 이상)
+          if (record.bet_amount && parseFloat(record.bet_amount) >= 100000) {
+            setBettingAlerts(prev => ({
+              ...prev,
+              large_betting: prev.large_betting + 1
+            }));
+            toast.warning(`대량 베팅 발생: ${formatCurrency(parseFloat(record.bet_amount))}`, {
+              duration: 5000,
+              action: {
+                label: '확인',
+                onClick: () => {
+                  if (onRouteChange) {
+                    onRouteChange('/admin/online-users');
+                  }
+                }
+              }
+            });
+          }
+
+          // 고액 당첨 알림 (50만원 이상)
+          if (record.win_amount && parseFloat(record.win_amount) >= 500000) {
+            setBettingAlerts(prev => ({
+              ...prev,
+              high_win: prev.high_win + 1
+            }));
+            toast.info(`고액 당첨 발생: ${formatCurrency(parseFloat(record.win_amount))}`, {
+              duration: 5000,
+              action: {
+                label: '확인',
+                onClick: () => {
+                  if (onRouteChange) {
+                    onRouteChange('/admin/online-users');
+                  }
+                }
+              }
+            });
+          }
+
+          // 의심 패턴 감지 (승률이 너무 높거나 연속 당첨)
+          const winRate = record.win_amount && record.bet_amount 
+            ? parseFloat(record.win_amount) / parseFloat(record.bet_amount) 
+            : 0;
+          
+          if (winRate > 10) {
+            setBettingAlerts(prev => ({
+              ...prev,
+              suspicious: prev.suspicious + 1
+            }));
+            toast.error(`의심 패턴 감지: 승률 ${(winRate * 100).toFixed(0)}%`, {
+              duration: 5000,
+              action: {
+                label: '확인',
+                onClick: () => {
+                  if (onRouteChange) {
+                    onRouteChange('/admin/online-users');
+                  }
+                }
+              }
+            });
+          }
+        }
+      )
+      .subscribe();
+
+
+
+    return () => {
+      supabase.removeChannel(bettingChannel);
+    };
+  }, [onRouteChange]);
+
+  const handleLogout = () => {
+    logout();
+    toast.success("로그아웃되었습니다.");
+  };
+
+  const handleMessageClick = () => {
+    if (onRouteChange) {
+      onRouteChange('/admin/customer-service');
+      toast.info('고객 지원 페이지로 이동합니다.');
+    }
+  };
+
+  const handleDepositClick = () => {
+    if (onRouteChange) {
+      onRouteChange('/admin/transactions#deposit-request');
+      toast.info('입금 관리 페이지로 이동합니다.');
+    }
+  };
+
+  const handleWithdrawalClick = () => {
+    if (onRouteChange) {
+      onRouteChange('/admin/transactions#withdrawal-request');
+      toast.info('출금 관리 페이지로 이동합니다.');
+    }
+  };
+
+  const handleApprovalClick = () => {
+    if (onRouteChange) {
+      onRouteChange('/admin/users');
+      toast.info('가입 승인 관리 페이지로 이동합니다.');
+    }
+  };
+
+  const handleBettingAlertClick = () => {
+    if (onRouteChange) {
+      onRouteChange('/admin/online-users');
+      // 알림 카운트 초기화
+      setBettingAlerts({
+        all_betting: 0,
+        large_betting: 0,
+        high_win: 0,
+        suspicious: 0,
+      });
+      toast.info('온라인 사용자 현황 페이지로 이동합니다.');
+    }
+  };
+
+  // Lv2 전용: 보유금 5% 경고 체크
+  const checkLv2Warning = (totalUsersBalance: number) => {
+    const fivePercent = totalUsersBalance * 0.05;
+    const shouldShowWarning = investBalance < fivePercent || oroplayBalance < fivePercent;
+    setShowLv2Warning(shouldShowWarning);
+  };
+
+  return (
+    <div className="w-full border-b border-slate-800/50 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900">
+      {/* Lv2 전용: 5% 경고 배너 */}
+      {user.level === 2 && showLv2Warning && (
+        <div className="bg-rose-900/30 border-b border-rose-500/50 px-6 py-2.5">
+          <div className="flex items-center gap-2 text-rose-300">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm font-medium">
+              ⚠️ 보유금 충전이 필요합니다 또는 부족한 보유금의 게임을 비노출로 변경하세요
+            </span>
+          </div>
+        </div>
+      )}
+      <div className="px-6 py-3">
+        <div className="flex items-center justify-between">
+          {/* 왼쪽: 통계 카드 */}
+          <div className="flex items-center gap-3">
+            {/* 시스템관리자(1) + 대본사(2): Invest/Oro 표시 (✅ API 활성화 상태에 따라 동적 노출/비노출) */}
+            {(user.level === 1 || user.level === 2) && (
+              <>
+                {/* Invest 보유금 - useInvestApi가 true일 때만 표시 */}
+                {useInvestApi && (
+                  <div 
+                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 transition-all ${balanceLoading ? 'animate-pulse' : ''}`}
+                    onClick={handleSyncInvestBalance}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4 text-blue-400" />
+                      <div>
+                        <div className="text-[9px] text-blue-300 font-medium">Invest</div>
+                        <div className="text-sm font-bold text-white whitespace-nowrap">
+                          {typeof investBalance === 'number' ? <AnimatedCurrency value={investBalance} duration={800} /> : '₩0'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* OroPlay 보유금 - useOroplayApi가 true일 때만 표시 */}
+                {useOroplayApi && (
+                  <div 
+                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all ${balanceLoading ? 'animate-pulse' : ''}`}
+                    onClick={handleSyncOroplayBalance}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4 text-green-400" />
+                      <div>
+                        <div className="text-[9px] text-green-300 font-medium">Oro</div>
+                        <div className="text-sm font-bold text-white whitespace-nowrap">
+                          {typeof oroplayBalance === 'number' ? <AnimatedCurrency value={oroplayBalance} duration={800} /> : '₩0'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* 나머지 레벨(3~6): GMS 보유금 1개만 표시 */}
+            {user.level >= 3 && (
+              <div className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-yellow-500/20 to-amber-500/20 border border-yellow-500/30 transition-all ${balanceLoading ? 'animate-pulse' : ''}`}>
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-yellow-400" />
+                  <div>
+                    <div className="text-[9px] text-yellow-300 font-medium">{t.header.gmsBalance}</div>
+                    <div className="text-sm font-bold text-white">
+                      {balanceLoading ? '...' : <AnimatedCurrency value={balance || 0} duration={800} />}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 총 입금 */}
+            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 transition-all">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-cyan-400" />
+                <div>
+                  <div className="text-[9px] text-cyan-300 font-medium">{t.header.totalDeposit}</div>
+                  <div className="text-sm font-bold text-white">{formatCurrency(stats.daily_deposit)}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* 총 출금 */}
+            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 transition-all">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-orange-400" />
+                <div>
+                  <div className="text-[9px] text-orange-300 font-medium">{t.header.totalWithdrawal}</div>
+                  <div className="text-sm font-bold text-white">{formatCurrency(stats.daily_withdrawal)}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* 총 회원 */}
+            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-slate-500/20 to-gray-500/20 border border-slate-500/30 transition-all">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-slate-400" />
+                <div>
+                  <div className="text-[9px] text-slate-300 font-medium">{t.header.totalMembers}</div>
+                  <div className="text-sm font-bold text-white">{formatNumber(totalUsers)}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* 온라인 */}
+            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 transition-all">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-emerald-400" />
+                <div>
+                  <div className="text-[9px] text-emerald-300 font-medium">{t.header.online}</div>
+                  <div className="text-sm font-bold text-white">{formatNumber(stats.online_users)}{t.onlineUsers.people}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 오른쪽: 4개 실시간 알림 + 종 아이콘 + 프로필 */}
+          <div className="flex items-center gap-2">
+            {/* 가입승인 */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div 
+                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:scale-105 transition-all cursor-pointer min-w-[60px]"
+                    onClick={() => onRouteChange?.('/admin/users')}
+                  >
+                    <div className="text-[9px] text-cyan-300 font-medium text-center">{t.header.signupApproval}</div>
+                    <div className="text-base font-bold text-white text-center">{stats.pending_approvals}</div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>{t.header.signupApproval}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* 고객문의 */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div 
+                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:scale-105 transition-all cursor-pointer min-w-[60px]"
+                    onClick={() => onRouteChange?.('/admin/customer-service')}
+                  >
+                    <div className="text-[9px] text-purple-300 font-medium text-center">{t.header.customerInquiry}</div>
+                    <div className="text-base font-bold text-white text-center">{stats.pending_messages}</div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>{t.header.customerInquiry}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* 입금요청 */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div 
+                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:scale-105 transition-all cursor-pointer min-w-[60px]"
+                    onClick={() => onRouteChange?.('/admin/transactions#deposit-request')}
+                  >
+                    <div className="text-[9px] text-emerald-300 font-medium text-center">{t.dashboard.pendingDeposits}</div>
+                    <div className="text-base font-bold text-white text-center">{stats.pending_deposits}</div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>{t.dashboard.pendingDeposits}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* 출금요청 */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div 
+                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 hover:scale-105 transition-all cursor-pointer min-w-[60px]"
+                    onClick={() => onRouteChange?.('/admin/transactions#withdrawal-request')}
+                  >
+                    <div className="text-[9px] text-orange-300 font-medium text-center">{t.dashboard.pendingWithdrawals}</div>
+                    <div className="text-base font-bold text-white text-center">{stats.pending_withdrawals}</div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>{t.dashboard.pendingWithdrawals}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <div className="w-px h-8 bg-slate-700"></div>
+
+            {/* Bell icon (High betting/winning alerts) */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="relative h-9 w-9 p-0 hover:bg-slate-700"
+                    onClick={handleBettingAlertClick}
+                  >
+                    <Bell className="h-5 w-5 text-slate-300" />
+                    {(bettingAlerts.large_betting + bettingAlerts.high_win + bettingAlerts.suspicious) > 0 && (
+                      <Badge className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full text-[10px] bg-rose-500 hover:bg-rose-600 animate-pulse border-0">
+                        {(bettingAlerts.large_betting + bettingAlerts.high_win + bettingAlerts.suspicious) > 99 
+                          ? '99+' 
+                          : (bettingAlerts.large_betting + bettingAlerts.high_win + bettingAlerts.suspicious)}
+                      </Badge>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="space-y-1 text-xs">
+                    <p>Large Bets: {bettingAlerts.large_betting}</p>
+                    <p>High Wins: {bettingAlerts.high_win}</p>
+                    <p>Suspicious: {bettingAlerts.suspicious}</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            <div className="w-px h-8 bg-slate-700"></div>
+
+            {/* 언어 전환 */}
+            <LanguageSwitcher />
+
+            {/* 사용자 메뉴 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full hover:bg-slate-700">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-500 text-white font-semibold text-sm">
+                      {user.nickname.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
+                <div className="px-2 py-2 border-b border-slate-700">
+                  <p className="text-sm font-semibold text-slate-100">{user.nickname}</p>
+                  <p className="text-xs text-slate-400">{user.username}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">관리자 계정</p>
+                </div>
+                <DropdownMenuItem onClick={handleLogout} className="text-rose-400 cursor-pointer hover:bg-slate-700">
+                  <LogOut className="h-4 w-4 mr-2" />
+                  로그아웃
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
