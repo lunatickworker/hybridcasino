@@ -64,11 +64,11 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
   });
 
   const partnerTypes = [
-    { value: 'head_office', label: '대본사', level: 2 },
-    { value: 'main_office', label: '본사', level: 3 },
-    { value: 'sub_office', label: '부본사', level: 4 },
-    { value: 'distributor', label: '총판', level: 5 },
-    { value: 'store', label: '매장', level: 6 },
+    { value: 'head_office', label: t.partnerCreation.partnerTypes.head_office, level: 2 },
+    { value: 'main_office', label: t.partnerCreation.partnerTypes.main_office, level: 3 },
+    { value: 'sub_office', label: t.partnerCreation.partnerTypes.sub_office, level: 4 },
+    { value: 'distributor', label: t.partnerCreation.partnerTypes.distributor, level: 5 },
+    { value: 'store', label: t.partnerCreation.partnerTypes.store, level: 6 },
   ];
 
   useEffect(() => {
@@ -293,12 +293,12 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       if (userCheckError) throw userCheckError;
 
       if (users && users.length > 0) {
-        toast.error(`삭제 불가: 이 파트너에게 ${users.length}명의 회원이 소속되어 있습니다. 먼저 회원을 삭제하거나 다른 파트너로 이동시켜야 합니다.`);
+        toast.error(t.partnerCreation.deleteHasUsers.replace('{{count}}', users.length.toString()));
         return;
       }
 
       // 3. 최종 확인
-      if (!confirm('정말로 이 파트너를 삭제하시겠습니까?\n\n※ 이 작업은 되돌릴 수 없습니다.')) return;
+      if (!confirm(t.partnerCreation.deleteConfirm)) return;
 
       // 4. 삭제 실행
       const { error } = await supabase
@@ -308,40 +308,32 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
       if (error) throw error;
 
-      toast.success('파트너가 성공적으로 삭제되었습니다.');
+      toast.success(t.partnerCreation.deleteSuccess);
       await loadPartners();
     } catch (error: any) {
       console.error('파트너 삭제 실패:', error);
-      toast.error(`파트너 삭제 실패: ${error.message}`);
+      toast.error(t.partnerCreation.deleteFailed.replace('{{error}}', error.message));
     }
   };
 
-  const getPartnerLevelText = (level: number) => {
-    const levelMap: { [key: number]: string } = {
-      1: '시스템관리자',
-      2: '대본사',
-      3: '본사',
-      4: '부본사',
-      5: '총판',
-      6: '매장'
-    };
-    return levelMap[level] || '알 수 없음';
+  const getPartnerLevelText = (level: number): string => {
+    return t.partnerCreation.levelText[level as keyof typeof t.partnerCreation.levelText] || t.partnerCreation.levelText.unknown;
   };
 
   const partnerColumns = [
     {
       key: "username",
-      title: "아이디",
+      title: t.partnerCreation.username,
       sortable: true,
     },
     {
       key: "nickname",
-      title: "닉네임",
+      title: t.partnerCreation.nickname,
       sortable: true,
     },
     {
       key: "level",
-      title: "등급",
+      title: t.partnerCreation.grade,
       cell: (partner: Partner) => (
         <Badge variant={partner.level === 2 ? 'default' : 'secondary'}>
           {getPartnerLevelText(partner.level)}
@@ -350,25 +342,25 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     },
     {
       key: "status",
-      title: "상태",
+      title: t.partnerCreation.status,
       cell: (partner: Partner) => (
         <Badge variant={partner.status === 'active' ? 'default' : 'secondary'}>
-          {partner.status === 'active' ? '활성' : '비활성'}
+          {partner.status === 'active' ? t.partnerCreation.active : t.partnerCreation.inactive}
         </Badge>
       ),
     },
     {
       key: "balance",
-      title: "보유금",
+      title: t.partnerCreation.balance,
       cell: (partner: Partner) => (
         <div className="text-right font-mono">
-          {new Intl.NumberFormat('ko-KR').format(partner.balance || 0)}원
+          {new Intl.NumberFormat('ko-KR').format(partner.balance || 0)}{t.partnerCreation.won}
         </div>
       ),
     },
     {
       key: "created_at",
-      title: "생성일",
+      title: t.partnerCreation.createdAt,
       cell: (partner: Partner) => (
         <div className="text-sm text-muted-foreground">
           {new Date(partner.created_at).toLocaleDateString('ko-KR')}
@@ -377,7 +369,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     },
     {
       key: "actions",
-      title: "관리",
+      title: t.partnerCreation.actions,
       cell: (partner: Partner) => (
         <div className="flex gap-1">
           <Button
@@ -398,15 +390,15 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-slate-100">파트너 관리</h1>
+          <h1 className="text-2xl font-bold text-slate-100">{t.partnerCreation.title}</h1>
           <p className="text-sm text-slate-400">
-            파트너를 생성하고 관리합니다. (API 설정은 api_configs 테이블에서 수동 입력)
+            {t.partnerCreation.description}
           </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={loadPartners} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
-            새로고침
+            {t.common.refresh}
           </Button>
         </div>
       </div>
@@ -416,43 +408,43 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5" />
-              새 파트너 생성
+              {t.partnerCreation.createPartner}
             </CardTitle>
             <CardDescription>
-              파트너 정보를 입력하고 권한을 설정합니다.
+              {t.partnerCreation.createDescription}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="username">아이디</Label>
+                <Label htmlFor="username">{t.partnerCreation.username}</Label>
                 <Input
                   id="username"
                   value={formData.username}
                   onChange={(e) => handleInputChange('username', e.target.value)}
-                  placeholder="파트너 아이디"
+                  placeholder={t.partnerCreation.usernamePlaceholder}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="nickname">닉네임</Label>
+                <Label htmlFor="nickname">{t.partnerCreation.nickname}</Label>
                 <Input
                   id="nickname"
                   value={formData.nickname}
                   onChange={(e) => handleInputChange('nickname', e.target.value)}
-                  placeholder="표시될 닉네임"
+                  placeholder={t.partnerCreation.nicknamePlaceholder}
                 />
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="password">비밀번호</Label>
+                <Label htmlFor="password">{t.partnerCreation.password}</Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
                     value={formData.password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
-                    placeholder="비밀번호 (6자 이상)"
+                    placeholder={t.partnerCreation.passwordPlaceholder}
                   />
                   <Button
                     type="button"
@@ -467,10 +459,10 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="partner_type">파트너 등급</Label>
+                <Label htmlFor="partner_type">{t.partnerCreation.partnerGrade}</Label>
                 <Select value={formData.partner_type} onValueChange={(value) => handleInputChange('partner_type', value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="등급 선택" />
+                    <SelectValue placeholder={t.partnerCreation.selectGrade} />
                   </SelectTrigger>
                   <SelectContent>
                     {partnerTypes
@@ -482,7 +474,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                       })
                       .map((type) => (
                         <SelectItem key={type.value} value={type.value}>
-                          {type.label} (Level {type.level})
+                          {type.label} ({t.partnerCreation.level} {type.level})
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -490,9 +482,9 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
               </div>
 
               <div className="space-y-2">
-                <Label>레벨</Label>
+                <Label>{t.partnerCreation.level}</Label>
                 <Input
-                  value={`Level ${formData.level}`}
+                  value={`${t.partnerCreation.level} ${formData.level}`}
                   readOnly
                   className="bg-muted"
                 />
@@ -502,13 +494,13 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
             {/* Lv1이 Lv3~Lv6 생성 시 소속 파트너 선택 */}
             {user.partner_type === 'system_admin' && formData.partner_type !== 'head_office' && availableParents.length > 0 && (
               <div className="space-y-2">
-                <Label htmlFor="selected_parent">소속 파트너 선택</Label>
+                <Label htmlFor="selected_parent">{t.partnerCreation.selectParentLabel}</Label>
                 <Select 
                   value={formData.selected_parent_id || ''} 
                   onValueChange={(value) => handleInputChange('selected_parent_id', value)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="상위 파트너를 선택하세요" />
+                    <SelectValue placeholder={t.partnerCreation.selectParentPlaceholder} />
                   </SelectTrigger>
                   <SelectContent>
                     {availableParents.map((parent) => (
@@ -519,7 +511,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  선택한 파트너의 하위로 추가됩니다.
+                  {t.partnerCreation.parentDescription}
                 </p>
               </div>
             )}
@@ -528,12 +520,12 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
-                <span className="font-medium">커미션 설정</span>
+                <span className="font-medium">{t.partnerCreation.commissionSettings}</span>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="commission_rolling">롤링 커미션 (%)</Label>
+                  <Label htmlFor="commission_rolling">{t.partnerCreation.rollingCommission}</Label>
                   <Input
                     id="commission_rolling"
                     type="number"
@@ -548,7 +540,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="commission_losing">루징 커미션 (%)</Label>
+                  <Label htmlFor="commission_losing">{t.partnerCreation.losingCommission}</Label>
                   <Input
                     id="commission_losing"
                     type="number"
@@ -563,7 +555,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="withdrawal_fee">환전 수수료 (%)</Label>
+                  <Label htmlFor="withdrawal_fee">{t.partnerCreation.withdrawalFee}</Label>
                   <Input
                     id="withdrawal_fee"
                     type="number"
@@ -582,49 +574,49 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
-                <span className="font-medium">은행 정보</span>
+                <span className="font-medium">{t.partnerCreation.bankInfo}</span>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="bank_name">은행명</Label>
+                  <Label htmlFor="bank_name">{t.partnerCreation.bankName}</Label>
                   <Input
                     id="bank_name"
                     value={formData.bank_name}
                     onChange={(e) => handleInputChange('bank_name', e.target.value)}
-                    placeholder="은행명"
+                    placeholder={t.partnerCreation.bankNamePlaceholder}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="bank_account">계좌번호</Label>
+                  <Label htmlFor="bank_account">{t.partnerCreation.bankAccount}</Label>
                   <Input
                     id="bank_account"
                     value={formData.bank_account}
                     onChange={(e) => handleInputChange('bank_account', e.target.value)}
-                    placeholder="계좌번호"
+                    placeholder={t.partnerCreation.bankAccountPlaceholder}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="bank_holder">예금주</Label>
+                  <Label htmlFor="bank_holder">{t.partnerCreation.bankHolder}</Label>
                   <Input
                     id="bank_holder"
                     value={formData.bank_holder}
                     onChange={(e) => handleInputChange('bank_holder', e.target.value)}
-                    placeholder="예금주명"
+                    placeholder={t.partnerCreation.bankHolderPlaceholder}
                   />
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="contact_info">연락처 정보</Label>
+              <Label htmlFor="contact_info">{t.partnerCreation.contactInfo}</Label>
               <Textarea
                 id="contact_info"
                 value={formData.contact_info}
                 onChange={(e) => handleInputChange('contact_info', e.target.value)}
-                placeholder="연락처, 이메일 등 추가 정보를 입력하세요"
+                placeholder={t.partnerCreation.contactInfoPlaceholder}
                 rows={3}
               />
             </div>
@@ -636,7 +628,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                 className="flex items-center gap-2"
               >
                 <Save className="h-4 w-4" />
-                {saving ? '생성 중...' : '파트너 생성'}
+                {saving ? t.partnerCreation.creating : t.partnerCreation.createButton}
               </Button>
             </div>
           </CardContent>
@@ -646,10 +638,10 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              파트너 목록
+              {t.partnerCreation.partnerList}
             </CardTitle>
             <CardDescription>
-              생성된 파트너 목록을 확인하고 관리합니다.
+              {t.partnerCreation.listDescription}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -658,7 +650,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                 data={partners}
                 columns={partnerColumns}
                 loading={loading}
-                searchPlaceholder="파트너를 검색하세요..."
+                searchPlaceholder={t.partnerCreation.searchPlaceholder}
               />
             </div>
           </CardContent>

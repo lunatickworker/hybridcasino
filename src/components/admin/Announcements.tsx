@@ -54,7 +54,7 @@ export function Announcements({ user }: AnnouncementsProps) {
       <div className="flex items-center justify-center h-64">
         <div className="text-center space-y-4">
           <Bell className="h-12 w-12 text-yellow-500 mx-auto" />
-          <p className="text-muted-foreground">{t('announcements.accessDenied')}</p>
+          <p className="text-muted-foreground">{t.announcements.accessDenied}</p>
         </div>
       </div>
     );
@@ -98,7 +98,7 @@ export function Announcements({ user }: AnnouncementsProps) {
           table: 'announcements'
         },
         (payload) => {
-          console.log('🔔 공지사항 테이블 변경 감지:', payload);
+          console.log(`🔔 ${t.announcements.consoleLog}`, payload);
           fetchAnnouncements();
         }
       )
@@ -135,8 +135,8 @@ export function Announcements({ user }: AnnouncementsProps) {
 
       return publicUrl;
     } catch (error) {
-      console.error('이미지 업로드 오류:', error);
-      toast.error('이미지 업로드에 실패했습니다.');
+      console.error(`${t.announcements.imageUploadError}`, error);
+      toast.error(t.announcements.imageUploadFailed);
       return null;
     } finally {
       setUploading(false);
@@ -150,13 +150,13 @@ export function Announcements({ user }: AnnouncementsProps) {
 
     // 파일 크기 체크 (5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error('이미지 크기는 5MB 이하여야 합니다.');
+      toast.error(t.announcements.imageSizeError);
       return;
     }
 
     // 이미지 파일 타입 체크
     if (!file.type.startsWith('image/')) {
-      toast.error('이미지 파일만 업로드 가능합니다.');
+      toast.error(t.announcements.imageTypeError);
       return;
     }
 
@@ -164,7 +164,7 @@ export function Announcements({ user }: AnnouncementsProps) {
     if (imageUrl) {
       setUploadedImage(imageUrl);
       setFormData(prev => ({ ...prev, image_url: imageUrl }));
-      toast.success('이미지가 업로드되었습니다.');
+      toast.success(t.announcements.imageUploadSuccess);
     }
   };
 
@@ -213,7 +213,7 @@ export function Announcements({ user }: AnnouncementsProps) {
       const formattedAnnouncements = (data || []).map((announcement: any) => ({
         id: announcement.id,
         partner_id: announcement.partner_id,
-        partner_username: announcement.partners?.username || '알 수 없음',
+        partner_username: announcement.partners?.username || t.announcements.unknown,
         title: announcement.title,
         content: announcement.content,
         image_url: announcement.image_url,
@@ -231,8 +231,8 @@ export function Announcements({ user }: AnnouncementsProps) {
 
       setAnnouncements(formattedAnnouncements);
     } catch (error) {
-      console.error('공지사항 조회 오류:', error);
-      toast.error('공지사항을 불러오는데 실패했습니다.');
+      console.error(t.announcements.loadFailed, error);
+      toast.error(t.announcements.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -241,7 +241,7 @@ export function Announcements({ user }: AnnouncementsProps) {
   // 공지사항 저장/수정
   const saveAnnouncement = async () => {
     if (!formData.title.trim() || !formData.content.trim()) {
-      toast.error('제목과 내용을 입력해주세요.');
+      toast.error(t.announcements.titleContentRequired);
       return;
     }
 
@@ -272,7 +272,7 @@ export function Announcements({ user }: AnnouncementsProps) {
 
       if (result.error) throw result.error;
 
-      toast.success(editingAnnouncement ? '공지사항이 수정되었습니다.' : '공지사항이 등록되었습니다.');
+      toast.success(editingAnnouncement ? t.announcements.updateSuccess : t.announcements.createSuccess);
       
       // WebSocket으로 실시간 알림 전송
       if (!editingAnnouncement && sendMessage) {
@@ -287,14 +287,14 @@ export function Announcements({ user }: AnnouncementsProps) {
       setIsDialogOpen(false);
       fetchAnnouncements();
     } catch (error) {
-      console.error('공지사항 저장 오류:', error);
-      toast.error('공지사항 저장에 실패했습니다.');
+      console.error(t.announcements.saveFailed, error);
+      toast.error(t.announcements.saveFailed);
     }
   };
 
   // 공지사항 삭제
   const deleteAnnouncement = async (announcementId: string) => {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    if (!confirm(t.announcements.confirmDelete)) return;
 
     try {
       const { error } = await supabase
@@ -304,11 +304,11 @@ export function Announcements({ user }: AnnouncementsProps) {
 
       if (error) throw error;
 
-      toast.success('공지사항이 삭제되었습니다.');
+      toast.success(t.announcements.deleteSuccess);
       fetchAnnouncements();
     } catch (error) {
-      console.error('공지사항 삭제 오류:', error);
-      toast.error('공지사항 삭제에 실패했습니다.');
+      console.error(t.announcements.deleteFailed, error);
+      toast.error(t.announcements.deleteFailed);
     }
   };
 
@@ -327,15 +327,15 @@ export function Announcements({ user }: AnnouncementsProps) {
       ));
 
       const statusLabel = {
-        'active': '활성',
-        'inactive': '비활성',
-        'draft': '임시저장'
+        'active': t.announcements.statusActive,
+        'inactive': t.announcements.statusInactive,
+        'draft': t.announcements.statusDraft
       }[newStatus] || newStatus;
 
-      toast.success(`공지사항 상태가 "${statusLabel}"로 변경되었습니다.`);
+      toast.success(t.announcements.statusUpdateSuccess.replace('{{status}}', statusLabel));
     } catch (error) {
-      console.error('공지사항 상태 변경 오류:', error);
-      toast.error('공지사항 상태 변경에 실패했습니다.');
+      console.error(t.announcements.statusUpdateFailed, error);
+      toast.error(t.announcements.statusUpdateFailed);
     }
   };
 
@@ -393,38 +393,38 @@ export function Announcements({ user }: AnnouncementsProps) {
   const columns = [
     {
       key: 'title',
-      title: '제목',
+      title: t.announcements.titleColumn,
       render: (value: string, row: Announcement) => (
         <div>
           <div className="font-medium">{value}</div>
           <div className="flex gap-1 mt-1">
-            {row.is_popup && <Badge variant="destructive" className="text-xs">팝업</Badge>}
-            {row.target_audience === 'partners' && <Badge variant="secondary" className="text-xs">관리자</Badge>}
-            {row.target_level && <Badge variant="outline" className="text-xs">Level {row.target_level}</Badge>}
+            {row.is_popup && <Badge variant="destructive" className="text-xs">{t.announcements.popupBadge}</Badge>}
+            {row.target_audience === 'partners' && <Badge variant="secondary" className="text-xs">{t.announcements.adminBadge}</Badge>}
+            {row.target_level && <Badge variant="outline" className="text-xs">{t.announcements.levelBadge.replace('{{level}}', row.target_level.toString())}</Badge>}
           </div>
         </div>
       )
     },
     {
       key: 'target_audience',
-      title: '대상',
+      title: t.announcements.targetColumn,
       render: (value: string) => {
         const targetLabels: Record<string, string> = {
-          'all': '전체',
-          'users': '사용자',
-          'partners': '관리자'
+          'all': t.announcements.targetAll,
+          'users': t.announcements.targetUsers,
+          'partners': t.announcements.targetPartners
         };
         return <Badge variant="outline">{targetLabels[value] || value}</Badge>;
       }
     },
     {
       key: 'status',
-      title: '상태',
+      title: t.announcements.statusColumn,
       render: (value: string, row: Announcement) => {
         const statusConfig: Record<string, { label: string, color: string }> = {
-          'active': { label: '활성', color: 'bg-green-100 text-green-800' },
-          'inactive': { label: '비활성', color: 'bg-gray-100 text-gray-800' },
-          'draft': { label: '임시저장', color: 'bg-yellow-100 text-yellow-800' }
+          'active': { label: t.announcements.statusActive, color: 'bg-green-100 text-green-800' },
+          'inactive': { label: t.announcements.statusInactive, color: 'bg-gray-100 text-gray-800' },
+          'draft': { label: t.announcements.statusDraft, color: 'bg-yellow-100 text-yellow-800' }
         };
         
         const config = statusConfig[value] || statusConfig.draft;
@@ -435,9 +435,9 @@ export function Announcements({ user }: AnnouncementsProps) {
               <span>{config.label}</span>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="active">활성</SelectItem>
-              <SelectItem value="inactive">비활성</SelectItem>
-              <SelectItem value="draft">임시저장</SelectItem>
+              <SelectItem value="active">{t.announcements.statusActive}</SelectItem>
+              <SelectItem value="inactive">{t.announcements.statusInactive}</SelectItem>
+              <SelectItem value="draft">{t.announcements.statusDraft}</SelectItem>
             </SelectContent>
           </Select>
         );
@@ -445,7 +445,7 @@ export function Announcements({ user }: AnnouncementsProps) {
     },
     {
       key: 'view_count',
-      title: '조회수',
+      title: t.announcements.viewCountColumn,
       render: (value: number) => (
         <div className="flex items-center gap-1">
           <Eye className="h-4 w-4 text-muted-foreground" />
@@ -455,19 +455,19 @@ export function Announcements({ user }: AnnouncementsProps) {
     },
     {
       key: 'partner_username',
-      title: '작성자',
+      title: t.announcements.authorColumn,
       render: (value: string) => (
         <span className="text-sm">{value}</span>
       )
     },
     {
       key: 'created_at',
-      title: '작성일',
+      title: t.announcements.createdAtColumn,
       render: (value: string) => new Date(value).toLocaleDateString('ko-KR')
     },
     {
       key: 'actions',
-      title: '관리',
+      title: t.announcements.actionsColumn,
       render: (value: any, row: Announcement) => (
         <div className="flex gap-1">
           <Button
@@ -507,7 +507,7 @@ export function Announcements({ user }: AnnouncementsProps) {
           <DialogTrigger asChild>
             <Button className="btn-premium-primary">
               <Plus className="h-4 w-4 mr-2" />
-              공지사항 작성
+              {t.announcements.create}
             </Button>
           </DialogTrigger>
             <DialogContent className="!max-w-[min(1000px,90vw)] w-[90vw] max-h-[85vh] overflow-hidden glass-card p-0 flex flex-col">
@@ -517,10 +517,10 @@ export function Announcements({ user }: AnnouncementsProps) {
                   <div className="p-2.5 bg-blue-500/20 rounded-lg">
                     <Bell className="h-7 w-7 text-blue-400" />
                   </div>
-                  {editingAnnouncement ? '공지사항 수정' : '새 공지사항 작성'}
+                  {editingAnnouncement ? t.announcements.editTitle : t.announcements.createTitle}
                 </DialogTitle>
                 <DialogDescription className="text-slate-300 mt-2 text-base">
-                  {editingAnnouncement ? '공지사항 내용을 수정합니다.' : '새로운 공지사항을 작성하고 사용자에게 전달합니다.'}
+                  {editingAnnouncement ? t.announcements.editDescription : t.announcements.createDescription}
                 </DialogDescription>
               </DialogHeader>
 
@@ -530,33 +530,33 @@ export function Announcements({ user }: AnnouncementsProps) {
                 <div className="space-y-4 p-5 border border-slate-700/50 rounded-xl bg-gradient-to-br from-slate-900/50 to-slate-800/30 shadow-lg">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="h-1 w-8 bg-blue-500 rounded-full"></div>
-                    <h4 className="font-semibold text-slate-100">기본 정보</h4>
+                    <h4 className="font-semibold text-slate-100">{t.announcements.basicInfoSection}</h4>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-3">
                       <Label htmlFor="title" className="text-slate-200 flex items-center gap-2">
                         <FileText className="h-3.5 w-3.5 text-blue-400" />
-                        제목 *
+                        {t.announcements.titleRequired}
                       </Label>
                       <Input
                         id="title"
                         value={formData.title}
                         onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                        placeholder="공지사항 제목을 입력하세요"
+                        placeholder={t.announcements.titlePlaceholder}
                         className="input-premium h-11 text-base border-slate-600 focus:border-blue-500 bg-slate-800/50"
                       />
                     </div>
                     <div className="space-y-3">
-                      <Label className="text-slate-200">상태</Label>
+                      <Label className="text-slate-200">{t.announcements.statusLabel}</Label>
                       <Select value={formData.status} onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}>
                         <SelectTrigger className="h-11 bg-slate-800/50 border-slate-600 hover:border-blue-500 transition-colors">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-900 border-slate-700">
-                          <SelectItem value="active">✅ 활성</SelectItem>
-                          <SelectItem value="inactive">⏸️ 비활성</SelectItem>
-                          <SelectItem value="draft">📝 임시저장</SelectItem>
+                          <SelectItem value="active">{t.announcements.active}</SelectItem>
+                          <SelectItem value="inactive">{t.announcements.inactive}</SelectItem>
+                          <SelectItem value="draft">{t.announcements.draft}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -564,32 +564,32 @@ export function Announcements({ user }: AnnouncementsProps) {
 
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-3">
-                      <Label className="text-slate-200">대상</Label>
+                      <Label className="text-slate-200">{t.announcements.targetLabel}</Label>
                       <Select value={formData.target_audience} onValueChange={(value) => setFormData(prev => ({ ...prev, target_audience: value }))}>
                         <SelectTrigger className="h-11 bg-slate-800/50 border-slate-600 hover:border-blue-500 transition-colors">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-900 border-slate-700">
-                          <SelectItem value="all">👥 전체</SelectItem>
-                          <SelectItem value="users">👤 사용자</SelectItem>
-                          <SelectItem value="partners">🤝 관리자</SelectItem>
+                          <SelectItem value="all">{t.announcements.allTarget}</SelectItem>
+                          <SelectItem value="users">{t.announcements.usersTarget}</SelectItem>
+                          <SelectItem value="partners">{t.announcements.partnersTarget}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-3">
-                      <Label className="text-slate-200">대상 레벨</Label>
+                      <Label className="text-slate-200">{t.announcements.targetLevelLabel}</Label>
                       <Input
                         type="number"
                         min="1"
                         max="6"
                         value={formData.target_level}
                         onChange={(e) => setFormData(prev => ({ ...prev, target_level: e.target.value }))}
-                        placeholder="특정 레벨만 (1-6)"
+                        placeholder={t.announcements.targetLevelPlaceholder}
                         className="input-premium h-11 bg-slate-800/50 border-slate-600 focus:border-blue-500"
                       />
                     </div>
                     <div className="space-y-3">
-                      <Label className="text-slate-200">표시 순서</Label>
+                      <Label className="text-slate-200">{t.announcements.displayOrderLabel}</Label>
                       <Input
                         type="number"
                         value={formData.display_order}
@@ -603,7 +603,7 @@ export function Announcements({ user }: AnnouncementsProps) {
                     <div className="space-y-3">
                       <Label className="text-slate-200 flex items-center gap-2">
                         <Calendar className="h-3.5 w-3.5 text-blue-400" />
-                        시작일
+                        {t.announcements.startDateLabel}
                       </Label>
                       <Input
                         type="date"
@@ -613,12 +613,12 @@ export function Announcements({ user }: AnnouncementsProps) {
                       />
                     </div>
                     <div className="space-y-3">
-                      <Label className="text-slate-200">종료일</Label>
+                      <Label className="text-slate-200">{t.announcements.endDateLabel}</Label>
                       <Input
                         type="date"
                         value={formData.end_date}
                         onChange={(e) => setFormData(prev => ({ ...prev, end_date: e.target.value }))}
-                        placeholder="선택사항"
+                        placeholder={t.announcements.endDatePlaceholder}
                         className="input-premium h-11 bg-slate-800/50 border-slate-600 focus:border-blue-500"
                       />
                     </div>
@@ -631,7 +631,7 @@ export function Announcements({ user }: AnnouncementsProps) {
                       onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_popup: checked }))}
                     />
                     <Label htmlFor="is_popup" className="text-slate-200 cursor-pointer">
-                      팝업으로 표시
+                      {t.announcements.popupLabel}
                     </Label>
                   </div>
                 </div>
@@ -640,25 +640,25 @@ export function Announcements({ user }: AnnouncementsProps) {
                 <div className="space-y-4 p-5 border border-slate-700/50 rounded-xl bg-gradient-to-br from-slate-900/50 to-slate-800/30 shadow-lg">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="h-1 w-8 bg-green-500 rounded-full"></div>
-                    <h4 className="font-semibold text-slate-100">공지사항 내용</h4>
+                    <h4 className="font-semibold text-slate-100">{t.announcements.contentSection}</h4>
                   </div>
                   
                   <div className="space-y-3">
                     <Label htmlFor="content" className="text-slate-200 flex items-center gap-2">
                       <FileText className="h-3.5 w-3.5 text-green-400" />
-                      내용 *
+                      {t.announcements.contentRequired}
                     </Label>
                     <Textarea
                       id="content"
                       value={formData.content}
                       onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                      placeholder="공지사항 내용을 입력하세요&#10;&#10;• 공지사항 내용을 상세히 작성하세요&#10;• 필요시 이미지를 첨부할 수 있습니다"
+                      placeholder={t.announcements.contentPlaceholder}
                       rows={8}
                       className="input-premium bg-slate-800/50 border-slate-600 focus:border-green-500 resize-none text-base leading-relaxed"
                     />
                     <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
                       <p className="text-xs text-slate-400">
-                        💡 <strong className="text-slate-300">작성 팁:</strong> 명확하고 간결하게 작성하세요
+                        {t.announcements.writingTip}
                       </p>
                     </div>
                   </div>
@@ -669,7 +669,7 @@ export function Announcements({ user }: AnnouncementsProps) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="h-1 w-8 bg-purple-500 rounded-full"></div>
-                      <h4 className="font-semibold text-slate-100">이미지 첨부</h4>
+                      <h4 className="font-semibold text-slate-100">{t.announcements.imageSection}</h4>
                     </div>
                     {uploadedImage && (
                       <Button
@@ -680,7 +680,7 @@ export function Announcements({ user }: AnnouncementsProps) {
                         className="h-8 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
                       >
                         <X className="h-4 w-4 mr-1" />
-                        제거
+                        {t.announcements.imageRemove}
                       </Button>
                     )}
                   </div>
@@ -689,7 +689,7 @@ export function Announcements({ user }: AnnouncementsProps) {
                     <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                       <p className="text-xs text-blue-300 flex items-center gap-2">
                         <Info className="h-3.5 w-3.5" />
-                        최대 5MB, JPG/PNG/GIF 형식
+                        {t.announcements.imageInfo}
                       </p>
                     </div>
 
@@ -699,13 +699,13 @@ export function Announcements({ user }: AnnouncementsProps) {
                           <div className="p-4 flex items-center justify-center">
                             <img 
                               src={uploadedImage} 
-                              alt="업로드된 이미지" 
+                              alt={t.announcements.imageUploadedAlt}
                               className="max-w-full max-h-60 object-contain rounded"
                             />
                           </div>
                           <div className="absolute top-2 right-2">
                             <Badge variant="secondary" className="bg-green-500/90 text-white">
-                              미리보기
+                              {t.announcements.imagePreview}
                             </Badge>
                           </div>
                         </div>
@@ -720,7 +720,7 @@ export function Announcements({ user }: AnnouncementsProps) {
                             <div className="p-3 bg-slate-700/50 rounded-full group-hover:bg-purple-500/20 transition-colors">
                               <Upload className="h-6 w-6 text-slate-400 group-hover:text-purple-400 transition-colors" />
                             </div>
-                            <span>클릭하여 이미지 업로드</span>
+                            <span>{t.announcements.imageUploadPlaceholder}</span>
                           </div>
                         </Label>
                         <Input
@@ -734,7 +734,7 @@ export function Announcements({ user }: AnnouncementsProps) {
                         {uploading && (
                           <div className="flex items-center gap-2 text-sm text-slate-400">
                             <div className="loading-premium w-4 h-4"></div>
-                            업로드 중...
+                            {t.announcements.uploading}
                           </div>
                         )}
                       </div>
@@ -751,14 +751,14 @@ export function Announcements({ user }: AnnouncementsProps) {
                   className="btn-premium-primary flex items-center gap-3 flex-1 h-12 text-base shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 transition-all"
                 >
                   <Bell className="h-5 w-5" />
-                  {editingAnnouncement ? '수정' : '등록'}
+                  {editingAnnouncement ? t.announcements.update : t.announcements.save}
                 </Button>
                 <Button 
                   onClick={() => setIsDialogOpen(false)}
                   variant="outline"
                   className="border-slate-600 hover:bg-slate-700/50 h-12 px-8 text-base"
                 >
-                  취소
+                  {t.announcements.cancel}
                 </Button>
               </div>
             </DialogContent>
@@ -770,10 +770,10 @@ export function Announcements({ user }: AnnouncementsProps) {
           <div>
             <h2 className="text-xl font-semibold text-slate-100 flex items-center gap-2">
               <Bell className="h-5 w-5 text-blue-400" />
-              공지사항 목록
+              {t.announcements.announcementListTitle}
             </h2>
             <p className="text-sm text-slate-400 mt-1">
-              작성된 공지사항을 관리하고 대상별로 분류할 수 있습니다.
+              {t.announcements.announcementListDescription}
             </p>
           </div>
         </div>
@@ -784,7 +784,7 @@ export function Announcements({ user }: AnnouncementsProps) {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
                 <Input
-                  placeholder="제목, 내용으로 검색..."
+                  placeholder={t.announcements.searchPlaceholder}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9 input-premium"
@@ -796,10 +796,10 @@ export function Announcements({ user }: AnnouncementsProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">전체 상태</SelectItem>
-                <SelectItem value="active">활성</SelectItem>
-                <SelectItem value="inactive">비활성</SelectItem>
-                <SelectItem value="draft">임시저장</SelectItem>
+                <SelectItem value="all">{t.announcements.allStatus}</SelectItem>
+                <SelectItem value="active">{t.announcements.statusActive}</SelectItem>
+                <SelectItem value="inactive">{t.announcements.statusInactive}</SelectItem>
+                <SelectItem value="draft">{t.announcements.statusDraft}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={targetFilter} onValueChange={setTargetFilter}>
@@ -807,9 +807,9 @@ export function Announcements({ user }: AnnouncementsProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">전체 대상</SelectItem>
-                <SelectItem value="users">사용자</SelectItem>
-                <SelectItem value="partners">관리자</SelectItem>
+                <SelectItem value="all">{t.announcements.allTargets}</SelectItem>
+                <SelectItem value="users">{t.announcements.targetUsers}</SelectItem>
+                <SelectItem value="partners">{t.announcements.targetPartners}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -830,5 +830,3 @@ export function Announcements({ user }: AnnouncementsProps) {
     </div>
   );
 }
-
-export default Announcements;

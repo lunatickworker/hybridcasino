@@ -432,7 +432,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
     },
     {
       key: 'played_at',
-      header: '프로바이더 시간',
+      header: t.bettingHistory.providerTime,
       render: (_: any, record: BettingRecord) => (
         <span className="text-xs text-slate-400">{formatKoreanDate(record?.played_at)}</span>
       )
@@ -448,25 +448,25 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       {/* 통계 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <MetricCard
-          title="총 베팅 수"
+          title={t.bettingHistory.totalBets}
           value={stats.totalBets.toLocaleString()}
           icon={CreditCard}
           color="purple"
         />
         <MetricCard
-          title="총 베팅액"
+          title={t.bettingHistory.totalBetAmount}
           value={`₩${stats.totalBetAmount.toLocaleString()}`}
           icon={CreditCard}
           color="red"
         />
         <MetricCard
-          title="총 당첨액"
+          title={t.bettingHistory.totalWinAmount}
           value={`₩${stats.totalWinAmount.toLocaleString()}`}
           icon={CreditCard}
           color="green"
         />
         <MetricCard
-          title="순손익"
+          title={t.bettingHistory.netProfit}
           value={`₩${stats.netProfit.toLocaleString()}`}
           icon={CreditCard}
           color={stats.netProfit >= 0 ? "green" : "red"}
@@ -478,18 +478,18 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         <div className="flex gap-2 items-center w-full md:w-auto flex-wrap">
           <Select value={dateFilter} onValueChange={setDateFilter}>
             <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="기간 선택" />
+              <SelectValue placeholder={t.bettingHistory.periodSelection} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">전체</SelectItem>
-              <SelectItem value="today">오늘</SelectItem>
-              <SelectItem value="week">최근 7일</SelectItem>
-              <SelectItem value="month">최근 30일</SelectItem>
+              <SelectItem value="all">{t.bettingHistory.all}</SelectItem>
+              <SelectItem value="today">{t.bettingHistory.today}</SelectItem>
+              <SelectItem value="week">{t.bettingHistory.last7Days}</SelectItem>
+              <SelectItem value="month">{t.bettingHistory.last30Days}</SelectItem>
             </SelectContent>
           </Select>
           
           <Input
-            placeholder="사용자명, 게임명 검색..."
+            placeholder={t.bettingHistory.searchPlaceholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full md:w-[250px]"
@@ -503,7 +503,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
           </Button>
           <Button onClick={downloadExcel} variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
-            CSV 다운로드
+            {t.bettingHistory.csvDownload}
           </Button>
         </div>
       </div>
@@ -512,7 +512,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       <DataTable
         data={filteredRecords}
         columns={columns}
-        emptyMessage="베팅 기록이 없습니다."
+        emptyMessage={t.bettingHistory.noBettingRecords}
         enableSearch={false}
         pageSize={20}
       />

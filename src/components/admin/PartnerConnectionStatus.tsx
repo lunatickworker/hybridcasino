@@ -291,15 +291,15 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
     };
   }, [user.id, allPartnerIds]);
 
-  // 파트너 타입 한글 변환
+  // 파트너 타입 텍스트 변환
   const getPartnerTypeText = (type: string) => {
     const typeMap: Record<string, string> = {
-      'system_admin': '시스템관리자',
-      'head_office': '대본사',
-      'main_office': '본사',
-      'sub_office': '부본사',
-      'distributor': '총판',
-      'store': '매장'
+      'system_admin': t.partnerCreation.partnerTypes.system_admin,
+      'head_office': t.partnerCreation.partnerTypes.head_office,
+      'main_office': t.partnerCreation.partnerTypes.main_office,
+      'sub_office': t.partnerCreation.partnerTypes.sub_office,
+      'distributor': t.partnerCreation.partnerTypes.distributor,
+      'store': t.partnerCreation.partnerTypes.store
     };
     return typeMap[type] || type;
   };
@@ -313,12 +313,14 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
     const diffMinutes = Math.floor((now - loginTime) / 1000 / 60);
     
     if (diffMinutes < 60) {
-      return `${diffMinutes}분`;
+      return t.partnerConnectionStatus.minutesAgo.replace('{{minutes}}', diffMinutes.toString());
     }
     
     const hours = Math.floor(diffMinutes / 60);
     const minutes = diffMinutes % 60;
-    return `${hours}시간 ${minutes}분`;
+    return t.partnerConnectionStatus.hoursMinutesAgo
+      .replace('{{hours}}', hours.toString())
+      .replace('{{minutes}}', minutes.toString());
   };
 
   // 온라인 파트너 (최근 30분 이내 접속)
@@ -333,7 +335,7 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
 
   const columns = [
     {
-      header: "파트너 정보",
+      header: t.partnerConnectionStatus.partnerInfo,
       cell: (partner: PartnerConnection) => (
         <div className="flex flex-col gap-2 py-2">
           <div className="flex items-center gap-2">
@@ -344,20 +346,20 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="text-xs px-2 py-0.5">
-              LV.{partner.level}
+              {t.partnerConnectionStatus.levelPrefix}{partner.level}
             </Badge>
             <span className="text-xs text-muted-foreground">
               {getPartnerTypeText(partner.partner_type)}
             </span>
           </div>
           <span className="text-xs text-muted-foreground">
-            상위: {partner.parent_nickname}
+            {t.partnerConnectionStatus.parentLabel}: {partner.parent_nickname}
           </span>
         </div>
       ),
     },
     {
-      header: "파트너 보유금",
+      header: t.partnerConnectionStatus.partnerBalance,
       cell: (partner: PartnerConnection) => (
         <div className="flex flex-col gap-1 py-2">
           <span className={`font-medium ${partner.balance < 0 ? "text-red-400" : "text-emerald-400"}`}>
@@ -367,17 +369,17 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
       ),
     },
     {
-      header: "사용자 수",
+      header: t.partnerConnectionStatus.userCount,
       cell: (partner: PartnerConnection) => (
         <div className="flex flex-col gap-1 py-2">
           <span className="font-medium text-cyan-400">
-            {partner.user_count.toLocaleString()}명
+            {t.partnerConnectionStatus.peopleCount.replace('{{count}}', partner.user_count.toLocaleString())}
           </span>
         </div>
       ),
     },
     {
-      header: "사용자 보유금 합계",
+      header: t.partnerConnectionStatus.userBalanceSum,
       cell: (partner: PartnerConnection) => (
         <div className="flex flex-col gap-1 py-2">
           <span className={`font-medium ${partner.users_balance < 0 ? "text-red-400" : "text-blue-400"}`}>
@@ -387,7 +389,7 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
       ),
     },
     {
-      header: "접속 상태",
+      header: t.partnerConnectionStatus.connectionStatus,
       cell: (partner: PartnerConnection) => {
         const isOnline = partner.last_login_at && 
           (Date.now() - new Date(partner.last_login_at).getTime()) / 1000 / 60 <= 30 &&
@@ -399,11 +401,11 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
               variant={isOnline ? "default" : "outline"}
               className={isOnline ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50" : ""}
             >
-              {isOnline ? '🟢 온라인' : '⚫ 오프라인'}
+              {isOnline ? t.partnerConnectionStatus.online : t.partnerConnectionStatus.offline}
             </Badge>
             {partner.status === 'suspended' && (
               <Badge variant="destructive" className="text-xs">
-                정지됨
+                {t.partnerConnectionStatus.suspended}
               </Badge>
             )}
           </div>
@@ -411,7 +413,7 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
       },
     },
     {
-      header: "최근 접속 일시",
+      header: t.partnerConnectionStatus.lastLoginTime,
       cell: (partner: PartnerConnection) => (
         <div className="flex flex-col gap-1 py-2">
           <span className="text-sm">
@@ -428,7 +430,7 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
           </span>
           {partner.last_login_at && (
             <span className="text-xs text-muted-foreground">
-              ({getSessionTime(partner.last_login_at)} 경과)
+              {t.partnerConnectionStatus.elapsedTime.replace('{{time}}', getSessionTime(partner.last_login_at))}
             </span>
           )}
         </div>
@@ -450,7 +452,7 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
         <div className="relative max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="파트너명, 닉네임, 상위 파트너, 등급으로 검색..."
+            placeholder={t.partnerConnectionStatus.searchPlaceholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 bg-card/50 border-border/50"
@@ -460,30 +462,30 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
 
       <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          title="온라인 파트너"
-          value={`${onlinePartners.length}명`}
-          subtitle="최근 30분 이내 접속 중"
+          title={t.partnerConnectionStatus.onlinePartners}
+          value={t.partnerConnectionStatus.peopleCount.replace('{{count}}', onlinePartners.length.toString())}
+          subtitle={t.partnerConnectionStatus.onlineSubtitle}
           icon={Wifi}
           color="purple"
         />
         <MetricCard
-          title="파트너 보유금 합계"
+          title={t.partnerConnectionStatus.partnerBalanceTotal}
           value={`₩${totalPartnerBalance.toLocaleString()}`}
-          subtitle="전체 하위 파트너 보유금"
+          subtitle={t.partnerConnectionStatus.partnerBalanceSubtitle}
           icon={CreditCard}
           color="pink"
         />
         <MetricCard
-          title="관리 사용자 수"
-          value={`${stats.totalUsers.toLocaleString()}명`}
-          subtitle="전체 하위 사용자 수"
+          title={t.partnerConnectionStatus.managedUsersCount}
+          value={t.partnerConnectionStatus.peopleCount.replace('{{count}}', stats.totalUsers.toLocaleString())}
+          subtitle={t.partnerConnectionStatus.managedUsersSubtitle}
           icon={Users}
           color="cyan"
         />
         <MetricCard
-          title="사용자 보유금 합계"
+          title={t.partnerConnectionStatus.userBalanceTotal}
           value={`₩${stats.totalUserBalance.toLocaleString()}`}
-          subtitle="전체 사용자 보유금"
+          subtitle={t.partnerConnectionStatus.userBalanceSubtitle}
           icon={Wallet}
           color="amber"
         />
@@ -493,15 +495,15 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
         <div className="flex items-center justify-center py-16">
           <div className="text-center space-y-3">
             <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-sm text-muted-foreground">데이터를 불러오는 중...</p>
+            <p className="text-sm text-muted-foreground">{t.partnerConnectionStatus.loadingData}</p>
           </div>
         </div>
       ) : (
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <p className="text-sm text-muted-foreground">
-              총 <span className="text-primary font-medium">{filteredPartners.length}</span>개의 파트너
-              {searchQuery && ` (전체 ${partners.length}개 중 검색됨)`}
+              {t.partnerConnectionStatus.totalPartners.replace('{{count}}', filteredPartners.length.toString())}
+              {searchQuery && ` ${t.partnerConnectionStatus.searchResults.replace('{{total}}', partners.length.toString())}`}
             </p>
           </div>
           <DataTable
@@ -509,8 +511,8 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
             columns={columns}
             emptyMessage={
               searchQuery 
-                ? "검색 결과가 없습니다" 
-                : "조회된 파트너가 없습니다"
+                ? t.partnerConnectionStatus.noSearchResults
+                : t.partnerConnectionStatus.noPartners
             }
             rowKey="id"
           />

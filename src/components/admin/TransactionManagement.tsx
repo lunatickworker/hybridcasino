@@ -243,7 +243,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       }
     } catch (error) {
       console.error('❌ 데이터 로드 실패:', error);
-      toast.error('데이터를 불러오는데 실패했습니다.');
+      toast.error(t.transactionManagement.loadDataFailed);
     } finally {
       if (isInitial) {
         setInitialLoading(false);
@@ -350,7 +350,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
         // 사용자 username 조회
         if (!transaction.user?.username) {
-          throw new Error('사용자 정보를 찾을 수 없습니다.');
+          throw new Error(t.transactionManagement.userInfoNotFound);
         }
 
         // amount를 정수로 변환 (Guidelines: 입금액/출금액은 숫자만)
@@ -408,7 +408,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       if (error) throw error;
 
-      toast.success(`거래가 ${action === 'approve' ? '승인' : '거절'}되었습니다.`);
+      toast.success(action === 'approve' ? t.transactionManagement.transactionApproved : t.transactionManagement.transactionRejected);
       
       // WebSocket으로 실시간 알림
       sendMessage({
@@ -425,7 +425,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       // loadData 호출 제거 - Realtime subscription이 자동으로 처리
     } catch (error) {
       console.error('거래 처리 실패:', error);
-      toast.error(error instanceof Error ? error.message : '거래 처리에 실패했습니다.');
+      toast.error(error instanceof Error ? error.message : t.transactionManagement.transactionProcessFailed);
     } finally {
       setRefreshing(false);
     }
@@ -438,18 +438,18 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       const { type, userId, amount, memo } = forceDialog;
 
       if (!userId || !amount) {
-        toast.error('회원과 금액을 입력해주세요.');
+        toast.error(t.transactionManagement.enterMemberAndAmount);
         return;
       }
 
       const selectedUser = users.find(u => u.id === userId);
       if (!selectedUser) {
-        toast.error('회원을 찾을 수 없습니다.');
+        toast.error(t.transactionManagement.memberNotFoundError);
         return;
       }
 
       if (!selectedUser.username) {
-        toast.error('회원 username을 찾을 수 없습니다.');
+        toast.error(t.transactionManagement.memberUsernameNotFound);
         return;
       }
 
@@ -466,7 +466,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       // 출금 시 보유금 검증
       if (type === 'withdrawal' && amountNum > balanceBefore) {
-        toast.error(`출금 금액이 보유금(₩${balanceBefore.toLocaleString()})을 초과할 수 없습니다.`);
+        toast.error(t.transactionManagement.withdrawalExceedsBalance.replace('{{balance}}', balanceBefore.toLocaleString()));
         setRefreshing(false);
         return;
       }
@@ -589,7 +589,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         }
       }
 
-      toast.success(`강제 ${type === 'deposit' ? '입금' : '출금'}이 완료되었습니다. (잔액: ₩${balanceAfter.toLocaleString()})`);
+      const successMsg = type === 'deposit' 
+        ? t.transactionManagement.forceDepositSuccess.replace('{{balance}}', balanceAfter.toLocaleString())
+        : t.transactionManagement.forceWithdrawalSuccess.replace('{{balance}}', balanceAfter.toLocaleString());
+      toast.success(successMsg);
       
       // WebSocket으로 실시간 알림
       sendMessage({
@@ -607,7 +610,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       // loadData 호출 제거 - Realtime subscription이 자동으로 처리
     } catch (error) {
       console.error('강제 입출금 실패:', error);
-      toast.error(error instanceof Error ? error.message : '강제 입출금에 실패했습니다.');
+      toast.error(error instanceof Error ? error.message : t.transactionManagement.forceTransactionFailed);
     } finally {
       setRefreshing(false);
     }
@@ -735,7 +738,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   // 거래 테이블 컬럼
   const getColumns = (showActions = false) => [
     {
-      header: "거래 일시",
+      header: t.transactionManagement.transactionDate,
       cell: (row: Transaction) => (
         <span className="text-sm text-slate-300">
           {new Date(row.created_at).toLocaleString('ko-KR')}
@@ -743,7 +746,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       )
     },
     {
-      header: "회원",
+      header: t.transactionManagement.member,
       cell: (row: Transaction) => (
         <div>
           <p className="font-medium text-slate-200">{row.user?.nickname}</p>
@@ -752,15 +755,15 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       )
     },
     {
-      header: "거래 유형",
+      header: t.transactionManagement.transactionType,
       cell: (row: Transaction) => {
         const typeMap: any = {
-          deposit: { text: '입금', color: 'bg-green-500' },
-          withdrawal: { text: '출금', color: 'bg-red-500' },
-          admin_deposit: { text: '입금', color: 'bg-green-600' },
-          admin_withdrawal: { text: '출금', color: 'bg-red-600' },
+          deposit: { text: t.transactionManagement.deposit, color: 'bg-green-500' },
+          withdrawal: { text: t.transactionManagement.withdrawal, color: 'bg-red-500' },
+          admin_deposit: { text: t.transactionManagement.adminDeposit, color: 'bg-green-600' },
+          admin_withdrawal: { text: t.transactionManagement.adminWithdrawal, color: 'bg-red-600' },
           admin_adjustment: { 
-            text: row.memo?.includes('강제 출금') ? '출금' : '입금', 
+            text: row.memo?.includes('강제 출금') ? t.transactionManagement.withdrawal : t.transactionManagement.deposit, 
             color: row.memo?.includes('강제 출금') ? 'bg-red-600' : 'bg-green-600'
           }
         };
@@ -769,7 +772,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       }
     },
     {
-      header: "금액",
+      header: t.transactionManagement.amount,
       cell: (row: Transaction) => {
         // withdrawal 계열은 마이너스, deposit 계열은 플러스
         const isWithdrawal = row.transaction_type === 'withdrawal' || 
@@ -787,7 +790,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       }
     },
     {
-      header: "변경 후 보유금",
+      header: t.transactionManagement.balanceAfter,
       cell: (row: Transaction) => (
         <span className="font-mono text-cyan-400">
           ₩{parseFloat(row.balance_after?.toString() || '0').toLocaleString()}
@@ -795,19 +798,19 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       )
     },
     {
-      header: "상태",
+      header: t.transactionManagement.status,
       cell: (row: Transaction) => {
         const statusMap: any = {
-          pending: { text: '대기', color: 'bg-yellow-500' },
-          completed: { text: '완료', color: 'bg-green-500' },
-          rejected: { text: '거절', color: 'bg-red-500' }
+          pending: { text: t.transactionManagement.pending, color: 'bg-yellow-500' },
+          completed: { text: t.transactionManagement.completed, color: 'bg-green-500' },
+          rejected: { text: t.transactionManagement.rejected, color: 'bg-red-500' }
         };
         const status = statusMap[row.status] || { text: row.status, color: 'bg-gray-500' };
         return <Badge className={`${status.color} text-white`}>{status.text}</Badge>;
       }
     },
     {
-      header: "메모",
+      header: t.transactionManagement.memo,
       cell: (row: Transaction) => (
         <div className="max-w-xs">
           <span className="text-sm text-slate-400 block truncate" title={row.memo || ''}>
@@ -817,7 +820,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       )
     },
     {
-      header: "처리자",
+      header: t.transactionManagement.processor,
       cell: (row: Transaction) => (
         <span className="text-sm text-slate-400">
           {row.processed_partner?.nickname || '-'}
@@ -825,7 +828,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       )
     },
     ...(showActions ? [{
-      header: "작업",
+      header: t.transactionManagement.actions,
       cell: (row: Transaction) => (
         <div className="flex items-center gap-2">
           <Button
@@ -834,7 +837,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             disabled={refreshing}
             className="h-8 px-3 bg-green-600 hover:bg-green-700"
           >
-            승인
+            {t.transactionManagement.approve}
           </Button>
           <Button
             size="sm"
@@ -843,7 +846,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             disabled={refreshing}
             className="h-8 px-3 border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
           >
-            거절
+            {t.transactionManagement.reject}
           </Button>
         </div>
       )
@@ -860,40 +863,40 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         </div>
         <Button onClick={() => setForceDialog({ ...forceDialog, open: true })} className="btn-premium-primary">
           <Plus className="h-4 w-4 mr-2" />
-          강제 입출금
+          {t.transactionManagement.forceTransaction}
         </Button>
       </div>
 
       {/* 통계 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
         <MetricCard
-          title="총 입금"
+          title={t.transactionManagement.totalDeposit}
           value={`₩${stats.totalDeposit.toLocaleString()}`}
-          subtitle="누적 입금"
+          subtitle={t.transactionManagement.accumulatedDeposit}
           icon={TrendingUp}
           color="green"
         />
         
         <MetricCard
-          title="총 출금"
+          title={t.transactionManagement.totalWithdrawal}
           value={`₩${stats.totalWithdrawal.toLocaleString()}`}
-          subtitle="누적 출금"
+          subtitle={t.transactionManagement.accumulatedWithdrawal}
           icon={TrendingDown}
           color="red"
         />
         
         <MetricCard
-          title="입금 신청"
+          title={t.transactionManagement.depositRequests}
           value={`${stats.pendingDepositCount}건`}
-          subtitle="처리 대기"
+          subtitle={t.transactionManagement.pendingProcessing}
           icon={Clock}
           color="amber"
         />
         
         <MetricCard
-          title="출금 신청"
+          title={t.transactionManagement.withdrawalRequests}
           value={`${stats.pendingWithdrawalCount}건`}
-          subtitle="처리 대기"
+          subtitle={t.transactionManagement.pendingProcessing}
           icon={AlertTriangle}
           color="orange"
         />
@@ -909,25 +912,25 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                 value="deposit-request"
                 className="bg-transparent text-slate-400 rounded-lg px-6 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
               >
-                입금 신청
+                {t.transactionManagement.depositRequestTab}
               </TabsTrigger>
               <TabsTrigger 
                 value="withdrawal-request"
                 className="bg-transparent text-slate-400 rounded-lg px-6 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
               >
-                출금 신청
+                {t.transactionManagement.withdrawalRequestTab}
               </TabsTrigger>
               <TabsTrigger 
                 value="completed-history"
                 className="bg-transparent text-slate-400 rounded-lg px-6 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500/20 data-[state=active]:to-emerald-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20 data-[state=active]:border data-[state=active]:border-green-400/30 transition-all duration-200"
               >
-                입출금 내역
+                {t.transactionManagement.completedHistoryTab}
               </TabsTrigger>
               <TabsTrigger 
                 value="admin-history"
                 className="bg-transparent text-slate-400 rounded-lg px-6 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500/20 data-[state=active]:to-amber-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-orange-500/20 data-[state=active]:border data-[state=active]:border-orange-400/30 transition-all duration-200"
               >
-                관리자 입출금 내역
+                {t.transactionManagement.adminHistoryTab}
               </TabsTrigger>
             </TabsList>
           </div>
@@ -937,10 +940,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             <div className="flex items-center gap-2">
               <CreditCard className="h-5 w-5 text-slate-400" />
               <h3 className="font-semibold text-slate-100">
-                {activeTab === 'deposit-request' && '입금 신청'}
-                {activeTab === 'withdrawal-request' && '출금 신청'}
-                {activeTab === 'completed-history' && '입출금 내역'}
-                {activeTab === 'admin-history' && '관리자 입출금 내역'}
+                {activeTab === 'deposit-request' && t.transactionManagement.depositRequestTab}
+                {activeTab === 'withdrawal-request' && t.transactionManagement.withdrawalRequestTab}
+                {activeTab === 'completed-history' && t.transactionManagement.completedHistoryTab}
+                {activeTab === 'admin-history' && t.transactionManagement.adminHistoryTab}
               </h3>
             </div>
           </div>
@@ -950,12 +953,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             {/* 기간 정렬 */}
             <Select value={periodFilter} onValueChange={setPeriodFilter}>
               <SelectTrigger className="w-[140px] input-premium">
-                <SelectValue placeholder="기간" />
+                <SelectValue placeholder={t.transactionManagement.period} />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
-                <SelectItem value="today">오늘</SelectItem>
-                <SelectItem value="week">최근 7일</SelectItem>
-                <SelectItem value="month">최근 30일</SelectItem>
+                <SelectItem value="today">{t.transactionManagement.today}</SelectItem>
+                <SelectItem value="week">{t.transactionManagement.lastWeek}</SelectItem>
+                <SelectItem value="month">{t.transactionManagement.lastMonth}</SelectItem>
               </SelectContent>
             </Select>
 
@@ -963,7 +966,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="회원 검색..."
+                placeholder={t.transactionManagement.searchMembers}
                 className="pl-10 input-premium"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -981,7 +984,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               className="btn-premium-primary"
             >
               <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
-              새로고침
+              {t.transactionManagement.refresh}
             </Button>
           </div>
 
@@ -992,7 +995,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               columns={getColumns(true)}
               data={depositRequests}
               loading={initialLoading}
-              emptyMessage="입금 신청이 없습니다."
+              emptyMessage={t.transactionManagement.noDepositRequests}
             />
           </TabsContent>
 
@@ -1003,7 +1006,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               columns={getColumns(true)}
               data={withdrawalRequests}
               loading={initialLoading}
-              emptyMessage="출금 신청이 없습니다."
+              emptyMessage={t.transactionManagement.noWithdrawalRequests}
             />
           </TabsContent>
 
@@ -1014,7 +1017,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               columns={getColumns(false)}
               data={completedTransactions}
               loading={initialLoading}
-              emptyMessage="입출금 내역이 없습니다."
+              emptyMessage={t.transactionManagement.noTransactionHistory}
             />
           </TabsContent>
 
@@ -1025,7 +1028,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               columns={getColumns(false)}
               data={adminTransactions}
               loading={initialLoading}
-              emptyMessage="관리자 입출금 내역이 없습니다."
+              emptyMessage={t.transactionManagement.noAdminTransactionHistory}
             />
           </TabsContent>
         </Tabs>
@@ -1036,12 +1039,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         <DialogContent className="bg-slate-900 border-slate-700">
           <DialogHeader>
             <DialogTitle className="text-white">
-              {actionDialog.action === 'approve' ? '거래 승인' : '거래 거절'}
+              {actionDialog.action === 'approve' ? t.transactionManagement.approveTransaction : t.transactionManagement.rejectTransaction}
             </DialogTitle>
             <DialogDescription className="text-slate-400">
               {actionDialog.action === 'approve' 
-                ? '이 거래를 승인하시겠습니까?' 
-                : '거절 사유를 입력해주세요.'}
+                ? t.transactionManagement.confirmApproveMessage
+                : t.transactionManagement.enterRejectReason}
             </DialogDescription>
           </DialogHeader>
           
@@ -1049,17 +1052,17 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             <div className="space-y-4">
               <div className="p-4 bg-slate-800/50 rounded-lg space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">회원:</span>
+                  <span className="text-slate-400">{t.transactionManagement.member}:</span>
                   <span className="text-white">{actionDialog.transaction.user?.nickname}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">거래 유형:</span>
+                  <span className="text-slate-400">{t.transactionManagement.transactionType}:</span>
                   <span className="text-white">
-                    {actionDialog.transaction.transaction_type === 'deposit' ? '입금' : '출금'}
+                    {actionDialog.transaction.transaction_type === 'deposit' ? t.transactionManagement.deposit : t.transactionManagement.withdrawal}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">금액:</span>
+                  <span className="text-slate-400">{t.transactionManagement.amount}:</span>
                   <span className="text-green-400 font-mono">
                     ₩{parseFloat(actionDialog.transaction.amount.toString()).toLocaleString()}
                   </span>
@@ -1068,13 +1071,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
               {actionDialog.action === 'reject' && (
                 <div className="space-y-2">
-                  <Label htmlFor="transaction-reject-reason" className="text-slate-300">거절 사유</Label>
+                  <Label htmlFor="transaction-reject-reason" className="text-slate-300">{t.transactionManagement.rejectReason}</Label>
                   <Textarea
                     id="transaction-reject-reason"
                     name="reject_reason"
                     value={actionDialog.memo}
                     onChange={(e) => setActionDialog({ ...actionDialog, memo: e.target.value })}
-                    placeholder="거절 사유를 입력해주세요..."
+                    placeholder={t.transactionManagement.rejectReasonPlaceholder}
                     className="bg-slate-800 border-slate-700 text-white"
                     rows={3}
                   />
@@ -1089,14 +1092,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               onClick={() => setActionDialog({ ...actionDialog, open: false })}
               disabled={refreshing}
             >
-              취소
+              {t.transactionManagement.cancel}
             </Button>
             <Button 
               onClick={handleTransactionAction}
               disabled={refreshing || (actionDialog.action === 'reject' && !actionDialog.memo)}
               className={actionDialog.action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
             >
-              {actionDialog.action === 'approve' ? '승인' : '거절'}
+              {actionDialog.action === 'approve' ? t.transactionManagement.approve : t.transactionManagement.reject}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1110,36 +1113,36 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               {forceDialog.type === 'deposit' ? (
                 <>
                   <Gift className="h-5 w-5 text-emerald-500" />
-                  강제 입금
+                  {t.transactionManagement.forceDeposit}
                 </>
               ) : (
                 <>
                   <MinusCircle className="h-5 w-5 text-rose-500" />
-                  강제 출금
+                  {t.transactionManagement.forceWithdrawal}
                 </>
               )}
             </DialogTitle>
             <DialogDescription>
-              회원의 잔액을 직접 조정합니다.
+              {t.transactionManagement.adjustMemberBalance}
             </DialogDescription>
           </DialogHeader>
           
           <div className="grid gap-5 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="force-dialog-type">거래 유형</Label>
+              <Label htmlFor="force-dialog-type">{t.transactionManagement.transactionTypeLabel}</Label>
               <Select value={forceDialog.type} onValueChange={(value: 'deposit' | 'withdrawal') => setForceDialog({ ...forceDialog, type: value })}>
                 <SelectTrigger id="force-dialog-type" className="input-premium h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
-                  <SelectItem value="deposit">입금</SelectItem>
-                  <SelectItem value="withdrawal">출금</SelectItem>
+                  <SelectItem value="deposit">{t.transactionManagement.deposit}</SelectItem>
+                  <SelectItem value="withdrawal">{t.transactionManagement.withdrawal}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="force-dialog-user-search">회원 선택</Label>
+              <Label htmlFor="force-dialog-user-search">{t.transactionManagement.selectMember}</Label>
               <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -1153,18 +1156,18 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                       ? users.find(u => u.id === forceDialog.userId)?.username + 
                         ` (${users.find(u => u.id === forceDialog.userId)?.nickname})` +
                         ` - ${parseFloat(users.find(u => u.id === forceDialog.userId)?.balance?.toString() || '0').toLocaleString()}원`
-                      : "아이디, 닉네임으로 검색"}
+                      : t.transactionManagement.selectMemberPlaceholder}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[480px] p-0 bg-slate-800 border-slate-700">
                   <Command className="bg-slate-800">
                     <CommandInput 
-                      placeholder="아이디, 닉네임으로 검색..." 
+                      placeholder={t.transactionManagement.selectMemberPlaceholder}
                       className="h-9 text-slate-100 placeholder:text-slate-500"
                     />
                     <CommandList>
-                      <CommandEmpty className="text-slate-400 py-6 text-center text-sm">회원을 찾을 수 없습니다.</CommandEmpty>
+                      <CommandEmpty className="text-slate-400 py-6 text-center text-sm">{t.transactionManagement.memberNotFound}</CommandEmpty>
                       <CommandGroup className="max-h-64 overflow-auto">
                         {users.map(u => (
                           <CommandItem
@@ -1205,11 +1208,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               return selectedUser ? (
                 <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-slate-400">선택된 회원</span>
+                    <span className="text-sm text-slate-400">{t.transactionManagement.selectedMember}</span>
                     <span className="text-cyan-400 font-medium">{selectedUser.nickname}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-400">현재 보유금</span>
+                    <span className="text-sm text-slate-400">{t.transactionManagement.currentBalance}</span>
                     <span className="font-mono text-cyan-400">
                       {parseFloat(selectedUser.balance?.toString() || '0').toLocaleString()}원
                     </span>
@@ -1220,7 +1223,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="force-dialog-amount">금액</Label>
+                <Label htmlFor="force-dialog-amount">{t.transactionManagement.amountLabel}</Label>
                 <Button
                   type="button"
                   variant="ghost"
@@ -1232,7 +1235,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                       : 'hover:text-red-400 hover:bg-red-500/10'
                   }`}
                 >
-                  전체삭제
+                  {t.transactionManagement.deleteAll}
                 </Button>
               </div>
               <Input
@@ -1258,14 +1261,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   
                   setForceDialog({ ...forceDialog, amount: e.target.value });
                 }}
-                placeholder="금액을 입력하세요"
+                placeholder={t.transactionManagement.enterAmountPlaceholder}
                 className="input-premium"
               />
             </div>
 
             {/* 금액 단축 버튼 */}
             <div className="grid gap-2">
-              <Label className="text-slate-400 text-sm">단축 입력 (누적 더하기)</Label>
+              <Label className="text-slate-400 text-sm">{t.transactionManagement.quickInput}</Label>
               <div className="grid grid-cols-4 gap-2">
                 {amountShortcuts.map((amt) => (
                   <Button
@@ -1322,20 +1325,20 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   className="w-full h-9 bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40 hover:border-red-500"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  전액출금
+                  {t.transactionManagement.fullWithdrawal}
                 </Button>
               </div>
             )}
 
             {/* 메모 */}
             <div className="grid gap-2">
-              <Label htmlFor="force-dialog-memo">메모</Label>
+              <Label htmlFor="force-dialog-memo">{t.transactionManagement.memoLabel}</Label>
               <Textarea
                 id="force-dialog-memo"
                 name="memo"
                 value={forceDialog.memo}
                 onChange={(e) => setForceDialog({ ...forceDialog, memo: e.target.value })}
-                placeholder="메모를 입력하세요 (선택사항)"
+                placeholder={t.transactionManagement.memoPlaceholder}
                 className="input-premium min-h-[80px]"
               />
             </div>
@@ -1348,7 +1351,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               disabled={refreshing || !forceDialog.userId || !forceDialog.amount || parseFloat(forceDialog.amount) <= 0}
               className={`w-full ${forceDialog.type === 'deposit' ? 'btn-premium-warning' : 'btn-premium-danger'}`}
             >
-              {refreshing ? '처리 중...' : forceDialog.type === 'deposit' ? '강제 입금' : '강제 출금'}
+              {refreshing ? t.transactionManagement.processing : forceDialog.type === 'deposit' ? t.transactionManagement.forceDeposit : t.transactionManagement.forceWithdrawal}
             </Button>
           </DialogFooter>
         </DialogContent>

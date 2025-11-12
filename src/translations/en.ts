@@ -814,6 +814,20 @@ export const en = {
     balanceAfter: 'Balance After',
     profitLoss: 'Profit/Loss',
     playTime: 'Play Time',
+    providerTime: 'Provider Time',
+    totalBets: 'Total Bets',
+    totalBetAmount: 'Total Bet Amount',
+    totalWinAmount: 'Total Win Amount',
+    netProfit: 'Net Profit',
+    periodSelection: 'Period',
+    all: 'All',
+    today: 'Today',
+    last7Days: 'Last 7 Days',
+    last30Days: 'Last 30 Days',
+    searchPlaceholder: 'Search by username, game name...',
+    csvDownload: 'CSV Download',
+    noBettingRecords: 'No betting records found.',
+    betting: 'Betting...',
     refreshSuccess: 'Betting history refreshed successfully.',
     refreshFailed: 'Failed to refresh.',
     loadFailed: 'Failed to load betting data.',
@@ -978,6 +992,58 @@ export const en = {
     oroplayCasino: 'OroPlay Casino',
     oroplaysSlot: 'OroPlay Slot',
     oroplaysMinigame: 'OroPlay Minigame',
+    
+    // Additional Features
+    subtitle: 'Manage game providers and game lists',
+    maintenance: 'Maintenance',
+    setFeatured: 'Set as Featured',
+    removeFeatured: 'Remove Featured',
+    featuredSet: 'Set as featured game',
+    featuredRemoved: 'Removed from featured games',
+    loadGamesFailed: 'Failed to load games',
+    updateStatus: 'Failed to update status',
+    
+    // Provider Initialization
+    initializeProviders: 'Initialize Providers',
+    initializingProviders: 'Initializing providers...',
+    providerInitialized: 'Providers initialized',
+    providerInitializeFailed: 'Failed to initialize providers',
+    
+    // Synchronization
+    syncAlreadyInProgress: 'Sync already in progress',
+    investSyncStarting: 'Starting Invest game sync...',
+    investSyncFailed: 'Invest sync failed',
+    oroplaySyncStarting: 'Starting OroPlay game sync...',
+    oroplaySyncFailed: 'OroPlay sync failed',
+    
+    // Statistics
+    totalGamesLabel: 'Total Games',
+    managementTarget: 'Management Target',
+    userVisible: 'User Visible',
+    displayedOnScreen: 'Displayed on screen',
+    maintenanceLabel: 'Maintenance',
+    serviceInterrupted: 'Service Interrupted',
+    userHidden: 'User Hidden',
+    hiddenFromScreen: 'Hidden from screen',
+    featuredGames: 'Featured Games',
+    priorityDisplay: 'Priority Display',
+    
+    // Provider Selection
+    selectProvider: 'Select Game Provider',
+    allProviders: 'All',
+    maintenanceStatus: 'Maintenance',
+    hiddenStatus: 'Hidden',
+    
+    // Bulk Operations
+    selectGames: 'Please select games',
+    selectedCount: 'Selected: {{count}}',
+    bulkActions: 'Bulk Actions',
+    bulkChangeStatus: 'Change Status',
+    searchGames: 'Search Games',
+    statusFilter: 'Status Filter',
+    allStatus: 'All Status',
+    noGamesFound: 'No games found',
+    other: 'Other',
   },
 
   // System Settings
@@ -1568,33 +1634,114 @@ export const en = {
   // Announcements
   announcements: {
     title: 'Announcements',
+    subtitle: 'Create and manage announcements for users and administrators.',
+    accessDenied: 'Announcement management is only accessible to distributors and above.',
+    
+    // Buttons
     create: 'Create Announcement',
     edit: 'Edit Announcement',
-    announcementId: 'Announcement ID',
-    title: 'Title',
-    content: 'Content',
-    type: 'Type',
-    notice: 'Notice',
-    event: 'Event',
-    maintenance: 'Maintenance',
+    save: 'Register',
     update: 'Update',
+    cancel: 'Cancel',
+    delete: 'Delete',
+    
+    // Dialog Titles & Descriptions
+    createTitle: 'Create New Announcement',
+    editTitle: 'Edit Announcement',
+    createDescription: 'Create a new announcement and deliver it to users.',
+    editDescription: 'Edit announcement content.',
+    
+    // Section Titles
+    basicInfoSection: 'Basic Information',
+    contentSection: 'Announcement Content',
+    imageSection: 'Attach Image',
+    announcementListTitle: 'Announcement List',
+    announcementListDescription: 'Manage created announcements and classify them by target audience.',
+    
+    // Form Labels
+    titleLabel: 'Title',
+    titleRequired: 'Title *',
+    titlePlaceholder: 'Enter announcement title',
+    contentLabel: 'Content',
+    contentRequired: 'Content *',
+    contentPlaceholder: 'Enter announcement content\n\n• Write detailed announcement content\n• You can attach images if needed',
+    statusLabel: 'Status',
+    targetLabel: 'Target',
+    targetLevelLabel: 'Target Level',
+    targetLevelPlaceholder: 'Specific level only (1-6)',
+    displayOrderLabel: 'Display Order',
+    startDateLabel: 'Start Date',
+    endDateLabel: 'End Date',
+    endDatePlaceholder: 'Optional',
+    popupLabel: 'Show as Popup',
+    imageLabel: 'Attach Image',
+    imageRemove: 'Remove',
+    imageUploadPlaceholder: 'Click to upload image',
+    imagePreview: 'Preview',
+    imageInfo: 'Max 5MB, JPG/PNG/GIF format',
+    writingTip: '💡 Writing Tip: Write clearly and concisely',
+    
+    // Status
     status: 'Status',
-    published: 'Published',
-    draft: 'Draft',
-    priority: 'Priority',
-    startDate: 'Start Date',
-    endDate: 'End Date',
-    createdAt: 'Created At',
-    updatedAt: 'Updated At',
-    author: 'Author',
-    publish: 'Publish',
-    unpublish: 'Unpublish',
-    searchPlaceholder: 'Search by title, content',
+    statusActive: 'Active',
+    statusInactive: 'Inactive',
+    statusDraft: 'Draft',
+    active: '✅ Active',
+    inactive: '⏸️ Inactive',
+    draft: '📝 Draft',
+    
+    // Target
+    target: 'Target',
+    targetAll: 'All',
+    targetUsers: 'Users',
+    targetPartners: 'Administrators',
+    allTarget: '👥 All',
+    usersTarget: '👤 Users',
+    partnersTarget: '🤝 Administrators',
+    
+    // Filters
+    allStatus: 'All Status',
+    allTargets: 'All Targets',
+    searchPlaceholder: 'Search by title, content...',
+    
+    // Table Columns
+    titleColumn: 'Title',
+    targetColumn: 'Target',
+    statusColumn: 'Status',
+    viewCountColumn: 'Views',
+    authorColumn: 'Author',
+    createdAtColumn: 'Created',
+    actionsColumn: 'Actions',
+    
+    // Badges & Labels
+    popupBadge: 'Popup',
+    adminBadge: 'Admin',
+    levelBadge: 'Level {{level}}',
+    unknown: 'Unknown',
+    
+    // Toast Messages
+    titleContentRequired: 'Please enter title and content.',
+    imageUploadSuccess: 'Image uploaded successfully.',
+    imageUploadFailed: 'Image upload failed.',
+    imageSizeError: 'Image size must be 5MB or less.',
+    imageTypeError: 'Only image files can be uploaded.',
+    createSuccess: 'Announcement has been registered.',
+    updateSuccess: 'Announcement has been updated.',
+    deleteSuccess: 'Announcement has been deleted.',
+    saveFailed: 'Failed to save announcement.',
+    deleteFailed: 'Failed to delete announcement.',
+    loadFailed: 'Failed to load announcements.',
+    statusUpdateSuccess: 'Announcement status changed to "{{status}}".',
+    statusUpdateFailed: 'Failed to change announcement status.',
+    
+    // Confirmation Messages
     confirmDelete: 'Are you sure you want to delete?',
-    announcementCreated: 'Announcement created successfully',
-    announcementUpdated: 'Announcement updated successfully',
-    announcementDeleted: 'Announcement deleted successfully',
-    announcementPublished: 'Announcement published successfully',
+    
+    // Others
+    uploading: 'Uploading...',
+    imageUploadedAlt: 'Uploaded image',
+    consoleLog: 'Announcement table change detected:',
+    imageUploadError: 'Image upload error:',
   },
 
   // Banner Management
@@ -1874,7 +2021,31 @@ export const en = {
     listDescription: 'View and manage created partners.',
     searchPlaceholder: 'Search partners...',
     
+    // Partner Types
+    partnerTypes: {
+      system_admin: 'System Admin',
+      head_office: 'Head Office',
+      main_office: 'Main Office',
+      sub_office: 'Sub Office',
+      distributor: 'Distributor',
+      store: 'Store',
+    },
+    
+    // Partner Level Text
+    levelText: {
+      1: 'System Admin',
+      2: 'Head Office',
+      3: 'Main Office',
+      4: 'Sub Office',
+      5: 'Distributor',
+      6: 'Store',
+      unknown: 'Unknown',
+    },
+    
     // Form Fields
+    username: 'ID',
+    nickname: 'Nickname',
+    password: 'Password',
     usernamePlaceholder: 'Partner ID',
     nicknamePlaceholder: 'Display nickname',
     passwordPlaceholder: 'Password (min. 6 characters)',
@@ -1906,8 +2077,13 @@ export const en = {
     
     // Table
     grade: 'Grade',
+    status: 'Status',
+    balance: 'Balance',
     createdAt: 'Created',
     actions: 'Actions',
+    active: 'Active',
+    inactive: 'Inactive',
+    won: '',
     
     // Buttons
     creating: 'Creating...',
@@ -1934,6 +2110,59 @@ export const en = {
     deleteHasUsers: 'Cannot delete: This partner has {{count}} users. Please delete or move users first.',
     deleteSuccess: 'Partner deleted successfully.',
     deleteFailed: 'Failed to delete partner: {{error}}',
+  },
+
+  // Partner Connection Status
+  partnerConnectionStatus: {
+    title: 'Partner Connection Status',
+    subtitle: 'View real-time partner connection status and balance information.',
+    searchPlaceholder: 'Search by partner name, nickname, parent partner, grade...',
+    
+    // Stat Cards
+    onlinePartners: 'Online Partners',
+    onlineSubtitle: 'Logged in within last 30 minutes',
+    partnerBalanceTotal: 'Total Partner Balance',
+    partnerBalanceSubtitle: 'All sub-partner balances',
+    managedUsersCount: 'Managed Users',
+    managedUsersSubtitle: 'Total sub-users count',
+    userBalanceTotal: 'Total User Balance',
+    userBalanceSubtitle: 'All user balances',
+    
+    // Table Headers
+    partnerInfo: 'Partner Info',
+    partnerBalance: 'Partner Balance',
+    userCount: 'User Count',
+    userBalanceSum: 'Total User Balance',
+    connectionStatus: 'Connection Status',
+    lastLoginTime: 'Last Login',
+    
+    // Partner Info
+    parentLabel: 'Parent',
+    levelPrefix: 'LV.',
+    
+    // Connection Status
+    online: '🟢 Online',
+    offline: '⚫ Offline',
+    suspended: 'Suspended',
+    
+    // Time Display
+    minutesAgo: '{{minutes}} min',
+    hoursMinutesAgo: '{{hours}}h {{minutes}}m',
+    elapsedTime: '({{time}} ago)',
+    
+    // User Count Unit
+    peopleCount: '{{count}}',
+    
+    // Results Display
+    totalPartners: 'Total {{count}} partners',
+    searchResults: '(searched from {{total}} total)',
+    
+    // Empty States
+    noSearchResults: 'No search results',
+    noPartners: 'No partners found',
+    
+    // Loading
+    loadingData: 'Loading data...',
   },
 
   // Success Messages
@@ -1983,26 +2212,67 @@ export const en = {
     loadFailed: 'Failed to load transaction history.',
   },
 
-  // Partner Connection Status
-  partnerConnectionStatus: {
-    title: 'Partner API Connection Status',
-    subtitle: 'Check API connection status for each partner',
-    partner: 'Partner',
-    apiType: 'API Type',
-    connectionStatus: 'Connection Status',
-    connected: 'Connected',
-    disconnected: 'Disconnected',
-    lastCheck: 'Last Check',
-    responseTime: 'Response Time',
-    checkNow: 'Check Now',
-    checkAll: 'Check All',
-    investApi: 'Invest API',
-    oroplayApi: 'OroPlay API',
-    apiConfigured: 'API Configured',
-    apiNotConfigured: 'API Not Configured',
-    testConnection: 'Test Connection',
-    testSuccess: 'API connection succeeded.',
-    testFailed: 'API connection failed.',
-    noPartners: 'No partners found.',
+  // Call Cycle (RTP Management)
+  callCycle: {
+    title: 'RTP Management',
+    subtitle: 'Manage Return To Player (RTP) settings for OroPlay slot games',
+    accessDenied: 'This feature is only accessible to System Administrators and Master Partners.',
+    vendorSelection: 'Game Provider Selection',
+    vendorCode: 'Vendor Code',
+    selectVendor: 'Select Provider',
+    noVendors: 'No providers available. Please sync OroPlay games first.',
+    vendorDescription: 'Select a slot game provider to apply RTP settings.',
+    actionSelection: 'Action Selection',
+    setUserRTP: 'Set User RTP (Individual)',
+    getUserRTP: 'Get User RTP (Check)',
+    resetUserRTP: 'Reset User RTP (Batch)',
+    targetUsers: 'Target Users',
+    selectAll: 'Select All',
+    deselectAll: 'Deselect All',
+    noUsers: 'No users available',
+    resetModeLimit: 'Maximum 500 users can be selected. ({{count}} selected)',
+    getModeInfo: 'Select users to check RTP. ({{count}} selected)',
+    setModeInfo: 'Select users to set RTP individually. ({{count}} selected)',
+    rtpValue: 'RTP Value (30 ~ 99)',
+    rtpDescription: 'Higher values favor players. (Default: 85)',
+    setRTP: 'Set RTP',
+    getRTP: 'Get RTP',
+    batchSetRTP: 'Batch Set RTP',
+    processing: 'Processing...',
+    rtpResults: 'RTP Query Results',
+    username: 'Username',
+    currentRTP: 'Current RTP',
+    notice: 'Notice',
+    noticeTitle: 'Important Notice:',
+    noticeOroplayOnly: 'This feature only applies to OroPlay API slot games.',
+    noticeSetUser: 'Set User RTP: Set RTP for individual users.',
+    noticeGetUser: 'Get User RTP: Check current RTP for individual users.',
+    noticeResetUser: 'Reset User RTP: Set RTP for up to 500 users at once.',
+    noticeInvestNA: 'This feature is not related to Invest API.',
+    recentHistory: 'Recent Settings History',
+    noHistory: 'No settings history available',
+    time: 'Time',
+    vendor: 'Provider',
+    settingMethod: 'Setting Method',
+    rtp: 'RTP',
+    appliedBy: 'Applied By',
+    individualSetting: 'Individual',
+    batchSetting: 'Batch',
+    selectVendorError: 'Please select a provider',
+    selectUsersError: 'Please select users',
+    rtpRangeError: 'RTP value must be between 30 and 99',
+    maxUsersError: 'Maximum 500 users can be selected',
+    maxUsersWarning: 'Maximum 500 users can be selected',
+    rtpSetSuccess: 'RTP set for {{count}} user(s)',
+    rtpSetFailed: 'Failed to set RTP',
+    rtpGetSuccess: 'RTP query completed',
+    rtpGetFailed: 'Failed to get RTP',
+    batchRtpSetSuccess: 'RTP batch set for {{count}} user(s)',
+    batchRtpSetFailed: 'Failed to batch set RTP',
+    databaseSetupRequired: 'Database setup required',
+    runMigrationSQL: 'Please run 371_add_game_providers_api_columns.sql in SQL Editor',
+    noOroplayVendors: 'No OroPlay providers available',
+    syncGamesFirst: 'Please sync OroPlay games first in Game Management',
   },
+
 };

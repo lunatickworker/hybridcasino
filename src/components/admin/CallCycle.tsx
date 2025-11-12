@@ -1,7 +1,20 @@
+import { useState, useEffect } from "react";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Checkbox } from "../ui/checkbox";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
+import { Badge } from "../ui/badge";
+import { AlertCircle, Activity, RefreshCw } from "lucide-react";
+import { DarkPageLayout } from "../common/DarkPageLayout";
+import { UnifiedCard } from "../common/UnifiedCard";
+import { supabase } from "../../lib/supabase";
+import { toast } from "sonner@2.0.3";
 import * as oroplayApi from "../../lib/oroplayApi";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { Partner } from "../../types";
 
 interface CallCycleProps {
   user: Partner;
@@ -71,8 +84,8 @@ export function CallCycle({ user }: CallCycleProps) {
         .limit(1);
       
       if (testError && testError.code === '42703') {
-        toast.error('데이터베이스 설정 필요', {
-          description: 'SQL Editor에서 371_add_game_providers_api_columns.sql을 실행하세요',
+        toast.error(t.callCycle.databaseSetupRequired, {
+          description: t.callCycle.runMigrationSQL,
           duration: 10000
         });
         return;
@@ -98,8 +111,8 @@ export function CallCycle({ user }: CallCycleProps) {
       }));
 
       if (vendorList.length === 0) {
-        toast.warning('OroPlay 게임사가 없습니다', {
-          description: '먼저 게임 관리에서 OroPlay 게임을 동기화하세요',
+        toast.warning(t.callCycle.noOroplayVendors, {
+          description: t.callCycle.syncGamesFirst,
           duration: 7000
         });
       }
@@ -174,15 +187,15 @@ export function CallCycle({ user }: CallCycleProps) {
   // Set User RTP - 개별 RTP 설정 (oroplayApi 사용)
   const handleSetUserRTP = async () => {
     if (!vendorCode) {
-      toast.error('게임사를 선택하세요');
+      toast.error(t.callCycle.selectVendorError);
       return;
     }
     if (selectedUsers.length === 0) {
-      toast.error('사용자를 선택하세요');
+      toast.error(t.callCycle.selectUsersError);
       return;
     }
     if (rtpValue < 30 || rtpValue > 99) {
-      toast.error('RTP 값은 30~99 사이여야 합니다');
+      toast.error(t.callCycle.rtpRangeError);
       return;
     }
 
@@ -214,12 +227,12 @@ export function CallCycle({ user }: CallCycleProps) {
         }
       }
 
-      toast.success(`${successCount}명의 RTP가 설정되었습니다`);
+      toast.success(t.callCycle.rtpSetSuccess.replace('{{count}}', String(successCount)));
       await loadRTPHistory();
       setSelectedUsers([]);
 
     } catch (error: any) {
-      toast.error('RTP 설정 실패', {
+      toast.error(t.callCycle.rtpSetFailed, {
         description: error.message
       });
     } finally {
@@ -230,11 +243,11 @@ export function CallCycle({ user }: CallCycleProps) {
   // Get User RTP - 개별 RTP 확인 (oroplayApi 사용)
   const handleGetUserRTP = async () => {
     if (!vendorCode) {
-      toast.error('게임사를 선택하세요');
+      toast.error(t.callCycle.selectVendorError);
       return;
     }
     if (selectedUsers.length === 0) {
-      toast.error('사용자를 선택하세요');
+      toast.error(t.callCycle.selectUsersError);
       return;
     }
 
@@ -260,10 +273,10 @@ export function CallCycle({ user }: CallCycleProps) {
       }
 
       setRtpResults(results);
-      toast.success('RTP 조회 완료');
+      toast.success(t.callCycle.rtpGetSuccess);
 
     } catch (error: any) {
-      toast.error('RTP 조회 실패', {
+      toast.error(t.callCycle.rtpGetFailed, {
         description: error.message
       });
     } finally {
@@ -274,19 +287,19 @@ export function CallCycle({ user }: CallCycleProps) {
   // Reset User RTP - 일괄 RTP 설정 (최대 500명) (oroplayApi 사용)
   const handleResetUserRTP = async () => {
     if (!vendorCode) {
-      toast.error('게임사를 선택하세요');
+      toast.error(t.callCycle.selectVendorError);
       return;
     }
     if (selectedUsers.length === 0) {
-      toast.error('사용자를 선택하세요');
+      toast.error(t.callCycle.selectUsersError);
       return;
     }
     if (selectedUsers.length > 500) {
-      toast.error('최대 500명까지 선택 가능합니다');
+      toast.error(t.callCycle.maxUsersError);
       return;
     }
     if (rtpValue < 30 || rtpValue > 99) {
-      toast.error('RTP 값은 30~99 사이여야 합니다');
+      toast.error(t.callCycle.rtpRangeError);
       return;
     }
 
@@ -303,7 +316,7 @@ export function CallCycle({ user }: CallCycleProps) {
       // ✅ oroplayApi 함수 사용
       await oroplayApi.batchSetRTP(token, vendorCode, data);
 
-      toast.success(`${selectedUsers.length}명의 RTP가 일괄 설정되었습니다`);
+      toast.success(t.callCycle.batchRtpSetSuccess.replace('{{count}}', String(selectedUsers.length)));
 
       // 로그 저장
       await supabase.from('rtp_settings').insert({
@@ -319,7 +332,7 @@ export function CallCycle({ user }: CallCycleProps) {
       setSelectedUsers([]);
 
     } catch (error: any) {
-      toast.error('일괄 RTP 설정 실패', {
+      toast.error(t.callCycle.batchRtpSetFailed, {
         description: error.message
       });
     } finally {
@@ -333,7 +346,7 @@ export function CallCycle({ user }: CallCycleProps) {
       setSelectedUsers(prev => prev.filter(u => u !== username));
     } else {
       if (actionMode === 'reset' && selectedUsers.length >= 500) {
-        toast.warning('최대 500명까지 선택 가능합니다');
+        toast.warning(t.callCycle.maxUsersWarning);
         return;
       }
       setSelectedUsers(prev => [...prev, username]);
@@ -356,7 +369,7 @@ export function CallCycle({ user }: CallCycleProps) {
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            이 기능은 시스템관리자와 대본사만 접근할 수 있습니다.
+            {t.callCycle.accessDenied}
           </AlertDescription>
         </Alert>
       </DarkPageLayout>
@@ -375,17 +388,17 @@ export function CallCycle({ user }: CallCycleProps) {
         </div>
 
         {/* 게임사 선택 */}
-        <UnifiedCard title="게임 공급사 선택">
+        <UnifiedCard title={t.callCycle.vendorSelection}>
           <div className="space-y-2">
-            <Label>Vendor Code</Label>
+            <Label>{t.callCycle.vendorCode}</Label>
             <Select value={vendorCode} onValueChange={setVendorCode}>
               <SelectTrigger>
-                <SelectValue placeholder="게임사 선택" />
+                <SelectValue placeholder={t.callCycle.selectVendor} />
               </SelectTrigger>
               <SelectContent>
                 {vendors.length === 0 ? (
                   <SelectItem value="none" disabled>
-                    게임사가 없습니다. OroPlay 게임을 먼저 동기화하세요.
+                    {t.callCycle.noVendors}
                   </SelectItem>
                 ) : (
                   vendors.map(vendor => (
@@ -397,13 +410,13 @@ export function CallCycle({ user }: CallCycleProps) {
               </SelectContent>
             </Select>
             <p className="text-xs text-gray-500">
-              RTP 설정을 적용할 슬롯 게임 공급사를 선택하세요.
+              {t.callCycle.vendorDescription}
             </p>
           </div>
         </UnifiedCard>
 
         {/* 작업 선택 */}
-        <UnifiedCard title="작업 선택">
+        <UnifiedCard title={t.callCycle.actionSelection}>
           <div className="space-y-4">
             <div className="flex gap-4">
               <Button
@@ -413,7 +426,7 @@ export function CallCycle({ user }: CallCycleProps) {
                   setRtpResults([]);
                 }}
               >
-                Set User RTP (개별 설정)
+                {t.callCycle.setUserRTP}
               </Button>
               <Button
                 variant={actionMode === 'get' ? 'default' : 'outline'}
@@ -422,7 +435,7 @@ export function CallCycle({ user }: CallCycleProps) {
                   setRtpResults([]);
                 }}
               >
-                Get User RTP (개별 확인)
+                {t.callCycle.getUserRTP}
               </Button>
               <Button
                 variant={actionMode === 'reset' ? 'default' : 'outline'}
@@ -435,27 +448,27 @@ export function CallCycle({ user }: CallCycleProps) {
                   }
                 }}
               >
-                Reset User RTP (일괄 설정)
+                {t.callCycle.resetUserRTP}
               </Button>
             </div>
 
             {/* 사용자 선택 */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>대상 사용자</Label>
+                <Label>{t.callCycle.targetUsers}</Label>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={toggleAllUsers}
                 >
-                  {selectedUsers.length === users.length ? '전체 해제' : '전체 선택'}
+                  {selectedUsers.length === users.length ? t.callCycle.deselectAll : t.callCycle.selectAll}
                 </Button>
               </div>
               
               <div className="border border-slate-700 rounded-lg p-4 max-h-60 overflow-y-auto bg-slate-900/50">
                 {users.length === 0 ? (
                   <p className="text-sm text-gray-500 text-center py-4">
-                    사용자가 없습니다
+                    {t.callCycle.noUsers}
                   </p>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -477,17 +490,17 @@ export function CallCycle({ user }: CallCycleProps) {
               
               <p className="text-xs text-gray-500">
                 {actionMode === 'reset' 
-                  ? `최대 500명까지 선택 가능합니다. (현재 ${selectedUsers.length}명 선택)`
+                  ? t.callCycle.resetModeLimit.replace('{{count}}', String(selectedUsers.length))
                   : actionMode === 'get'
-                  ? `RTP를 조회할 사용자를 선택하세요. (현재 ${selectedUsers.length}명 선택)`
-                  : `개별 설정할 사용자를 선택하세요. (현재 ${selectedUsers.length}명 선택)`}
+                  ? t.callCycle.getModeInfo.replace('{{count}}', String(selectedUsers.length))
+                  : t.callCycle.setModeInfo.replace('{{count}}', String(selectedUsers.length))}
               </p>
             </div>
 
             {/* RTP 값 입력 (get 모드에서는 숨김) */}
             {actionMode !== 'get' && (
               <div className="space-y-2">
-                <Label>RTP 값 (30 ~ 99)</Label>
+                <Label>{t.callCycle.rtpValue}</Label>
                 <Input
                   type="number"
                   value={rtpValue}
@@ -497,7 +510,7 @@ export function CallCycle({ user }: CallCycleProps) {
                   className="bg-slate-900/50 border-slate-700"
                 />
                 <p className="text-xs text-gray-500">
-                  높을수록 플레이어에게 유리합니다. (기본값: 85)
+                  {t.callCycle.rtpDescription}
                 </p>
               </div>
             )}
@@ -523,14 +536,14 @@ export function CallCycle({ user }: CallCycleProps) {
               {loading ? (
                 <>
                   <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  처리 중...
+                  {t.callCycle.processing}
                 </>
               ) : (
                 <>
                   <Activity className="w-4 h-4 mr-2" />
-                  {actionMode === 'set' ? 'RTP 설정' :
-                   actionMode === 'get' ? 'RTP 조회' :
-                   '일괄 RTP 설정'}
+                  {actionMode === 'set' ? t.callCycle.setRTP :
+                   actionMode === 'get' ? t.callCycle.getRTP :
+                   t.callCycle.batchSetRTP}
                 </>
               )}
             </Button>
@@ -539,13 +552,13 @@ export function CallCycle({ user }: CallCycleProps) {
 
         {/* RTP 조회 결과 */}
         {actionMode === 'get' && rtpResults.length > 0 && (
-          <UnifiedCard title="RTP 조회 결과">
+          <UnifiedCard title={t.callCycle.rtpResults}>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>사용자</TableHead>
-                    <TableHead>현재 RTP</TableHead>
+                    <TableHead>{t.callCycle.username}</TableHead>
+                    <TableHead>{t.callCycle.currentRTP}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -568,34 +581,34 @@ export function CallCycle({ user }: CallCycleProps) {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             <div className="space-y-2">
-              <p><strong>주의사항:</strong></p>
+              <p><strong>{t.callCycle.noticeTitle}</strong></p>
               <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>이 기능은 OroPlay API 슬롯 게임에만 적용됩니다.</li>
-                <li><strong>Set User RTP:</strong> 개별 사용자의 RTP를 설정합니다.</li>
-                <li><strong>Get User RTP:</strong> 개별 사용자의 현재 RTP를 확인합니다.</li>
-                <li><strong>Reset User RTP:</strong> 최대 500명의 RTP를 일괄 설정합니다.</li>
-                <li>Invest API와는 무관한 기능입니다.</li>
+                <li>{t.callCycle.noticeOroplayOnly}</li>
+                <li>{t.callCycle.noticeSetUser}</li>
+                <li>{t.callCycle.noticeGetUser}</li>
+                <li>{t.callCycle.noticeResetUser}</li>
+                <li>{t.callCycle.noticeInvestNA}</li>
               </ul>
             </div>
           </AlertDescription>
         </Alert>
 
         {/* 설정 이력 */}
-        <UnifiedCard title="최근 설정 이력">
+        <UnifiedCard title={t.callCycle.recentHistory}>
           <div className="overflow-x-auto">
             {rtpHistory.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-8">
-                설정 이력이 없습니다
+                {t.callCycle.noHistory}
               </p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>시간</TableHead>
-                    <TableHead>게임사</TableHead>
-                    <TableHead>설정 방식</TableHead>
-                    <TableHead>RTP</TableHead>
-                    <TableHead>적용자</TableHead>
+                    <TableHead>{t.callCycle.time}</TableHead>
+                    <TableHead>{t.callCycle.vendor}</TableHead>
+                    <TableHead>{t.callCycle.settingMethod}</TableHead>
+                    <TableHead>{t.callCycle.rtp}</TableHead>
+                    <TableHead>{t.callCycle.appliedBy}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -611,8 +624,8 @@ export function CallCycle({ user }: CallCycleProps) {
                           record.setting_type === 'reset' ? 'secondary' :
                           'outline'
                         }>
-                          {record.setting_type === 'set' ? '개별 설정' : 
-                           record.setting_type === 'reset' ? '일괄 설정' : 
+                          {record.setting_type === 'set' ? t.callCycle.individualSetting : 
+                           record.setting_type === 'reset' ? t.callCycle.batchSetting : 
                            record.setting_type}
                         </Badge>
                       </TableCell>

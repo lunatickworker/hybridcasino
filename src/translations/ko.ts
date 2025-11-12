@@ -814,6 +814,20 @@ export const ko = {
     balanceAfter: '베팅후금액',
     profitLoss: '손익',
     playTime: '플레이 시간',
+    providerTime: '프로바이더 시간',
+    totalBets: '총 베팅 수',
+    totalBetAmount: '총 베팅액',
+    totalWinAmount: '총 당첨액',
+    netProfit: '순손익',
+    periodSelection: '기간 선택',
+    all: '전체',
+    today: '오늘',
+    last7Days: '최근 7일',
+    last30Days: '최근 30일',
+    searchPlaceholder: '사용자명, 게임명 검색...',
+    csvDownload: 'CSV 다운로드',
+    noBettingRecords: '베팅 기록이 없습니다.',
+    betting: 'Betting...',
     refreshSuccess: '베팅 내역이 갱신되었습니다.',
     refreshFailed: '새로고침에 실패했습니다.',
     loadFailed: '베팅 데이터를 불러오는데 실패했습니다.',
@@ -978,6 +992,58 @@ export const ko = {
     oroplayCasino: 'OroPlay 카지노',
     oroplaysSlot: 'OroPlay 슬롯',
     oroplaysMinigame: 'OroPlay 미니게임',
+    
+    // 추가 기능
+    subtitle: '게임 제공사 및 게임 목록을 관리합니다',
+    maintenance: '점검중',
+    setFeatured: '추천 설정',
+    removeFeatured: '추천 해제',
+    featuredSet: '추천 게임으로 설정되었습니다',
+    featuredRemoved: '추천 게임에서 해제되었습니다',
+    loadGamesFailed: '게임 데이터 로드 실패',
+    updateStatus: '상태 업데이트 실패',
+    
+    // 제공사 초기화
+    initializeProviders: '제공사 초기화',
+    initializingProviders: '제공사 초기화 중...',
+    providerInitialized: '제공사가 초기화되었습니다',
+    providerInitializeFailed: '제공사 초기화 실패',
+    
+    // 동기화
+    syncAlreadyInProgress: '이미 동기화가 진행 중입니다',
+    investSyncStarting: 'Invest 게임 동기화 시작...',
+    investSyncFailed: 'Invest 동기화 실패',
+    oroplaySyncStarting: 'OroPlay 게임 동기화 시작...',
+    oroplaySyncFailed: 'OroPlay 동기화 실패',
+    
+    // 통계
+    totalGamesLabel: '전체 게임',
+    managementTarget: '관리 대상',
+    userVisible: '사용자 노출',
+    displayedOnScreen: '화면에 표시됨',
+    maintenanceLabel: '점검중',
+    serviceInterrupted: '서비스 중단',
+    userHidden: '사용자 숨김',
+    hiddenFromScreen: '화면에서 숨김',
+    featuredGames: '추천 게임',
+    priorityDisplay: '우선 노출',
+    
+    // 제공사 선택
+    selectProvider: '게임 제공사 선택',
+    allProviders: '전체',
+    maintenanceStatus: '점검중',
+    hiddenStatus: '숨김',
+    
+    // 일괄 작업
+    selectGames: '게임을 선택해주세요',
+    selectedCount: '선택됨: {{count}}개',
+    bulkActions: '일괄 작업',
+    bulkChangeStatus: '상태 변경',
+    searchGames: '게임 검색',
+    statusFilter: '상태 필터',
+    allStatus: '전체 상태',
+    noGamesFound: '게임을 찾을 수 없습니다',
+    other: '기타',
   },
 
   // 시스템 설정
@@ -1015,7 +1081,7 @@ export const ko = {
     apiSettingsNote: '• Lv2~7은 Lv1의 설정을 따라갑니다.',
     apiMinimumOneRequired: '• 최소 하나의 API는 활성화되어야 합니다.',
     investApi: 'Invest API',
-    investApiDescription: '카지노 및 슬롯 게임 제공',
+    investApiDescription: '카지노 및 슬롯 ��임 제공',
     oroplayApi: 'OroPlay API',
     oroplayApiDescription: '카지노, 슬롯 및 미니게임 제공',
     depositLimitInfo: '⚠️ 입금 제한 로직 안내',
@@ -1137,7 +1203,7 @@ export const ko = {
     evolutionSettingSaved: '의 매장 기본 배팅 제한이 저장되었습니다.',
     evolutionSettingSaveFailed: '설정 저장에 실패했습니다.',
     settingsSavedWithCategory: '설정이 성공적으로 저장되었습니다.',
-    ipWhitelistEnabled: 'IP 화이트리스트가 활성화되었습니다.',
+    ipWhitelistEnabled: 'IP 화이트리스트��� 활성화되었습니다.',
     ipWhitelistDisabled: 'IP 화이트리스트가 비활성화되었습니다.',
   },
 
@@ -1568,33 +1634,114 @@ export const ko = {
   // 공지사항
   announcements: {
     title: '공지사항',
-    create: '공지 작성',
+    subtitle: '사용자와 관리자에게 공지사항을 작성하고 관리합니다.',
+    accessDenied: '공지사항 관리는 총판 등급 이상만 접근 가능합니다.',
+    
+    // 버튼
+    create: '공지사항 작성',
     edit: '공지 수정',
-    announcementId: '공지 ID',
-    title: '제목',
-    content: '내용',
-    type: '타입',
-    notice: '공지',
-    event: '이벤트',
-    maintenance: '점검',
-    update: '업데이트',
+    save: '등록',
+    update: '수정',
+    cancel: '취소',
+    delete: '삭제',
+    
+    // Dialog 제목 및 설명
+    createTitle: '새 공지사항 작성',
+    editTitle: '공지사항 수정',
+    createDescription: '새로운 공지사항을 작성하고 사용자에게 전달합니다.',
+    editDescription: '공지사항 내용을 수정합니다.',
+    
+    // 섹션 제목
+    basicInfoSection: '기본 정보',
+    contentSection: '공지사항 내용',
+    imageSection: '이미지 첨부',
+    announcementListTitle: '공지사항 목록',
+    announcementListDescription: '작성된 공지사항을 관리하고 대상별로 분류할 수 있습니다.',
+    
+    // 폼 라벨
+    titleLabel: '제목',
+    titleRequired: '제목 *',
+    titlePlaceholder: '공지사항 제목을 입력하세요',
+    contentLabel: '내용',
+    contentRequired: '내용 *',
+    contentPlaceholder: '공지사항 내용을 입력하세요\n\n• 공지사항 내용을 상세히 작성하세요\n• 필요시 이미지를 첨부할 수 있습니다',
+    statusLabel: '상태',
+    targetLabel: '대상',
+    targetLevelLabel: '대상 레벨',
+    targetLevelPlaceholder: '특정 레벨만 (1-6)',
+    displayOrderLabel: '표시 순서',
+    startDateLabel: '시작일',
+    endDateLabel: '종료일',
+    endDatePlaceholder: '선택사항',
+    popupLabel: '팝업으로 표시',
+    imageLabel: '이미지 첨부',
+    imageRemove: '제거',
+    imageUploadPlaceholder: '클릭하여 이미지 업로드',
+    imagePreview: '미리보기',
+    imageInfo: '최대 5MB, JPG/PNG/GIF 형식',
+    writingTip: '💡 작성 팁: 명확하고 간결하게 작성하세요',
+    
+    // 상태
     status: '상태',
-    published: '게시됨',
-    draft: '임시저장',
-    priority: '우선순위',
-    startDate: '시작일',
-    endDate: '종료일',
-    createdAt: '작성일',
-    updatedAt: '수정일',
-    author: '작성자',
-    publish: '게시',
-    unpublish: '게시 취소',
-    searchPlaceholder: '제목, 내용으로 검색',
+    statusActive: '활성',
+    statusInactive: '비활성',
+    statusDraft: '임시저장',
+    active: '✅ 활성',
+    inactive: '⏸️ 비활성',
+    draft: '📝 임시저장',
+    
+    // 대상
+    target: '대상',
+    targetAll: '전체',
+    targetUsers: '사용자',
+    targetPartners: '관리자',
+    allTarget: '👥 전체',
+    usersTarget: '👤 사용자',
+    partnersTarget: '🤝 관리자',
+    
+    // 필터
+    allStatus: '전체 상태',
+    allTargets: '전체 대상',
+    searchPlaceholder: '제목, 내용으로 검색...',
+    
+    // 테이블 컬럼
+    titleColumn: '제목',
+    targetColumn: '대상',
+    statusColumn: '상태',
+    viewCountColumn: '조회수',
+    authorColumn: '작성자',
+    createdAtColumn: '작성일',
+    actionsColumn: '관리',
+    
+    // Badge & Labels
+    popupBadge: '팝업',
+    adminBadge: '관리자',
+    levelBadge: 'Level {{level}}',
+    unknown: '알 수 없음',
+    
+    // 토스트 메시지
+    titleContentRequired: '제목과 내용을 입력해주세요.',
+    imageUploadSuccess: '이미지가 업로드되었습니다.',
+    imageUploadFailed: '이미지 업로드에 실패했습니다.',
+    imageSizeError: '이미지 크기는 5MB 이하여야 합니다.',
+    imageTypeError: '이미지 파일만 업로드 가능합니다.',
+    createSuccess: '공지사항이 등록되었습니다.',
+    updateSuccess: '공지사항이 수정되었습니다.',
+    deleteSuccess: '공지사항이 삭제되었습니다.',
+    saveFailed: '공지사항 저장에 실패했습니다.',
+    deleteFailed: '공지사항 삭제에 실패했습니다.',
+    loadFailed: '공지사항을 불러오는데 실패했습니다.',
+    statusUpdateSuccess: '공지사항 상태가 "{{status}}"로 변경되었습니다.',
+    statusUpdateFailed: '공지사항 상태 변경에 실패했습니다.',
+    
+    // 확인 메시지
     confirmDelete: '정말 삭제하시겠습니까?',
-    announcementCreated: '공지사항이 작성되었습니다',
-    announcementUpdated: '공지사항이 수정되었습니다',
-    announcementDeleted: '공지사항이 삭제되었습니다',
-    announcementPublished: '공지사항이 게시되었습니다',
+    
+    // 기타
+    uploading: '업로드 중...',
+    imageUploadedAlt: '업로드된 이미지',
+    consoleLog: '공지사항 테이블 변경 감지:',
+    imageUploadError: '이미지 업로드 오류:',
   },
 
   // 배너 관리
@@ -1750,7 +1897,7 @@ export const ko = {
     forgotPassword: '비밀번호 찾기',
     loginSuccess: '로그인되었습니다',
     loginFailed: '로그인에 실패했습니다',
-    invalidCredentials: '아이디 또는 비밀번호가 올바르지 않습니다',
+    invalidCredentials: '아이디 또��� 비밀번호가 올바르지 않습니다',
   },
 
   // 헤더
@@ -1874,7 +2021,31 @@ export const ko = {
     listDescription: '생성된 파트너 목록을 확인하고 관리합니다.',
     searchPlaceholder: '파트너를 검색하세요...',
     
+    // 파트너 타입
+    partnerTypes: {
+      system_admin: '시스템관리자',
+      head_office: '대본사',
+      main_office: '본사',
+      sub_office: '부본사',
+      distributor: '총판',
+      store: '매장',
+    },
+    
+    // 파트너 레벨 텍스트
+    levelText: {
+      1: '시스템관리자',
+      2: '대본사',
+      3: '본사',
+      4: '부본사',
+      5: '총판',
+      6: '매장',
+      unknown: '알 수 없음',
+    },
+    
     // 폼 필드
+    username: '아이디',
+    nickname: '닉네임',
+    password: '비밀번호',
     usernamePlaceholder: '파트너 아이디',
     nicknamePlaceholder: '표시될 닉네임',
     passwordPlaceholder: '비밀번호 (6자 이상)',
@@ -1906,8 +2077,13 @@ export const ko = {
     
     // 테이블
     grade: '등급',
+    status: '상태',
+    balance: '보유금',
     createdAt: '생성일',
     actions: '관리',
+    active: '활성',
+    inactive: '비활성',
+    won: '원',
     
     // 버튼
     creating: '생성 중...',
@@ -1934,6 +2110,59 @@ export const ko = {
     deleteHasUsers: '삭제 불가: 이 파트너에게 {{count}}명의 회원이 소속되어 있습니다. 먼저 회원을 삭제하거나 다른 파트너로 이동시켜야 합니다.',
     deleteSuccess: '파트너가 성공적으로 삭제되었습니다.',
     deleteFailed: '파트너 삭제 실패: {{error}}',
+  },
+
+  // 파트너 접속 현황
+  partnerConnectionStatus: {
+    title: '파트너 접속 현황',
+    subtitle: '파트너별 접속 상태 및 보유금 현황을 실시간으로 확인합니다.',
+    searchPlaceholder: '파트너명, 닉네임, 상위 파트너, 등급으로 검색...',
+    
+    // 통계 카드
+    onlinePartners: '온라인 파트너',
+    onlineSubtitle: '최근 30분 이내 접속 중',
+    partnerBalanceTotal: '파트너 보유금 합계',
+    partnerBalanceSubtitle: '전체 하위 파트너 보유금',
+    managedUsersCount: '관리 사용자 수',
+    managedUsersSubtitle: '전체 하위 사용자 수',
+    userBalanceTotal: '사용자 보유금 합계',
+    userBalanceSubtitle: '전체 사용자 보유금',
+    
+    // 테이블 헤더
+    partnerInfo: '파트너 정보',
+    partnerBalance: '파트너 보유금',
+    userCount: '사용자 수',
+    userBalanceSum: '사용자 보유금 합계',
+    connectionStatus: '접속 상태',
+    lastLoginTime: '최근 접속 일시',
+    
+    // 파트너 정보
+    parentLabel: '상위',
+    levelPrefix: 'LV.',
+    
+    // 접속 상태
+    online: '🟢 온라인',
+    offline: '⚫ 오프라인',
+    suspended: '정지됨',
+    
+    // 시간 표시
+    minutesAgo: '{{minutes}}분',
+    hoursMinutesAgo: '{{hours}}시간 {{minutes}}분',
+    elapsedTime: '({{time}} 경과)',
+    
+    // 사용자 수 단위
+    peopleCount: '{{count}}명',
+    
+    // 결과 표시
+    totalPartners: '총 {{count}}개의 파트너',
+    searchResults: '(전체 {{total}}개 중 검색됨)',
+    
+    // Empty 상태
+    noSearchResults: '검색 결과가 없습니다',
+    noPartners: '조회된 파트너가 없습니다',
+    
+    // 로딩
+    loadingData: '데���터를 불러오는 중...',
   },
 
   // 성공 메시지
@@ -1983,31 +2212,72 @@ export const ko = {
     loadFailed: '거래 내역을 불러오는데 실패했습니다.',
   },
 
-  // 호출 주기 (Call Cycle)
+  // 호출 주기 (Call Cycle / RTP Management)
   callCycle: {
-    title: 'API 호출 주기 설정',
-    subtitle: '외부 API 호출 주기를 관리합니다',
-    syncInterval: '동기화 주기',
-    balanceSync: '잔고 동기화',
-    bettingHistorySync: '베팅 내역 동기화',
-    intervalSeconds: '호출 간격 (초)',
-    enabled: '활성화',
-    disabled: '비활성화',
-    lastSync: '마지막 동기화',
-    nextSync: '다음 동기화',
-    manualSync: '수동 동기화',
-    autoSync: '자동 동기화',
-    saveSettings: '설정 저장',
-    syncNow: '지금 동기화',
-    minimumInterval: '최소 {{seconds}}초 이상',
-    recommendedInterval: '권장: 30~60초',
-    settingsSaved: '호출 주기 설정이 저장되었습니다.',
-    saveFailed: '설정 저장에 실패했습니다.',
+    title: 'RTP 관리',
+    subtitle: 'OroPlay 슬롯 게임의 RTP(Return To Player) 설정을 관리합니다',
+    accessDenied: '이 기능은 시스템관리자와 대본사만 접근할 수 있습니다.',
+    vendorSelection: '게임 공급사 선택',
+    vendorCode: 'Vendor Code',
+    selectVendor: '게임사 선택',
+    noVendors: '게임사가 없습니다. OroPlay 게임을 먼저 동기화하세요.',
+    vendorDescription: 'RTP 설정을 적용할 슬롯 게임 공급사를 선택하세요.',
+    actionSelection: '작업 선택',
+    setUserRTP: 'Set User RTP (개별 설정)',
+    getUserRTP: 'Get User RTP (개별 확인)',
+    resetUserRTP: 'Reset User RTP (일괄 설정)',
+    targetUsers: '대상 사용자',
+    selectAll: '전체 선택',
+    deselectAll: '전체 해제',
+    noUsers: '사용자가 없습니다',
+    resetModeLimit: '최대 500명까지 선택 가능합니다. (현재 {{count}}명 선택)',
+    getModeInfo: 'RTP를 조회할 사용자를 선택하세요. (현재 {{count}}명 선택)',
+    setModeInfo: '개별 설정할 사용자를 선택하세요. (현재 {{count}}명 선택)',
+    rtpValue: 'RTP 값 (30 ~ 99)',
+    rtpDescription: '높을수록 플레이어에게 유리합니다. (기본값: 85)',
+    setRTP: 'RTP 설정',
+    getRTP: 'RTP 조회',
+    batchSetRTP: '일괄 RTP 설정',
+    processing: '처리 중...',
+    rtpResults: 'RTP 조회 결과',
+    username: '사용자',
+    currentRTP: '현재 RTP',
+    notice: '주의사항',
+    noticeTitle: '주의사항:',
+    noticeOroplayOnly: '이 기능은 OroPlay API 슬롯 게임에만 적용됩니다.',
+    noticeSetUser: 'Set User RTP: 개별 사용자의 RTP를 설정합니다.',
+    noticeGetUser: 'Get User RTP: 개별 사용자의 현재 RTP를 확인합니다.',
+    noticeResetUser: 'Reset User RTP: 최대 500명의 RTP를 일괄 설정합니다.',
+    noticeInvestNA: 'Invest API와는 무관한 기능입니다.',
+    recentHistory: '최근 설정 이력',
+    noHistory: '설정 이력이 없습니다',
+    time: '시간',
+    vendor: '게임사',
+    settingMethod: '설정 방식',
+    rtp: 'RTP',
+    appliedBy: '적용자',
+    individualSetting: '개별 설정',
+    batchSetting: '일괄 설정',
+    selectVendorError: '게임사를 선택하세요',
+    selectUsersError: '사용자를 선택하세요',
+    rtpRangeError: 'RTP 값은 30~99 사이여야 합니다',
+    maxUsersError: '최대 500명까지 선택 가능합니다',
+    maxUsersWarning: '최대 500명까지 선택 가능합니다',
+    rtpSetSuccess: '{{count}}명의 RTP가 설정되었습니다',
+    rtpSetFailed: 'RTP 설정 실패',
+    rtpGetSuccess: 'RTP 조회 완료',
+    rtpGetFailed: 'RTP 조회 실패',
+    batchRtpSetSuccess: '{{count}}명의 RTP가 일괄 설정되었습니다',
+    batchRtpSetFailed: '일괄 RTP 설정 실패',
+    databaseSetupRequired: '데이터베이스 설정 필요',
+    runMigrationSQL: 'SQL Editor에서 371_add_game_providers_api_columns.sql을 실행하세요',
+    noOroplayVendors: 'OroPlay 게임사가 없습니다',
+    syncGamesFirst: '먼저 게임 관리에서 OroPlay 게임을 동기화하세요',
   },
 
   // 잔고 동기화 (Balance Sync)
   balanceSync: {
-    title: '잔고 동기화 관리',
+    title: '잔고 ��기화 관리',
     subtitle: 'API 보유금을 동기화하고 관리합니다',
     syncAll: '전체 동기화',
     syncInvest: 'Invest 동기화',
@@ -2069,29 +2339,6 @@ export const ko = {
     monitorStarted: '자동 동기화 모니터가 시작되었습니다.',
     monitorStopped: '자동 동기화 모니터가 정지되었습니다.',
     noLogs: '로그가 없습니다.',
-  },
-
-  // 파트너 연결 상태 (Partner Connection Status)
-  partnerConnectionStatus: {
-    title: '파트너 API 연결 상태',
-    subtitle: '파트너별 API 연결 상태를 확인합니다',
-    partner: '파트너',
-    apiType: 'API 유형',
-    connectionStatus: '연결 상태',
-    connected: '연결됨',
-    disconnected: '연결 끊김',
-    lastCheck: '마지막 확인',
-    responseTime: '응답 시간',
-    checkNow: '지금 확인',
-    checkAll: '전체 확인',
-    investApi: 'Invest API',
-    oroplayApi: 'OroPlay API',
-    apiConfigured: 'API 설정됨',
-    apiNotConfigured: 'API 미설정',
-    testConnection: '연결 테스트',
-    testSuccess: 'API 연결에 성공했습니다.',
-    testFailed: 'API 연결에 실패했습니다.',
-    noPartners: '파트너가 없습니다.',
   },
 
   // 프리미엄 섹션 카드 (Premium Section Card)

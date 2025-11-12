@@ -311,7 +311,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     const groups: Record<string, Game[]> = {};
 
     filteredGames.forEach((game) => {
-      const provider = game.provider_name || "기타";
+      const provider = game.provider_name || t.gameManagement.other;
       if (!groups[provider]) {
         groups[provider] = [];
       }
@@ -657,7 +657,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                 className="border-slate-600 hover:bg-slate-700"
               >
                 <Settings className="w-4 h-4 mr-2" />
-                제공사 초기화
+                {t.gameManagement.initializeProviders}
               </Button>
               <Button
                 onClick={handleSyncOroPlayGames}
@@ -667,12 +667,12 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                 {syncing ? (
                   <>
                     <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    동기화 중...
+                    {t.gameManagement.syncInProgress}
                   </>
                 ) : (
                   <>
                     <Zap className="w-4 h-4 mr-2" />
-                    OroPlay 동기화
+                    OroPlay {t.gameManagement.syncGames}
                   </>
                 )}
               </Button>
@@ -684,12 +684,12 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                 {syncing ? (
                   <>
                     <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    동기화 중...
+                    {t.gameManagement.syncInProgress}
                   </>
                 ) : (
                   <>
                     <Zap className="w-4 h-4 mr-2" />
-                    Invest 동기화
+                    Invest {t.gameManagement.syncGames}
                   </>
                 )}
               </Button>
@@ -709,41 +709,41 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       {/* 통계 카드 */}
       <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-5">
         <MetricCard
-          title="전체 게임"
+          title={t.gameManagement.totalGamesLabel}
           value={stats.total}
-          subtitle="관리 대상"
+          subtitle={t.gameManagement.managementTarget}
           icon={Gamepad2}
           color="purple"
         />
         
         <MetricCard
-          title="사용자 노출"
+          title={t.gameManagement.userVisible}
           value={stats.visible}
-          subtitle="화면에 표시됨"
+          subtitle={t.gameManagement.displayedOnScreen}
           icon={Eye}
           color="green"
         />
         
         <MetricCard
-          title="점검중"
+          title={t.gameManagement.maintenanceLabel}
           value={stats.maintenance}
-          subtitle="서비스 중단"
+          subtitle={t.gameManagement.serviceInterrupted}
           icon={AlertTriangle}
           color="amber"
         />
         
         <MetricCard
-          title="사용자 숨김"
+          title={t.gameManagement.userHidden}
           value={stats.hidden}
-          subtitle="화면에서 숨김"
+          subtitle={t.gameManagement.hiddenFromScreen}
           icon={EyeOff}
           color="blue"
         />
         
         <MetricCard
-          title="추천 게임"
+          title={t.gameManagement.featuredGames}
           value={stats.featured}
-          subtitle="우선 노출"
+          subtitle={t.gameManagement.priorityDisplay}
           icon={Star}
           color="gold"
         />
@@ -759,31 +759,31 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                 value="invest_casino"
                 className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white rounded-lg"
               >
-                Invest 카지노
+                {t.gameManagement.investCasino}
               </TabsTrigger>
               <TabsTrigger
                 value="invest_slot"
                 className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white rounded-lg"
               >
-                Invest 슬롯
+                {t.gameManagement.investSlot}
               </TabsTrigger>
               <TabsTrigger
                 value="oroplay_casino"
                 className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white rounded-lg"
               >
-                OroPlay 카지노
+                {t.gameManagement.oroplayCasino}
               </TabsTrigger>
               <TabsTrigger
                 value="oroplay_slot"
                 className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white rounded-lg"
               >
-                OroPlay 슬롯
+                {t.gameManagement.oroplaysSlot}
               </TabsTrigger>
               <TabsTrigger
                 value="oroplay_minigame"
                 className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-600 data-[state=active]:to-emerald-600 data-[state=active]:text-white rounded-lg"
               >
-                미니게임
+                {t.gameManagement.oroplaysMinigame}
               </TabsTrigger>
             </TabsList>
 
@@ -793,7 +793,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
               {currentProviders.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm text-slate-300">게임 제공사 선택</div>
+                    <div className="text-sm text-slate-300">{t.gameManagement.selectProvider}</div>
                   </div>
                   <div className="flex gap-3 overflow-x-auto pb-3 custom-scrollbar">
                     {/* 제공사 버튼들 */}
@@ -809,13 +809,13 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                         if (provider.status === 'maintenance') {
                           return (
                             <Badge className="absolute top-1 right-1 bg-orange-600/90 text-white border-0 text-[10px] px-1.5 py-0.5">
-                              점검중
+                              {t.gameManagement.maintenanceStatus}
                             </Badge>
                           );
                         } else if (provider.status === 'hidden' || !provider.is_visible) {
                           return (
                             <Badge className="absolute top-1 right-1 bg-slate-600/90 text-white border-0 text-[10px] px-1.5 py-0.5">
-                              숨김
+                              {t.gameManagement.hiddenStatus}
                             </Badge>
                           );
                         }
@@ -890,19 +890,19 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                 <SelectItem value="visible">
                                   <div className="flex items-center gap-1">
                                     <Eye className="w-3 h-3" />
-                                    노출
+                                    {t.gameManagement.visible}
                                   </div>
                                 </SelectItem>
                                 <SelectItem value="maintenance">
                                   <div className="flex items-center gap-1">
                                     <AlertTriangle className="w-3 h-3" />
-                                    점검중
+                                    {t.gameManagement.maintenanceStatus}
                                   </div>
                                 </SelectItem>
                                 <SelectItem value="hidden">
                                   <div className="flex items-center gap-1">
                                     <EyeOff className="w-3 h-3" />
-                                    숨김
+                                    {t.gameManagement.hiddenStatus}
                                   </div>
                                 </SelectItem>
                               </SelectContent>
@@ -920,7 +920,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
-                    placeholder="게임 이름 또는 제공사 검색..."
+                    placeholder={t.gameManagement.searchPlaceholder}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 bg-slate-900/50 border-slate-600"
@@ -928,13 +928,13 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-40 bg-slate-900/50 border-slate-600">
-                    <SelectValue placeholder="상태 필터" />
+                    <SelectValue placeholder={t.gameManagement.statusFilter} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">전체 상태</SelectItem>
-                    <SelectItem value="visible">노출</SelectItem>
-                    <SelectItem value="maintenance">점검중</SelectItem>
-                    <SelectItem value="hidden">숨김</SelectItem>
+                    <SelectItem value="all">{t.gameManagement.allStatus}</SelectItem>
+                    <SelectItem value="visible">{t.gameManagement.visible}</SelectItem>
+                    <SelectItem value="maintenance">{t.gameManagement.maintenanceStatus}</SelectItem>
+                    <SelectItem value="hidden">{t.gameManagement.hiddenStatus}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -943,7 +943,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
               {selectedGames.size > 0 && (
                 <div className="flex items-center justify-between p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg">
                   <div className="text-sm text-blue-300">
-                    {selectedGames.size}개 게임 선택됨
+                    {t.gameManagement.selectedCount.replace('{{count}}', selectedGames.size.toString())}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -953,7 +953,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                       className="border-green-700 text-green-400 hover:bg-green-900/20"
                     >
                       <Eye className="w-4 h-4 mr-1" />
-                      노출
+                      {t.gameManagement.visible}
                     </Button>
                     <Button
                       size="sm"
@@ -962,7 +962,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                       className="border-orange-700 text-orange-400 hover:bg-orange-900/20"
                     >
                       <AlertTriangle className="w-4 h-4 mr-1" />
-                      점검중
+                      {t.gameManagement.maintenanceStatus}
                     </Button>
                     <Button
                       size="sm"
@@ -971,7 +971,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                       className="border-slate-700 text-slate-400 hover:bg-slate-900/20"
                     >
                       <EyeOff className="w-4 h-4 mr-1" />
-                      숨김
+                      {t.gameManagement.hiddenStatus}
                     </Button>
                     <Button
                       size="sm"
@@ -979,7 +979,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                       onClick={() => setSelectedGames(new Set())}
                       className="text-slate-400 hover:text-slate-200"
                     >
-                      선택 해제
+                      {t.common.deselectAll}
                     </Button>
                   </div>
                 </div>
@@ -994,7 +994,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                     className="border-slate-600"
                   />
                   <span className="text-sm text-slate-400">
-                    전체 선택 ({filteredGames.length}개)
+                    {t.common.selectAll} ({filteredGames.length})
                   </span>
                 </div>
               )}
@@ -1005,14 +1005,14 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
               {loading ? (
                 <div className="text-center py-12">
                   <RefreshCw className="w-8 h-8 animate-spin mx-auto text-blue-500" />
-                  <p className="text-slate-400 mt-4">게임 목록을 불러오는 중...</p>
+                  <p className="text-slate-400 mt-4">{t.common.loading}</p>
                 </div>
               ) : filteredGames.length === 0 ? (
                 <div className="text-center py-12">
                   <Gamepad2 className="w-16 h-16 mx-auto text-slate-600 mb-4" />
-                  <p className="text-slate-400">게임이 없습니다.</p>
+                  <p className="text-slate-400">{t.gameManagement.noGamesFound}</p>
                   <p className="text-sm text-slate-500 mt-2">
-                    상단의 동기화 버튼을 클릭하여 게임을 가져오세요.
+                    {t.gameManagement.syncGames}
                   </p>
                 </div>
               ) : (
