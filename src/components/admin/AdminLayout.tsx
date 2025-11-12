@@ -50,7 +50,7 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
         <div className={cn(
           "fixed left-0 top-0 h-screen transition-all duration-300 z-40",
           "bg-[#0f1419]/95 backdrop-blur-xl border-r border-slate-700/50 shadow-xl",
-          sidebarOpen ? "w-64" : "w-16"
+          sidebarOpen ? "w-80" : "w-16"
         )}>
           <AdminSidebar 
             user={user}
@@ -62,7 +62,7 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
         
         <div className={cn(
           "flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300",
-          sidebarOpen ? "ml-64" : "ml-16"
+          sidebarOpen ? "ml-80" : "ml-16"
         )}>
           <header className="sticky top-0 z-30 bg-[#0f1419]/90 backdrop-blur-lg border-b border-slate-700/50 shadow-sm">
             <AdminHeader 

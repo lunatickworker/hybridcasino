@@ -584,69 +584,72 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-4">
             {filteredGames.map((game) => (
               <Card 
                 key={game.game_id} 
-                className={`luxury-card group cursor-pointer border-2 border-yellow-600/20 hover:border-yellow-500/60 transition-all game-card-hover overflow-hidden ${
+                className={`group cursor-pointer bg-slate-900/80 border border-slate-700/50 hover:border-yellow-500/50 transition-all duration-300 overflow-hidden rounded-xl hover:shadow-xl hover:shadow-yellow-500/20 ${
                   launchingGameId === game.game_id ? 'opacity-50' : ''
                 }`}
                 onClick={() => handleGameClick(game)}
               >
-                <div className="aspect-[4/3] relative overflow-hidden">
+                <div className="aspect-[3/4] relative overflow-hidden bg-slate-800">
                   <ImageWithFallback
                     src={game.image_url}
                     alt={game.game_name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                   
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                  {/* 오버레이 */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
                   
-                  <div className="absolute top-3 left-3">
-                    <Badge className="bg-red-500 text-white border-0 animate-pulse shadow-lg">
-                      <div className="w-2 h-2 bg-white rounded-full mr-1" />
+                  {/* 배지들 */}
+                  <div className="absolute top-2 left-2 flex gap-2">
+                    <Badge className="bg-red-500/90 text-white border-0 text-xs backdrop-blur-sm">
+                      <div className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-pulse" />
                       LIVE
                     </Badge>
                   </div>
 
                   {game.is_featured && (
-                    <div className="absolute top-3 right-3">
-                      <Badge className="vip-badge text-white border-0">
-                        <Star className="w-3 h-3 mr-1" />
+                    <div className="absolute top-2 right-2">
+                      <Badge className="bg-yellow-500/90 text-black border-0 text-xs backdrop-blur-sm">
+                        <Star className="w-3 h-3 mr-1 fill-current" />
                         VIP
                       </Badge>
                     </div>
                   )}
 
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center">
+                  {/* 호버 플레이 버튼 */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     {launchingGameId === game.game_id ? (
                       <div className="flex flex-col items-center gap-2 text-white">
-                        <Loader className="w-8 h-8 animate-spin" />
+                        <Loader className="w-10 h-10 animate-spin" />
                         <span className="text-sm font-semibold">입장 중...</span>
                       </div>
                     ) : (
-                      <Button 
-                        size="lg" 
-                        className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-r from-yellow-600 to-amber-600 hover:from-yellow-500 hover:to-amber-500 text-black font-bold shadow-lg shadow-yellow-500/40"
-                      >
-                        <Play className="w-5 h-5 mr-2" />
-                        VIP 입장
-                      </Button>
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-16 h-16 rounded-full bg-yellow-500/20 backdrop-blur-md flex items-center justify-center border-2 border-yellow-500/50">
+                          <Play className="w-8 h-8 text-yellow-400 fill-current" />
+                        </div>
+                        <span className="text-white font-bold text-sm">VIP 입장</span>
+                      </div>
                     )}
                   </div>
-
-                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                    <h3 className="font-bold text-lg mb-1 truncate neon-glow">
-                      {game.game_name}
-                    </h3>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-yellow-300 truncate">
-                        {game.provider_name}
-                      </p>
-                      <div className="flex items-center gap-1 text-xs text-green-400">
-                        <Clock className="w-3 h-3" />
-                        <span>24H</span>
-                      </div>
+                </div>
+                
+                {/* 카드 정보 */}
+                <div className="p-3 bg-slate-900/90">
+                  <h3 className="font-bold text-white text-base mb-1 truncate">
+                    {game.game_name}
+                  </h3>
+                  <div className="flex items-center justify-between text-xs">
+                    <p className="text-yellow-400/80 truncate flex-1">
+                      {game.provider_name}
+                    </p>
+                    <div className="flex items-center gap-1 text-green-400 ml-2">
+                      <Clock className="w-3 h-3" />
+                      <span>24H</span>
                     </div>
                   </div>
                 </div>

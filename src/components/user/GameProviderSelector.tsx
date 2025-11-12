@@ -39,22 +39,22 @@ export function GameProviderSelector({
   }, [providers, gameType]);
 
   return (
-    <div className="w-full bg-black/20 rounded-lg p-3">
+    <div className="w-full bg-slate-900/40 backdrop-blur-sm rounded-xl p-6 border border-slate-700/30">
       {/* 제공사 선택 버튼들 - flex-wrap으로 자동 줄바꿈 */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-3">
         {/* 전체 선택 버튼 */}
         <Button
           variant="ghost"
           onClick={() => onProviderChange("all")}
           className={`
-            h-9 px-4 rounded-md transition-all duration-300
+            h-14 px-8 rounded-lg transition-all duration-300 text-xl font-bold whitespace-nowrap
             ${selectedProvider === "all" 
-              ? 'bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 text-black shadow-[0_0_20px_rgba(251,191,36,0.8),0_0_40px_rgba(251,191,36,0.4)] hover:shadow-[0_0_25px_rgba(251,191,36,1),0_0_50px_rgba(251,191,36,0.6)] scale-105' 
-              : 'bg-amber-600/60 text-amber-100 shadow-[0_0_10px_rgba(251,191,36,0.3)] hover:bg-amber-500/70 hover:shadow-[0_0_15px_rgba(251,191,36,0.5)] hover:scale-105'
+              ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-black shadow-lg shadow-yellow-500/50 hover:shadow-xl hover:shadow-yellow-500/60 scale-105 border-2 border-yellow-400' 
+              : 'bg-slate-800/60 text-yellow-100/80 border border-slate-600/50 hover:bg-slate-700/70 hover:text-yellow-100 hover:border-yellow-500/30 hover:scale-105'
             }
           `}
         >
-          <span className={selectedProvider === "all" ? "drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" : ""}>
+          <span className={selectedProvider === "all" ? "drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" : ""}>
             전체
           </span>
         </Button>
@@ -69,14 +69,14 @@ export function GameProviderSelector({
               variant="ghost"
               onClick={() => onProviderChange(provider.id.toString())}
               className={`
-                h-9 px-4 rounded-md transition-all duration-300
+                h-14 px-8 rounded-lg transition-all duration-300 text-xl font-bold whitespace-nowrap
                 ${isSelected 
-                  ? 'bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-400 text-black shadow-[0_0_20px_rgba(251,191,36,0.8),0_0_40px_rgba(251,191,36,0.4)] hover:shadow-[0_0_25px_rgba(251,191,36,1),0_0_50px_rgba(251,191,36,0.6)] scale-105' 
-                  : 'bg-amber-600/60 text-amber-100 shadow-[0_0_10px_rgba(251,191,36,0.3)] hover:bg-amber-500/70 hover:shadow-[0_0_15px_rgba(251,191,36,0.5)] hover:scale-105'
+                  ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-black shadow-lg shadow-yellow-500/50 hover:shadow-xl hover:shadow-yellow-500/60 scale-105 border-2 border-yellow-400' 
+                  : 'bg-slate-800/60 text-yellow-100/80 border border-slate-600/50 hover:bg-slate-700/70 hover:text-yellow-100 hover:border-yellow-500/30 hover:scale-105'
                 }
               `}
             >
-              <span className={isSelected ? "drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" : ""}>
+              <span className={isSelected ? "drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" : ""}>
                 {provider.name}
               </span>
             </Button>
