@@ -975,60 +975,21 @@ export async function updateProviderStatus(
 
   console.log(`✅ 제공사 ${providerId} 상태 업데이트: ${status}`);
 
-  // 제공사 상태 변경 시 해당 제공사의 모든 게임 상태도 동기화
-  if (status === 'maintenance' || status === 'hidden') {
-    const { error: gameUpdateError } = await supabase
-      .from('games')
-      .update({
-        is_visible: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('provider_id', providerId);
+  // ✅ 제공사 상태 변경 시 해당 제공사의 모든 게임 상태도 동기화
+  const { error: gameUpdateError } = await supabase
+    .from('games')
+    .update({
+      status,
+      is_visible: status === 'visible',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('provider_id', providerId);
 
-    if (gameUpdateError) {
-      console.error('❌ 제공사 게임 상태 동기화 오류:', gameUpdateError);
-    } else {
-      console.log(`✅ 제공사 ${providerId}의 모든 게임 is_visible=false 설정 완료`);
-    }
-  } else if (status === 'visible') {
-    // 제공사가 노출 상태가 되면, 게임의 원래 상태대로 복원
-    // status='visible'인 게임만 is_visible=true로 설정
-    const { data: visibleGames } = await supabase
-      .from('games')
-      .select('id')
-      .eq('provider_id', providerId)
-      .eq('status', 'visible');
-
-    if (visibleGames && visibleGames.length > 0) {
-      const { error: updateVisibleError } = await supabase
-        .from('games')
-        .update({
-          is_visible: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('provider_id', providerId)
-        .eq('status', 'visible');
-
-      if (updateVisibleError) {
-        console.error('❌ 제공사 visible 게임 복원 오류:', updateVisibleError);
-      }
-    }
-
-    // status!='visible'인 게임은 is_visible=false 유지
-    const { error: updateHiddenError } = await supabase
-      .from('games')
-      .update({
-        is_visible: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('provider_id', providerId)
-      .neq('status', 'visible');
-
-    if (updateHiddenError) {
-      console.error('❌ 제공사 hidden 게임 유지 오류:', updateHiddenError);
-    } else {
-      console.log(`✅ 제공사 ${providerId}의 게임 상태 복원 완료`);
-    }
+  if (gameUpdateError) {
+    console.error('❌ 제공사 게임 상태 동기화 오류:', gameUpdateError);
+    throw gameUpdateError;
+  } else {
+    console.log(`✅ 제공사 ${providerId}의 모든 게임 상태 업데이트 완료 (status=${status}, is_visible=${status === 'visible'})`);
   }
 }
 

@@ -104,7 +104,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     try {
       setLoading(true);
 
-      // ✅ Sample1처럼 간단한 쿼리로 변경
+      // ✅ 게임 status만 체크하도록 간단하게 변경
       let query = supabase
         .from('games')
         .select(`
@@ -116,7 +116,12 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
           image_url,
           is_featured,
           priority,
-          api_type
+          api_type,
+          game_providers!inner(
+            id,
+            name,
+            logo_url
+          )
         `)
         .eq('type', 'minigame')
         .eq('status', 'visible');
@@ -130,32 +135,20 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
 
       if (error) throw error;
 
-      // 게임 제공사 정보를 별도로 조회
-      const providerIds = [...new Set(gamesData?.map(g => g.provider_id) || [])];
-      const { data: providersData } = await supabase
-        .from('game_providers')
-        .select('id, name, logo_url')
-        .in('id', providerIds);
-
-      // 제공사 정보를 맵으로 변환
-      const providerMap = new Map(providersData?.map(p => [p.id, p]) || []);
-
-      const formattedGames = gamesData?.map(game => {
-        const provider = providerMap.get(game.provider_id);
-        return {
-          game_id: game.id,
-          provider_id: game.provider_id,
-          provider_name: provider?.name || 'Unknown',
-          provider_logo: provider?.logo_url,
-          game_name: game.name,
-          game_type: game.type,
-          image_url: game.image_url,
-          is_featured: game.is_featured,
-          status: game.status,
-          priority: game.priority || 0,
-          api_type: game.api_type
-        };
-      }) || [];
+      // 게임 데이터 포맷팅
+      const formattedGames = gamesData?.map(game => ({
+        game_id: game.id,
+        provider_id: game.provider_id,
+        provider_name: (game as any).game_providers?.name || 'Unknown',
+        provider_logo: (game as any).game_providers?.logo_url,
+        game_name: game.name,
+        game_type: game.type,
+        image_url: game.image_url,
+        is_featured: game.is_featured,
+        status: game.status,
+        priority: game.priority || 0,
+        api_type: game.api_type
+      })) || [];
 
       const sortedGames = formattedGames.sort((a, b) => {
         if (a.is_featured && !b.is_featured) return -1;
@@ -536,15 +529,15 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
 
         {/* 미니게임 목록 */}
         {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {Array.from({ length: 10 }).map((_, i) => (
               <Card key={i} className="luxury-card animate-pulse border-green-600/20">
-                <div className="aspect-square bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl" />
+                <div className="aspect-[4/3] bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl" />
               </Card>
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {filteredGames.map((game) => (
               <Card 
                 key={game.game_id} 
@@ -553,7 +546,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
                 }`}
                 onClick={() => handleGameClick(game)}
               >
-                <div className="aspect-square relative overflow-hidden bg-slate-800">
+                <div className="aspect-[4/3] relative overflow-hidden bg-slate-800">
                   <ImageWithFallback
                     src={game.image_url}
                     alt={game.game_name}

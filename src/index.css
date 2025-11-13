@@ -701,6 +701,10 @@
     top: calc(var(--spacing) * 4);
   }
 
+  .top-6 {
+    top: calc(var(--spacing) * 6);
+  }
+
   .top-\[50\%\] {
     top: 50%;
   }
@@ -731,6 +735,10 @@
 
   .right-4 {
     right: calc(var(--spacing) * 4);
+  }
+
+  .right-6 {
+    right: calc(var(--spacing) * 6);
   }
 
   .bottom-0 {
@@ -1073,10 +1081,6 @@
     field-sizing: content;
   }
 
-  .aspect-\[3\/4\] {
-    aspect-ratio: 3 / 4;
-  }
-
   .aspect-\[4\/3\] {
     aspect-ratio: 4 / 3;
   }
@@ -1396,10 +1400,6 @@
 
   .w-2\.5 {
     width: calc(var(--spacing) * 2.5);
-  }
-
-  .w-2\/3 {
-    width: 66.6667%;
   }
 
   .w-3 {
@@ -2150,11 +2150,6 @@
   .rounded-t-lg {
     border-top-left-radius: var(--radius);
     border-top-right-radius: var(--radius);
-  }
-
-  .rounded-t-xl {
-    border-top-left-radius: calc(var(--radius)  + 4px);
-    border-top-right-radius: calc(var(--radius)  + 4px);
   }
 
   .border {
@@ -5392,17 +5387,6 @@
   @supports (color: color-mix(in lab, red, red)) {
     .to-white\/5 {
       --tw-gradient-to: color-mix(in oklab, var(--color-white) 5%, transparent);
-    }
-  }
-
-  .to-yellow-400\/20 {
-    --tw-gradient-to: color-mix(in srgb, oklch(.852 .199 91.936) 20%, transparent);
-    --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .to-yellow-400\/20 {
-      --tw-gradient-to: color-mix(in oklab, var(--color-yellow-400) 20%, transparent);
     }
   }
 
@@ -9733,20 +9717,8 @@
   }
 
   @media (width >= 80rem) {
-    .xl\:grid-cols-4 {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-  }
-
-  @media (width >= 80rem) {
     .xl\:grid-cols-5 {
       grid-template-columns: repeat(5, minmax(0, 1fr));
-    }
-  }
-
-  @media (width >= 80rem) {
-    .xl\:grid-cols-7 {
-      grid-template-columns: repeat(7, minmax(0, 1fr));
     }
   }
 

@@ -1,7 +1,7 @@
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Button } from '../ui/button';
-import { Globe } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { ImageWithFallback } from '../figma/ImageWithFallback';
 
 export function LanguageSwitcher() {
   const { language, setLanguage } = useLanguage();
@@ -21,15 +21,18 @@ export function LanguageSwitcher() {
       variant="ghost"
       size="sm"
       onClick={toggleLanguage}
-      className="flex items-center gap-2 hover:bg-slate-700/50 text-slate-200 hover:text-white transition-colors"
+      className="flex items-center gap-2 hover:bg-slate-700/50 transition-all hover:scale-105 p-2"
+      title={language === 'ko' ? 'Switch to English' : '한국어로 변경'}
     >
-      <Globe className="w-4 h-4" />
-      <span className="text-2xl leading-none">
-        {language === 'ko' ? '🇰🇷' : '🇺🇸'}
-      </span>
-      <span className="text-sm font-medium">
-        {language === 'ko' ? 'KO' : 'EN'}
-      </span>
+      <ImageWithFallback
+        src={
+          language === 'ko' 
+            ? 'https://nzuzzmaiuybzyndptaba.supabase.co/storage/v1/object/public/images/icons8-south-korea-100.png'
+            : 'https://nzuzzmaiuybzyndptaba.supabase.co/storage/v1/object/public/images/icons8-usa-100.png'
+        }
+        alt={language === 'ko' ? 'Korean flag' : 'USA flag'}
+        className="w-8 h-8 rounded-md object-cover"
+      />
     </Button>
   );
 }

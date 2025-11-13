@@ -110,7 +110,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     try {
       setLoading(true);
 
-      // ✅ Sample1처럼 간단한 쿼리로 변경
+      // ✅ 게임 status만 체크하도록 간단하게 변경
       let query = supabase
         .from('games')
         .select(`
@@ -123,7 +123,12 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
           is_featured,
           priority,
           rtp,
-          api_type
+          api_type,
+          game_providers!inner(
+            id,
+            name,
+            logo_url
+          )
         `)
         .eq('type', 'slot')
         .eq('status', 'visible');
@@ -137,33 +142,21 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
 
       if (error) throw error;
 
-      // 게임 제공사 정보를 별도로 조회
-      const providerIds = [...new Set(gamesData?.map(g => g.provider_id) || [])];
-      const { data: providersData } = await supabase
-        .from('game_providers')
-        .select('id, name, logo_url')
-        .in('id', providerIds);
-
-      // 제공사 정보를 맵으로 변환
-      const providerMap = new Map(providersData?.map(p => [p.id, p]) || []);
-
-      const formattedGames = gamesData?.map(game => {
-        const provider = providerMap.get(game.provider_id);
-        return {
-          game_id: game.id,
-          provider_id: game.provider_id,
-          provider_name: provider?.name || 'Unknown',
-          provider_logo: provider?.logo_url,
-          game_name: game.name,
-          game_type: game.type,
-          image_url: game.image_url,
-          is_featured: game.is_featured || false,
-          rtp: game.rtp,
-          status: game.status,
-          priority: game.priority || 0,
-          api_type: game.api_type
-        };
-      }) || [];
+      // 게임 데이터 포맷팅
+      const formattedGames = gamesData?.map(game => ({
+        game_id: game.id,
+        provider_id: game.provider_id,
+        provider_name: (game as any).game_providers?.name || 'Unknown',
+        provider_logo: (game as any).game_providers?.logo_url,
+        game_name: game.name,
+        game_type: game.type,
+        image_url: game.image_url,
+        is_featured: game.is_featured || false,
+        rtp: game.rtp,
+        status: game.status,
+        priority: game.priority || 0,
+        api_type: game.api_type
+      })) || [];
 
       const sortedGames = formattedGames.sort((a, b) => {
         if (a.is_featured && !b.is_featured) return -1;
@@ -551,15 +544,15 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
 
         {/* 슬롯 게임 목록 */}
         {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {Array.from({ length: 10 }).map((_, i) => (
               <Card key={i} className="luxury-card animate-pulse border-yellow-600/20">
-                <div className="aspect-[3/4] bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl" />
+                <div className="aspect-[4/3] bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl" />
               </Card>
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {filteredGames.map((game) => (
               <Card 
                 key={game.game_id} 
@@ -568,7 +561,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
                 }`}
                 onClick={() => handleGameClick(game)}
               >
-                <div className="aspect-[3/4] relative overflow-hidden bg-slate-800">
+                <div className="aspect-[4/3] relative overflow-hidden bg-slate-800">
                   <ImageWithFallback
                     src={game.image_url}
                     alt={game.game_name}
@@ -636,7 +629,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
             </h3>
             <p className="text-yellow-200/80 text-lg mb-4">
               {searchTerm ? `"${searchTerm}"에 대한 검색 결과가 없습니다.` : 
-               selectedCategory !== 'all' ? '선택한 카테고리의 ���임이 없습니다.' : 
+               selectedCategory !== 'all' ? '선택한 카테고리의 임이 없습니다.' : 
                selectedProvider !== 'all' ? '선택한 제공사의 게임이 없습니다.' :
                '사용 가능한 슬롯 게임이 없습니다.'}
             </p>

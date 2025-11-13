@@ -142,4 +142,78 @@ app.get("/make-server-5bfbb11c/dashboard/stats", async (c) => {
   }
 });
 
+// 공지사항 이미지 업로드 엔드포인트
+app.post("/make-server-5bfbb11c/upload/announcement-image", async (c) => {
+  try {
+    const formData = await c.req.formData();
+    const file = formData.get('file') as File;
+    const userId = formData.get('userId') as string;
+
+    if (!file) {
+      return c.json({
+        success: false,
+        error: "파일이 제공되지 않았습니다."
+      }, 400);
+    }
+
+    // 파일 크기 검증 (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      return c.json({
+        success: false,
+        error: "파일 크기는 5MB를 초과할 수 없습니다."
+      }, 400);
+    }
+
+    // 파일 타입 검증
+    if (!file.type.startsWith('image/')) {
+      return c.json({
+        success: false,
+        error: "이미지 파일만 업로드할 수 있습니다."
+      }, 400);
+    }
+
+    // 파일명 생성
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}_${Date.now()}.${fileExt}`;
+    const filePath = `announcements/${fileName}`;
+
+    // Supabase Storage에 업로드
+    const arrayBuffer = await file.arrayBuffer();
+    const { data, error } = await supabase.storage
+      .from('public')
+      .upload(filePath, arrayBuffer, {
+        contentType: file.type,
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      console.error("Storage upload error:", error);
+      return c.json({
+        success: false,
+        error: "파일 업로드 중 오류가 발생했습니다."
+      }, 500);
+    }
+
+    // Public URL 생성
+    const { data: { publicUrl } } = supabase.storage
+      .from('public')
+      .getPublicUrl(filePath);
+
+    return c.json({
+      success: true,
+      data: {
+        url: publicUrl,
+        path: filePath
+      }
+    });
+  } catch (error) {
+    console.error("Upload error:", error);
+    return c.json({
+      success: false,
+      error: "업로드 처리 중 오류가 발생했습니다."
+    }, 500);
+  }
+});
+
 Deno.serve(app.fetch);
