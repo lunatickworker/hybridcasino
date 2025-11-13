@@ -451,12 +451,12 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       <div 
-        className="absolute inset-0 z-0"
+        className="fixed inset-0 z-0 w-full h-full"
         style={{
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.8)), url('https://images.unsplash.com/photo-1550745165-9bc0b252726f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnYW1pbmclMjBhcmNhZGV8ZW58MXx8fHwxNzU5NzIwMzYzfDA&ixlib=rb-4.1.0&q80&w=1080&utm_source=figma&utm_medium=referral')`,
+          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.90)), url('https://images.unsplash.com/photo-1550745165-9bc0b252726f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnYW1pbmclMjBhcmNhZGV8ZW58MXx8fHwxNzU5NzIwMzYzfDA&ixlib=rb-4.1.0&q80&w=1080&utm_source=figma&utm_medium=referral')`,
           backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed'
+          backgroundPosition: 'center center',
+          backgroundRepeat: 'no-repeat'
         }}
       />
       

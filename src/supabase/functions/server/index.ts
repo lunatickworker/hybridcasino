@@ -177,10 +177,21 @@ app.post("/make-server-5bfbb11c/upload/announcement-image", async (c) => {
     const fileName = `${userId}_${Date.now()}.${fileExt}`;
     const filePath = `announcements/${fileName}`;
 
+    // Banner 버킷이 없으면 생성
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bannerBucketExists = buckets?.some(b => b.name === 'Banner');
+    
+    if (!bannerBucketExists) {
+      await supabase.storage.createBucket('Banner', {
+        public: true,
+        fileSizeLimit: 5242880 // 5MB
+      });
+    }
+
     // Supabase Storage에 업로드
     const arrayBuffer = await file.arrayBuffer();
     const { data, error } = await supabase.storage
-      .from('public')
+      .from('Banner')
       .upload(filePath, arrayBuffer, {
         contentType: file.type,
         cacheControl: '3600',
@@ -191,13 +202,13 @@ app.post("/make-server-5bfbb11c/upload/announcement-image", async (c) => {
       console.error("Storage upload error:", error);
       return c.json({
         success: false,
-        error: "파일 업로드 중 오류가 발생했습니다."
+        error: `파일 업로드 중 오류가 발생했습니다: ${error.message}`
       }, 500);
     }
 
     // Public URL 생성
     const { data: { publicUrl } } = supabase.storage
-      .from('public')
+      .from('Banner')
       .getPublicUrl(filePath);
 
     return c.json({
@@ -211,7 +222,7 @@ app.post("/make-server-5bfbb11c/upload/announcement-image", async (c) => {
     console.error("Upload error:", error);
     return c.json({
       success: false,
-      error: "업로드 처리 중 오류가 발생했습니다."
+      error: `업로드 처리 중 오류가 발생했습니다: ${error.message || error}`
     }, 500);
   }
 });

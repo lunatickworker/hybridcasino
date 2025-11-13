@@ -109,38 +109,31 @@ export function Announcements({ user }: AnnouncementsProps) {
     };
   }, []);
 
-  // 이미지 업로드 함수 (서버사이드 업로드)
+  // 이미지 업로드 함수 (announcements-images 버킷 사용)
   const uploadImage = async (file: File) => {
     if (!file) return null;
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+    const filePath = `announcements/${fileName}`;
 
     try {
       setUploading(true);
 
-      // FormData 생성
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('userId', user.id);
+      const { data, error } = await supabase.storage
+        .from('announcements-images')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      // Edge Function으로 업로드
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(
-        `${supabase.supabaseUrl}/functions/v1/server/make-server-5bfbb11c/upload/announcement-image`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session?.access_token || ''}`
-          },
-          body: formData
-        }
-      );
+      if (error) throw error;
 
-      const result = await response.json();
+      const { data: { publicUrl } } = supabase.storage
+        .from('announcements-images')
+        .getPublicUrl(filePath);
 
-      if (!result.success) {
-        throw new Error(result.error || 'Upload failed');
-      }
-
-      return result.data.url;
+      return publicUrl;
     } catch (error) {
       console.error(`${t.announcements.imageUploadError}`, error);
       toast.error(t.announcements.imageUploadFailed);

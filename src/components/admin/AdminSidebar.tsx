@@ -230,12 +230,12 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
           { menu_id: 'support', menu_name: '고객 센터', menu_name_en: 'Customer Support', menu_path: '/admin/support', parent_menu: '커뮤니케이션', parent_menu_en: 'Communication', display_order: 19 },
           { menu_id: 'announcements', menu_name: '공지사항', menu_name_en: 'Announcements', menu_path: '/admin/announcements', parent_menu: '커뮤니케이션', parent_menu_en: 'Communication', display_order: 20 },
           { menu_id: 'messages', menu_name: '메시지 센터', menu_name_en: 'Message Center', menu_path: '/admin/messages', parent_menu: '커뮤니케이션', parent_menu_en: 'Communication', display_order: 21 },
+          { menu_id: 'banners', menu_name: '배너 관리', menu_name_en: 'Banner Management', menu_path: '/admin/banners', parent_menu: '커뮤니케이션', parent_menu_en: 'Communication', display_order: 22 },
           
           // 7. 시스템 설정 그룹
-          { menu_id: 'settings', menu_name: '설정', menu_name_en: 'Settings', menu_path: '/admin/settings', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 22 },
-          { menu_id: 'system-info', menu_name: '시스템 정보', menu_name_en: 'System Info', menu_path: '/admin/system-info', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 23 },
-          { menu_id: 'api-tester', menu_name: 'API 테스터', menu_name_en: 'API Tester', menu_path: '/admin/api-tester', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 24 },
-          { menu_id: 'banners', menu_name: '배너 관리', menu_name_en: 'Banner Management', menu_path: '/admin/banners', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 25 },
+          { menu_id: 'settings', menu_name: '설정', menu_name_en: 'Settings', menu_path: '/admin/settings', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 23 },
+          { menu_id: 'system-info', menu_name: '시스템 정보', menu_name_en: 'System Info', menu_path: '/admin/system-info', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 24 },
+          { menu_id: 'api-tester', menu_name: 'API 테스터', menu_name_en: 'API Tester', menu_path: '/admin/api-tester', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 25 },
           { menu_id: 'menu-management', menu_name: '메뉴 관리', menu_name_en: 'Menu Management', menu_path: '/admin/menu-management', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 26 }
         ];
 

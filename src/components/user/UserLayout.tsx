@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useRef } from "react";
 import { UserHeader } from "./UserHeader";
 import { UserMessagePopup } from "./UserMessagePopup";
+import { UserBannerPopup } from "./UserBannerPopup";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { getUserBalanceWithConfig } from "../../lib/investApi";
@@ -363,6 +364,7 @@ export function UserLayout({ user, currentRoute, onRouteChange, onLogout, childr
       />
       
       <UserMessagePopup userId={user.id} />
+      <UserBannerPopup userId={user.id} />
       
       <main className="relative pb-32 lg:pb-4 pt-20 lg:pt-20 overflow-x-hidden">
         <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-6 relative z-10 max-w-full">

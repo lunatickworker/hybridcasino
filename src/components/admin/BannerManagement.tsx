@@ -48,6 +48,7 @@ export function BannerManagement({ user }: BannerManagementProps) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [timezoneOffset, setTimezoneOffset] = useState<number>(9); // 기본값 UTC+9
   
   const [bannerForm, setBannerForm] = useState<Partial<Banner>>({
     title: '',
@@ -60,8 +61,27 @@ export function BannerManagement({ user }: BannerManagementProps) {
   });
 
   useEffect(() => {
+    loadTimezoneSettings();
     loadBanners();
   }, [user.id]);
+
+  // 시스템 타임존 설정 로드
+  const loadTimezoneSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'timezone_offset')
+        .single();
+
+      if (!error && data) {
+        setTimezoneOffset(parseInt(data.setting_value));
+        console.log('📅 [배너 관리] 시스템 타임존:', `UTC${parseInt(data.setting_value) >= 0 ? '+' : ''}${data.setting_value}`);
+      }
+    } catch (error) {
+      console.error('타임존 설정 로드 실패:', error);
+    }
+  };
 
   const loadBanners = async () => {
     setLoading(true);
@@ -135,7 +155,7 @@ export function BannerManagement({ user }: BannerManagementProps) {
 
       // Supabase Storage에 업로드
       const { error: uploadError } = await supabase.storage
-        .from('banner-images')
+        .from('banner')
         .upload(filePath, selectedImageFile, {
           cacheControl: '3600',
           upsert: false
@@ -148,7 +168,7 @@ export function BannerManagement({ user }: BannerManagementProps) {
 
       // Public URL 가져오기
       const { data: { publicUrl } } = supabase.storage
-        .from('banner-images')
+        .from('banner')
         .getPublicUrl(filePath);
 
       return publicUrl;
@@ -167,8 +187,9 @@ export function BannerManagement({ user }: BannerManagementProps) {
       return;
     }
 
-    if (!bannerForm.content?.trim()) {
-      toast.error(t.bannerManagement.enterContent);
+    // ✅ 이미지 또는 설명 중 하나는 필수
+    if (!bannerForm.content?.trim() && !bannerForm.image_url && !selectedImageFile) {
+      toast.error(t.bannerManagement.enterContentOrImage || '이미지 또는 설명 중 하나는 입력해주세요.');
       return;
     }
 
@@ -186,11 +207,35 @@ export function BannerManagement({ user }: BannerManagementProps) {
         }
       }
 
+      // datetime-local 값을 ISO 문자열로 변환 (시스템 타임존 적용)
+      const formatDateToISO = (dateString?: string) => {
+        if (!dateString) return null;
+        try {
+          // datetime-local 형식: "2025-11-14T16:20"
+          // 시스템 타임존(UTC+9 등)을 적용하여 ISO 8601 형식으로 변환
+          const offset = timezoneOffset * 60; // 분 단위
+          const sign = offset >= 0 ? '+' : '-';
+          const absOffset = Math.abs(offset);
+          const hours = String(Math.floor(absOffset / 60)).padStart(2, '0');
+          const minutes = String(absOffset % 60).padStart(2, '0');
+          
+          const isoString = `${dateString}:00${sign}${hours}:${minutes}`;
+          console.log(`📅 [배너 저장] ${dateString} → ${isoString}`);
+          
+          return isoString;
+        } catch (e) {
+          console.error('날짜 변환 오류:', e);
+          return null;
+        }
+      };
+
       const bannerData = {
         ...bannerForm,
         image_url: imageUrl,
         partner_id: user.id,
         updated_at: new Date().toISOString(),
+        start_date: formatDateToISO(bannerForm.start_date),
+        end_date: formatDateToISO(bannerForm.end_date),
       };
 
       if (editingBanner) {
@@ -242,6 +287,26 @@ export function BannerManagement({ user }: BannerManagementProps) {
   };
 
   const editBanner = (banner: Banner) => {
+    // UTC 시간을 시스템 타임존으로 변환하여 datetime-local input에 표시
+    const formatForInput = (dateString?: string) => {
+      if (!dateString) return '';
+      
+      // UTC 시간을 시스템 타임존으로 변환
+      const utcDate = new Date(dateString);
+      const localTime = utcDate.getTime() + (timezoneOffset * 3600000);
+      const localDate = new Date(localTime);
+      
+      const year = localDate.getFullYear();
+      const month = String(localDate.getMonth() + 1).padStart(2, '0');
+      const day = String(localDate.getDate()).padStart(2, '0');
+      const hours = String(localDate.getHours()).padStart(2, '0');
+      const minutes = String(localDate.getMinutes()).padStart(2, '0');
+      
+      console.log(`📅 [배너 편집] UTC: ${dateString} → 시스템 타임존: ${year}-${month}-${day}T${hours}:${minutes}`);
+      
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+
     setBannerForm({
       title: banner.title,
       content: banner.content,
@@ -251,8 +316,8 @@ export function BannerManagement({ user }: BannerManagementProps) {
       target_level: banner.target_level,
       status: banner.status,
       display_order: banner.display_order,
-      start_date: banner.start_date,
-      end_date: banner.end_date,
+      start_date: formatForInput(banner.start_date),
+      end_date: formatForInput(banner.end_date),
     });
     setEditingBanner(banner.id);
     setSelectedImageFile(null);
@@ -277,48 +342,84 @@ export function BannerManagement({ user }: BannerManagementProps) {
   };
 
   const previewBanner = (banner: Banner) => {
-    const previewWindow = window.open('', '_blank', 'width=600,height=400');
+    const previewWindow = window.open('', '_blank', 'width=700,height=800');
     if (previewWindow) {
       previewWindow.document.write(`
         <html>
           <head>
             <title>${t.bannerManagement.previewTitle} - ${banner.title}</title>
             <style>
-              body { margin: 0; padding: 20px; font-family: sans-serif; background: #1e293b; }
-              .banner-preview { 
-                border: 2px solid #f97316; 
+              body { 
+                margin: 0; 
                 padding: 20px; 
-                max-width: 500px; 
-                margin: 0 auto; 
-                background: #0f172a; 
+                font-family: sans-serif; 
+                background: rgba(0, 0, 0, 0.7); 
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+              }
+              .banner-preview { 
+                border: 2px solid rgba(249, 115, 22, 0.5); 
+                padding: 32px; 
+                max-width: 90vw;
+                max-height: 85vh;
+                overflow-y: auto;
+                background: linear-gradient(to bottom right, #0f172a, #1e293b); 
                 color: #fff; 
-                border-radius: 8px;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+                border-radius: 16px;
+                box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+                position: relative;
               }
               .banner-title { 
-                margin: 0 0 15px 0; 
+                margin: 0 0 24px 0; 
                 color: #f97316; 
-                font-size: 18px;
+                font-size: 24px;
                 font-weight: bold;
                 text-align: center;
               }
               .banner-content { 
                 line-height: 1.6; 
                 color: #e2e8f0;
+                margin-bottom: 24px;
               }
               .banner-image { 
-                max-width: 100%; 
+                width: 100%; 
                 height: auto; 
-                margin: 10px 0; 
-                border-radius: 4px;
+                margin: 0 0 24px 0; 
+                border-radius: 8px;
+                border: 1px solid #334155;
+                max-height: 60vh;
+                object-fit: contain;
+              }
+              .banner-footer {
+                margin-top: 16px;
+                padding-top: 12px;
+                border-top: 1px solid rgba(100, 116, 139, 0.5);
+                text-align: center;
+              }
+              .close-text {
+                color: #94a3b8;
+                font-size: 14px;
+                cursor: pointer;
+                padding: 8px 16px;
+                border-radius: 8px;
+                display: inline-block;
+              }
+              .close-text:hover {
+                color: #fff;
+                background: rgba(100, 116, 139, 0.3);
               }
             </style>
           </head>
           <body>
             <div class="banner-preview">
-              <h3 class="banner-title">★★★ ${banner.title} ★★★</h3>
-              ${banner.image_url ? `<img src="${banner.image_url}" class="banner-image" />` : ''}
-              <div class="banner-content">${banner.content}</div>
+              <h3 class="banner-title">${banner.title}</h3>
+              ${banner.image_url ? `<img src="${banner.image_url}" class="banner-image" alt="${banner.title}" />` : ''}
+              ${banner.content ? `<div class="banner-content">${banner.content}</div>` : ''}
+              <div class="banner-footer">
+                <span class="close-text">오늘은 그만 열기</span>
+              </div>
             </div>
           </body>
         </html>

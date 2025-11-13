@@ -62,6 +62,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
     session_timeout: 1800,
     max_login_attempts: 5,
     max_concurrent_image_downloads: 1,
+    timezone_offset: 9, // 기본값 UTC+9 (한국)
   });
 
   // 커미션 설정 상태
@@ -860,6 +861,51 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                   />
                   <p className="text-xs text-muted-foreground">
                     {t.systemSettings.maxConcurrentImageDownloadsDescription}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="timezone_offset">{t.systemSettings.timezoneOffset || '시스템 시간대 (UTC 오프셋)'}</Label>
+                  <Select
+                    key={`timezone-${generalSettings.timezone_offset}`}
+                    value={String(generalSettings.timezone_offset)}
+                    onValueChange={(value) => setGeneralSettings(prev => ({ ...prev, timezone_offset: parseInt(value, 10) }))}
+                  >
+                    <SelectTrigger className="bg-slate-800/50 border-slate-700">
+                      <SelectValue placeholder="시간대 선택" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-700 max-h-[300px]">
+                      <SelectItem value="-12">UTC-12</SelectItem>
+                      <SelectItem value="-11">UTC-11</SelectItem>
+                      <SelectItem value="-10">UTC-10</SelectItem>
+                      <SelectItem value="-9">UTC-9</SelectItem>
+                      <SelectItem value="-8">UTC-8</SelectItem>
+                      <SelectItem value="-7">UTC-7</SelectItem>
+                      <SelectItem value="-6">UTC-6</SelectItem>
+                      <SelectItem value="-5">UTC-5</SelectItem>
+                      <SelectItem value="-4">UTC-4</SelectItem>
+                      <SelectItem value="-3">UTC-3</SelectItem>
+                      <SelectItem value="-2">UTC-2</SelectItem>
+                      <SelectItem value="-1">UTC-1</SelectItem>
+                      <SelectItem value="0">UTC+0</SelectItem>
+                      <SelectItem value="1">UTC+1</SelectItem>
+                      <SelectItem value="2">UTC+2</SelectItem>
+                      <SelectItem value="3">UTC+3</SelectItem>
+                      <SelectItem value="4">UTC+4</SelectItem>
+                      <SelectItem value="5">UTC+5</SelectItem>
+                      <SelectItem value="6">UTC+6</SelectItem>
+                      <SelectItem value="7">UTC+7</SelectItem>
+                      <SelectItem value="8">UTC+8</SelectItem>
+                      <SelectItem value="9">UTC+9 (한국)</SelectItem>
+                      <SelectItem value="10">UTC+10</SelectItem>
+                      <SelectItem value="11">UTC+11</SelectItem>
+                      <SelectItem value="12">UTC+12 (뉴질랜드)</SelectItem>
+                      <SelectItem value="13">UTC+13</SelectItem>
+                      <SelectItem value="14">UTC+14</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {t.systemSettings.timezoneOffsetDescription || '배너 등 시간 기반 기능에 적용되는 시간대입니다.'}
                   </p>
                 </div>
               </div>
