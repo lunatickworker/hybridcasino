@@ -28,6 +28,8 @@ import {
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { AnimatedCurrency, AnimatedPoints } from "../common/AnimatedNumber";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { LanguageSwitcher } from "../admin/LanguageSwitcher";
 
 interface UserHeaderProps {
   user: any;
@@ -41,22 +43,23 @@ interface UserBalance {
   points: number;
 }
 
-const menuItems = [
-  { path: '/user/casino', label: '카지노', icon: Gamepad2 },
-  { path: '/user/slot', label: '슬롯', icon: Coins },
-  { path: '/user/minigame', label: '미니게임', icon: Crown },
-  { path: '/user/betting-history', label: '베팅내역', icon: History },
-  { path: '/user/deposit', label: '입금신청', icon: CreditCard },
-  { path: '/user/withdraw', label: '출금신청', icon: ArrowUpDown },
-  { path: '/user/notice', label: '공지사항', icon: MessageSquare },
-  { path: '/user/support', label: '고객센터', icon: MessageSquare }
-];
-
 export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: UserHeaderProps) {
   const [balance, setBalance] = useState<UserBalance>({ balance: 0, points: 0 });
   const [showPointsDialog, setShowPointsDialog] = useState(false);
   const balanceChannelRef = useRef<any>(null);
   const isMountedRef = useRef(true);
+  const { language, setLanguage, t } = useLanguage();
+
+  const menuItems = [
+    { path: '/user/casino', label: t.user.casino, icon: Gamepad2 },
+    { path: '/user/slot', label: t.user.slot, icon: Coins },
+    { path: '/user/minigame', label: t.user.minigame, icon: Crown },
+    { path: '/user/betting-history', label: t.user.bettingHistory, icon: History },
+    { path: '/user/deposit', label: t.user.deposit, icon: CreditCard },
+    { path: '/user/withdraw', label: t.user.withdraw, icon: ArrowUpDown },
+    { path: '/user/notice', label: t.user.notice, icon: MessageSquare },
+    { path: '/user/support', label: t.user.support, icon: MessageSquare }
+  ];
 
   useEffect(() => {
     fetchBalance();
@@ -257,6 +260,9 @@ export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: User
 
             {/* Right Section - Desktop */}
             <div className="hidden lg:flex items-center space-x-2 lg:space-x-3 flex-shrink-0">
+              {/* 언어 전환 버튼 */}
+              <LanguageSwitcher />
+              
               {/* 잔고 정보 */}
               <div className="flex items-center space-x-2 lg:space-x-3 luxury-card rounded-xl px-2 lg:px-4 py-2 lg:py-2.5">
                 {/* 보유금 */}
@@ -265,9 +271,9 @@ export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: User
                     <Wallet className="w-3 h-3 lg:w-4 lg:h-4 text-white" />
                   </div>
                   <div className="text-right">
-                    <div className="text-[10px] text-yellow-400/70 tracking-wide">보유금</div>
+                    <div className="text-[10px] text-yellow-400/70 tracking-wide">{t.user.balance}</div>
                     <div className="text-sm text-yellow-400">
-                      <AnimatedCurrency value={balance.balance} duration={800} />
+                      <AnimatedCurrency value={balance.balance} duration={800} currencySymbol={t.common.currencySymbol} />
                     </div>
                   </div>
                 </div>
@@ -281,7 +287,7 @@ export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: User
                     <Coins className="w-3 h-3 lg:w-4 lg:h-4 text-white" />
                   </div>
                   <div className="text-right">
-                    <div className="text-[10px] text-green-400/70 tracking-wide">포인트</div>
+                    <div className="text-[10px] text-green-400/70 tracking-wide">{t.user.points}</div>
                     <div className="text-sm text-green-400">
                       <AnimatedPoints value={balance.points} duration={800} />
                     </div>
@@ -309,21 +315,21 @@ export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: User
                     className="text-yellow-100 hover:text-white hover:bg-yellow-900/30 cursor-pointer"
                   >
                     <User className="w-4 h-4 mr-2" />
-                    내 정보
+                    {t.user.myProfile}
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     onClick={() => onRouteChange('/user/deposit')}
                     className="text-green-400 hover:text-green-300 hover:bg-green-900/30 cursor-pointer"
                   >
                     <CreditCard className="w-4 h-4 mr-2" />
-                    입금신청
+                    {t.user.depositRequest}
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     onClick={() => onRouteChange('/user/withdraw')}
                     className="text-red-400 hover:text-red-300 hover:bg-red-900/30 cursor-pointer"
                   >
                     <ArrowUpDown className="w-4 h-4 mr-2" />
-                    출금신청
+                    {t.user.withdrawRequest}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator className="bg-yellow-600/30" />
                   <DropdownMenuItem 
@@ -331,7 +337,7 @@ export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: User
                     className="text-red-400 hover:text-red-300 hover:bg-red-900/30 cursor-pointer"
                   >
                     <LogOut className="w-4 h-4 mr-2" />
-                    로그아웃
+                    {t.user.logout}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -360,7 +366,7 @@ export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: User
               <div className="flex flex-col items-end px-2 py-1.5 rounded-lg bg-black/40">
                 <div className="text-xs text-yellow-400/70 tracking-wide">보유금</div>
                 <div className="text-base sm:text-lg text-yellow-400 whitespace-nowrap">
-                  <AnimatedCurrency value={balance.balance} duration={800} />
+                  <AnimatedCurrency value={balance.balance} duration={800} currencySymbol={t.common.currencySymbol} />
                 </div>
               </div>
 
@@ -426,28 +432,28 @@ export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: User
       <AlertDialog open={showPointsDialog} onOpenChange={setShowPointsDialog}>
         <AlertDialogContent className="bg-slate-800 border-slate-700">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">포인트 전환</AlertDialogTitle>
+            <AlertDialogTitle className="text-white">{t.user.pointConversion}</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-300">
               {balance.points > 0 ? (
                 <>
-                  보유하신 <span className="text-yellow-400 font-bold">{formatCurrency(balance.points)}P</span>를 
-                  보유금으로 전환하시겠습니까?
+                  {t.user.convertPointsConfirm} <span className="text-yellow-400 font-bold">{formatCurrency(balance.points)}P</span>
+                  {t.user.convertPointsQuestion}
                 </>
               ) : (
-                <span className="text-slate-400">전환 가능한 포인트가 없습니다.</span>
+                <span className="text-slate-400">{t.user.noPointsToConvert}</span>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">
-              {balance.points > 0 ? '취소' : '확인'}
+              {balance.points > 0 ? t.user.cancel : t.user.confirm}
             </AlertDialogCancel>
             {balance.points > 0 && (
               <AlertDialogAction
                 onClick={convertPointsToBalance}
                 className="bg-blue-600 text-white hover:bg-blue-700"
               >
-                전환하기
+                {t.user.convertPointsButton}
               </AlertDialogAction>
             )}
           </AlertDialogFooter>

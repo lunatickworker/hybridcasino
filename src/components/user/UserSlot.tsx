@@ -22,6 +22,7 @@ import { toast } from "sonner@2.0.3";
 import { User } from "../../types";
 import { gameApi } from "../../lib/gameApi";
 import { supabase } from "../../lib/supabase";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface Game {
   game_id: number;
@@ -43,15 +44,6 @@ interface UserSlotProps {
   onRouteChange: (route: string) => void;
 }
 
-const slotCategories = [
-  { id: 'all', name: '전체', icon: Crown, gradient: 'from-yellow-500 to-amber-600' },
-  { id: 'featured', name: '인기', icon: Star, gradient: 'from-red-500 to-pink-600' },
-  { id: 'new', name: '신규', icon: Sparkles, gradient: 'from-blue-500 to-cyan-600' },
-  { id: 'jackpot', name: '잭팟', icon: Trophy, gradient: 'from-purple-500 to-purple-600' },
-  { id: 'bonus', name: '보너스', icon: Gem, gradient: 'from-green-500 to-emerald-600' },
-  { id: 'high-rtp', name: '고수익', icon: Target, gradient: 'from-orange-500 to-red-600' }
-];
-
 export function UserSlot({ user, onRouteChange }: UserSlotProps) {
   const [selectedProvider, setSelectedProvider] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -63,6 +55,16 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
   const [showLoadingPopup, setShowLoadingPopup] = useState(false);
   const [loadingStage, setLoadingStage] = useState<'deposit' | 'launch' | 'withdraw' | 'switch_deposit'>('launch');
   const isMountedRef = useRef(true);
+  const { t } = useLanguage();
+
+  const slotCategories = [
+    { id: 'all', name: t.user.all, icon: Crown, gradient: 'from-yellow-500 to-amber-600' },
+    { id: 'featured', name: t.user.featured, icon: Star, gradient: 'from-red-500 to-pink-600' },
+    { id: 'new', name: t.user.new, icon: Sparkles, gradient: 'from-blue-500 to-cyan-600' },
+    { id: 'jackpot', name: t.user.jackpot, icon: Trophy, gradient: 'from-purple-500 to-purple-600' },
+    { id: 'bonus', name: t.user.bonus, icon: Gem, gradient: 'from-green-500 to-emerald-600' },
+    { id: 'high-rtp', name: t.user.highRtp, icon: Target, gradient: 'from-orange-500 to-red-600' }
+  ];
 
   useEffect(() => {
     initializeData();
@@ -483,12 +485,12 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
           <div className="flex items-center justify-center gap-4 mb-6">
             <Coins className="w-16 h-16 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]" />
             <h1 className="text-6xl lg:text-7xl font-bold gold-text neon-glow">
-              VIP 슬롯 게임
+              {t.user.slotTitle}
             </h1>
             <Coins className="w-16 h-16 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]" />
           </div>
           <p className="text-3xl text-yellow-100 tracking-wide">
-            화려한 잭팟과 함께하는 프리미엄 슬롯 경험
+            {t.user.slotSubtitle}
           </p>
         </div>
 
@@ -498,7 +500,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-yellow-400" />
             <Input
               type="text"
-              placeholder="게임 검색..."
+              placeholder={t.user.searchGame}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-12 h-14 text-lg bg-black/50 border-yellow-600/30 text-white placeholder:text-yellow-200/50 focus:border-yellow-500"
@@ -625,13 +627,13 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
               <Coins className="w-12 h-12 text-yellow-400" />
             </div>
             <h3 className="text-2xl font-bold gold-text mb-2">
-              게임을 찾을 수 없습니다
+              {t.user.noGamesFound}
             </h3>
             <p className="text-yellow-200/80 text-lg mb-4">
-              {searchTerm ? `"${searchTerm}"에 대한 검색 결과가 없습니다.` : 
-               selectedCategory !== 'all' ? '선택한 카테고리의 임이 없습니다.' : 
-               selectedProvider !== 'all' ? '선택한 제공사의 게임이 없습니다.' :
-               '사용 가능한 슬롯 게임이 없습니다.'}
+              {searchTerm ? t.user.noGamesMessage.replace('{{query}}', searchTerm) : 
+               selectedCategory !== 'all' ? t.user.noGamesCategory : 
+               selectedProvider !== 'all' ? t.user.noGamesProvider :
+               t.user.noSlotGamesAvailable}
             </p>
             <div className="flex gap-2 justify-center">
               <Button
@@ -643,14 +645,14 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
                 }}
                 className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
               >
-                전체 게임 보기
+                {t.user.viewAllGames}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => loadSlotGames()}
                 className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
               >
-                새로고침
+                {t.user.refresh}
               </Button>
             </div>
           </div>

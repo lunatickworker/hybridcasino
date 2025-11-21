@@ -24,6 +24,7 @@ import { toast } from "sonner@2.0.3";
 import { User } from "../../types";
 import { gameApi } from "../../lib/gameApi";
 import { supabase } from "../../lib/supabase";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface CasinoGame {
   game_id: number;
@@ -44,15 +45,6 @@ interface UserCasinoProps {
   onRouteChange: (route: string) => void;
 }
 
-const gameCategories = [
-  { id: 'all', name: '전체', icon: Crown, gradient: 'from-yellow-500 to-amber-600' },
-  { id: 'evolution', name: '에볼루션', icon: Target, gradient: 'from-red-500 to-red-600' },
-  { id: 'pragmatic', name: '프라그마틱', icon: Zap, gradient: 'from-blue-500 to-blue-600' },
-  { id: 'baccarat', name: '바카라', icon: Sparkles, gradient: 'from-purple-500 to-purple-600' },
-  { id: 'blackjack', name: '블랙잭', icon: Dice6, gradient: 'from-green-500 to-green-600' },
-  { id: 'roulette', name: '룰렛', icon: Trophy, gradient: 'from-orange-500 to-orange-600' }
-];
-
 export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
   const [selectedProvider, setSelectedProvider] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -64,6 +56,16 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
   const [showLoadingPopup, setShowLoadingPopup] = useState(false);
   const [loadingStage, setLoadingStage] = useState<'deposit' | 'launch' | 'withdraw' | 'switch_deposit'>('launch');
   const isMountedRef = useRef(true);
+  const { t } = useLanguage();
+
+  const gameCategories = [
+    { id: 'all', name: t.user.all, icon: Crown, gradient: 'from-yellow-500 to-amber-600' },
+    { id: 'evolution', name: t.user.evolution, icon: Target, gradient: 'from-red-500 to-red-600' },
+    { id: 'pragmatic', name: t.user.pragmatic, icon: Zap, gradient: 'from-blue-500 to-blue-600' },
+    { id: 'baccarat', name: t.user.baccarat, icon: Sparkles, gradient: 'from-purple-500 to-purple-600' },
+    { id: 'blackjack', name: t.user.blackjack, icon: Dice6, gradient: 'from-green-500 to-green-600' },
+    { id: 'roulette', name: t.user.roulette, icon: Trophy, gradient: 'from-orange-500 to-orange-600' }
+  ];
 
   useEffect(() => {
     initializeData();
@@ -488,27 +490,27 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
             <div className="flex items-center justify-center gap-4 mb-6">
               <Crown className="w-16 h-16 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]" />
               <h1 className="text-6xl lg:text-7xl font-bold gold-text neon-glow">
-                VIP 라이브 카지노
+                {t.user.casinoTitle}
               </h1>
               <Crown className="w-16 h-16 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]" />
             </div>
             <p className="text-3xl text-yellow-100 tracking-wide">
-              세계 최고의 딜러와 함께하는 프리미엄 게임 경험
+              {t.user.casinoSubtitle}
             </p>
             <div className="flex items-center justify-center gap-6 text-yellow-300/80 text-lg">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                <span>실시간 라이브</span>
+                <span>{t.user.realTimeLive}</span>
               </div>
               <div className="w-px h-6 bg-yellow-600/50" />
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                <span>24시간 운영</span>
+                <span>{t.user.available24h}</span>
               </div>
               <div className="w-px h-6 bg-yellow-600/50" />
               <div className="flex items-center gap-2">
                 <Trophy className="w-5 h-5" />
-                <span>VIP 전용</span>
+                <span>{t.user.vipExclusive}</span>
               </div>
             </div>
           </div>
@@ -519,7 +521,7 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-yellow-400" />
               <Input
                 type="text"
-                placeholder="게임 검색..."
+                placeholder={t.user.searchGame}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-12 h-14 text-lg bg-black/50 border-yellow-600/30 text-white placeholder:text-yellow-200/50 focus:border-yellow-500"
@@ -614,14 +616,14 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
                       {launchingGameId === game.game_id ? (
                         <div className="flex flex-col items-center gap-2 text-white">
                           <Loader className="w-10 h-10 animate-spin" />
-                          <span className="text-sm font-semibold">입장 중...</span>
+                          <span className="text-sm font-semibold">{t.user.entering}</span>
                         </div>
                       ) : (
                         <div className="flex flex-col items-center gap-3">
                           <div className="w-16 h-16 rounded-full bg-yellow-500/20 backdrop-blur-md flex items-center justify-center border-2 border-yellow-500/50">
                             <Play className="w-8 h-8 text-yellow-400 fill-current" />
                           </div>
-                          <span className="text-white font-bold text-sm">VIP 입장</span>
+                          <span className="text-white font-bold text-sm">{t.user.enterCasino}</span>
                         </div>
                       )}
                     </div>
@@ -653,13 +655,13 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
                 <Crown className="w-12 h-12 text-yellow-400" />
               </div>
               <h3 className="text-2xl font-bold gold-text mb-2">
-                게임을 찾을 수 없습니다
+                {t.user.noGamesFound}
               </h3>
               <p className="text-yellow-200/80 text-lg mb-4">
-                {searchQuery ? `"${searchQuery}"에 대한 검색 결과가 없습니다.` : 
-                 selectedCategory !== 'all' ? '선택한 카테고리의 게임이 없습니다.' : 
-                 selectedProvider !== 'all' ? '선택한 제공사의 게임이 없습니다.' :
-                 '사용 가능한 카지노 게임이 없습니다.'}
+                {searchQuery ? t.user.noGamesMessage.replace('{{query}}', searchQuery) : 
+                 selectedCategory !== 'all' ? t.user.noGamesCategory : 
+                 selectedProvider !== 'all' ? t.user.noGamesProvider :
+                 t.user.noGamesAvailable}
               </p>
               <div className="flex gap-2 justify-center">
                 <Button
@@ -671,14 +673,14 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
                   }}
                   className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
                 >
-                  전체 게임 보기
+                  {t.user.viewAllGames}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => loadCasinoGames()}
                   className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
                 >
-                  새로고침
+                  {t.user.refresh}
                 </Button>
               </div>
             </div>

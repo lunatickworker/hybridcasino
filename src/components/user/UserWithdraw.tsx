@@ -13,6 +13,7 @@ import { toast } from 'sonner@2.0.3';
 import { supabase } from '../../lib/supabase';
 import { useMessageQueue } from '../common/MessageQueueProvider';
 import { AnimatedCurrency } from '../common/AnimatedNumber';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface User {
   id: string;
@@ -42,6 +43,7 @@ interface WithdrawHistory {
 
 export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
   const { sendMessage } = useMessageQueue();
+  const { t } = useLanguage();
   const [amount, setAmount] = useState('');
   const [selectedBank, setSelectedBank] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
@@ -57,9 +59,19 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
   const [quickAmounts] = useState([1000, 3000, 5000, 10000, 30000, 50000, 100000, 300000, 500000, 1000000]);
   
   const availableBanks = [
-    '국민은행', '신한은행', '우리은행', 'KB국민은행', 'KEB하나은행',
-    '농협은행', '기업은행', '새마을금고', '신협', '우체국',
-    '카카오뱅크', '토스뱅크', '케이뱅크'
+    t.user.banks.kbBank, 
+    t.user.banks.shinhanBank, 
+    t.user.banks.wooriBank, 
+    t.user.banks.kbKookminBank, 
+    t.user.banks.kebHanaBank,
+    t.user.banks.nhBank, 
+    t.user.banks.ibkBank, 
+    t.user.banks.kfcc, 
+    t.user.banks.cu, 
+    t.user.banks.postOffice,
+    t.user.banks.kakaoBank, 
+    t.user.banks.tossBank, 
+    t.user.banks.kBank
   ];
 
   // 출금 제한 상태 확인
@@ -67,7 +79,6 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
     if (!user?.id) return;
 
     try {
-      // 진행 중인 출금 신청이 있는지 확인
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
@@ -80,7 +91,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
       
       if (data && data.length > 0) {
         setIsWithdrawLocked(true);
-        toast.warning('진행 중인 출금 신청이 있어 새로운 출금을 신청할 수 없습니다.');
+        toast.warning(t.user.pendingWithdrawalWarning);
       } else {
         setIsWithdrawLocked(false);
       }
@@ -109,7 +120,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
       setWithdrawHistory(data || []);
     } catch (error) {
       console.error('출금 내역 조회 오류:', error);
-      toast.error('출금 내역을 불러오는데 실패했습니다.');
+      toast.error(t.user.withdrawRequestFailed);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -136,18 +147,18 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
   // 출금 신청
   const handleWithdrawSubmit = async () => {
     if (!user?.id) {
-      toast.error('로그인이 필요합니다.');
+      toast.error(t.user.loginRequired);
       return;
     }
 
     if (!amount || !selectedBank || !accountNumber || !accountHolder || !password) {
-      toast.error('모든 필수 항목을 입력해주세요.');
+      toast.error(t.user.fillAllRequired);
       return;
     }
 
     const withdrawAmount = parseFloat(amount);
     if (withdrawAmount < 10000) {
-      toast.error('최소 출금액은 10,000원입니다.');
+      toast.error(t.user.minimumAmount);
       return;
     }
 
@@ -155,7 +166,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
     await fetchCurrentBalance();
 
     if (withdrawAmount > currentBalance) {
-      toast.error(`출금 가능 금액이 부족합니다.\n현재 잔고: ${currentBalance.toLocaleString()}원`);
+      toast.error(t.user.balanceExceeded.replace('{{balance}}', currentBalance.toLocaleString()));
       return;
     }
 
@@ -170,36 +181,25 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         });
 
       if (authError || !authData || authData.length === 0) {
-        throw new Error('비밀번호가 올바르지 않습니다.');
+        throw new Error(t.user.passwordIncorrect);
       }
 
       // 출금 신청 데이터 생성
       const withdrawData = {
         user_id: user.id,
-        partner_id: user.referrer_id || null, // 사용자의 소속 파트너 (없으면 NULL)
+        partner_id: user.referrer_id || null,
         transaction_type: 'withdrawal',
         amount: withdrawAmount,
         status: 'pending',
         balance_before: currentBalance,
-        balance_after: currentBalance, // 승인 전에는 잔고 변동 없음
+        balance_after: currentBalance,
         bank_name: selectedBank,
         bank_account: accountNumber,
         bank_holder: accountHolder,
         memo: memo || null,
-        // processed_by는 명시하지 않음 - 기본값 NULL 사용
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
-
-      // 디버깅용 로그
-      console.log('💸 출금 신청 데이터:', {
-        ...withdrawData,
-        user_info: {
-          id: user.id,
-          username: user.username,
-          referrer_id: user.referrer_id
-        }
-      });
 
       // 출금 신청 저장
       const { data: insertData, error: insertError } = await supabase
@@ -224,7 +224,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         subject: `${user.nickname}님의 출금 신청`,
         reference_type: 'transaction',
         reference_id: insertData.id
-      }, 3); // 높은 우선순위
+      }, 3);
 
       if (success) {
         console.log('✅ 출금 요청 알림이 관리자에게 전송되었습니다.');
@@ -246,7 +246,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
           }
         }]);
 
-      toast.success('출금 신청이 완료되었습니다.\n관리자 승인 후 계좌로 송금됩니다.', {
+      toast.success(t.user.withdrawalSubmitted, {
         duration: 4000,
       });
       
@@ -267,7 +267,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
 
     } catch (error: any) {
       console.error('❌ 출금 신청 오류:', error);
-      toast.error(error.message || '출금 신청 중 오류가 발생했습니다.');
+      toast.error(error.message || t.user.withdrawRequestFailed);
     } finally {
       setIsSubmitting(false);
     }
@@ -281,35 +281,35 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
           color: 'bg-yellow-500', 
           textColor: 'text-yellow-400', 
           icon: Clock, 
-          label: '승인대기' 
+          label: t.user.statusPending 
         };
       case 'approved':
         return { 
           color: 'bg-blue-500', 
           textColor: 'text-blue-400', 
           icon: RefreshCw, 
-          label: '처리중' 
+          label: t.user.statusApproved 
         };
       case 'completed':
         return { 
           color: 'bg-green-500', 
           textColor: 'text-green-400', 
           icon: CheckCircle, 
-          label: '완료' 
+          label: t.user.statusCompleted 
         };
       case 'rejected':
         return { 
           color: 'bg-red-500', 
           textColor: 'text-red-400', 
           icon: XCircle, 
-          label: '거절' 
+          label: t.user.statusRejected 
         };
       default:
         return { 
           color: 'bg-gray-500', 
           textColor: 'text-slate-400', 
           icon: AlertCircle, 
-          label: '알 수 없음' 
+          label: t.user.statusUnknown 
         };
     }
   };
@@ -324,17 +324,16 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
 
   const currentAmount = parseFloat(amount) || 0;
 
-  // ready 세션 체크 및 보유금 동기화 (FINAL_FLOW_CONFIRMED.md Q4-2 답변)
+  // ready 세션 체크 및 보유금 동기화
   const checkAndSyncBalance = async () => {
     if (!user?.id) return;
 
     try {
-      // ⭐ ready 세션 확인 (출금 페이지 진입 시 보유금 동기화)
       const { data: readySession, error: sessionError } = await supabase
         .from('game_launch_sessions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('status', 'ready')  // ⭐ ready 상태만 체크
+        .eq('status', 'ready')
         .maybeSingle();
 
       if (sessionError) {
@@ -345,26 +344,20 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
       if (readySession) {
         console.log(`🔄 [출금 페이지] ready 세션 감지 - API 출금 + 보유금 동기화 실행`);
         
-        // ⭐ ready 상태에서 출금 페이지 진입 = API 출금 + 보유금 동기화 + ended 전환
-        // 이유: ready 상태 = API 게임머니에 있음, 사용자에게 정확한 GMS 보유금 표시 필요
         const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
         await syncBalanceOnSessionEnd(user.id, readySession.api_type);
         
-        // 동기화 후 잔고 재조회
         await fetchCurrentBalance();
         
         console.log('✅ [출금 페이지] API 출금 + 보유금 동기화 완료');
       }
     } catch (error) {
       console.error('❌ 보유금 동기화 오류:', error);
-      // 에러가 발생해도 출금 페이지는 계속 표시
     }
   };
 
   useEffect(() => {
-    // ready 세션 체크 및 보유금 동기화 (최우선 실행)
     checkAndSyncBalance();
-    
     checkWithdrawStatus();
     fetchWithdrawHistory();
     fetchCurrentBalance();
@@ -384,21 +377,20 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
           const newTransaction = payload.new as any;
           
           if (newTransaction.transaction_type === 'withdrawal') {
-            // 즉시 데이터 새로고침
             fetchWithdrawHistory();
             checkWithdrawStatus();
             
             if (newTransaction.status === 'completed') {
               fetchCurrentBalance();
-              toast.success(`출금이 완료되었습니다!\n금액: ₩${formatCurrency(newTransaction.amount)}`, {
+              toast.success(t.user.withdrawalCompletedToast.replace('{{amount}}', formatCurrency(newTransaction.amount)), {
                 duration: 5000,
               });
             } else if (newTransaction.status === 'rejected') {
-              toast.error(`출금 신청이 거절되었습니다.\n금액: ₩${formatCurrency(newTransaction.amount)}`, {
+              toast.error(t.user.withdrawalRejectedToast.replace('{{amount}}', formatCurrency(newTransaction.amount)), {
                 duration: 5000,
               });
             } else if (newTransaction.status === 'approved') {
-              toast.info(`출금이 승인되었습니다. 처리 중입니다.\n금액: ₩${formatCurrency(newTransaction.amount)}`, {
+              toast.info(t.user.withdrawalApprovedToast.replace('{{amount}}', formatCurrency(newTransaction.amount)), {
                 duration: 4000,
               });
             }
@@ -417,12 +409,12 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
       {/* 헤더 */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-white">출금 신청</h1>
-          <p className="text-slate-400 mt-1">안전하고 빠른 출금 서비스를 제공합니다</p>
+          <h1 className="text-2xl font-bold text-white">{t.user.withdrawalRequest}</h1>
+          <p className="text-slate-400 mt-1">{t.user.safeAndFastService}</p>
         </div>
         <div className="text-right">
-          <p className="text-sm text-slate-400">현재 잔고</p>
-          <p className="text-xl font-bold text-green-400"><AnimatedCurrency value={currentBalance} duration={800} /></p>
+          <p className="text-sm text-slate-400">{t.user.currentBalance}</p>
+          <p className="text-xl font-bold text-green-400"><AnimatedCurrency value={currentBalance} duration={800} currencySymbol={t.common.currencySymbol} /></p>
         </div>
       </div>
 
@@ -432,10 +424,10 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <Minus className="w-5 h-5" />
-              출금 신청
+              {t.user.withdrawalRequest}
             </CardTitle>
             <CardDescription className="text-slate-400">
-              출금할 금액과 계좌 정보를 입력하세요
+              {t.user.enterAmountAndAccount}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -443,7 +435,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
               <Alert className="border-yellow-600 bg-yellow-900/20">
                 <AlertTriangle className="h-4 w-4 text-yellow-400" />
                 <AlertDescription className="text-yellow-300">
-                  진행 중인 출금 신청이 있어 새로운 출금을 신청할 수 없습니다.
+                  {t.user.pendingWithdrawalWarning}
                 </AlertDescription>
               </Alert>
             )}
@@ -451,16 +443,15 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* 출금 금액 */}
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="amount" className="text-slate-300">출금 금액 *</Label>
+                <Label htmlFor="amount" className="text-slate-300">{t.user.withdrawAmount} *</Label>
                 <Input
                   id="amount"
                   type="text"
-                  placeholder="출금할 금액을 입력하세요"
+                  placeholder={t.user.enterAmount}
                   value={amount}
                   onChange={(e) => {
                     const value = e.target.value.replace(/[^0-9]/g, '');
                     const numValue = parseFloat(value || '0');
-                    // 보유금 초과 시 입력 막음
                     if (numValue > currentBalance) {
                       return;
                     }
@@ -480,7 +471,6 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
                       onClick={() => {
                         const currentAmount = parseInt(amount) || 0;
                         const newAmount = currentAmount + quickAmount;
-                        // 보유금 초과 시 입력 막음
                         if (newAmount > currentBalance) {
                           return;
                         }
@@ -499,7 +489,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
                     className="text-xs border-green-600 text-green-400 hover:bg-green-900/20"
                     disabled={isWithdrawLocked}
                   >
-                    전액출금
+                    {t.user.fullWithdraw}
                   </Button>
                   <Button
                     variant="outline"
@@ -508,17 +498,17 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
                     className="text-xs border-red-600 text-red-400 hover:bg-red-900/20"
                     disabled={isWithdrawLocked}
                   >
-                    삭제
+                    {t.user.clear}
                   </Button>
                 </div>
               </div>
 
               {/* 은행 선택 */}
               <div className="space-y-2">
-                <Label htmlFor="bank" className="text-slate-300">은행 선택 *</Label>
+                <Label htmlFor="bank" className="text-slate-300">{t.user.bankName} *</Label>
                 <Select value={selectedBank} onValueChange={setSelectedBank} disabled={isWithdrawLocked}>
                   <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
-                    <SelectValue placeholder="은행을 선택하세요" />
+                    <SelectValue placeholder={t.user.selectBankPlaceholder} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700">
                     {availableBanks.map((bank) => (
@@ -532,10 +522,10 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
 
               {/* 계좌번호 */}
               <div className="space-y-2">
-                <Label htmlFor="accountNumber" className="text-slate-300">계좌번호 *</Label>
+                <Label htmlFor="accountNumber" className="text-slate-300">{t.user.accountNumber} *</Label>
                 <Input
                   id="accountNumber"
-                  placeholder="'-' 없이 숫자만 입력"
+                  placeholder={t.user.accountNumberPlaceholder}
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value.replace(/[^0-9]/g, ''))}
                   className="bg-slate-700/50 border-slate-600 text-white"
@@ -545,10 +535,10 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
 
               {/* 예금주명 */}
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="accountHolder" className="text-slate-300">예금주명 *</Label>
+                <Label htmlFor="accountHolder" className="text-slate-300">{t.user.accountHolder} *</Label>
                 <Input
                   id="accountHolder"
-                  placeholder="계좌의 예금주명을 입력하세요"
+                  placeholder={t.user.accountHolderPlaceholder}
                   value={accountHolder}
                   onChange={(e) => setAccountHolder(e.target.value)}
                   className="bg-slate-700/50 border-slate-600 text-white"
@@ -558,10 +548,10 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
 
               {/* 메모 */}
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="memo" className="text-slate-300">메모 (선택)</Label>
+                <Label htmlFor="memo" className="text-slate-300">{t.user.memoOptional}</Label>
                 <Textarea
                   id="memo"
-                  placeholder="추가 요청사항이 있으시면 입력하세요"
+                  placeholder={t.user.additionalRequest}
                   value={memo}
                   onChange={(e) => setMemo(e.target.value)}
                   className="bg-slate-700/50 border-slate-600 text-white"
@@ -576,10 +566,10 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
               <AlertTriangle className="h-4 w-4 text-red-400" />
               <AlertDescription className="text-red-300">
                 <div className="space-y-1">
-                  <p>• 최소 출금액: 10,000원</p>
-                  <p>• 출금 신청 시 게임 이용이 제한됩니다</p>
-                  <p>• 예금주명은 회원 본인과 일치해야 합니다</p>
-                  <p>• 출금 처리 시간: 평일 기준 1-3시간</p>
+                  <p>• {t.user.minimumAmount}</p>
+                  <p>• {t.user.gameRestriction}</p>
+                  <p>• {t.user.accountHolderMatch}</p>
+                  <p>• {t.user.processingTime}</p>
                 </div>
               </AlertDescription>
             </Alert>
@@ -592,42 +582,42 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
                 >
                   <Minus className="w-4 h-4 mr-2" />
-                  출금 신청하기
+                  {t.user.submitWithdrawal}
                 </Button>
               </DialogTrigger>
               <DialogContent className="bg-slate-800 border-slate-700 text-white">
                 <DialogHeader>
-                  <DialogTitle>출금 신청 확인</DialogTitle>
+                  <DialogTitle>{t.user.withdrawalConfirm}</DialogTitle>
                   <DialogDescription className="text-slate-400">
-                    출금 신청 정보를 확인하고 최종 승인해주세요.
+                    {t.user.withdrawalConfirmDesc}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="p-4 bg-slate-700/50 rounded-lg space-y-2">
                     <div className="flex justify-between">
-                      <span>출금 금액:</span>
+                      <span>{t.user.withdrawalAmountLabel}</span>
                       <span>₩{formatCurrency(currentAmount)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-slate-400">
-                      <span>출금 후 잔액:</span>
-                      <span><AnimatedCurrency value={currentBalance - currentAmount} duration={800} /></span>
+                      <span>{t.user.balanceAfterWithdrawal}</span>
+                      <span><AnimatedCurrency value={currentBalance - currentAmount} duration={800} currencySymbol={t.common.currencySymbol} /></span>
                     </div>
                   </div>
                   
                   <div className="p-4 bg-slate-700/50 rounded-lg">
-                    <p className="text-sm text-slate-300">출금 계좌 정보</p>
+                    <p className="text-sm text-slate-300">{t.user.accountInformation}</p>
                     <p>{selectedBank} {accountNumber}</p>
-                    <p>예금주: {accountHolder}</p>
+                    <p>{t.user.accountHolderLabel} {accountHolder}</p>
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword" className="text-slate-300">
-                      비밀번호 확인 *
+                      {t.user.passwordConfirmation}
                     </Label>
                     <Input
                       id="confirmPassword"
                       type="password"
-                      placeholder="비밀번호를 입력하세요"
+                      placeholder={t.user.enterPasswordPlaceholder}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="bg-slate-700/50 border-slate-600 text-white"
@@ -640,7 +630,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
                       onClick={() => setShowConfirmDialog(false)}
                       className="flex-1"
                     >
-                      취소
+                      {t.user.cancel}
                     </Button>
                     <Button
                       onClick={handleWithdrawSubmit}
@@ -650,10 +640,10 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
                       {isSubmitting ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                          처리중...
+                          {t.user.processing}
                         </>
                       ) : (
-                        '출금 신청'
+                        t.user.submitRequest
                       )}
                     </Button>
                   </div>
@@ -668,10 +658,10 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
           <CardHeader>
             <CardTitle className="text-white flex items-center gap-2">
               <CreditCard className="w-5 h-5" />
-              최근 출금 내역
+              {t.user.recentWithdrawalHistory}
             </CardTitle>
             <CardDescription className="text-slate-400">
-              최근 10개의 출금 신청 내역을 확인할 수 있습니다
+              {t.user.recentWithdrawalsDesc}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -681,7 +671,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
               </div>
             ) : withdrawHistory.length === 0 ? (
               <div className="text-center py-8 text-slate-400">
-                출금 내역이 없습니다
+                {t.user.noWithdrawalHistory}
               </div>
             ) : (
               <div className="space-y-3">
@@ -712,7 +702,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
                       
                       <div className="text-sm text-slate-400 space-y-1">
                         <p>{transaction.bank_name} {transaction.bank_account}</p>
-                        <p>예금주: {transaction.bank_holder}</p>
+                        <p>{t.user.accountHolderLabel} {transaction.bank_holder}</p>
                         {transaction.memo && (
                           <p className="text-slate-500">{transaction.memo}</p>
                         )}

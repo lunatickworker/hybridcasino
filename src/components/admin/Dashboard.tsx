@@ -24,7 +24,7 @@ interface DashboardProps {
 export function Dashboard({ user }: DashboardProps) {
   // ✅ 전역 balance 사용 (AdminHeader와 동일한 상태 공유)
   const { balance, investBalance, oroplayBalance } = useBalance();
-  const { t } = useLanguage();
+  const { t, formatCurrency } = useLanguage();
   
   const [stats, setStats] = useState<DashboardStats>({
     total_users: 0,
@@ -126,7 +126,7 @@ export function Dashboard({ user }: DashboardProps) {
         throw new Error(`DB 업데이트 실패: ${updateError.message}`);
       }
 
-      toast.success(`Invest 보유금 동기화 완료: ₩${newBalance.toLocaleString()}`);
+      toast.success(`Invest 보유금 동기화 완료: ${formatCurrency(newBalance)}`);
     } catch (error: any) {
       console.error('❌ [Dashboard] Invest 보유금 동기화 실패:', error);
       toast.error(`Invest 보유금 동기화 실패: ${error.message}`);
@@ -169,7 +169,7 @@ export function Dashboard({ user }: DashboardProps) {
         throw new Error(`DB 업데이트 실패: ${updateError.message}`);
       }
 
-      toast.success(`OroPlay 보유금 동기화 완료: ₩${balance.toLocaleString()}`);
+      toast.success(`OroPlay 보유금 동기화 완료: ${formatCurrency(balance)}`);
     } catch (error: any) {
       console.error('❌ [Dashboard] OroPlay 보유금 동기화 실패:', error);
       toast.error(`OroPlay 보유금 동기화 실패: ${error.message}`);

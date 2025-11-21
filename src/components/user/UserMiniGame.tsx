@@ -19,6 +19,7 @@ import { toast } from "sonner@2.0.3";
 import { User } from "../../types";
 import { gameApi } from "../../lib/gameApi";
 import { supabase } from "../../lib/supabase";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface Game {
   game_id: number;
@@ -39,13 +40,6 @@ interface UserMiniGameProps {
   onRouteChange: (route: string) => void;
 }
 
-const miniGameCategories = [
-  { id: 'all', name: '전체', icon: Gamepad2, gradient: 'from-green-500 to-emerald-600' },
-  { id: 'featured', name: '인기', icon: Star, gradient: 'from-red-500 to-pink-600' },
-  { id: 'new', name: '신규', icon: Sparkles, gradient: 'from-blue-500 to-cyan-600' },
-  { id: 'quick', name: '빠른게임', icon: Zap, gradient: 'from-purple-500 to-purple-600' }
-];
-
 export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   const [selectedProvider, setSelectedProvider] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -57,6 +51,14 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   const [showLoadingPopup, setShowLoadingPopup] = useState(false);
   const [loadingStage, setLoadingStage] = useState<'deposit' | 'launch' | 'withdraw' | 'switch_deposit'>('launch');
   const isMountedRef = useRef(true);
+  const { t } = useLanguage();
+
+  const miniGameCategories = [
+    { id: 'all', name: t.user.all, icon: Gamepad2, gradient: 'from-green-500 to-emerald-600' },
+    { id: 'featured', name: t.user.featured, icon: Star, gradient: 'from-red-500 to-pink-600' },
+    { id: 'new', name: t.user.new, icon: Sparkles, gradient: 'from-blue-500 to-cyan-600' },
+    { id: 'quick', name: t.user.quickGame, icon: Zap, gradient: 'from-purple-500 to-purple-600' }
+  ];
 
   useEffect(() => {
     initializeData();
@@ -466,12 +468,12 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
           <div className="flex items-center justify-center gap-4 mb-6">
             <Gamepad2 className="w-16 h-16 text-green-400 drop-shadow-[0_0_20px_rgba(34,197,94,0.8)]" />
             <h1 className="text-6xl lg:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500 drop-shadow-[0_0_20px_rgba(34,197,94,0.5)]">
-              VIP 미니게임
+              {t.user.minigameTitle}
             </h1>
             <Gamepad2 className="w-16 h-16 text-green-400 drop-shadow-[0_0_20px_rgba(34,197,94,0.8)]" />
           </div>
           <p className="text-3xl text-green-100 tracking-wide">
-            빠르고 짜릿한 미니게임 플레이
+            {t.user.minigameSubtitle}
           </p>
         </div>
 
@@ -481,7 +483,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-green-400" />
             <Input
               type="text"
-              placeholder="게임 검색..."
+              placeholder={t.user.searchGame}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-12 h-14 text-lg bg-black/50 border-green-600/30 text-white placeholder:text-green-200/50 focus:border-green-500"
@@ -603,13 +605,13 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
               <Gamepad2 className="w-12 h-12 text-green-400" />
             </div>
             <h3 className="text-2xl font-bold text-green-400 mb-2">
-              게임을 찾을 수 없습니다
+              {t.user.noGamesFound}
             </h3>
             <p className="text-green-200/80 text-lg mb-4">
-              {searchTerm ? `"${searchTerm}"에 대한 검색 결과가 없습니다.` : 
-               selectedCategory !== 'all' ? '선택한 카테고리의 게임이 없습니다.' : 
-               selectedProvider !== 'all' ? '선택한 제공사의 게임이 없습니다.' :
-               '사용 가능한 미니게임이 없습니다.'}
+              {searchTerm ? t.user.noGamesMessage.replace('{{query}}', searchTerm) : 
+               selectedCategory !== 'all' ? t.user.noGamesCategory : 
+               selectedProvider !== 'all' ? t.user.noGamesProvider :
+               t.user.noMinigamesAvailable}
             </p>
             <div className="flex gap-2 justify-center">
               <Button
@@ -621,14 +623,14 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
                 }}
                 className="border-green-600/30 text-green-300 hover:bg-green-900/20"
               >
-                전체 게임 보기
+                {t.user.viewAllGames}
               </Button>
               <Button
                 variant="outline"
                 onClick={() => loadMiniGames()}
                 className="border-green-600/30 text-green-300 hover:bg-green-900/20"
               >
-                새로고침
+                {t.user.refresh}
               </Button>
             </div>
           </div>

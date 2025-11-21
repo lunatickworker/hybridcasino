@@ -20,6 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/colla
 import { supabase } from "../../lib/supabase";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { toast } from "sonner@2.0.3";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface UserNoticeProps {
   user: any;
@@ -50,6 +51,7 @@ interface PopupNotice {
 }
 
 export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
+  const { t } = useLanguage();
   const [notices, setNotices] = useState<Notice[]>([]);
   const [filteredNotices, setFilteredNotices] = useState<Notice[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,7 +111,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
       setCurrentPage(page);
     } catch (error) {
       console.error('공지사항 조회 오류:', error);
-      toast.error('공지사항을 불러오는데 실패했습니다.');
+      toast.error(t.user.noticeLoadFailed);
     } finally {
       setIsLoading(false);
     }
@@ -306,14 +308,14 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                     size="sm"
                     onClick={() => closePopup(popup.id, true)}
                   >
-                    오늘 하루 보지 않기
+                    {t.common.close}
                   </Button>
                   <Button
                     size="sm"
                     onClick={() => closePopup(popup.id)}
                     className="bg-blue-600 hover:bg-blue-700"
                   >
-                    확인
+                    {t.common.confirm}
                   </Button>
                 </div>
               </div>
@@ -325,8 +327,8 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
       {/* 헤더 */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">공지사항</h1>
-          <p className="text-slate-400">중요한 안내사항을 확인하세요</p>
+          <h1 className="text-3xl font-bold text-white mb-2">{t.user.noticeTitle}</h1>
+          <p className="text-slate-400">{t.user.noticeSubtitle}</p>
         </div>
       </div>
 
@@ -336,7 +338,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
             <Input
-              placeholder="공지사항 제목이나 내용으로 검색..."
+              placeholder={t.user.searchPlaceholder}
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
               className="pl-10 bg-slate-700/50 border-slate-600 text-white"
@@ -350,7 +352,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
         <CardHeader>
           <CardTitle className="flex items-center text-white">
             <Bell className="w-5 h-5 mr-2 text-blue-400" />
-            공지사항 ({filteredNotices.length})
+            {t.user.noticeTitle} ({filteredNotices.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -381,12 +383,12 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                               {notice.is_pinned && (
                                 <Badge className="bg-red-500 text-white text-xs">
                                   <Pin className="w-3 h-3 mr-1" />
-                                  고정
+                                  {t.common.pinned || '고정'}
                                 </Badge>
                               )}
                               {notice.is_popup && (
                                 <Badge className="bg-purple-500 text-white text-xs">
-                                  팝업
+                                  {t.bannerManagement.popup}
                                 </Badge>
                               )}
                             </div>
@@ -424,7 +426,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                             {notice.view_count.toLocaleString()}
                           </span>
                           {notice.partners?.nickname && (
-                            <span>관리자: {notice.partners.nickname}</span>
+                            <span>{t.user.admin}: {notice.partners.nickname}</span>
                           )}
                         </div>
 
@@ -458,7 +460,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                     onClick={() => fetchNotices(currentPage - 1)}
                     disabled={currentPage <= 1}
                   >
-                    이전
+                    {t.common.previous}
                   </Button>
                   <span className="flex items-center px-3 text-slate-300">
                     {currentPage} / {totalPages}
@@ -469,7 +471,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                     onClick={() => fetchNotices(currentPage + 1)}
                     disabled={currentPage >= totalPages}
                   >
-                    다음
+                    {t.common.next}
                   </Button>
                 </div>
               )}
@@ -478,12 +480,12 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
             <div className="text-center py-12">
               <Bell className="w-16 h-16 text-slate-600 mx-auto mb-4" />
               <h3 className="text-xl font-medium text-white mb-2">
-                {searchQuery ? '검색 결과가 없습니다' : '공지사항이 없습니다'}
+                {searchQuery ? t.user.noSearchResults : t.user.noNotices}
               </h3>
               <p className="text-slate-400 mb-4">
                 {searchQuery 
-                  ? '다른 검색어로 시도해보세요.' 
-                  : '새로운 공지사항이 등록되면 알려드리겠습니다.'
+                  ? t.user.changeSearchCondition 
+                  : t.user.checkLater
                 }
               </p>
               {searchQuery && (
@@ -491,7 +493,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                   variant="outline"
                   onClick={() => handleSearch('')}
                 >
-                  전체 공지사항 보기
+                  {t.user.viewAllInquiries}
                 </Button>
               )}
             </div>
@@ -507,7 +509,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
               <DialogHeader>
                 <DialogTitle className="text-xl">{selectedNotice.title}</DialogTitle>
                 <DialogDescription className="text-slate-400">
-                  공지사항 내용을 확인하실 수 있습니다.
+                  {t.user.noticeSubtitle}
                 </DialogDescription>
                 <div className="flex items-center gap-4 text-sm text-slate-400 pt-2">
                   <span className="flex items-center gap-1">
@@ -516,10 +518,10 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                   </span>
                   <span className="flex items-center gap-1">
                     <Eye className="w-4 h-4" />
-                    조회 {selectedNotice.view_count.toLocaleString()}
+                    {selectedNotice.view_count.toLocaleString()}
                   </span>
                   {selectedNotice.partners?.nickname && (
-                    <span>작성자: {selectedNotice.partners.nickname}</span>
+                    <span>{t.user.admin}: {selectedNotice.partners.nickname}</span>
                   )}
                 </div>
               </DialogHeader>

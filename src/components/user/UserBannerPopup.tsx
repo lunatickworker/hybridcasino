@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
 import { X } from "lucide-react";
 import { Button } from "../ui/button";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface Banner {
   id: string;
@@ -19,6 +20,7 @@ export function UserBannerPopup({ userId }: UserBannerPopupProps) {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (userId) {
@@ -202,7 +204,7 @@ export function UserBannerPopup({ userId }: UserBannerPopupProps) {
                 onClick={handleDontShowToday}
                 className="text-xs text-white/80 hover:text-white bg-black/50 hover:bg-black/70 px-3 py-1.5 rounded-full transition-all backdrop-blur-sm border border-white/10"
               >
-                오늘은 그만보기
+                {t.user.dontShowToday}
               </button>
             </div>
           </div>
@@ -234,7 +236,7 @@ export function UserBannerPopup({ userId }: UserBannerPopupProps) {
                 onClick={handleDontShowToday}
                 className="text-xs text-slate-300 hover:text-white px-4 py-2 rounded-lg hover:bg-slate-700/50 transition-all"
               >
-                오늘은 그만보기
+                {t.user.dontShowToday}
               </button>
             </div>
           </div>

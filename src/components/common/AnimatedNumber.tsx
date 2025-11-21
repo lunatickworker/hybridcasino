@@ -116,15 +116,16 @@ interface AnimatedCurrencyProps {
   duration?: number;
   className?: string;
   showChangeIndicator?: boolean;
+  currencySymbol?: string; // ✅ 통화 기호를 prop으로 받음
 }
 
-export function AnimatedCurrency({ value, duration = 1000, className, showChangeIndicator = false }: AnimatedCurrencyProps) {
+export function AnimatedCurrency({ value, duration = 1000, className, showChangeIndicator = false, currencySymbol = '₩' }: AnimatedCurrencyProps) {
   return (
     <AnimatedNumber
       value={value}
       duration={duration}
       className={className}
-      prefix="₩"
+      prefix={currencySymbol}
       formatNumber={true}
       decimals={0}
       showChangeIndicator={showChangeIndicator}

@@ -25,6 +25,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/colla
 import { supabase } from "../../lib/supabase";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { toast } from "sonner@2.0.3";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface UserSupportProps {
   user: any;
@@ -47,17 +48,19 @@ interface SupportMessage {
   replies?: SupportMessage[];
 }
 
-const inquiryCategories = [
-  { value: 'deposit', label: '입금 문의' },
-  { value: 'withdrawal', label: '출금 문의' },
-  { value: 'game', label: '게임 문의' },
-  { value: 'account', label: '계정 문의' },
-  { value: 'bonus', label: '보너스 문의' },
-  { value: 'technical', label: '기술 문의' },
-  { value: 'other', label: '기타 문의' }
-];
-
 export function UserSupport({ user, onRouteChange }: UserSupportProps) {
+  const { t } = useLanguage();
+  
+  const inquiryCategories = [
+    { value: 'deposit', label: t.user.depositInquiry },
+    { value: 'withdrawal', label: t.user.withdrawalInquiry },
+    { value: 'game', label: t.user.gameInquiry },
+    { value: 'account', label: t.user.accountInquiry },
+    { value: 'bonus', label: t.user.bonusInquiry },
+    { value: 'technical', label: t.user.technicalInquiry },
+    { value: 'other', label: t.user.otherInquiry }
+  ];
+  
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [filteredMessages, setFilteredMessages] = useState<SupportMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -116,7 +119,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
       setFilteredMessages(messagesWithReplies);
     } catch (error) {
       console.error('문의 내역 조회 오류:', error);
-      toast.error('문의 내역을 불러오는데 실패했습니다.');
+      toast.error(t.user.inquiryLoadFailed);
     } finally {
       setIsLoading(false);
     }
@@ -127,7 +130,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
     e.preventDefault();
 
     if (!newInquiry.category || !newInquiry.subject.trim() || !newInquiry.content.trim()) {
-      toast.error('모든 필수 항목을 입력해주세요.');
+      toast.error(t.user.fillAllRequired);
       return;
     }
 
@@ -175,10 +178,10 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
       // 목록 새로고침
       fetchMessages();
 
-      toast.success('문의가 등록되었습니다. 빠른 시일 내에 답변드리겠습니다.');
+      toast.success(t.user.inquirySubmitted);
     } catch (error: any) {
       console.error('문의 등록 오류:', error);
-      toast.error(error.message || '문의 등록 중 오류가 발생했습니다.');
+      toast.error(error.message || t.user.inquirySubmitFailed);
     } finally {
       setIsSubmitting(false);
     }
@@ -267,14 +270,14 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
           color: 'bg-green-500', 
           textColor: 'text-green-400', 
           icon: CheckCircle, 
-          label: '답변완료' 
+          label: t.user.repliedStatus
         };
       } else {
         return { 
           color: 'bg-yellow-500', 
           textColor: 'text-yellow-400', 
           icon: Clock, 
-          label: '답변대기' 
+          label: t.user.waitingStatus
         };
       }
     } else {
@@ -284,14 +287,14 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
           color: 'bg-blue-500', 
           textColor: 'text-blue-400', 
           icon: MessageCircle, 
-          label: '새 답변' 
+          label: t.user.newReplyStatus
         };
       } else {
         return { 
           color: 'bg-slate-500', 
           textColor: 'text-slate-400', 
           icon: MessageCircle, 
-          label: '답변' 
+          label: t.user.replyStatus
         };
       }
     }
@@ -325,7 +328,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
       }, (payload) => {
         if (payload.eventType === 'INSERT') {
           fetchMessages();
-          toast.info('새로운 답변이 도착했습니다.');
+          toast.info(t.user.newReplyArrived);
         }
       })
       .subscribe();
@@ -342,29 +345,29 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
       {/* 헤더 */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">고객센터</h1>
-          <p className="text-slate-400">궁금한 사항을 문의해주세요. 빠르게 답변드리겠습니다.</p>
+          <h1 className="text-3xl font-bold text-white mb-2">{t.user.supportTitle}</h1>
+          <p className="text-slate-400">{t.user.supportSubtitle}</p>
         </div>
         <Dialog open={showNewInquiry} onOpenChange={setShowNewInquiry}>
           <DialogTrigger asChild>
             <Button className="bg-green-600 hover:bg-green-700">
               <Plus className="w-4 h-4 mr-2" />
-              새 문의하기
+              {t.user.newInquiry}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl bg-slate-800 border-slate-700 text-white">
             <DialogHeader>
-              <DialogTitle>새 문의 작성</DialogTitle>
+              <DialogTitle>{t.user.writeInquiry}</DialogTitle>
               <DialogDescription className="text-slate-400">
-                문의 사항을 작성하시면 관리자가 확인 후 답변드립니다.
+                {t.user.inquiryWriteDesc}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmitInquiry} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="category" className="text-slate-300">문의 유형 *</Label>
+                <Label htmlFor="category" className="text-slate-300">{t.user.inquiryType} *</Label>
                 <Select value={newInquiry.category} onValueChange={(value) => setNewInquiry(prev => ({ ...prev, category: value }))}>
                   <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
-                    <SelectValue placeholder="문의 유형을 선택하세요" />
+                    <SelectValue placeholder={t.user.selectInquiryType} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700">
                     {inquiryCategories.map((category) => (
@@ -377,10 +380,10 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="subject" className="text-slate-300">제목 *</Label>
+                <Label htmlFor="subject" className="text-slate-300">{t.user.inquiryTitle} *</Label>
                 <Input
                   id="subject"
-                  placeholder="문의 제목을 입력하세요"
+                  placeholder={t.user.enterInquiryTitle}
                   value={newInquiry.subject}
                   onChange={(e) => setNewInquiry(prev => ({ ...prev, subject: e.target.value }))}
                   className="bg-slate-700/50 border-slate-600 text-white"
@@ -388,10 +391,10 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="content" className="text-slate-300">내용 *</Label>
+                <Label htmlFor="content" className="text-slate-300">{t.user.inquiryContent} *</Label>
                 <Textarea
                   id="content"
-                  placeholder="문의 내용을 자세히 작성해주세요"
+                  placeholder={t.user.enterInquiryContent}
                   value={newInquiry.content}
                   onChange={(e) => setNewInquiry(prev => ({ ...prev, content: e.target.value }))}
                   className="bg-slate-700/50 border-slate-600 text-white min-h-32"
@@ -405,7 +408,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                   onClick={() => setShowNewInquiry(false)}
                   className="flex-1"
                 >
-                  취소
+                  {t.user.cancel}
                 </Button>
                 <Button
                   type="submit"
@@ -415,12 +418,12 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                   {isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                      등록 중...
+                      {t.user.requesting}
                     </>
                   ) : (
                     <>
                       <Send className="w-4 h-4 mr-2" />
-                      문의 등록
+                      {t.user.submit}
                     </>
                   )}
                 </Button>
@@ -438,7 +441,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <Input
-                  placeholder="제목이나 내용으로 검색..."
+                  placeholder={t.user.searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 bg-slate-700/50 border-slate-600 text-white"
@@ -450,10 +453,10 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
-                <SelectItem value="all">전체</SelectItem>
-                <SelectItem value="waiting">답변대기</SelectItem>
-                <SelectItem value="replied">답변완료</SelectItem>
-                <SelectItem value="unread">읽지않음</SelectItem>
+                <SelectItem value="all">{t.common.all}</SelectItem>
+                <SelectItem value="waiting">{t.user.waitingReply}</SelectItem>
+                <SelectItem value="replied">{t.user.repliedStatus}</SelectItem>
+                <SelectItem value="unread">{t.customerSupport.unread}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -465,7 +468,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
         <CardHeader>
           <CardTitle className="flex items-center text-white">
             <MessageSquare className="w-5 h-5 mr-2 text-blue-400" />
-            문의 내역 ({filteredMessages.length})
+            {t.user.inquiryHistory} ({filteredMessages.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -498,7 +501,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                                 </Badge>
                                 {message.replies && message.replies.length > 0 && (
                                   <Badge variant="outline" className="text-xs">
-                                    {message.replies.length}개 답변
+                                    {message.replies.length}{t.user.repliesCount}
                                   </Badge>
                                 )}
                               </div>
@@ -510,7 +513,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <User className="w-3 h-3" />
-                                  {message.sender_id === user.id ? '내 문의' : '관리자 답변'}
+                                  {message.sender_id === user.id ? t.user.myInquiry : t.user.adminReply}
                                 </span>
                               </div>
                             </div>
@@ -532,7 +535,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                             <div className="flex items-center gap-2 mb-2">
                               <User className="w-4 h-4 text-blue-400" />
                               <span className="text-sm font-medium text-blue-400">
-                                {message.sender_id === user.id ? user.nickname : '관리자'}
+                                {message.sender_id === user.id ? user.nickname : t.user.admin}
                               </span>
                               <span className="text-xs text-slate-500">
                                 {formatDateTime(message.created_at)}
@@ -549,7 +552,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                               <div className="flex items-center gap-2 mb-2">
                                 <User className="w-4 h-4 text-green-400" />
                                 <span className="text-sm font-medium text-green-400">
-                                  {reply.sender_id === user.id ? user.nickname : '관리자'}
+                                  {reply.sender_id === user.id ? user.nickname : t.user.admin}
                                 </span>
                                 <span className="text-xs text-slate-500">
                                   {formatDateTime(reply.created_at)}
@@ -571,12 +574,12 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
             <div className="text-center py-12">
               <MessageSquare className="w-16 h-16 text-slate-600 mx-auto mb-4" />
               <h3 className="text-xl font-medium text-white mb-2">
-                {searchQuery || statusFilter !== 'all' ? '검색 결과가 없습니다' : '문의 내역이 없습니다'}
+                {searchQuery || statusFilter !== 'all' ? t.user.noSearchResults : t.user.noInquiries}
               </h3>
               <p className="text-slate-400 mb-4">
                 {searchQuery || statusFilter !== 'all'
-                  ? '검색 조건을 변경해보세요.' 
-                  : '궁금한 사항이 있으시면 언제든 문의해주세요.'
+                  ? t.user.changeSearchCondition 
+                  : t.user.askAnytime
                 }
               </p>
               {(searchQuery || statusFilter !== 'all') ? (
@@ -587,7 +590,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                     setStatusFilter('all');
                   }}
                 >
-                  전체 문의 보기
+                  {t.user.viewAllInquiries}
                 </Button>
               ) : (
                 <Button
@@ -595,7 +598,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  첫 문의하기
+                  {t.user.firstInquiry}
                 </Button>
               )}
             </div>

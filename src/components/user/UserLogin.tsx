@@ -10,6 +10,7 @@ import { Loader2, Eye, EyeOff, CheckCircle, XCircle } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { investApi } from "../../lib/investApi";
 import { toast } from "sonner@2.0.3";
+import { useLanguage } from "../../contexts/LanguageContext";
 // API 계정 생성은 관리자 승인 시 수행 (회원가입 시 제거)
 
 interface UserLoginProps {
@@ -38,6 +39,7 @@ const generateUUID = (): string => {
 };
 
 export function UserLogin({ onLoginSuccess }: UserLoginProps) {
+  const { t, language, setLanguage } = useLanguage();
   const [activeTab, setActiveTab] = useState("login");
   
   // 로그인 폼 데이터
@@ -440,32 +442,45 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
         </div>
 
         <Card className="luxury-card border-2 border-yellow-600/40 shadow-2xl backdrop-blur-sm">
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-2xl text-center gold-text neon-glow">VIP 로그인</CardTitle>
+          <CardHeader className="space-y-1 pb-4 relative">
+            {/* 언어 변경 버튼 */}
+            <button
+              onClick={() => setLanguage(language === 'ko' ? 'en' : 'ko')}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full overflow-hidden hover:scale-110 transition-transform shadow-lg border-2 border-yellow-600/50"
+              title={language === 'ko' ? 'Switch to English' : '한국어로 변경'}
+            >
+              {language === 'ko' ? (
+                <img src="https://flagcdn.com/w40/kr.png" alt="한국어" className="w-full h-full object-cover" />
+              ) : (
+                <img src="https://flagcdn.com/w40/us.png" alt="English" className="w-full h-full object-cover" />
+              )}
+            </button>
+            
+            <CardTitle className="text-2xl text-center gold-text neon-glow">{t.user.loginTitle}</CardTitle>
             <CardDescription className="text-center text-yellow-300/80">
-              VIP 계정으로 로그인하세요
+              {t.user.loginSubtitle}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2 bg-black/50 mb-6 border border-yellow-600/30">
                 <TabsTrigger value="login" className="text-yellow-200 data-[state=active]:bg-gradient-to-r data-[state=active]:from-yellow-600 data-[state=active]:to-amber-600 data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-lg">
-                  VIP 로그인
+                  {t.user.vipLogin}
                 </TabsTrigger>
                 <TabsTrigger value="register" className="text-yellow-200 data-[state=active]:bg-gradient-to-r data-[state=active]:from-yellow-600 data-[state=active]:to-amber-600 data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-lg">
-                  VIP 가입
+                  {t.user.vipSignup}
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="login" className="space-y-4">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-username" className="text-yellow-300 font-semibold">VIP 아이디</Label>
+                    <Label htmlFor="login-username" className="text-yellow-300 font-semibold">{t.user.vipId}</Label>
                     <Input
                       id="login-username"
                       name="username"
                       type="text"
-                      placeholder="VIP 아이디를 입력하세요"
+                      placeholder={t.user.enterVipId}
                       value={loginData.username}
                       onChange={handleLoginChange}
                       disabled={isLoading}
@@ -474,13 +489,13 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="login-password" className="text-slate-300">비밀번호</Label>
+                    <Label htmlFor="login-password" className="text-slate-300">{t.user.password}</Label>
                     <div className="relative">
                       <Input
                         id="login-password"
                         name="password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="비밀번호를 입력하세요"
+                        placeholder={t.user.enterPassword}
                         value={loginData.password}
                         onChange={handleLoginChange}
                         disabled={isLoading}
@@ -504,10 +519,10 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
                     {isLoading ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        로그인 중...
+                        {t.user.loggingIn}
                       </>
                     ) : (
-                      '로그인'
+                      t.user.loginButton
                     )}
                   </Button>
                 </form>
@@ -710,7 +725,7 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
         {/* 하단 정보 */}
         <div className="text-center mt-8 text-sm text-slate-400">
           <p>© 2025 GMS Casino. All rights reserved.</p>
-          <p className="mt-2 text-slate-500">안전하고 공정한 게임 환경을 제공합니다.</p>
+          <p className="mt-2 text-slate-500">{t.user.responsibleGaming}</p>
         </div>
       </div>
     </div>

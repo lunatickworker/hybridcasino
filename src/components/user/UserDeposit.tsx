@@ -26,6 +26,7 @@ import { LoadingSpinner } from "../common/LoadingSpinner";
 import { toast } from "sonner@2.0.3";
 import { useMessageQueue } from "../common/MessageQueueProvider";
 import { AnimatedCurrency } from "../common/AnimatedNumber";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface UserDepositProps {
   user: any;
@@ -44,6 +45,7 @@ interface DepositHistory {
 }
 
 export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
+  const { t } = useLanguage();
   const { sendMessage } = useMessageQueue();
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
@@ -74,7 +76,7 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
       setDepositHistory(data || []);
     } catch (error) {
       console.error('입금 내역 조회 오류:', error);
-      toast.error('입금 내역을 불러오는데 실패했습니다.');
+      toast.error(t.user.depositRequestFailed);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -98,7 +100,7 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
     }
   };
 
-  // 🔧 추가: 진행 중인 입금 신청 확인 (중복 방지)
+  // 진행 중인 입금 신청 확인 (중복 방지)
   const checkPendingDeposit = async (): Promise<boolean> => {
     try {
       const { data, error } = await supabase
@@ -115,7 +117,7 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
       }
 
       if (data && data.length > 0) {
-        toast.warning('이미 진행 중인 입금 신청이 있습니다.');
+        toast.warning(t.transactionManagement.pendingDepositExists || '이미 진행 중인 입금 신청이 있습니다.');
         return false;
       }
 
@@ -131,16 +133,16 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
     e.preventDefault();
 
     if (!user?.id) {
-      toast.error('로그인이 필요합니다.');
+      toast.error(t.user.loginFailed);
       return;
     }
 
     if (!amount) {
-      toast.error('모든 필수 항목을 입력해주세요.');
+      toast.error(t.user.fillAllFields);
       return;
     }
 
-    // 🔧 추가: 중복 신청 방지
+    // 중복 신청 방지
     const canDeposit = await checkPendingDeposit();
     if (!canDeposit) {
       return;
@@ -148,12 +150,12 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
 
     const depositAmount = parseFloat(amount);
     if (depositAmount < 10000) {
-      toast.error('최소 입금 금액은 10,000원입니다.');
+      toast.error(t.user.minimumDeposit || '최소 입금 금액은 10,000원입니다.');
       return;
     }
 
     if (depositAmount > 10000000) {
-      toast.error('최대 입금 금액은 10,000,000원입니다.');
+      toast.error(t.user.maximumDeposit || '최대 입금 금액은 10,000,000원입니다.');
       return;
     }
 
@@ -166,22 +168,20 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
       // 입금 신청 데이터 생성
       const depositData = {
         user_id: user.id,
-        partner_id: user.referrer_id || null, // 사용자의 소속 파트너 (없으면 NULL)
+        partner_id: user.referrer_id || null,
         transaction_type: 'deposit',
         amount: depositAmount,
         status: 'pending',
         balance_before: currentBalance,
-        balance_after: currentBalance, // 승인 전에는 잔고 변동 없음
+        balance_after: currentBalance,
         bank_name: '국민은행',
-        bank_account: '123456-78-901234', // 실제 계좌번호는 사용자가 선택한 은행 계좌로 설정
+        bank_account: '123456-78-901234',
         bank_holder: 'GMS카지노',
         memo: memo.trim() || null,
-        // processed_by는 명시하지 않음 - 기본값 NULL 사용
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
-      // 디버깅용 로그
       console.log('💰 입금 신청 데이터:', {
         ...depositData,
         user_info: {
@@ -208,13 +208,13 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
         nickname: user.nickname,
         amount: depositAmount,
         bank_name: '국민은행',
-        bank_account: '123456-78-901234', // 실제 계좌번호는 사용자가 선택한 은행 계좌로 설정
+        bank_account: '123456-78-901234',
         depositor_name: 'GMS카지노',
         memo: memo.trim() || null,
         subject: `${user.nickname}님의 입금 신청`,
         reference_type: 'transaction',
         reference_id: insertedData.id
-      }, 3); // 높은 우선순위
+      }, 3);
 
       if (success) {
         console.log('✅ 입금 요청 알림이 관리자에게 전송되었습니다.');
@@ -243,13 +243,13 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
       // 즉시 내역 새로고침
       await fetchDepositHistory();
 
-      toast.success('입금 신청이 완료되었습니다.\n관리자 승인 후 잔고에 반영됩니다.', {
+      toast.success(t.user.depositRequested, {
         duration: 4000,
       });
 
     } catch (error: any) {
       console.error('❌ 입금 신청 오류:', error);
-      toast.error(error.message || '입금 신청 중 오류가 발생했습니다.');
+      toast.error(error.message || t.user.depositRequestFailed);
     } finally {
       setIsSubmitting(false);
     }
@@ -269,35 +269,35 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
           color: 'bg-yellow-500', 
           textColor: 'text-yellow-400', 
           icon: Clock, 
-          label: '승인대기' 
+          label: t.user.pending
         };
       case 'approved':
         return { 
           color: 'bg-blue-500', 
           textColor: 'text-blue-400', 
           icon: RefreshCw, 
-          label: '처리중' 
+          label: t.transactionManagement.processing || '처리중'
         };
       case 'completed':
         return { 
           color: 'bg-green-500', 
           textColor: 'text-green-400', 
           icon: CheckCircle, 
-          label: '완료' 
+          label: t.user.approved
         };
       case 'rejected':
         return { 
           color: 'bg-red-500', 
           textColor: 'text-red-400', 
           icon: XCircle, 
-          label: '거절' 
+          label: t.user.rejected
         };
       default:
         return { 
           color: 'bg-slate-500', 
           textColor: 'text-slate-400', 
           icon: AlertCircle, 
-          label: '알 수 없음' 
+          label: t.partnerManagement.unknown
         };
     }
   };
@@ -339,15 +339,15 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
             
             if (newTransaction.status === 'completed') {
               fetchCurrentBalance();
-              toast.success(`입금이 완료되었습니다!\n금액: ₩${formatCurrency(newTransaction.amount)}`, {
+              toast.success(`${t.user.depositRequested}\n${t.common.amount}: ${t.common.currencySymbol}${formatCurrency(newTransaction.amount)}`, {
                 duration: 5000,
               });
             } else if (newTransaction.status === 'rejected') {
-              toast.error(`입금 신청이 거절되었습니다.\n금액: ₩${formatCurrency(newTransaction.amount)}`, {
+              toast.error(`${t.user.depositRequestFailed}\n${t.common.amount}: ${t.common.currencySymbol}${formatCurrency(newTransaction.amount)}`, {
                 duration: 5000,
               });
             } else if (newTransaction.status === 'approved') {
-              toast.info(`입금이 승인되었습니다. 처리 중입니다.\n금액: ₩${formatCurrency(newTransaction.amount)}`, {
+              toast.info(`${t.user.approved}\n${t.common.amount}: ${t.common.currencySymbol}${formatCurrency(newTransaction.amount)}`, {
                 duration: 4000,
               });
             }
@@ -364,9 +364,9 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <XCircle className="w-16 h-16 text-red-400" />
-        <p className="text-lg text-slate-300">로그인이 필요한 서비스입니다.</p>
+        <p className="text-lg text-slate-300">{t.user.loginFailed}</p>
         <Button onClick={() => window.location.hash = '#/sample1'} className="bg-blue-600 hover:bg-blue-700">
-          로그인하기
+          {t.user.loginButton}
         </Button>
       </div>
     );
@@ -377,15 +377,15 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
       {/* 헤더 */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">입금 신청</h1>
-          <p className="text-slate-400">안전하고 빠른 입금 서비스를 이용하세요</p>
+          <h1 className="text-3xl font-bold text-white mb-2">{t.user.depositTitle}</h1>
+          <p className="text-slate-400">{t.user.depositSubtitle}</p>
         </div>
         <div className="flex items-center gap-4 bg-slate-800/50 rounded-lg px-4 py-2">
           <Wallet className="w-5 h-5 text-green-400" />
           <div>
-            <div className="text-sm text-slate-300">현재 보유금</div>
+            <div className="text-sm text-slate-300">{t.user.balance}</div>
             <div className="text-lg font-bold text-green-400">
-              <AnimatedCurrency value={currentBalance} duration={800} />
+              <AnimatedCurrency value={currentBalance} duration={800} currencySymbol={t.common.currencySymbol} />
             </div>
           </div>
         </div>
@@ -398,18 +398,18 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
             <CardHeader>
               <CardTitle className="flex items-center text-white">
                 <CreditCard className="w-5 h-5 mr-2 text-green-400" />
-                입금 신청
+                {t.user.depositTitle}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleDepositSubmit} className="space-y-6">
                 {/* 입금 금액 */}
                 <div className="space-y-2">
-                  <Label htmlFor="amount" className="text-slate-300">입금 금액 *</Label>
+                  <Label htmlFor="amount" className="text-slate-300">{t.user.depositAmount} *</Label>
                   <Input
                     id="amount"
                     type="text"
-                    placeholder="금액을 입력하세요"
+                    placeholder={t.user.enterDepositAmount}
                     value={amount}
                     onChange={(e) => {
                       const value = e.target.value.replace(/[^0-9]/g, '');
@@ -421,7 +421,7 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
 
                 {/* 빠른 금액 선택 */}
                 <div className="space-y-2">
-                  <Label className="text-slate-300">빠른 선택</Label>
+                  <Label className="text-slate-300">{t.pointManagement.quickInput}</Label>
                   <div className="flex flex-wrap gap-2">
                     {quickAmounts.map((value) => (
                       <Button
@@ -432,7 +432,7 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
                         onClick={() => handleQuickAmount(value)}
                         className="whitespace-nowrap"
                       >
-                        +{formatCurrency(value)}원
+                        +{formatCurrency(value)}{t.common.currency}
                       </Button>
                     ))}
                     <Button
@@ -442,17 +442,17 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
                       onClick={() => setAmount('')}
                       className="whitespace-nowrap border-red-600 text-red-400 hover:bg-red-900/20"
                     >
-                      삭제
+                      {t.common.delete}
                     </Button>
                   </div>
                 </div>
 
                 {/* 메모 */}
                 <div className="space-y-2">
-                  <Label htmlFor="memo" className="text-slate-300">메모 (선택)</Label>
+                  <Label htmlFor="memo" className="text-slate-300">{t.common.memo}</Label>
                   <Textarea
                     id="memo"
-                    placeholder="추가 요청사항이 있으시면 입력하세요"
+                    placeholder={t.pointManagement.memoPlaceholder}
                     value={memo}
                     onChange={(e) => setMemo(e.target.value)}
                     className="bg-slate-700/50 border-slate-600 text-white"
@@ -465,10 +465,10 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
                   <Info className="h-4 w-4 text-yellow-400" />
                   <AlertDescription className="text-yellow-300">
                     <div className="space-y-1">
-                      <p>• 최소 입금액: 10,000원 | 최대 입금액: 10,000,000원</p>
-                      <p>• 입금자명과 계좌 소유자명이 일치해야 합니다</p>
-                      <p>• 승인까지 평균 5-10분 소요됩니다</p>
-                      <p>• 문의사항은 고객센터를 이용해주세요</p>
+                      <p>• {t.user.minimumDeposit} | {t.user.maximumDeposit}</p>
+                      <p>• {t.user.depositMatchNote}</p>
+                      <p>• {t.user.depositProcessTime}</p>
+                      <p>• {t.user.depositContactNote}</p>
                     </div>
                   </AlertDescription>
                 </Alert>
@@ -482,12 +482,12 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
                   {isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                      신청 처리 중...
+                      {t.user.requesting}
                     </>
                   ) : (
                     <>
                       <Plus className="w-4 h-4 mr-2" />
-                      입금 신청하기
+                      {t.user.requestDeposit}
                     </>
                   )}
                 </Button>
@@ -502,7 +502,7 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
             <CardHeader>
               <CardTitle className="flex items-center text-white">
                 <ArrowUpRight className="w-5 h-5 mr-2 text-blue-400" />
-                최근 입금 내역
+                {t.user.depositHistory}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -526,14 +526,14 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
                             </Badge>
                           </div>
                           <span className="text-lg font-bold text-white">
-                            ₩{formatCurrency(deposit.amount)}
+                            {t.common.currencySymbol}{formatCurrency(deposit.amount)}
                           </span>
                         </div>
                         <div className="space-y-1 text-sm text-slate-400">
                           <p>{deposit.bank_name} {deposit.bank_account}</p>
                           <p>{formatDateTime(deposit.created_at)}</p>
                           {deposit.memo && (
-                            <p className="text-slate-300">메모: {deposit.memo}</p>
+                            <p className="text-slate-300">{t.common.memo}: {deposit.memo}</p>
                           )}
                         </div>
                       </div>
@@ -544,13 +544,13 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
                     onClick={() => onRouteChange('/user/profile')}
                     className="w-full"
                   >
-                    전체 내역 보기
+                    {t.header.viewAll}
                   </Button>
                 </div>
               ) : (
                 <div className="text-center py-8">
                   <CreditCard className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                  <p className="text-slate-400">입금 내역이 없습니다</p>
+                  <p className="text-slate-400">{t.user.noDepositHistory}</p>
                 </div>
               )}
             </CardContent>

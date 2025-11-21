@@ -31,7 +31,7 @@ interface TransactionManagementProps {
 }
 
 export function TransactionManagement({ user }: TransactionManagementProps) {
-  const { t, language } = useLanguage();
+  const { t, language, formatCurrency } = useLanguage();
   const { lastMessage, sendMessage } = useWebSocketContext();
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -784,7 +784,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             isWithdrawal ? 'text-red-400' : 'text-green-400'
           )}>
             {isWithdrawal ? '-' : '+'}
-            ₩{parseFloat(row.amount.toString()).toLocaleString()}
+            {formatCurrency(parseFloat(row.amount.toString()))}
           </span>
         );
       }
@@ -793,7 +793,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       header: t.transactionManagement.balanceAfter,
       cell: (row: Transaction) => (
         <span className="font-mono text-cyan-400">
-          ₩{parseFloat(row.balance_after?.toString() || '0').toLocaleString()}
+          {formatCurrency(parseFloat(row.balance_after?.toString() || '0'))}
         </span>
       )
     },
@@ -871,7 +871,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
         <MetricCard
           title={t.transactionManagement.totalDeposit}
-          value={`₩${stats.totalDeposit.toLocaleString()}`}
+          value={formatCurrency(stats.totalDeposit)}
           subtitle={t.transactionManagement.accumulatedDeposit}
           icon={TrendingUp}
           color="green"
@@ -879,7 +879,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         
         <MetricCard
           title={t.transactionManagement.totalWithdrawal}
-          value={`₩${stats.totalWithdrawal.toLocaleString()}`}
+          value={formatCurrency(stats.totalWithdrawal)}
           subtitle={t.transactionManagement.accumulatedWithdrawal}
           icon={TrendingDown}
           color="red"
@@ -1064,7 +1064,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                 <div className="flex justify-between">
                   <span className="text-slate-400">{t.transactionManagement.amount}:</span>
                   <span className="text-green-400 font-mono">
-                    ₩{parseFloat(actionDialog.transaction.amount.toString()).toLocaleString()}
+                    {formatCurrency(parseFloat(actionDialog.transaction.amount.toString()))}
                   </span>
                 </div>
               </div>

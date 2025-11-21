@@ -9,6 +9,7 @@ interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: Translations;
+  formatCurrency: (amount: number) => string; // ✅ 통화 포맷팅 함수 추가
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -26,8 +27,14 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const t = language === 'en' ? en : ko;
 
+  // ✅ 통화 포맷팅 함수
+  const formatCurrency = (amount: number): string => {
+    const currencySymbol = t.common.currency;
+    return `${currencySymbol}${amount.toLocaleString()}`;
+  };
+
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t, formatCurrency }}>
       {children}
     </LanguageContext.Provider>
   );

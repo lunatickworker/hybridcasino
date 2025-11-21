@@ -36,6 +36,7 @@ import { supabase } from "../../lib/supabase";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { toast } from "sonner@2.0.3";
 import { AnimatedCurrency } from "../common/AnimatedNumber";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface UserProfileProps {
   user: any;
@@ -92,6 +93,7 @@ interface UserStats {
 }
 
 export function UserProfile({ user, onRouteChange }: UserProfileProps) {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState('info');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [pointTransactions, setPointTransactions] = useState<PointTransaction[]>([]);
@@ -263,22 +265,22 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
         }]);
 
       setIsEditing(false);
-      toast.success('정보가 성공적으로 수정되었습니다.');
+      toast.success(t.user.infoUpdatedSuccess);
     } catch (error: any) {
       console.error('정보 수정 오류:', error);
-      toast.error(error.message || '정보 수정 중 오류가 발생했습니다.');
+      toast.error(error.message || t.user.infoUpdateFailed);
     }
   };
 
   // 비밀번호 변경
   const handlePasswordChange = async () => {
     if (passwordChange.newPassword !== passwordChange.confirmPassword) {
-      toast.error('새 비밀번호가 일치하지 않습니다.');
+      toast.error(t.user.passwordMismatch);
       return;
     }
 
     if (passwordChange.newPassword.length < 6) {
-      toast.error('비밀번호는 6자리 이상이어야 합니다.');
+      toast.error(t.user.passwordTooShort);
       return;
     }
 
@@ -291,7 +293,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
         });
 
       if (authError || !authData || authData.length === 0) {
-        toast.error('현재 비밀번호가 올바르지 않습니다.');
+        toast.error(t.user.currentPasswordIncorrect);
         return;
       }
 
@@ -319,17 +321,17 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
 
       setPasswordChange({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setShowPasswordDialog(false);
-      toast.success('비밀번호가 성공적으로 변경되었습니다.');
+      toast.success(t.user.passwordChangedSuccess);
     } catch (error: any) {
       console.error('비밀번호 변경 오류:', error);
-      toast.error(error.message || '비밀번호 변경 중 오류가 발생했습니다.');
+      toast.error(error.message || t.user.passwordChangeFailed);
     }
   };
 
   // 포인트를 잔고로 전환
   const convertPointsToBalance = async (points: number) => {
     if (points > currentPoints) {
-      toast.error('보유 포인트가 부족합니다.');
+      toast.error(t.user.insufficientPoints);
       return;
     }
 
@@ -374,25 +376,25 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
       fetchTransactions();
       fetchPointTransactions();
 
-      toast.success(`${points.toLocaleString()} 포인트가 잔고로 전환되었습니다.`);
+      toast.success(t.user.pointsConvertedSuccess.replace('{{points}}', points.toLocaleString()));
     } catch (error: any) {
       console.error('포인트 전환 오류:', error);
-      toast.error(error.message || '포인트 전환 중 오류가 발생했습니다.');
+      toast.error(error.message || t.user.pointsConvertFailed);
     }
   };
 
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'pending':
-        return { color: 'bg-yellow-500', textColor: 'text-yellow-400', icon: Clock, label: '대기중' };
+        return { color: 'bg-yellow-500', textColor: 'text-yellow-400', icon: Clock, label: t.user.statusPending };
       case 'approved':
-        return { color: 'bg-blue-500', textColor: 'text-blue-400', icon: RefreshCw, label: '처리중' };
+        return { color: 'bg-blue-500', textColor: 'text-blue-400', icon: RefreshCw, label: t.user.statusApproved };
       case 'completed':
-        return { color: 'bg-green-500', textColor: 'text-green-400', icon: CheckCircle, label: '완료' };
+        return { color: 'bg-green-500', textColor: 'text-green-400', icon: CheckCircle, label: t.user.statusCompleted };
       case 'rejected':
-        return { color: 'bg-red-500', textColor: 'text-red-400', icon: XCircle, label: '거절' };
+        return { color: 'bg-red-500', textColor: 'text-red-400', icon: XCircle, label: t.user.statusRejected };
       default:
-        return { color: 'bg-slate-500', textColor: 'text-slate-400', icon: Clock, label: '알 수 없음' };
+        return { color: 'bg-slate-500', textColor: 'text-slate-400', icon: Clock, label: t.user.statusUnknown };
     }
   };
 
@@ -477,9 +479,9 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <XCircle className="w-16 h-16 text-red-400" />
-        <p className="text-lg text-slate-300">사용자 정보를 불러올 수 없습니다.</p>
+        <p className="text-lg text-slate-300">{t.user.cannotLoadUserInfo}</p>
         <Button onClick={() => onRouteChange('/sample1/casino')} className="bg-blue-600 hover:bg-blue-700">
-          홈으로 돌아가기
+          {t.user.backToHome}
         </Button>
       </div>
     );
@@ -498,8 +500,8 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
       {/* 헤더 */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">내 정보</h1>
-          <p className="text-slate-400">계정 정보 및 이용 내역을 확인하세요</p>
+          <h1 className="text-3xl font-bold text-white mb-2">{t.user.myInfo}</h1>
+          <p className="text-slate-400">{t.user.checkAccountInfo}</p>
         </div>
       </div>
 
@@ -521,7 +523,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                 </div>
                 <p className="text-slate-300">@{user.username}</p>
                 <p className="text-slate-400 text-sm">
-                  가입일: {formatDateTime(user.created_at)}
+                  {t.user.joinedDate} {formatDateTime(user.created_at)}
                 </p>
               </div>
             </div>
@@ -530,7 +532,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
               <div className="text-center">
                 <div className="text-2xl font-bold text-green-400 flex items-center justify-center gap-2">
                   {showBalance ? (
-                    <AnimatedCurrency value={currentBalance} duration={800} />
+                    <AnimatedCurrency value={currentBalance} duration={800} currencySymbol={t.common.currencySymbol} />
                   ) : (
                     '••••••••'
                   )}
@@ -543,7 +545,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                     {showBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </Button>
                 </div>
-                <div className="text-sm text-slate-400">보유금</div>
+                <div className="text-sm text-slate-400">{t.user.balance}</div>
               </div>
               <div className="text-center">
                 {currentPoints > 0 ? (
@@ -556,7 +558,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                       {formatCurrency(currentPoints)}P
                       <ArrowUpRight className="w-4 h-4" />
                     </div>
-                    <div className="text-sm text-slate-400">포인트 (클릭하여 전환)</div>
+                    <div className="text-sm text-slate-400">{t.user.points} {t.user.clickToConvert}</div>
                   </Button>
                 ) : (
                   <>
@@ -578,29 +580,29 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
           <Card className="bg-slate-800/50 border-slate-700">
             <CardContent className="p-4 text-center">
               <TrendingUp className="w-8 h-8 text-green-400 mx-auto mb-2" />
-              <div className="text-lg font-bold text-white">₩{formatCurrency(userStats.total_deposits)}</div>
-              <div className="text-sm text-slate-400">총 입금</div>
+              <div className="text-lg font-bold text-white">{t.common.currencySymbol}{formatCurrency(userStats.total_deposits)}</div>
+              <div className="text-sm text-slate-400">{t.user.totalDeposits}</div>
             </CardContent>
           </Card>
           <Card className="bg-slate-800/50 border-slate-700">
             <CardContent className="p-4 text-center">
               <TrendingDown className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-              <div className="text-lg font-bold text-white">₩{formatCurrency(userStats.total_withdrawals)}</div>
-              <div className="text-sm text-slate-400">총 출금</div>
+              <div className="text-lg font-bold text-white">{t.common.currencySymbol}{formatCurrency(userStats.total_withdrawals)}</div>
+              <div className="text-sm text-slate-400">{t.user.totalWithdrawals}</div>
             </CardContent>
           </Card>
           <Card className="bg-slate-800/50 border-slate-700">
             <CardContent className="p-4 text-center">
               <Gamepad2 className="w-8 h-8 text-purple-400 mx-auto mb-2" />
               <div className="text-lg font-bold text-white">{userStats.game_count.toLocaleString()}</div>
-              <div className="text-sm text-slate-400">게임 횟수</div>
+              <div className="text-sm text-slate-400">{t.user.gameCount}</div>
             </CardContent>
           </Card>
           <Card className="bg-slate-800/50 border-slate-700">
             <CardContent className="p-4 text-center">
               <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
               <div className="text-lg font-bold text-white">{userStats.win_rate.toFixed(1)}%</div>
-              <div className="text-sm text-slate-400">승률</div>
+              <div className="text-sm text-slate-400">{t.user.winRate}</div>
             </CardContent>
           </Card>
         </div>
@@ -611,23 +613,23 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
         <TabsList className="grid w-full grid-cols-5 bg-slate-800/50">
           <TabsTrigger value="info" className="flex items-center gap-2">
             <User className="w-4 h-4" />
-            기본정보
+            {t.user.basicInfoTab}
           </TabsTrigger>
           <TabsTrigger value="transactions" className="flex items-center gap-2">
             <CreditCard className="w-4 h-4" />
-            입출금내역
+            {t.user.transactionHistoryTab}
           </TabsTrigger>
           <TabsTrigger value="points" className="flex items-center gap-2">
             <Coins className="w-4 h-4" />
-            포인트내역
+            {t.user.pointHistoryTab}
           </TabsTrigger>
           <TabsTrigger value="games" className="flex items-center gap-2">
             <Gamepad2 className="w-4 h-4" />
-            베팅내역
+            {t.user.bettingHistoryTab}
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />
-            설정
+            {t.user.settingsTab}
           </TabsTrigger>
         </TabsList>
 
@@ -636,7 +638,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
           <Card className="bg-slate-800/50 border-slate-700">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-white">기본 정보</CardTitle>
+                <CardTitle className="text-white">{t.user.basicInfoTitle}</CardTitle>
                 <Button
                   variant="outline"
                   size="sm"
@@ -657,12 +659,12 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                   {isEditing ? (
                     <>
                       <X className="w-4 h-4 mr-2" />
-                      취소
+                      {t.user.cancel}
                     </>
                   ) : (
                     <>
                       <Edit className="w-4 h-4 mr-2" />
-                      수정
+                      {t.user.edit}
                     </>
                   )}
                 </Button>
@@ -671,7 +673,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-slate-300">아이디</Label>
+                  <Label className="text-slate-300">{t.user.userId}</Label>
                   <Input
                     value={user.username}
                     disabled
@@ -679,7 +681,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-300">닉네임</Label>
+                  <Label className="text-slate-300">{t.user.nickname}</Label>
                   <Input
                     value={editableInfo.nickname}
                     onChange={(e) => setEditableInfo(prev => ({ ...prev, nickname: e.target.value }))}
@@ -688,14 +690,14 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-300">은행명</Label>
+                  <Label className="text-slate-300">{t.user.bankName}</Label>
                   <Select
                     value={editableInfo.bank_name}
                     onValueChange={(value) => setEditableInfo(prev => ({ ...prev, bank_name: value }))}
                     disabled={!isEditing}
                   >
                     <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
-                      <SelectValue placeholder="은행을 선택하세요" />
+                      <SelectValue placeholder={t.user.selectBank} />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
                       {['국민은행', '신한은행', '우리은행', 'KB국민은행', 'KEB하나은행', '농협은행', '기업은행'].map((bank) => (
@@ -705,7 +707,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-300">계좌번호</Label>
+                  <Label className="text-slate-300">{t.user.accountNumber}</Label>
                   <Input
                     value={editableInfo.bank_account}
                     onChange={(e) => setEditableInfo(prev => ({ ...prev, bank_account: e.target.value }))}
@@ -714,7 +716,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-300">예금주명</Label>
+                  <Label className="text-slate-300">{t.user.accountHolder}</Label>
                   <Input
                     value={editableInfo.bank_holder}
                     onChange={(e) => setEditableInfo(prev => ({ ...prev, bank_holder: e.target.value }))}
@@ -723,13 +725,13 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-slate-300">VIP 등급</Label>
+                  <Label className="text-slate-300">{t.user.vipGrade}</Label>
                   <div className="flex items-center gap-2">
                     <Badge className={`${vipBadge.color} text-white px-3 py-1`}>
                       <Crown className="w-4 h-4 mr-1" />
                       {vipBadge.label}
                     </Badge>
-                    <span className="text-slate-400 text-sm">레벨 {user.vip_level || 0}</span>
+                    <span className="text-slate-400 text-sm">{t.user.level} {user.vip_level || 0}</span>
                   </div>
                 </div>
               </div>
@@ -741,7 +743,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                     className="bg-green-600 hover:bg-green-700"
                   >
                     <Save className="w-4 h-4 mr-2" />
-                    저장
+                    {t.user.save}
                   </Button>
                 </div>
               )}
@@ -753,7 +755,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
         <TabsContent value="transactions">
           <Card className="bg-slate-800/50 border-slate-700">
             <CardHeader>
-              <CardTitle className="text-white">입출금 내역</CardTitle>
+              <CardTitle className="text-white">{t.user.transactionHistory}</CardTitle>
             </CardHeader>
             <CardContent>
               {transactions.length > 0 ? (
@@ -775,7 +777,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                             <div>
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="font-medium text-white">
-                                  {isDeposit ? '입금' : '출금'}
+                                  {isDeposit ? t.user.deposit : t.user.withdrawal}
                                 </span>
                                 <Badge className={`${statusInfo.color} text-white text-xs`}>
                                   <StatusIcon className="w-3 h-3 mr-1" />
@@ -794,10 +796,10 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                           </div>
                           <div className="text-right">
                             <div className={`text-lg font-bold ${isDeposit ? 'text-green-400' : 'text-blue-400'}`}>
-                              {isDeposit ? '+' : '-'}₩{formatCurrency(transaction.amount)}
+                              {isDeposit ? '+' : '-'}{t.common.currencySymbol}{formatCurrency(transaction.amount)}
                             </div>
                             <div className="text-sm text-slate-400">
-                              잔고: ₩{formatCurrency(transaction.balance_after)}
+                              {t.user.balance}: {t.common.currencySymbol}{formatCurrency(transaction.balance_after)}
                             </div>
                           </div>
                         </div>
@@ -808,7 +810,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
               ) : (
                 <div className="text-center py-8">
                   <CreditCard className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                  <p className="text-slate-400">입출금 내역이 없습니다</p>
+                  <p className="text-slate-400">{t.user.noTransactionHistory}</p>
                 </div>
               )}
             </CardContent>
@@ -820,7 +822,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
           <Card className="bg-slate-800/50 border-slate-700">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-white">포인트 내역</CardTitle>
+                <CardTitle className="text-white">{t.user.pointHistory}</CardTitle>
                 {currentPoints > 0 && (
                   <Button
                     onClick={() => convertPointsToBalance(currentPoints)}
@@ -917,13 +919,13 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                           </div>
                           <div className="text-right">
                             <div className="text-sm text-slate-400 mb-1">
-                              베팅: ₩{formatCurrency(parseFloat(record.bet_amount))}
+                              베팅: {t.common.currencySymbol}{formatCurrency(parseFloat(record.bet_amount))}
                             </div>
                             <div className="text-sm text-slate-400 mb-1">
-                              당첨: ₩{formatCurrency(parseFloat(record.win_amount))}
+                              당첨: {t.common.currencySymbol}{formatCurrency(parseFloat(record.win_amount))}
                             </div>
                             <div className={`font-bold ${isWin ? 'text-green-400' : 'text-red-400'}`}>
-                              {isWin ? '+' : ''}₩{formatCurrency(profit)}
+                              {isWin ? '+' : ''}{t.common.currencySymbol}{formatCurrency(profit)}
                             </div>
                           </div>
                         </div>
@@ -1035,7 +1037,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                   전환할 포인트
                 </div>
                 <div className="text-lg font-bold text-green-400">
-                  ₩{formatCurrency(currentPoints)}
+                  {t.common.currencySymbol}{formatCurrency(currentPoints)}
                 </div>
                 <div className="text-sm text-slate-400">
                   전환 후 추가될 보유금

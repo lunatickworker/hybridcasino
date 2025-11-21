@@ -5,6 +5,7 @@ import { Badge } from '../ui/badge';
 import { RefreshCw, Gamepad2, TrendingUp, TrendingDown } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { supabase } from '../../lib/supabase';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface UserBettingHistoryProps {
   user: {
@@ -29,6 +30,7 @@ interface BettingRecord {
 }
 
 export function UserBettingHistory({ user }: UserBettingHistoryProps) {
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<BettingRecord[]>([]);
 
@@ -73,7 +75,7 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
 
     } catch (err: any) {
       console.error('❌ 에러:', err);
-      toast.error('베팅 내역을 불러올 수 없습니다');
+      toast.error(t.bettingHistory.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -88,16 +90,17 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
   const stats = {
     totalBets: records.length,
     totalBetAmount: records.reduce((sum, r) => sum + (Number(r.bet_amount) || 0), 0),
-    totalWinAmount: records.reduce((sum, r) => sum + (Number(r.win_amount) || 0), 0)
+    totalWinAmount: records.reduce((sum, r) => sum + (Number(r.win_amount) || 0), 0),
+    netProfit: 0
   };
   stats.netProfit = stats.totalWinAmount - stats.totalBetAmount;
 
   // 상태 배지
   const getStatusBadge = (bet: number, win: number) => {
     const profit = win - bet;
-    if (profit > 0) return <Badge className="bg-green-600">승리</Badge>;
-    if (profit < 0) return <Badge className="bg-red-600">패배</Badge>;
-    return <Badge variant="secondary">무승부</Badge>;
+    if (profit > 0) return <Badge className="bg-green-600">{t.user.win}</Badge>;
+    if (profit < 0) return <Badge className="bg-red-600">{t.user.loss}</Badge>;
+    return <Badge variant="secondary">{t.user.pending}</Badge>;
   };
 
   return (
@@ -108,17 +111,17 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
           <CardHeader className="pb-2">
             <CardTitle className="text-xs text-yellow-400 flex items-center gap-1">
               <Gamepad2 className="w-3 h-3" />
-              총 베팅
+              {t.bettingHistory.totalBets}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold text-yellow-100">{stats.totalBets}건</div>
+            <div className="text-xl font-bold text-yellow-100">{stats.totalBets}{t.bettingManagement.count}</div>
           </CardContent>
         </Card>
 
         <Card className="luxury-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-yellow-400">총 베팅액</CardTitle>
+            <CardTitle className="text-xs text-yellow-400">{t.bettingHistory.totalBetAmount}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold text-blue-400">₩{formatMoney(stats.totalBetAmount)}</div>
@@ -129,7 +132,7 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
           <CardHeader className="pb-2">
             <CardTitle className="text-xs text-yellow-400 flex items-center gap-1">
               <TrendingUp className="w-3 h-3" />
-              총 당첨액
+              {t.bettingHistory.totalWinAmount}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -141,7 +144,7 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
           <CardHeader className="pb-2">
             <CardTitle className="text-xs text-yellow-400 flex items-center gap-1">
               <TrendingDown className="w-3 h-3" />
-              순손익
+              {t.bettingHistory.netProfit}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -157,8 +160,8 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle className="gold-text">베팅 내역</CardTitle>
-              <p className="text-xs text-yellow-200/70 mt-1">최근 100건</p>
+              <CardTitle className="gold-text">{t.user.bettingHistoryTitle}</CardTitle>
+              <p className="text-xs text-yellow-200/70 mt-1">{t.bettingHistory.last100 || '최근 100건'}</p>
             </div>
             <Button
               onClick={loadRecords}
@@ -168,7 +171,7 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
               className="border-yellow-600/30 hover:bg-yellow-900/20"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              새로고침
+              {t.common.refresh}
             </Button>
           </div>
         </CardHeader>
@@ -178,27 +181,27 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
             <div className="flex justify-center items-center py-20">
               <div className="text-center">
                 <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-yellow-400" />
-                <p className="text-yellow-200">로딩 중...</p>
+                <p className="text-yellow-200">{t.common.loading}</p>
               </div>
             </div>
           ) : records.length === 0 ? (
             <div className="text-center py-20">
               <Gamepad2 className="w-16 h-16 mx-auto mb-4 text-yellow-600/50" />
-              <p className="text-yellow-200/70 text-lg">베팅 내역이 없습니다</p>
-              <p className="text-yellow-200/50 text-sm mt-2">게임을 플레이하면 기록이 표시됩니다</p>
+              <p className="text-yellow-200/70 text-lg">{t.user.noBettingHistory}</p>
+              <p className="text-yellow-200/50 text-sm mt-2">{t.bettingHistory.playToSeeRecords || '게임을 플레이하면 기록이 표시됩니다'}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-yellow-600/30">
-                    <th className="px-3 py-3 text-left text-xs text-yellow-400">상태</th>
-                    <th className="px-3 py-3 text-left text-xs text-yellow-400">게임명</th>
-                    <th className="px-3 py-3 text-left text-xs text-yellow-400">제공사</th>
-                    <th className="px-3 py-3 text-right text-xs text-yellow-400">베팅액</th>
-                    <th className="px-3 py-3 text-right text-xs text-yellow-400">당첨액</th>
-                    <th className="px-3 py-3 text-right text-xs text-yellow-400">손익</th>
-                    <th className="px-3 py-3 text-left text-xs text-yellow-400">플레이 시간</th>
+                    <th className="px-3 py-3 text-left text-xs text-yellow-400">{t.common.status}</th>
+                    <th className="px-3 py-3 text-left text-xs text-yellow-400">{t.user.gameName}</th>
+                    <th className="px-3 py-3 text-left text-xs text-yellow-400">{t.bettingHistory.provider}</th>
+                    <th className="px-3 py-3 text-right text-xs text-yellow-400">{t.user.betAmount}</th>
+                    <th className="px-3 py-3 text-right text-xs text-yellow-400">{t.user.winAmount}</th>
+                    <th className="px-3 py-3 text-right text-xs text-yellow-400">{t.bettingHistory.profitLoss}</th>
+                    <th className="px-3 py-3 text-left text-xs text-yellow-400">{t.bettingHistory.playTime}</th>
                   </tr>
                 </thead>
                 <tbody>

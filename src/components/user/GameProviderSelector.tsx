@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 interface GameProvider {
   id: number;
@@ -28,6 +29,7 @@ export function GameProviderSelector({
   const [displayProviders, setDisplayProviders] = useState<GameProvider[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const { t } = useLanguage();
 
   useEffect(() => {
     // 게임 타입에 맞는 제공사만 필터링
@@ -74,7 +76,7 @@ export function GameProviderSelector({
           `}
         >
           <span className={selectedProvider === "all" ? "drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" : ""}>
-            전체
+            {t.user.all}
           </span>
         </Button>
 
@@ -119,7 +121,7 @@ export function GameProviderSelector({
             `}
           >
             <div className="flex flex-col items-center gap-1">
-              <span className="text-base leading-tight">전체</span>
+              <span className="text-base leading-tight">{t.user.all}</span>
               {selectedProvider === "all" && (
                 <CheckCircle className="w-3 h-3" />
               )}
@@ -166,12 +168,12 @@ export function GameProviderSelector({
             {showAll ? (
               <>
                 <ChevronUp className="w-4 h-4 mr-1" />
-                접기
+                {t.user.collapse}
               </>
             ) : (
               <>
                 <ChevronDown className="w-4 h-4 mr-1" />
-                더보기 ({displayProviders.length - 9}개 더)
+                {t.user.showMore} ({displayProviders.length - 9}{t.user.moreItems})
               </>
             )}
           </Button>

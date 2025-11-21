@@ -40,7 +40,7 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange, currentRoute }: AdminHeaderProps) {
   const { logout } = useAuth();
-  const { t } = useLanguage();
+  const { t, formatCurrency } = useLanguage();
   const { balance, investBalance, oroplayBalance, loading: balanceLoading, error: balanceError, lastSyncTime, useInvestApi, useOroplayApi } = useBalance(); // ✅ API 활성화 상태 추가
 
   console.log('🔍 [AdminHeader] useBalance 값:', {
@@ -142,7 +142,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         throw new Error(`DB 업데이트 실패: ${updateError.message}`);
       }
 
-      toast.success(`Invest 보유금 동기화 완료: ₩${newBalance.toLocaleString()}`);
+      toast.success(`Invest 보유금 동기화 완료: ${formatCurrency(newBalance)}`);
     } catch (error: any) {
       console.error('❌ [AdminHeader] Invest 보유금 동기화 실패:', error);
       toast.error(`Invest 보유금 동기화 실패: ${error.message}`);
@@ -185,7 +185,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         throw new Error(`DB 업데이트 실패: ${updateError.message}`);
       }
 
-      toast.success(`OroPlay 보유금 동기화 완료: ₩${balance.toLocaleString()}`);
+      toast.success(`OroPlay 보유금 동기화 완료: ${formatCurrency(balance)}`);
     } catch (error: any) {
       console.error('❌ [AdminHeader] OroPlay 보유금 동기화 실패:', error);
       toast.error(`OroPlay 보유금 동기화 실패: ${error.message}`);
@@ -422,7 +422,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             if (transaction.status === 'pending') {
               if (transaction.transaction_type === 'deposit') {
                 toast.info('새로운 입금 요청이 있습니다.', {
-                  description: `금액: ₩${Number(transaction.amount).toLocaleString()} | 회원: ${transaction.user_id}`,
+                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${transaction.user_id}`,
                   duration: 10000,
                   action: {
                     label: '확인',
@@ -435,7 +435,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 });
               } else if (transaction.transaction_type === 'withdrawal') {
                 toast.warning('새로운 출금 요청이 있습니다.', {
-                  description: `금액: ₩${Number(transaction.amount).toLocaleString()} | 회원: ${transaction.user_id}`,
+                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${transaction.user_id}`,
                   duration: 10000,
                   action: {
                     label: '확인',
@@ -710,7 +710,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       <div>
                         <div className="text-[9px] text-blue-300 font-medium">Invest</div>
                         <div className="text-sm font-bold text-white whitespace-nowrap">
-                          {typeof investBalance === 'number' ? <AnimatedCurrency value={investBalance} duration={800} /> : '₩0'}
+                          {typeof investBalance === 'number' ? <AnimatedCurrency value={investBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
                         </div>
                       </div>
                     </div>
@@ -728,7 +728,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       <div>
                         <div className="text-[9px] text-green-300 font-medium">Oro</div>
                         <div className="text-sm font-bold text-white whitespace-nowrap">
-                          {typeof oroplayBalance === 'number' ? <AnimatedCurrency value={oroplayBalance} duration={800} /> : '₩0'}
+                          {typeof oroplayBalance === 'number' ? <AnimatedCurrency value={oroplayBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
                         </div>
                       </div>
                     </div>

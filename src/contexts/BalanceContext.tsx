@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { getInfo } from '../lib/investApi';
 import { Partner } from '../types';
 import { toast } from 'sonner@2.0.3';
+import { useLanguage } from './LanguageContext';
 
 interface BalanceContextType {
   balance: number;
