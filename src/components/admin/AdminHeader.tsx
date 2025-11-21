@@ -702,7 +702,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 {/* Invest 보유금 - useInvestApi가 true일 때만 표시 */}
                 {useInvestApi && (
                   <div 
-                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 transition-all ${balanceLoading ? 'animate-pulse' : ''}`}
+                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}
                     onClick={handleSyncInvestBalance}
                   >
                     <div className="flex items-center gap-2">
@@ -720,7 +720,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 {/* OroPlay 보유금 - useOroplayApi가 true일 때만 표시 */}
                 {useOroplayApi && (
                   <div 
-                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all ${balanceLoading ? 'animate-pulse' : ''}`}
+                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}
                     onClick={handleSyncOroplayBalance}
                   >
                     <div className="flex items-center gap-2">
@@ -739,7 +739,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
             {/* 나머지 레벨(3~6): GMS 보유금 1개만 표시 */}
             {user.level >= 3 && (
-              <div className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-yellow-500/20 to-amber-500/20 border border-yellow-500/30 transition-all ${balanceLoading ? 'animate-pulse' : ''}`}>
+              <div className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-yellow-500/20 to-amber-500/20 border border-yellow-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}>
                 <div className="flex items-center gap-2">
                   <Wallet className="h-4 w-4 text-yellow-400" />
                   <div>
@@ -753,7 +753,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             )}
 
             {/* 총 입금 */}
-            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 transition-all">
+            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 transition-all min-w-[100px]">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-cyan-400" />
                 <div>
@@ -764,7 +764,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             </div>
 
             {/* 총 출금 */}
-            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 transition-all">
+            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 transition-all min-w-[100px]">
               <div className="flex items-center gap-2">
                 <TrendingDown className="h-4 w-4 text-orange-400" />
                 <div>
@@ -775,7 +775,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             </div>
 
             {/* 총 회원 */}
-            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-slate-500/20 to-gray-500/20 border border-slate-500/30 transition-all">
+            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-slate-500/20 to-gray-500/20 border border-slate-500/30 transition-all min-w-[100px]">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-slate-400" />
                 <div>
@@ -786,7 +786,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             </div>
 
             {/* 온라인 */}
-            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 transition-all">
+            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 transition-all min-w-[100px]">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-emerald-400" />
                 <div>
@@ -804,7 +804,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div 
-                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:scale-105 transition-all cursor-pointer min-w-[60px]"
+                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
                     onClick={() => onRouteChange?.('/admin/users')}
                   >
                     <div className="text-[9px] text-cyan-300 font-medium text-center">{t.header.signupApproval}</div>
@@ -820,7 +820,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div 
-                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:scale-105 transition-all cursor-pointer min-w-[60px]"
+                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
                     onClick={() => onRouteChange?.('/admin/customer-service')}
                   >
                     <div className="text-[9px] text-purple-300 font-medium text-center">{t.header.customerInquiry}</div>
@@ -836,7 +836,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div 
-                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:scale-105 transition-all cursor-pointer min-w-[60px]"
+                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
                     onClick={() => onRouteChange?.('/admin/transactions#deposit-request')}
                   >
                     <div className="text-[9px] text-emerald-300 font-medium text-center">{t.dashboard.pendingDeposits}</div>
@@ -852,7 +852,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div 
-                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 hover:scale-105 transition-all cursor-pointer min-w-[60px]"
+                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
                     onClick={() => onRouteChange?.('/admin/transactions#withdrawal-request')}
                   >
                     <div className="text-[9px] text-orange-300 font-medium text-center">{t.dashboard.pendingWithdrawals}</div>

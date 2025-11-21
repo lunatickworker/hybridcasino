@@ -11,6 +11,9 @@ import { UserLayout } from './components/user/UserLayout';
 import { UserRoutes } from './components/common/UserRoutes';
 import { Sample1Layout } from './components/sample1/Sample1Layout';
 import { Sample1Routes } from './components/sample1/Sample1Routes';
+import { IndoLayout } from './components/indo/IndoLayout';
+import { IndoLogin } from './components/indo/IndoLogin';
+import { IndoRoutes } from './components/indo/IndoRoutes';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { BalanceProvider } from './contexts/BalanceContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
@@ -29,7 +32,7 @@ function AppContent() {
   // 초기 리다이렉트 처리 (useEffect로 이동하여 render phase 오류 방지)
   useEffect(() => {
     if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
-      window.location.hash = '#/user';
+      window.location.hash = '#/admin';
     }
   }, []);
 
@@ -64,9 +67,113 @@ function AppContent() {
   const currentHash = window.location.hash || '#/admin';
   const currentPath = currentHash.substring(1); // # 제거
 
+  const isIndoPage = currentPath.startsWith('/indo');
   const isUserPage = currentPath.startsWith('/user');
   const isSample1Page = currentPath.startsWith('/sample1');
   const isAdminPage = currentPath.startsWith('/admin');
+
+  // Indo 페이지 라우팅 (기본 도메인)
+  if (isIndoPage) {
+    const currentRoute = currentPath;
+
+    // 사용자 세션 확인
+    const userSessionString = localStorage.getItem('user_session');
+    let userSession = null;
+    
+    try {
+      if (userSessionString) {
+        userSession = JSON.parse(userSessionString);
+      }
+    } catch (error) {
+      console.error('사용자 세션 파싱 오류:', error);
+      localStorage.removeItem('user_session');
+    }
+
+    const isUserAuthenticated = !!userSession;
+
+    // 로그인 처리
+    const handleUserLogin = (user: any) => {
+      localStorage.setItem('user_session', JSON.stringify(user));
+      forceUpdate({});
+    };
+
+    // 로그아웃 처리
+    const handleUserLogout = async () => {
+      if (!userSession?.id) {
+        localStorage.removeItem('user_session');
+        window.location.hash = '#/indo';
+        forceUpdate({});
+        return;
+      }
+
+      try {
+        await supabase
+          .from('users')
+          .update({ 
+            is_online: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userSession.id);
+
+        await supabase
+          .from('user_sessions')
+          .update({ 
+            is_active: false,
+            logout_at: new Date().toISOString()
+          })
+          .eq('user_id', userSession.id)
+          .eq('is_active', true);
+
+        await supabase
+          .from('activity_logs')
+          .insert([{
+            actor_type: 'user',
+            actor_id: userSession.id,
+            action: 'logout',
+            details: { 
+              username: userSession.username, 
+              logout_time: new Date().toISOString() 
+            }
+          }]);
+
+      } catch (error) {
+        console.error('로그아웃 처리 오류:', error);
+      } finally {
+        localStorage.removeItem('user_session');
+        window.location.hash = '#/indo';
+        forceUpdate({});
+      }
+    };
+
+    return (
+      <>
+        {!isUserAuthenticated || currentRoute === '/indo/login' ? (
+          <IndoLogin 
+            onLoginSuccess={handleUserLogin}
+            onRouteChange={handleNavigate}
+          />
+        ) : (
+          <WebSocketProvider>
+            <MessageQueueProvider userType="user" userId={userSession.id}>
+              <IndoLayout 
+                user={userSession}
+                currentRoute={currentRoute}
+                onRouteChange={handleNavigate}
+                onLogout={handleUserLogout}
+              >
+                <IndoRoutes 
+                  currentRoute={currentRoute} 
+                  user={userSession}
+                  onRouteChange={handleNavigate}
+                />
+              </IndoLayout>
+            </MessageQueueProvider>
+          </WebSocketProvider>
+        )}
+        <Toaster position="top-right" />
+      </>
+    );
+  }
 
   // 사용자 페이지 라우팅
   if (isUserPage) {

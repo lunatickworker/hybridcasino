@@ -307,11 +307,40 @@ export function PartnerManagement() {
       }
       // Lv2의 경우 API별 보유금 저장 (partners 테이블)
       else if (data?.level === 2) {
-        setCurrentUserInvestBalance(data?.invest_balance || 0);
-        setCurrentUserOroplayBalance(data?.oroplay_balance || 0);
-        console.log('✅ Lv2 보유금 설정 (partners):', {
-          invest: data?.invest_balance || 0,
-          oroplay: data?.oroplay_balance || 0
+        // ✅ Lv2는 상위 Lv1의 api_configs를 조회하여 숨김 처리된 게임사 확인
+        const { data: parentData } = await supabase
+          .from('partners')
+          .select('parent_id')
+          .eq('id', authState.user.id)
+          .single();
+        
+        let investHidden = false;
+        let oroplayHidden = false;
+        
+        if (parentData?.parent_id) {
+          const { data: parentApiConfig } = await supabase
+            .from('api_configs')
+            .select('invest_hidden, oroplay_hidden')
+            .eq('partner_id', parentData.parent_id)
+            .single();
+          
+          if (parentApiConfig) {
+            investHidden = parentApiConfig.invest_hidden || false;
+            oroplayHidden = parentApiConfig.oroplay_hidden || false;
+          }
+        }
+        
+        // 숨김 처리된 게임사의 보유금은 0으로 설정
+        const investBalance = investHidden ? 0 : (data?.invest_balance || 0);
+        const oroplayBalance = oroplayHidden ? 0 : (data?.oroplay_balance || 0);
+        
+        setCurrentUserInvestBalance(investBalance);
+        setCurrentUserOroplayBalance(oroplayBalance);
+        console.log('✅ Lv2 보유금 설정 (노출된 게임사만):', {
+          invest: investBalance,
+          investHidden,
+          oroplay: oroplayBalance,
+          oroplayHidden
         });
       }
       // Lv3~7의 경우 단일 balance 저장

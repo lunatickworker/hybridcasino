@@ -504,8 +504,8 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
 
       if (error) throw error;
 
-      // ✅ API 설정 변경 시 Lv2, Lv3 balance 재계산 트리거 실행됨 (데이터베이스 트리거)
-      console.log('✅ API 설정 변경 완료. Lv2/Lv3 balance 자동 재계산됨.', {
+      // ✅ API 설정 변경 시 Lv2~Lv6 balance 재계산 트리거 실행됨 (데이터베이스 트리거)
+      console.log('✅ API 설정 변경 완료. Lv2~Lv6 balance 자동 재계산됨.', {
         use_invest_api: useInvestApi,
         use_oroplay_api: useOroplayApi
       });

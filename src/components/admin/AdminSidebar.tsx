@@ -413,11 +413,11 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
             }
           }}
           className={cn(
-            "w-full flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-200",
+            "flex items-center gap-3 px-3 py-3.5 rounded-lg transition-all duration-200",
             "text-lg group relative",
             isActive
-              ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30"
-              : "text-slate-300 hover:bg-slate-800/50 hover:text-white",
+              ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30 mr-3"
+              : "text-slate-300 hover:bg-slate-800/50 hover:text-white w-full",
             depth > 0 && "ml-6"
           )}
         >

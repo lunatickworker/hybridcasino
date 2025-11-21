@@ -30,6 +30,7 @@ import { gameApi, Game, GameProvider } from "../../lib/gameApi";
 import { MetricCard } from "./MetricCard";
 import { useBalance } from "../../contexts/BalanceContext";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { supabase } from "../../lib/supabase";
 
 interface EnhancedGameManagementProps {
   user: Partner;
@@ -238,6 +239,65 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [selectedGames, setSelectedGames] = useState<Set<number>>(new Set());
   const [syncing, setSyncing] = useState(false);
+  
+  // ✅ Lv2~Lv6: API 설정에 따른 게임사 숨김 처리
+  const [hiddenApis, setHiddenApis] = useState<{
+    invest: boolean;
+    oroplay: boolean;
+  }>({ invest: false, oroplay: false });
+
+  // ✅ Lv2~Lv6: API 설정 로드
+  useEffect(() => {
+    const loadApiHiddenSettings = async () => {
+      if (user.level === 1) {
+        // Lv1은 모든 API 표시
+        setHiddenApis({ invest: false, oroplay: false });
+        return;
+      }
+
+      try {
+        // Lv1 파트너 찾기
+        let lv1PartnerId = user.id;
+        let currentPartnerId = user.parent_id;
+
+        while (currentPartnerId) {
+          const { data: parentData } = await supabase
+            .from('partners')
+            .select('id, level, parent_id')
+            .eq('id', currentPartnerId)
+            .single();
+
+          if (parentData) {
+            if (parentData.level === 1) {
+              lv1PartnerId = parentData.id;
+              break;
+            }
+            currentPartnerId = parentData.parent_id;
+          } else {
+            break;
+          }
+        }
+
+        // Lv1의 api_configs 조회
+        const { data: apiConfig } = await supabase
+          .from('api_configs')
+          .select('use_invest_api, use_oroplay_api')
+          .eq('partner_id', lv1PartnerId)
+          .single();
+
+        if (apiConfig) {
+          setHiddenApis({
+            invest: apiConfig.use_invest_api === false,
+            oroplay: apiConfig.use_oroplay_api === false
+          });
+        }
+      } catch (error) {
+        console.error('API 숨김 설정 로드 실패:', error);
+      }
+    };
+
+    loadApiHiddenSettings();
+  }, [user.id, user.level, user.parent_id]);
 
   // 검색어 debounce 적용 (300ms)
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
@@ -753,38 +813,58 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       <Card className="bg-slate-800/30 border-slate-700">
         <CardContent className="p-6">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as GameTab)}>
-            {/* 탭 리스트 */}
-            <TabsList className="grid w-full grid-cols-5 bg-slate-900/50 p-1 rounded-xl mb-6 border border-slate-700/50">
-              <TabsTrigger
-                value="invest_casino"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white rounded-lg"
-              >
-                {t.gameManagement.investCasino}
-              </TabsTrigger>
-              <TabsTrigger
-                value="invest_slot"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white rounded-lg"
-              >
-                {t.gameManagement.investSlot}
-              </TabsTrigger>
-              <TabsTrigger
-                value="oroplay_casino"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white rounded-lg"
-              >
-                {t.gameManagement.oroplayCasino}
-              </TabsTrigger>
-              <TabsTrigger
-                value="oroplay_slot"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white rounded-lg"
-              >
-                {t.gameManagement.oroplaysSlot}
-              </TabsTrigger>
-              <TabsTrigger
-                value="oroplay_minigame"
-                className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-600 data-[state=active]:to-emerald-600 data-[state=active]:text-white rounded-lg"
-              >
-                {t.gameManagement.oroplaysMinigame}
-              </TabsTrigger>
+            {/* 탭 리스트 - ✅ Lv2~Lv6: 숨겨진 API 탭 제거 */}
+            <TabsList className={`grid w-full ${
+              user.level === 1 
+                ? 'grid-cols-5' 
+                : (hiddenApis.invest && hiddenApis.oroplay) 
+                  ? 'grid-cols-1'
+                  : hiddenApis.invest 
+                    ? 'grid-cols-3'
+                    : hiddenApis.oroplay 
+                      ? 'grid-cols-2'
+                      : 'grid-cols-5'
+            } bg-slate-900/50 p-1 rounded-xl mb-6 border border-slate-700/50`}>
+              {/* Invest API 탭 */}
+              {(user.level === 1 || !hiddenApis.invest) && (
+                <>
+                  <TabsTrigger
+                    value="invest_casino"
+                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white rounded-lg"
+                  >
+                    {t.gameManagement.investCasino}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="invest_slot"
+                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white rounded-lg"
+                  >
+                    {t.gameManagement.investSlot}
+                  </TabsTrigger>
+                </>
+              )}
+              {/* OroPlay API 탭 */}
+              {(user.level === 1 || !hiddenApis.oroplay) && (
+                <>
+                  <TabsTrigger
+                    value="oroplay_casino"
+                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white rounded-lg"
+                  >
+                    {t.gameManagement.oroplayCasino}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="oroplay_slot"
+                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white rounded-lg"
+                  >
+                    {t.gameManagement.oroplaysSlot}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="oroplay_minigame"
+                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-600 data-[state=active]:to-emerald-600 data-[state=active]:text-white rounded-lg"
+                  >
+                    {t.gameManagement.oroplaysMinigame}
+                  </TabsTrigger>
+                </>
+              )}
             </TabsList>
 
             {/* 필터 및 검색 */}

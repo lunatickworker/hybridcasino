@@ -64,8 +64,6 @@ export function Dashboard({ user }: DashboardProps) {
   const [pendingDeposits, setPendingDeposits] = useState(0); // 만충금 (pending deposits)
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [isSyncingInvest, setIsSyncingInvest] = useState(false);
-  const [isSyncingOroplay, setIsSyncingOroplay] = useState(false);
 
   // ✅ balance가 변경되면 stats 업데이트
   useEffect(() => {
@@ -678,83 +676,32 @@ export function Dashboard({ user }: DashboardProps) {
         </Badge>
       </div>
 
-      {/* 상단 주요 지표 - 권한별 표시 */}
-      {/* add_api_policy.md: Lv1, Lv2만 2개 보유금 표시 */}
-      {user.level === 1 || user.level === 2 ? (
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            title={t.dashboard.totalUsers}
-            value={formatNumber(stats.total_users)}
-            subtitle={`↑ ${t.dashboard.registeredUsers}`}
-            icon={Users}
-            color="blue"
-          />
-          
-          <MetricCard
-            title={t.dashboard.investBalance}
-            value={isSyncingInvest ? t.dashboard.syncing : formatCurrency(investBalance)}
-            subtitle={user.level === 1 ? `↑ ${t.dashboard.clickToSyncApi}` : `↑ ${t.dashboard.gmsInternal}`}
-            icon={Wallet}
-            color="green"
-            onClick={user.level === 1 ? handleSyncInvestBalance : undefined}
-          />
-          
-          <MetricCard
-            title={t.dashboard.oroplaysBalance}
-            value={isSyncingOroplay ? t.dashboard.syncing : formatCurrency(oroplayBalance)}
-            subtitle={user.level === 1 ? `↑ ${t.dashboard.clickToSyncApi}` : `↑ ${t.dashboard.gmsInternal}`}
-            icon={Wallet}
-            color="purple"
-            onClick={user.level === 1 ? handleSyncOroplayBalance : undefined}
-          />
-          
-          <MetricCard
-            title={t.dashboard.todayRevenue}
-            value={formatCurrency(stats.daily_net_deposit)}
-            subtitle={stats.daily_net_deposit >= 0 ? "↑ +5.0%" : "↓ -5.0%"}
-            icon={Activity}
-            color="pink"
-          />
-        </div>
-      ) : (
-        /* Lv3~Lv6: 단일 보유금만 표시 */
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-          <MetricCard
-            title={t.dashboard.totalUsers}
-            value={formatNumber(stats.total_users)}
-            subtitle={`↑ ${t.dashboard.registeredUsers}`}
-            icon={Users}
-            color="blue"
-          />
-          
-          <MetricCard
-            title={t.dashboard.totalBalance}
-            value={formatCurrency(balance)}
-            subtitle={`↑ ${t.dashboard.gmsInternal}`}
-            icon={Wallet}
-            color="green"
-          />
-          
-          <MetricCard
-            title={t.dashboard.todayRevenue}
-            value={formatCurrency(stats.daily_net_deposit)}
-            subtitle={stats.daily_net_deposit >= 0 ? "↑ +5.0%" : "↓ -5.0%"}
-            icon={Activity}
-            color="pink"
-          />
-          
-          <MetricCard
-            title={t.dashboard.todayBetting}
-            value={formatCurrency(stats.total_betting)}
-            subtitle={`↑ ${t.dashboard.totalBetting}`}
-            icon={Target}
-            color="blue"
-          />
-        </div>
-      )}
-      
-      {/* 만충금 별도 표시 */}
-      <div className="grid gap-5 md:grid-cols-1">
+      {/* 상단 주요 지표 - 모든 레벨 동일하게 표시 */}
+      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          title={t.dashboard.totalUsers}
+          value={formatNumber(stats.total_users)}
+          subtitle={`↑ ${t.dashboard.registeredUsers}`}
+          icon={Users}
+          color="blue"
+        />
+        
+        <MetricCard
+          title={t.dashboard.todayNetRevenue}
+          value={formatCurrency(stats.daily_net_deposit)}
+          subtitle={stats.daily_net_deposit >= 0 ? `↑ ${t.dashboard.profitToday}` : `↓ ${t.dashboard.lossToday}`}
+          icon={Activity}
+          color={stats.daily_net_deposit >= 0 ? "green" : "pink"}
+        />
+        
+        <MetricCard
+          title={t.dashboard.todayTotalBetting}
+          value={formatCurrency(stats.total_betting)}
+          subtitle={`↑ ${t.dashboard.customerActivity}`}
+          icon={Target}
+          color="purple"
+        />
+        
         <MetricCard
           title={t.dashboard.pendingCharges}
           value={formatCurrency(pendingDeposits)}
@@ -763,7 +710,7 @@ export function Dashboard({ user }: DashboardProps) {
           color="orange"
         />
       </div>
-
+      
       {/* 하단 4열 섹션 - 자신 직속 / 하위파트너 구분 */}
       <div className="grid gap-5 md:grid-cols-2">
         {/* 자신의 사용자 입출금 현황 */}
@@ -917,6 +864,48 @@ export function Dashboard({ user }: DashboardProps) {
               <span className="flex items-center gap-2">
                 <span style={{ fontFamily: 'Impact, sans-serif', letterSpacing: '0.05em' }}>
                   {t.dashboard.experience}
+                </span>
+                <span>→</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lv1 전용: Indo Casino 진입 링크 */}
+      {user.level === 1 && (
+        <div className="mt-6 p-6 bg-gradient-to-r from-orange-900/20 via-amber-900/20 to-orange-900/20 border-2 border-orange-500/50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-orange-600 to-amber-700 flex items-center justify-center border-2 border-orange-400">
+                <Shield className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl" style={{ 
+                  fontFamily: 'Impact, sans-serif',
+                  color: '#fff',
+                  letterSpacing: '0.1em',
+                  textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+                }}>
+                  INDO CASINO
+                </h3>
+                <p className="text-gray-400 text-sm mt-1">
+                  Experience Indonesian themed casino
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                window.location.hash = '#/indo';
+              }}
+              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-md border-2 border-orange-400 hover:from-orange-400 hover:to-amber-500 transition-all duration-200"
+              style={{
+                boxShadow: '0 0 20px rgba(249, 115, 22, 0.4)',
+              }}
+            >
+              <span className="flex items-center gap-2">
+                <span style={{ fontFamily: 'Impact, sans-serif', letterSpacing: '0.05em' }}>
+                  EXPLORE
                 </span>
                 <span>→</span>
               </span>

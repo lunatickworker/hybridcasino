@@ -170,8 +170,33 @@ export function ForceTransactionModal({
           errorMessage = `${insufficientApi} API 보유금이 부족합니다. (입금 가능: ${minBalance.toLocaleString()}원)`;
         }
       }
-      // Lv2 → Lv3~7 입금: 제한 없음 (Lv1과 동일한 로직)
-      // Lv2는 입금해도 변동이 없으므로 제한이 없음
+      // Lv2 → Lv3~7 입금: 노출된 게임사의 최소 보유금 기준
+      else if (currentUserLevel === 2) {
+        const balances = [];
+        if (useInvestApi && currentUserInvestBalance > 0) balances.push(currentUserInvestBalance);
+        if (useOroplayApi && currentUserOroplayBalance > 0) balances.push(currentUserOroplayBalance);
+        const minBalance = balances.length > 0 ? Math.min(...balances) : 0;
+        
+        if (amountNum > minBalance) {
+          let insufficientApi = '';
+          if (useInvestApi && useOroplayApi) {
+            if (currentUserInvestBalance > 0 && currentUserOroplayBalance > 0) {
+              insufficientApi = currentUserInvestBalance < currentUserOroplayBalance ? 'Invest' : 'OroPlay';
+            } else if (currentUserInvestBalance > 0) {
+              insufficientApi = 'Invest';
+            } else {
+              insufficientApi = 'OroPlay';
+            }
+          } else if (useInvestApi && currentUserInvestBalance > 0) {
+            insufficientApi = 'Invest';
+          } else if (useOroplayApi && currentUserOroplayBalance > 0) {
+            insufficientApi = 'OroPlay';
+          }
+          errorMessage = insufficientApi 
+            ? `${insufficientApi} API 보유금이 부족합니다. (입금 가능: ${minBalance.toLocaleString()}원)`
+            : `노출된 게임사의 보유금이 없습니다.`;
+        }
+      }
       // Lv3~7 입금: 단일 balance 체크
       else if (amountNum > currentUserBalance) {
         errorMessage = `보유금이 부족합니다. (현재: ${currentUserBalance.toLocaleString()}원)`;
@@ -450,15 +475,36 @@ export function ForceTransactionModal({
                 </div>
               ) : currentUserLevel === 2 ? (
                 <div className="space-y-1.5">
-                  {/* ✅ Lv2: 입금 제한 없음 (Lv1과 동일 로직) */}
-                  <div className="flex items-center justify-between">
+                  {/* ✅ Lv2: 노출된 게임사의 보유금 표시 */}
+                  {useInvestApi && currentUserInvestBalance > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-400">Invest API:</span>
+                      <span className="font-mono text-sm text-emerald-400">
+                        {currentUserInvestBalance.toLocaleString()}원
+                      </span>
+                    </div>
+                  )}
+                  {useOroplayApi && currentUserOroplayBalance > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-400">OroPlay API:</span>
+                      <span className="font-mono text-sm text-emerald-400">
+                        {currentUserOroplayBalance.toLocaleString()}원
+                      </span>
+                    </div>
+                  )}
+                  <div className="pt-1.5 mt-1.5 border-t border-emerald-700/30 flex items-center justify-between">
                     <span className="text-sm text-emerald-400">입금 가능:</span>
                     <span className="font-mono text-emerald-400 font-bold">
-                      제한 없음
+                      {(() => {
+                        const balances = [];
+                        if (useInvestApi && currentUserInvestBalance > 0) balances.push(currentUserInvestBalance);
+                        if (useOroplayApi && currentUserOroplayBalance > 0) balances.push(currentUserOroplayBalance);
+                        return balances.length > 0 ? Math.min(...balances).toLocaleString() : '계산 없음';
+                      })()}원
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-2">
-                    ※ Lv2 입금 시 Lv2 보유금은 변동되지 않습니다.
+                    ※ Lv2 입금 시 Lv2 불용금을 활용합니다.
                   </p>
                 </div>
               ) : (
