@@ -1908,6 +1908,10 @@
     touch-action: none;
   }
 
+  .resize {
+    resize: both;
+  }
+
   .resize-none {
     resize: none;
   }
@@ -8943,6 +8947,10 @@
     background-color: var(--sidebar-accent);
   }
 
+  .active\:bg-slate-700:active {
+    background-color: var(--color-slate-700);
+  }
+
   .active\:text-sidebar-accent-foreground:active {
     color: var(--sidebar-accent-foreground);
   }
@@ -9821,6 +9829,12 @@
   @media (width >= 48rem) {
     .md\:flex {
       display: flex;
+    }
+  }
+
+  @media (width >= 48rem) {
+    .md\:hidden {
+      display: none;
     }
   }
 
