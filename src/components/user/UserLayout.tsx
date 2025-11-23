@@ -106,21 +106,34 @@ export function UserLayout({ user, currentRoute, onRouteChange, onLogout, childr
         return;
       }
 
-      // 4. ⭐ Lv1 파트너의 api_configs에서 credential 조회
+      // 4. ⭐ 게임 세션의 api_type 확인 (어떤 API로 게임 중인지)
+      const { data: sessionData, error: sessionDataError } = await supabase
+        .from('game_launch_sessions')
+        .select('api_type')
+        .eq('id', sessionId)
+        .single();
+
+      if (sessionDataError || !sessionData) {
+        console.error(`❌ [보유금 동기화] 세션 api_type 조회 실패:`, sessionDataError);
+        return;
+      }
+
+      // 5. ⭐ Lv1 파트너의 api_configs에서 credential 조회 (api_provider 필터링)
       const { data: apiConfig, error: configError } = await supabase
         .from('api_configs')
         .select('invest_opcode, invest_token, invest_secret_key')
         .eq('partner_id', topLevelPartnerId)
+        .eq('api_provider', sessionData.api_type === 'invest' ? 'invest' : 'oroplay')
         .single();
 
       if (configError || !apiConfig || !apiConfig.invest_opcode || !apiConfig.invest_token || !apiConfig.invest_secret_key) {
-        console.error(`❌ [보유금 동기화] API 설정 누락: partner_id=${topLevelPartnerId}`, configError);
+        console.error(`❌ [보유금 동기화] API 설정 누락: partner_id=${topLevelPartnerId}, api_type=${sessionData.api_type}`, configError);
         return;
       }
 
-      console.log(`   📍 사용 credential: partner_id=${topLevelPartnerId}`);
+      console.log(`   📍 사용 credential: partner_id=${topLevelPartnerId}, api_type=${sessionData.api_type}`);
 
-      // 5. 보유금 조회
+      // 6. 보유금 조회
       const balanceResult = await getUserBalanceWithConfig(
         apiConfig.invest_opcode,
         username,

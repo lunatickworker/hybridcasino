@@ -541,49 +541,48 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       // ✅ Realtime 이벤트 자동 발생 → UserHeader 즉시 업데이트
       console.log('✅ transactions INSERT 완료 → 트리거가 users.balance 자동 업데이트');
 
-      // ✅ Lv2가 Lv7 사용자에게 입출금하는 경우: api_configs의 invest_balance 차감/증가
+      // ✅ Lv2가 Lv7 사용자에게 입출금하는 경우: GMS 머니(balance) 차감/증가
       if (user.level === 2) {
-        const { data: adminApiConfig, error: adminApiError } = await supabase
-          .from('api_configs')
-          .select('invest_balance')
-          .eq('partner_id', user.id)
+        const { data: adminPartner, error: adminPartnerError } = await supabase
+          .from('partners')
+          .select('balance')
+          .eq('id', user.id)
           .single();
 
-        if (adminApiError || !adminApiConfig) {
-          console.warn('⚠️ Lv2 관리자의 api_configs를 찾을 수 없습니다.');
+        if (adminPartnerError || !adminPartner) {
+          console.warn('⚠️ Lv2 관리자의 partners 정보를 찾을 수 없습니다.');
         } else {
-          const currentInvestBalance = adminApiConfig.invest_balance || 0;
-          const newInvestBalance = type === 'deposit' 
-            ? currentInvestBalance - amountNum 
-            : currentInvestBalance + amountNum;
+          const currentBalance = adminPartner.balance || 0;
+          const newBalance = type === 'deposit' 
+            ? currentBalance - amountNum 
+            : currentBalance + amountNum;
 
-          const { error: updateApiError } = await supabase
-            .from('api_configs')
+          const { error: updateBalanceError } = await supabase
+            .from('partners')
             .update({ 
-              invest_balance: newInvestBalance,
+              balance: newBalance,
               updated_at: new Date().toISOString()
             })
-            .eq('partner_id', user.id);
+            .eq('id', user.id);
 
-          if (updateApiError) {
-            console.error('❌ Lv2 api_configs 업데이트 실패:', updateApiError);
+          if (updateBalanceError) {
+            console.error('❌ Lv2 balance 업데이트 실패:', updateBalanceError);
           } else {
-            console.log(`✅ Lv2 invest_balance 업데이트: ${currentInvestBalance} → ${newInvestBalance}`);
+            console.log(`✅ Lv2 balance 업데이트: ${currentBalance} → ${newBalance}`);
             
             // Lv2 잔고 변경 로그 기록
             await supabase
               .from('partner_balance_logs')
               .insert({
                 partner_id: user.id,
-                balance_before: currentInvestBalance,
-                balance_after: newInvestBalance,
+                balance_before: currentBalance,
+                balance_after: newBalance,
                 amount: type === 'deposit' ? -amountNum : amountNum,
                 transaction_type: type === 'deposit' ? 'withdrawal' : 'deposit',
                 from_partner_id: type === 'deposit' ? user.id : userId,
                 to_partner_id: type === 'deposit' ? userId : user.id,
                 processed_by: user.id,
-                api_type: 'invest',
-                memo: `[Invest 강제${type === 'deposit' ? '입금' : '출금'}] ${selectedUser.username}에게 ${amountNum.toLocaleString()}원 ${type === 'deposit' ? '입금' : '회수'}${memo ? `: ${memo}` : ''}`
+                memo: `[강제${type === 'deposit' ? '입금' : '출금'}] ${selectedUser.username}에게 ${amountNum.toLocaleString()}원 ${type === 'deposit' ? '입금' : '회수'}${memo ? `: ${memo}` : ''}`
               });
           }
         }

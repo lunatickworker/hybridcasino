@@ -302,7 +302,7 @@ export function ApiTester() {
           .from('api_configs')
           .select('invest_opcode, invest_secret_key')
           .eq('partner_id', user.referrer_id)
-          .single();
+          .maybeSingle();
 
         if (apiConfig) {
           // Invest API 잔고 조회
@@ -381,7 +381,7 @@ export function ApiTester() {
         .from('api_configs')
         .select('invest_opcode, invest_secret_key')
         .eq('partner_id', user.referrer_id)
-        .single();
+        .maybeSingle();
 
       if (!apiConfig) throw new Error('Partner API configuration not found');
 

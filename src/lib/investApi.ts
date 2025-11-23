@@ -785,8 +785,9 @@ export async function withdrawBalance(opcode: string, username: string, token: s
   // ⭐ 1. partner_id 찾기 (opcode로 api_configs 조회)
   const { data: apiConfig, error: configError } = await supabase
     .from('api_configs')
-    .select('partner_id, invest_balance')
+    .select('partner_id, balance')
     .eq('invest_opcode', opcode)
+    .eq('api_provider', 'invest')
     .single();
   
   if (configError || !apiConfig) {
@@ -800,18 +801,19 @@ export async function withdrawBalance(opcode: string, username: string, token: s
   let optimisticUpdateApplied = false;
   
   if (apiConfig) {
-    previousInvestBalance = apiConfig.invest_balance || 0;
+    previousInvestBalance = apiConfig.balance || 0;
     
     // ⭐ 2. api_configs balance 먼저 증가 (Optimistic Update)
-    console.log(`🔄 [Withdraw Optimistic] api_configs invest_balance 증가 시작: +${amount}원`);
+    console.log(`🔄 [Withdraw Optimistic] api_configs balance 증가 시작: +${amount}원`);
     
     const { error: updateConfigError } = await supabase
       .from('api_configs')
       .update({ 
-        invest_balance: previousInvestBalance + amount,
+        balance: previousInvestBalance + amount,
         updated_at: new Date().toISOString()
       })
-      .eq('partner_id', apiConfig.partner_id);
+      .eq('partner_id', apiConfig.partner_id)
+      .eq('api_provider', 'invest');
     
     if (updateConfigError) {
       console.error('❌ [Withdraw Optimistic] api_configs 업데이트 실패:', updateConfigError);

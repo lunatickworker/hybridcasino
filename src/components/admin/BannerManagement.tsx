@@ -72,7 +72,7 @@ export function BannerManagement({ user }: BannerManagementProps) {
         .from('system_settings')
         .select('setting_value')
         .eq('setting_key', 'timezone_offset')
-        .single();
+        .maybeSingle();
 
       if (!error && data) {
         setTimezoneOffset(parseInt(data.setting_value));

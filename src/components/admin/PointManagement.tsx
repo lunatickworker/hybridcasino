@@ -588,10 +588,10 @@ export function PointManagement() {
         }
 
       } else if (adminLevel === 3) {
-        // Lv3: Lv7 포인트 차감, Lv3 invest_balance 증가
+        // ✅ Lv3: Lv7 포인트 차감, Lv3 GMS 머니(balance) 증가
         console.log('✅ [Lv3 포인트 회수] Lv3 balance 증가');
 
-        const lv3InvestBalance = adminData.invest_balance || 0;
+        const lv3Balance = adminData.balance || 0;
 
         // 1. Lv7 포인트 차감
         const newPoints = currentPoints - amount;
@@ -605,12 +605,12 @@ export function PointManagement() {
 
         if (updateError) throw updateError;
 
-        // 2. Lv3 invest_balance 증가 (balance는 트리거로 자동 재계산)
-        const newInvestBalance = lv3InvestBalance + amount;
+        // 2. Lv3 balance 증가
+        const newBalance = lv3Balance + amount;
         const { error: adminUpdateError } = await supabase
           .from('partners')
           .update({ 
-            invest_balance: newInvestBalance,
+            balance: newBalance,
             updated_at: new Date().toISOString()
           })
           .eq('id', authState.user?.id);

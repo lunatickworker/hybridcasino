@@ -300,7 +300,7 @@ const processSingleOpcode = async (
         .from('api_configs')
         .select('invest_token')
         .eq('partner_id', partnerId)
-        .single();
+        .maybeSingle();
 
       const token = apiConfig?.invest_token || '';
 

@@ -58,7 +58,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         .from('system_settings')
         .select('setting_value')
         .eq('setting_key', 'settlement_method')
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       if (data) {

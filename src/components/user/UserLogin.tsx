@@ -80,10 +80,18 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
           .eq('status', 'active')
           .order('display_order');
         
-        if (error) throw error;
+        if (error) {
+          console.error('❌ 은행 목록 로드 오류:', error);
+          // 에러가 발생해도 빈 배열로 처리 (은행 정보는 선택사항)
+          setBanks([]);
+          return;
+        }
         setBanks(data || []);
+        console.log('✅ 은행 목록 로드 완료:', data?.length || 0, '개');
       } catch (error) {
-        console.error('은행 목록 로드 오류:', error);
+        console.error('❌ 은행 목록 로드 오류:', error);
+        // 네트워크 오류 등으로 실패해도 빈 배열로 처리
+        setBanks([]);
       }
     };
     
@@ -533,13 +541,13 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="register-username" className="text-slate-300">
-                        아이디 <span className="text-red-400">*</span>
+                        {t.user.username} <span className="text-red-400">{t.user.required}</span>
                       </Label>
                       <Input
                         id="register-username"
                         name="username"
                         type="text"
-                        placeholder="아이디를 입력하세요"
+                        placeholder={t.user.enterUsername}
                         value={registerData.username}
                         onChange={handleRegisterChange}
                         disabled={isLoading}
@@ -549,14 +557,14 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
 
                     <div className="space-y-2">
                       <Label htmlFor="register-nickname" className="text-slate-300">
-                        닉네임 <span className="text-red-400">*</span>
+                        {t.user.nickname} <span className="text-red-400">{t.user.required}</span>
                       </Label>
                       <div className="relative">
                         <Input
                           id="register-nickname"
                           name="nickname"
                           type="text"
-                          placeholder="닉네임을 입력하세요"
+                          placeholder={t.user.enterNickname}
                           value={registerData.nickname}
                           onChange={(e) => {
                             handleRegisterChange(e);
@@ -587,14 +595,14 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
 
                   <div className="space-y-2">
                     <Label htmlFor="register-password" className="text-slate-300">
-                      비밀번호 <span className="text-red-400">*</span>
+                      {t.user.password} <span className="text-red-400">{t.user.required}</span>
                     </Label>
                     <div className="relative">
                       <Input
                         id="register-password"
                         name="password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="비밀번호를 입력하세요"
+                        placeholder={t.user.enterPassword}
                         value={registerData.password}
                         onChange={handleRegisterChange}
                         disabled={isLoading}
@@ -612,12 +620,12 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="register-email" className="text-slate-300">이메일</Label>
+                      <Label htmlFor="register-email" className="text-slate-300">{t.user.email}</Label>
                       <Input
                         id="register-email"
                         name="email"
                         type="email"
-                        placeholder="이메일을 입력하세요"
+                        placeholder={t.user.enterEmail}
                         value={registerData.email}
                         onChange={handleRegisterChange}
                         disabled={isLoading}
@@ -626,12 +634,12 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="register-phone" className="text-slate-300">연락처</Label>
+                      <Label htmlFor="register-phone" className="text-slate-300">{t.user.phone}</Label>
                       <Input
                         id="register-phone"
                         name="phone"
                         type="tel"
-                        placeholder="연락처를 입력하세요"
+                        placeholder={t.user.enterPhone}
                         value={registerData.phone}
                         onChange={handleRegisterChange}
                         disabled={isLoading}
@@ -640,53 +648,56 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">은행 정보</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      <Select value={registerData.bank_name} onValueChange={(value) => 
-                        setRegisterData(prev => ({ ...prev, bank_name: value }))
-                      }>
-                        <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
-                          <SelectValue placeholder="은행 선택" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-slate-700 border-slate-600">
-                          {banks.map((bank) => (
-                            <SelectItem key={bank.id} value={bank.name_ko} className="text-white">
-                              {bank.name_ko}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      
-                      <Input
-                        name="bank_account"
-                        placeholder="계좌번호"
-                        value={registerData.bank_account}
-                        onChange={handleRegisterChange}
-                        disabled={isLoading}
-                        className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500"
-                      />
-                      
-                      <Input
-                        name="bank_holder"
-                        placeholder="예금주명"
-                        value={registerData.bank_holder}
-                        onChange={handleRegisterChange}
-                        disabled={isLoading}
-                        className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500"
-                      />
+                  {/* 은행 정보 - 한국어 버전에만 표시 */}
+                  {language === 'ko' && (
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">{t.user.bankInfo}</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <Select value={registerData.bank_name} onValueChange={(value) => 
+                          setRegisterData(prev => ({ ...prev, bank_name: value }))
+                        }>
+                          <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                            <SelectValue placeholder={t.user.selectBank} />
+                          </SelectTrigger>
+                          <SelectContent className="bg-slate-700 border-slate-600">
+                            {banks.map((bank) => (
+                              <SelectItem key={bank.id} value={bank.name_ko} className="text-white">
+                                {bank.name_ko}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        
+                        <Input
+                          name="bank_account"
+                          placeholder={t.user.enterAccountNumber}
+                          value={registerData.bank_account}
+                          onChange={handleRegisterChange}
+                          disabled={isLoading}
+                          className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500"
+                        />
+                        
+                        <Input
+                          name="bank_holder"
+                          placeholder={t.user.enterAccountHolder}
+                          value={registerData.bank_holder}
+                          onChange={handleRegisterChange}
+                          disabled={isLoading}
+                          className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500"
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="register-referrer" className="text-slate-300">
-                      추천인 <span className="text-red-400">*</span>
+                      {t.user.referrer} <span className="text-red-400">{t.user.required}</span>
                     </Label>
                     <Input
                       id="register-referrer"
                       name="referrer_username"
                       type="text"
-                      placeholder="추천인 아이디를 입력하세요"
+                      placeholder={t.user.enterReferrerUsername}
                       value={registerData.referrer_username}
                       onChange={handleRegisterChange}
                       disabled={isLoading}
@@ -702,10 +713,10 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
                     {isLoading ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        회원가입 중...
+                        {t.user.signingUp}
                       </>
                     ) : (
-                      '회원가입'
+                      t.user.signupButton
                     )}
                   </Button>
                 </form>

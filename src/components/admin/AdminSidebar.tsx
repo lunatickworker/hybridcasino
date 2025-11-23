@@ -413,19 +413,22 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
             }
           }}
           className={cn(
-            "flex items-center gap-3 px-3 py-3.5 rounded-lg transition-all duration-200",
-            "text-lg group relative",
+            "flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200",
+            "text-base group relative w-full",
             isActive
-              ? "bg-gradient-to-r from-blue-600/20 to-purple-600/20 text-white border border-blue-500/30 mr-3"
-              : "text-slate-300 hover:bg-slate-800/50 hover:text-white w-full",
+              ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30 scale-[1.02]"
+              : "text-slate-300 hover:bg-slate-800/50 hover:text-white hover:scale-[1.01]",
             depth > 0 && "ml-6"
           )}
         >
           <Icon className={cn(
-            "w-6 h-6 flex-shrink-0",
-            isActive ? "text-blue-400" : "text-slate-400 group-hover:text-blue-400"
+            "w-5 h-5 flex-shrink-0",
+            isActive ? "text-white" : "text-slate-400 group-hover:text-blue-400"
           )} />
-          <span className="flex-1 text-left">
+          <span className={cn(
+            "flex-1 text-left font-medium",
+            isActive && "font-semibold"
+          )}>
             {item.title}
           </span>
           {hasChildren && (

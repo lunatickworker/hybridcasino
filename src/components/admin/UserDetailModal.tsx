@@ -376,11 +376,17 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
         .from('api_configs')
         .select('invest_opcode, invest_secret_key')
         .eq('partner_id', user.referrer_id)
-        .single();
+        .maybeSingle();
 
-      if (configError || !apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
-        toast.error('파트너 API 설정을 찾을 수 없습니다.');
-        console.error('API config error:', configError, apiConfig);
+      if (configError) {
+        console.error('❌ [사용자상세] API config 조회 에러:', configError);
+        toast.error('파트너 API 설정 조회 중 오류가 발생했습니다.');
+        return;
+      }
+
+      if (!apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
+        console.warn('⚠️ [사용자상세] API config 없음. referrer_id:', user.referrer_id);
+        toast.error(`파트너 API 설정을 찾을 수 없습니다. (Partner ID: ${user.referrer_id})`);
         return;
       }
 

@@ -146,6 +146,7 @@ async function createInvestAccount(
       .from('api_configs')
       .select('invest_opcode, invest_secret_key, invest_token')
       .eq('partner_id', headOfficeId)
+      .eq('api_provider', 'invest')
       .single();
     
     if (!apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
@@ -197,6 +198,7 @@ async function createOroPlayAccount(
       .from('api_configs')
       .select('partner_id, oroplay_client_id, oroplay_client_secret')
       .eq('partner_id', headOfficeId)
+      .eq('api_provider', 'oroplay')
       .single();
     
     // 2-1. 대본사 설정이 없으면 첫 번째 유효한 설정 사용 (폴백)
@@ -206,6 +208,7 @@ async function createOroPlayAccount(
       const { data: firstConfig } = await supabase
         .from('api_configs')
         .select('partner_id, oroplay_client_id, oroplay_client_secret')
+        .eq('api_provider', 'oroplay')
         .not('oroplay_client_id', 'is', null)
         .not('oroplay_client_secret', 'is', null)
         .limit(1)
@@ -243,7 +246,8 @@ async function createOroPlayAccount(
         oroplay_token: newToken,
         oroplay_token_expires_at: new Date(tokenData.expiration * 1000).toISOString()
       })
-      .eq('partner_id', apiConfig.partner_id);
+      .eq('partner_id', apiConfig.partner_id)
+      .eq('api_provider', 'oroplay');
     
     console.log('  ✅ [OROPLAY] DB 저장 완료 (partner_id:', apiConfig.partner_id, ')');
     

@@ -121,13 +121,23 @@ export async function getOroPlayToken(partnerId: string): Promise<string> {
     .from('api_configs')
     .select('oroplay_token, oroplay_token_expires_at, oroplay_client_id, oroplay_client_secret')
     .eq('partner_id', partnerId)
+    .eq('api_provider', 'oroplay')
     .maybeSingle();
   
   if (configError || !config) {
+    console.error('❌ [OroPlay] API 설정 조회 실패:', {
+      partner_id: partnerId,
+      error: configError?.message
+    });
     throw new Error('OroPlay API 설정을 찾을 수 없습니다.');
   }
   
   if (!config.oroplay_client_id || !config.oroplay_client_secret) {
+    console.error('❌ [OroPlay] Credentials 정보 없음:', {
+      partner_id: partnerId,
+      has_client_id: !!config.oroplay_client_id,
+      has_client_secret: !!config.oroplay_client_secret
+    });
     throw new Error('OroPlay client_id 또는 client_secret이 설정되지 않았습니다.');
   }
   
@@ -171,7 +181,8 @@ async function refreshTokenIfNeeded(
       oroplay_token_expires_at: new Date(tokenData.expiration * 1000).toISOString(),
       updated_at: new Date().toISOString()
     })
-    .eq('partner_id', partnerId);
+    .eq('partner_id', partnerId)
+    .eq('api_provider', 'oroplay');
   
   if (updateError) {
     throw new Error(`토큰 DB 저장 실패: ${updateError.message}`);

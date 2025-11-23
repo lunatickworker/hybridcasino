@@ -33,6 +33,7 @@ interface PartnerFormData {
   bank_holder: string;
   contact_info: string;
   selected_parent_id?: string; // Lv1이 Lv3~Lv6 생성 시 소속 파트너 선택
+  timezone_offset?: number; // LV2 대본사의 타임존 오프셋
 }
 
 interface PartnerCreationProps {
@@ -209,7 +210,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       toast.loading(t.partnerCreation.creatingStep, { id: toastId });
 
       // 3. 파트너 생성 (opcode 관련 컬럼 제거됨)
-      const partnerData = {
+      const partnerData:  any = {
         username: formData.username,
         nickname: formData.nickname,
         password_hash: formData.password, // 트리거에서 해시 처리
@@ -228,6 +229,11 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         updated_at: new Date().toISOString(),
       };
 
+      // LV2(대본사)인 경우 timezone_offset 추가
+      if (formData.partner_type === 'head_office' && formData.timezone_offset !== undefined) {
+        partnerData.timezone_offset = formData.timezone_offset;
+      }
+
       const { data: newPartner, error: createError } = await supabase
         .from('partners')
         .insert([partnerData])
@@ -236,9 +242,36 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
       if (createError) throw createError;
 
-      // 4. api_configs는 Lv1(시스템관리자)만 사용
-      //    DB 트리거(trigger_auto_create_api_config)가 Lv1 생성 시에만 빈 레코드 자동 생성
-      //    Lv2(대본사)는 api_configs를 사용하지 않음
+      // 4. api_configs 자동 생성 (모든 레벨에 대해)
+      // ✅ 새 구조: api_provider별로 2개의 행 생성
+      const { error: apiConfigError } = await supabase
+        .from('api_configs')
+        .insert([
+          {
+            partner_id: newPartner.id,
+            api_provider: 'invest',
+            invest_opcode: '',
+            invest_secret_key: '',
+            invest_token: '',
+            balance: 0,
+            is_active: true,
+          },
+          {
+            partner_id: newPartner.id,
+            api_provider: 'oroplay',
+            oroplay_client_id: '',
+            oroplay_client_secret: '',
+            oroplay_token: '',
+            balance: 0,
+            is_active: false,
+          }
+        ]);
+
+      if (apiConfigError) {
+        console.warn('⚠️ [파트너 생성] API config 생성 실패 (무시):', apiConfigError);
+      } else {
+        console.log('✅ [파트너 생성] API config 생성 완료:', newPartner.id);
+      }
 
       toast.success(t.partnerCreation.createSuccess, { id: toastId });
       
@@ -512,6 +545,31 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   {t.partnerCreation.parentDescription}
+                </p>
+              </div>
+            )}
+
+            {/* LV2(대본사) 생성 시 타임존 설정 */}
+            {formData.partner_type === 'head_office' && (
+              <div className="space-y-2">
+                <Label htmlFor="timezone_offset">{t.partnerCreation.timezoneOffset || "타임존 설정"}</Label>
+                <Select 
+                  value={String(formData.timezone_offset !== undefined ? formData.timezone_offset : 9)} 
+                  onValueChange={(value) => handleInputChange('timezone_offset', parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t.partnerCreation.selectTimezone || "타임존 선택"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 27 }, (_, i) => i - 12).map((offset) => (
+                      <SelectItem key={offset} value={String(offset)}>
+                        UTC{offset >= 0 ? '+' : ''}{offset} {offset === 9 ? '(KST)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {t.partnerCreation.timezoneDescription || "대본사의 기준 타임존을 설정합니다. 통계 및 시간 표시에 적용됩니다."}
                 </p>
               </div>
             )}

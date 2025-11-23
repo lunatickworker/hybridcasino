@@ -1,7 +1,15 @@
 import { useState, useEffect, createContext, useContext } from 'react';
-import { Partner, AuthState } from '../types';
 import { supabase } from '../lib/supabase';
+import { Partner, User as CustomUser } from '../types';
+import { getInfo } from '../lib/investApi';
+import { updateInvestBalance, updateOroplayBalance, getInvestCredentials, getOroplayCredentials } from '../lib/apiConfigHelper';
 import { storage } from '../lib/utils';
+
+interface AuthState {
+  isAuthenticated: boolean;
+  user: Partner | null;
+  token: string | null;
+}
 
 const AuthContext = createContext<{
   authState: AuthState;
@@ -114,67 +122,33 @@ export function useAuthProvider() {
           // 백그라운드에서 동기화 (로그인 딜레이 방지)
           setTimeout(async () => {
             try {
-              // 1️⃣ Invest API 보유금 동기화
-              const { getInfo } = await import('../lib/investApi');
-              const balanceResult = await getInfo(
-                systemAdminUser.opcode!,
-                systemAdminUser.secret_key!
-              );
+              // 3️⃣ API 보유금 동기화 (헬퍼 함수 사용)
+              const investCreds = await getInvestCredentials(systemAdminUser.id);
               
-              let investBalance = 0;
-              
-              if (!balanceResult.error && balanceResult.data) {
-                // API 응답 파싱
-                const apiData = balanceResult.data;
+              let investBalance = systemAdminUser.balance || 0;
+              let oroplayBalance = 0;
+
+              // Invest API 잔액 조회
+              if (investCreds.opcode && investCreds.secret_key) {
+                const apiResult = await getInfo(investCreds.opcode, investCreds.secret_key);
                 
-                if (typeof apiData === 'object' && !apiData.is_text) {
-                  if (apiData.RESULT === true && apiData.DATA) {
-                    investBalance = parseFloat(apiData.DATA.balance || 0);
-                  } else if (apiData.balance !== undefined) {
-                    investBalance = parseFloat(apiData.balance || 0);
+                if (!apiResult.error && apiResult.data) {
+                  if (apiResult.data.DATA?.balance !== undefined) {
+                    investBalance = parseFloat(apiResult.data.DATA.balance) || 0;
+                  } else if (apiResult.data.balance !== undefined) {
+                    investBalance = parseFloat(apiResult.data.balance) || 0;
                   }
                 }
-                
-                console.log('💙 Invest API 응답 파싱:', investBalance);
-              } else {
-                console.error('❌ Invest API 호출 실패:', balanceResult.error);
               }
-              
-              // 2️⃣ OroPlay API 보유금 동기화
-              let oroplayBalance = 0;
-              
-              try {
-                const { getAgentBalance, getOroPlayToken } = await import('../lib/oroplayApi');
-                
-                console.log('📡 OroPlay API 잔고 조회 시작...');
-                const oroToken = await getOroPlayToken(systemAdminUser.id);
-                console.log('📡 OroPlay Token 조회 성공');
-                
-                oroplayBalance = await getAgentBalance(oroToken);
-                console.log('💚 OroPlay API 잔고 조회 성공:', oroplayBalance);
-              } catch (oroErr: any) {
-                console.error('❌ OroPlay API 잔고 조회 실패:', oroErr);
-                // OroPlay 설정이 없으면 0으로 유지 (에러 무시)
-              }
-              
-              // 3️⃣ api_configs 테이블 업데이트 (Invest + OroPlay 한 번에)
-              const { error: updateError } = await supabase
-                .from('api_configs')
-                .update({ 
-                  invest_balance: investBalance,
-                  oroplay_balance: oroplayBalance,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('partner_id', systemAdminUser.id);
-              
-              if (!updateError) {
-                console.log('✅ API 보유금 동기화 완료:', {
-                  invest: investBalance,
-                  oroplay: oroplayBalance
-                });
-              } else {
-                console.error('❌ api_configs 업데이트 오류:', updateError);
-              }
+
+              // API configs 테이블에 잔액 업데이트
+              await updateInvestBalance(systemAdminUser.id, investBalance);
+              await updateOroplayBalance(systemAdminUser.id, oroplayBalance);
+
+              console.log('✅ API 보유금 동기화 완료:', {
+                invest: investBalance,
+                oroplay: oroplayBalance
+              });
             } catch (syncError) {
               console.error('❌ API 동기화 오류:', syncError);
             }

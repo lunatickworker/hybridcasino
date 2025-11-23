@@ -79,81 +79,87 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
 
       // Lv1: api_configs 조회 (+ API 활성화 설정), Lv2: partners 조회
       if (user.level === 1) {
-        // Lv1은 api_configs 사용
+        // Lv1은 api_configs 사용 (새 구조: api_provider별 분리)
         console.log('💾 [Balance] [Lv1] api_configs 조회 시작...');
-        const { data: apiConfigData, error: apiConfigError } = await supabase
+        
+        // Invest API 잔액 조회
+        const { data: investData, error: investError } = await supabase
           .from('api_configs')
-          .select('invest_balance, oroplay_balance, use_invest_api, use_oroplay_api')
+          .select('balance, is_active')
           .eq('partner_id', user.id)
+          .eq('api_provider', 'invest')
           .maybeSingle();
 
-        if (apiConfigError) {
-          console.error('❌ [Balance] api_configs 조회 실패:', apiConfigError);
+        if (investError) {
+          console.error('❌ [Balance] Invest api_config 조회 실패:', investError);
+        }
+
+        // OroPlay API 잔액 조회
+        const { data: oroplayData, error: oroplayError } = await supabase
+          .from('api_configs')
+          .select('balance, is_active')
+          .eq('partner_id', user.id)
+          .eq('api_provider', 'oroplay')
+          .maybeSingle();
+
+        if (oroplayError) {
+          console.error('❌ [Balance] OroPlay api_config 조회 실패:', oroplayError);
         }
 
         console.log('🔍 [Balance] api_configs 조회 결과:', {
-          hasData: !!apiConfigData,
-          data: apiConfigData
+          invest: investData,
+          oroplay: oroplayData
         });
 
-        if (apiConfigData) {
-          const investRaw = apiConfigData.invest_balance;
-          const oroRaw = apiConfigData.oroplay_balance;
-          
-          const invest = typeof investRaw === 'number' && !isNaN(investRaw) ? investRaw : 0;
-          const oro = typeof oroRaw === 'number' && !isNaN(oroRaw) ? oroRaw : 0;
-          
-          // ✅ API 활성화 설정 로드
-          const useInvest = apiConfigData.use_invest_api !== false; // 기본값 true
-          const useOro = apiConfigData.use_oroplay_api !== false;   // 기본값 true
-          
-          console.log('📊 [Balance] API별 잔고 파싱:', {
-            invest_balance_raw: investRaw,
-            oroplay_balance_raw: oroRaw,
-            invest_balance_parsed: invest,
-            oroplay_balance_parsed: oro,
-            use_invest_api: useInvest,
-            use_oroplay_api: useOro
-          });
-          
-          setInvestBalance(invest);
-          setOroplayBalance(oro);
-          setUseInvestApi(useInvest);
-          setUseOroplayApi(useOro);
-        } else {
-          console.log('ℹ️ [Balance] api_configs 레코드 없음 - 0으로 초기화');
-          setInvestBalance(0);
-          setOroplayBalance(0);
-          setUseInvestApi(true);
-          setUseOroplayApi(true);
-        }
+        const investRaw = investData?.balance;
+        const oroRaw = oroplayData?.balance;
+        
+        const invest = typeof investRaw === 'number' && !isNaN(investRaw) ? investRaw : 0;
+        const oro = typeof oroRaw === 'number' && !isNaN(oroRaw) ? oroRaw : 0;
+        
+        // ✅ API 활성화 설정 로드
+        const useInvest = investData?.is_active !== false; // 기본값 true
+        const useOro = oroplayData?.is_active !== false;   // 기본값 true
+        
+        console.log('📊 [Balance] API별 잔고 파싱:', {
+          invest_balance_raw: investRaw,
+          oroplay_balance_raw: oroRaw,
+          invest_balance_parsed: invest,
+          oroplay_balance_parsed: oro,
+          use_invest_api: useInvest,
+          use_oroplay_api: useOro
+        });
+        
+        setInvestBalance(invest);
+        setOroplayBalance(oro);
+        setUseInvestApi(useInvest);
+        setUseOroplayApi(useOro);
 
         console.log('✅ [Balance] [Lv1] DB 로드 완료:', {
           balance: currentBalance,
-          investBalance: apiConfigData?.invest_balance || 0,
-          oroplayBalance: apiConfigData?.oroplay_balance || 0
+          investBalance: invest,
+          oroplayBalance: oro
         });
       } else if (user.level === 2) {
-        // Lv2는 partners 테이블의 invest_balance, oroplay_balance 사용 + Lv1 API 설정 조회
-        console.log('💾 [Balance] [Lv2] partners 테이블에서 invest_balance/oroplay_balance 조회...');
-        const { data: partnerData, error: partnerError } = await supabase
+        // Lv2는 partners 테이블에서 invest_balance + oroplay_balance 조회
+        console.log('💾 [Balance] [Lv2] partners.invest_balance + oroplay_balance 조회 시작...');
+        
+        const { data: lv2Data, error: lv2Error } = await supabase
           .from('partners')
           .select('invest_balance, oroplay_balance')
           .eq('id', user.id)
           .single();
-
-        if (partnerError) {
-          console.error('❌ [Balance] partners 조회 실패:', partnerError);
-          setInvestBalance(0);
-          setOroplayBalance(0);
+        
+        if (lv2Error) {
+          console.error('❌ [Balance] Lv2 partners 조회 실패:', lv2Error);
         } else {
-          const investRaw = partnerData?.invest_balance;
-          const oroRaw = partnerData?.oroplay_balance;
+          const investRaw = lv2Data?.invest_balance;
+          const oroRaw = lv2Data?.oroplay_balance;
           
           const invest = typeof investRaw === 'number' && !isNaN(investRaw) ? investRaw : 0;
           const oro = typeof oroRaw === 'number' && !isNaN(oroRaw) ? oroRaw : 0;
           
-          console.log('📊 [Balance] [Lv2] partners 테이블 잔고 파싱:', {
+          console.log('📊 [Balance] [Lv2] 잔고 파싱:', {
             invest_balance_raw: investRaw,
             oroplay_balance_raw: oroRaw,
             invest_balance_parsed: invest,
@@ -162,15 +168,9 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           
           setInvestBalance(invest);
           setOroplayBalance(oro);
-
-          console.log('✅ [Balance] [Lv2] DB 로드 완료:', {
-            balance: currentBalance,
-            investBalance: invest,
-            oroplayBalance: oro
-          });
         }
         
-        // ✅ Lv2는 Lv1의 API 설정을 따름
+        // Lv1의 API 설정을 따름
         const { data: lv1Config } = await supabase
           .from('partners')
           .select('id')
@@ -179,17 +179,31 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           .single();
           
         if (lv1Config) {
-          const { data: apiConfig } = await supabase
+          // Invest API 활성화 상태
+          const { data: investConfig } = await supabase
             .from('api_configs')
-            .select('use_invest_api, use_oroplay_api')
+            .select('is_active')
             .eq('partner_id', lv1Config.id)
-            .single();
+            .eq('api_provider', 'invest')
+            .maybeSingle();
+          
+          // OroPlay API 활성화 상태  
+          const { data: oroplayConfig } = await supabase
+            .from('api_configs')
+            .select('is_active')
+            .eq('partner_id', lv1Config.id)
+            .eq('api_provider', 'oroplay')
+            .maybeSingle();
             
-          if (apiConfig) {
-            setUseInvestApi(apiConfig.use_invest_api !== false);
-            setUseOroplayApi(apiConfig.use_oroplay_api !== false);
-          }
+          setUseInvestApi(investConfig?.is_active !== false);
+          setUseOroplayApi(oroplayConfig?.is_active !== false);
         }
+        
+        console.log('✅ [Balance] [Lv2] DB 로드 완료:', {
+          balance: currentBalance,
+          investBalance: invest,
+          oroplayBalance: oro
+        });
       } else {
         // Lv3 이상은 API별 잔고 없음, Lv1의 API 설정만 조회
         console.log('ℹ️ [Balance] [Lv3+] API별 잔고 없음');
@@ -205,16 +219,24 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           .single();
           
         if (lv1Config) {
-          const { data: apiConfig } = await supabase
+          // Invest API 활성화 상태
+          const { data: investConfig } = await supabase
             .from('api_configs')
-            .select('use_invest_api, use_oroplay_api')
+            .select('is_active')
             .eq('partner_id', lv1Config.id)
-            .single();
+            .eq('api_provider', 'invest')
+            .maybeSingle();
+          
+          // OroPlay API 활성화 상태  
+          const { data: oroplayConfig } = await supabase
+            .from('api_configs')
+            .select('is_active')
+            .eq('partner_id', lv1Config.id)
+            .eq('api_provider', 'oroplay')
+            .maybeSingle();
             
-          if (apiConfig) {
-            setUseInvestApi(apiConfig.use_invest_api !== false);
-            setUseOroplayApi(apiConfig.use_oroplay_api !== false);
-          }
+          setUseInvestApi(investConfig?.is_active !== false);
+          setUseOroplayApi(oroplayConfig?.is_active !== false);
         }
       }
 
@@ -358,13 +380,15 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
       try {
         console.log('📡 [Balance] OroPlay credentials 확인 중...');
         
-        const { data: apiConfig } = await supabase
+        // OroPlay API config 조회 (새 구조: api_provider='oroplay')
+        const { data: oroConfig } = await supabase
           .from('api_configs')
           .select('oroplay_client_id, oroplay_client_secret')
           .eq('partner_id', user.id)
+          .eq('api_provider', 'oroplay')
           .maybeSingle();
         
-        if (!apiConfig?.oroplay_client_id || !apiConfig?.oroplay_client_secret) {
+        if (!oroConfig?.oroplay_client_id || !oroConfig?.oroplay_client_secret) {
           const errorMsg = `Lv1 시스템관리자의 OroPlay credentials가 설정되지 않았습니다. api_configs 테이블을 확인하세요.`;
           console.error('❌ [Balance]', errorMsg);
           throw new Error(errorMsg);
@@ -389,14 +413,15 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           parsed: oroBalance
         });
         
-        // api_configs 테이블 업데이트
+        // api_configs 테이블 업데이트 (새 구조: api_provider별)
         const { error: oroUpdateError } = await supabase
           .from('api_configs')
           .update({ 
-            oroplay_balance: oroBalance,
+            balance: oroBalance,
             updated_at: new Date().toISOString()
           })
-          .eq('partner_id', user.id);
+          .eq('partner_id', user.id)
+          .eq('api_provider', 'oroplay');
         
         if (oroUpdateError) {
           console.error('❌ [Balance] OroPlay 잔고 DB 저장 실패:', oroUpdateError);
@@ -413,19 +438,19 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         throw oroErr;
       }
 
-      // api_configs 테이블에 Invest 잔고 업데이트
+      // api_configs 테이블에 Invest 잔고 업데이트 (새 구조: api_provider별)
       await supabase
         .from('api_configs')
         .update({ 
-          invest_balance: newBalance,
+          balance: newBalance,
           updated_at: new Date().toISOString()
         })
-        .eq('partner_id', user.id);
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'invest');
 
       // ⚠️ Lv1은 partners.balance를 사용하지 않음 (외부 API 지갑만 사용)
-      // Lv1의 보유금은 api_configs.invest_balance + api_configs.oroplay_balance만 사용
+      // Lv1의 보유금은 api_configs (invest + oroplay 각각의 balance) 사용
       console.log('ℹ️ [Balance] Lv1은 partners.balance를 업데이트하지 않음 (설계 정책)');
-      console.log('ℹ️ [Balance] Lv1 보유금 = api_configs.invest_balance + api_configs.oroplay_balance');
 
       // ✅ 항상 State 업데이트 (에러 여부 무관)
       setInvestBalance(newBalance);
@@ -553,19 +578,8 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           setLastSyncTime(new Date());
           setError(null);
           
-          // ✅ Lv2의 경우 invest_balance, oroplay_balance도 함께 업데이트
-          if (user.level === 2) {
-            const newInvest = parseFloat(payload.new?.invest_balance) || 0;
-            const newOro = parseFloat(payload.new?.oroplay_balance) || 0;
-            
-            console.log('💰 [Balance] [Lv2] partners API별 잔고 업데이트:', {
-              invest: newInvest,
-              oro: newOro
-            });
-            
-            setInvestBalance(newInvest);
-            setOroplayBalance(newOro);
-          }
+          // ✅ Lv2는 두 개 지갑(invest_balance, oroplay_balance) 사용
+          // Lv3~7은 단일 지갑(balance) 사용
           
           // ✅ 토스트 메시지 제거 (자동 동기화 시 깜박임 방지)
         }
@@ -587,23 +601,25 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           console.log('🔔 [Balance] api_configs Realtime 업데이트 감지:', payload);
 
           const newData = payload.new as any;
-          if (newData) {
-            // ✅ NaN 방지: 숫자가 아니거나 NaN이면 0으로 처리
-            const investRaw = newData.invest_balance;
-            const oroRaw = newData.oroplay_balance;
+          if (newData && user.level === 1) {
+            // ✅ Lv1만 api_configs balance 업데이트
+            // api_provider로 구분하여 balance 업데이트
+            const apiProvider = newData.api_provider;
+            const balanceRaw = newData.balance;
+            const balanceValue = typeof balanceRaw === 'number' && !isNaN(balanceRaw) ? balanceRaw : 0;
             
-            const invest = typeof investRaw === 'number' && !isNaN(investRaw) ? investRaw : 0;
-            const oro = typeof oroRaw === 'number' && !isNaN(oroRaw) ? oroRaw : 0;
-
-            console.log('📊 [Balance] API별 잔고 Realtime 업데이트:', {
-              invest_raw: investRaw,
-              oro_raw: oroRaw,
-              invest,
-              oro
+            console.log('📊 [Balance] [Lv1] API별 잔고 Realtime 업데이트:', {
+              api_provider: apiProvider,
+              balance_raw: balanceRaw,
+              balance_parsed: balanceValue
             });
 
-            setInvestBalance(invest);
-            setOroplayBalance(oro);
+            if (apiProvider === 'invest') {
+              setInvestBalance(balanceValue);
+            } else if (apiProvider === 'oroplay') {
+              setOroplayBalance(balanceValue);
+            }
+            
             setLastSyncTime(new Date());
           }
         }

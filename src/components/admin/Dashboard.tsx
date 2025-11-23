@@ -16,6 +16,7 @@ import { formatCurrency, formatNumber, getPartnerLevelText } from "../../lib/uti
 import { DashboardStats, Partner } from "../../types";
 import { calculatePendingDeposits } from "../../lib/settlementCalculator";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { getCurrentTimeFormatted } from "../../lib/timezoneHelper";
 
 interface DashboardProps {
   user: Partner;
@@ -64,6 +65,9 @@ export function Dashboard({ user }: DashboardProps) {
   const [pendingDeposits, setPendingDeposits] = useState(0); // 만충금 (pending deposits)
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [formattedTime, setFormattedTime] = useState<string>('');
+  const [isSyncingInvest, setIsSyncingInvest] = useState(false);
+  const [isSyncingOroplay, setIsSyncingOroplay] = useState(false);
 
   // ✅ balance가 변경되면 stats 업데이트
   useEffect(() => {
@@ -88,7 +92,7 @@ export function Dashboard({ user }: DashboardProps) {
         .from('api_configs')
         .select('invest_opcode, invest_secret_key')
         .eq('partner_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (configError || !apiConfig || !apiConfig.invest_opcode || !apiConfig.invest_secret_key) {
         throw new Error('Invest API 설정을 찾을 수 없습니다.');
@@ -113,14 +117,15 @@ export function Dashboard({ user }: DashboardProps) {
 
       console.log('✅ [Dashboard] Invest API 응답:', { balance: newBalance });
 
-      // api_configs 업데이트
+      // api_configs 업데이트 (새 구조: api_provider='invest' 필터 추가)
       const { error: updateError } = await supabase
         .from('api_configs')
         .update({
-          invest_balance: newBalance,
+          balance: newBalance,
           updated_at: new Date().toISOString()
         })
-        .eq('partner_id', user.id);
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'invest');
 
       if (updateError) {
         throw new Error(`DB 업데이트 실패: ${updateError.message}`);
@@ -156,14 +161,15 @@ export function Dashboard({ user }: DashboardProps) {
 
       console.log('✅ [Dashboard] OroPlay API 응답:', { balance });
 
-      // api_configs 업데이트
+      // api_configs 업데이트 (새 구조: api_provider='oroplay' 필터 추가)
       const { error: updateError } = await supabase
         .from('api_configs')
         .update({
-          oroplay_balance: balance,
+          balance: balance,
           updated_at: new Date().toISOString()
         })
-        .eq('partner_id', user.id);
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'oroplay');
 
       if (updateError) {
         throw new Error(`DB 업데이트 실패: ${updateError.message}`);
@@ -567,12 +573,23 @@ export function Dashboard({ user }: DashboardProps) {
 
   // 실시간 시간 업데이트
   useEffect(() => {
+    // ✅ 파트너 타임존 기준 시간 포맷팅
+    const updateTime = async () => {
+      const formatted = await getCurrentTimeFormatted(user.id, user.level);
+      setFormattedTime(formatted);
+    };
+
+    // 초기 시간 설정
+    updateTime();
+
+    // 1초마다 시간 업데이트
     const timer = setInterval(() => {
       setCurrentTime(new Date());
+      updateTime();
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [user.id, user.level]);
 
   // ✅ Realtime 구독: 모든 테이블 변경 시 즉시 업데이트 (이벤트 발생 업데이트)
   useEffect(() => {
@@ -672,7 +689,7 @@ export function Dashboard({ user }: DashboardProps) {
         </div>
         <Badge variant="outline" className="flex items-center gap-2 px-3 py-1.5 text-xs badge-premium-primary">
           <Clock className="h-3.5 w-3.5" />
-          {currentTime.toLocaleString('ko-KR')}
+          {formattedTime}
         </Badge>
       </div>
 

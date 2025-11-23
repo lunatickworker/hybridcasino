@@ -118,15 +118,14 @@ export function UserManagement() {
   const [processingUserId, setProcessingUserId] = useState<string | null>(null);
   const [createUserLoading, setCreateUserLoading] = useState(false);
   const [availablePartners, setAvailablePartners] = useState<any[]>([]); // Lv1이 회원 생성 시 선택 가능한 파트너 목록
-  const [currentUserBalance, setCurrentUserBalance] = useState(0); // 현재 관리자의 보유금 (Lv3~7용)
-  const [currentUserInvestBalance, setCurrentUserInvestBalance] = useState(0); // Lv2의 invest_balance
-  const [currentUserOroplayBalance, setCurrentUserOroplayBalance] = useState(0); // Lv2의 oroplay_balance
+  const [currentUserBalance, setCurrentUserBalance] = useState(0); // 현재 관리자의 보유금
   
   // 입출금 대상 사용자의 소속 파트너 보유금 (강제 입출금 모달용)
-  const [targetPartnerBalance, setTargetPartnerBalance] = useState(0); // Lv3~7 파트너의 balance
-  const [targetPartnerInvestBalance, setTargetPartnerInvestBalance] = useState(0); // Lv1/Lv2 파트너의 invest_balance
-  const [targetPartnerOroplayBalance, setTargetPartnerOroplayBalance] = useState(0); // Lv1/Lv2 파트너의 oroplay_balance
+  const [targetPartnerBalance, setTargetPartnerBalance] = useState(0); // 파트너의 balance
   const [targetPartnerLevel, setTargetPartnerLevel] = useState(0); // 소속 파트너의 레벨
+  // ✅ Lv1 참고용 (UI 표시용, 실제 로직에는 사용하지 않음)
+  const [targetPartnerInvestBalance, setTargetPartnerInvestBalance] = useState(0);
+  const [targetPartnerOroplayBalance, setTargetPartnerOroplayBalance] = useState(0);
   
   const [formData, setFormData] = useState({
     username: '',
@@ -205,7 +204,7 @@ export function UserManagement() {
     try {
       const { data, error } = await supabase
         .from('partners')
-        .select('balance, level, invest_balance, oroplay_balance')
+        .select('balance, level')
         .eq('id', authState.user.id)
         .single();
       
@@ -213,46 +212,12 @@ export function UserManagement() {
       
       console.log('💰 [UserManagement] 관리자 보유금 조회 (partners 테이블):', {
         level: data?.level,
-        balance: data?.balance,
-        invest_balance: data?.invest_balance,
-        oroplay_balance: data?.oroplay_balance
+        balance: data?.balance
       });
       
-      // Lv1의 경우: api_configs에서 실제 보유금 조회
-      if (data?.level === 1) {
-        const { data: apiConfigData, error: apiConfigError } = await supabase
-          .from('api_configs')
-          .select('invest_balance, oroplay_balance')
-          .eq('partner_id', authState.user.id)
-          .single();
-        
-        if (!apiConfigError && apiConfigData) {
-          setCurrentUserInvestBalance(apiConfigData.invest_balance || 0);
-          setCurrentUserOroplayBalance(apiConfigData.oroplay_balance || 0);
-          console.log('✅ Lv1 보유금 설정 (api_configs):', {
-            invest: apiConfigData.invest_balance || 0,
-            oroplay: apiConfigData.oroplay_balance || 0
-          });
-        } else {
-          console.warn('⚠️ Lv1 api_configs 조회 실패:', apiConfigError);
-          setCurrentUserInvestBalance(0);
-          setCurrentUserOroplayBalance(0);
-        }
-      }
-      // Lv2의 경우 API별 보유금 저장 (partners 테이블)
-      else if (data?.level === 2) {
-        setCurrentUserInvestBalance(data?.invest_balance || 0);
-        setCurrentUserOroplayBalance(data?.oroplay_balance || 0);
-        console.log('✅ Lv2 보유금 설정 (partners):', {
-          invest: data?.invest_balance || 0,
-          oroplay: data?.oroplay_balance || 0
-        });
-      }
-      // Lv3~7의 경우 단일 balance 저장
-      else {
-        setCurrentUserBalance(data?.balance || 0);
-        console.log('✅ Lv3~7 보유금 설정:', data?.balance || 0);
-      }
+      // ✅ 모든 레벨에서 partners.balance 사용
+      setCurrentUserBalance(data?.balance || 0);
+      console.log('✅ 관리자 보유금 설정:', data?.balance || 0);
     } catch (error) {
       console.error('❌ 현재 사용자 보유금 조회 실패:', error);
     }
@@ -329,53 +294,15 @@ export function UserManagement() {
             level: updated.level
           });
           
-          // Lv2의 경우 API별 보유금 업데이트 (partners 테이블)
-          if (updated.level === 2) {
-            setCurrentUserInvestBalance(updated.invest_balance || 0);
-            setCurrentUserOroplayBalance(updated.oroplay_balance || 0);
-          }
-          // Lv3~7의 경우 단일 balance 업데이트
-          else if (updated.level >= 3) {
-            setCurrentUserBalance(updated.balance || 0);
-          }
-          // Lv1은 api_configs에서 처리
+          // ✅ 모든 레벨에서 partners.balance 업데이트
+          setCurrentUserBalance(updated.balance || 0);
         }
       )
       .subscribe();
 
-    // Lv1의 경우: api_configs 테이블 변경 감지
-    let apiConfigChannel: any = null;
-    if (authState.user.level === 1) {
-      apiConfigChannel = supabase
-        .channel('current-api-config')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'api_configs',
-            filter: `partner_id=eq.${authState.user.id}`
-          },
-          (payload) => {
-            const updated = payload.new as any;
-            console.log('💰 Lv1 보유금 변경 (api_configs):', {
-              invest_balance: updated.invest_balance,
-              oroplay_balance: updated.oroplay_balance
-            });
-            
-            setCurrentUserInvestBalance(updated.invest_balance || 0);
-            setCurrentUserOroplayBalance(updated.oroplay_balance || 0);
-          }
-        )
-        .subscribe();
-    }
-
     return () => {
       supabase.removeChannel(usersChannel);
       supabase.removeChannel(partnerBalanceChannel);
-      if (apiConfigChannel) {
-        supabase.removeChannel(apiConfigChannel);
-      }
     };
   }, [authState.user?.id]);
 
@@ -419,7 +346,7 @@ export function UserManagement() {
         // 2. 파트너 정보 조회
         const { data: partnerData, error: partnerError } = await supabase
           .from('partners')
-          .select('balance, level, invest_balance, oroplay_balance, username')
+          .select('balance, level, username')
           .eq('id', partnerId)
           .single();
 
@@ -432,44 +359,43 @@ export function UserManagement() {
           partnerId,
           username: partnerData.username,
           level: partnerData.level,
-          balance: partnerData.balance,
-          invest_balance: partnerData.invest_balance,
-          oroplay_balance: partnerData.oroplay_balance
+          balance: partnerData.balance
         });
 
         setTargetPartnerLevel(partnerData.level);
 
-        // Lv1의 경우: api_configs에서 실제 보유금 조회
+        // ✅ Lv1의 경우: api_configs에서 실제 보유금 조회 (참고용)
         if (partnerData.level === 1) {
-          const { data: apiConfigData, error: apiConfigError } = await supabase
+          const { data: apiConfigsData, error: apiConfigsError } = await supabase
             .from('api_configs')
-            .select('invest_balance, oroplay_balance')
-            .eq('partner_id', partnerId)
-            .single();
+            .select('balance, api_provider')
+            .eq('partner_id', partnerId);
 
-          if (!apiConfigError && apiConfigData) {
-            setTargetPartnerInvestBalance(apiConfigData.invest_balance || 0);
-            setTargetPartnerOroplayBalance(apiConfigData.oroplay_balance || 0);
+          if (!apiConfigsError && apiConfigsData) {
+            const investBalance = apiConfigsData.find((c: any) => c.api_provider === 'invest')?.balance || 0;
+            const oroplayBalance = apiConfigsData.find((c: any) => c.api_provider === 'oroplay')?.balance || 0;
+            setTargetPartnerInvestBalance(investBalance);
+            setTargetPartnerOroplayBalance(oroplayBalance);
             console.log('✅ Lv1 소속 파트너 보유금 설정 (api_configs):', {
-              invest: apiConfigData.invest_balance || 0,
-              oroplay: apiConfigData.oroplay_balance || 0
+              invest: investBalance,
+              oroplay: oroplayBalance
             });
           } else {
-            console.warn('⚠️ Lv1 api_configs 조회 실패:', apiConfigError);
+            console.warn('⚠️ Lv1 api_configs 조회 실패:', apiConfigsError);
             setTargetPartnerInvestBalance(0);
             setTargetPartnerOroplayBalance(0);
           }
         }
-        // Lv2의 경우: API별 보유금 저장
+        // ✅ Lv2의 경우: partners.invest_balance + partners.oroplay_balance 사용
         else if (partnerData.level === 2) {
           setTargetPartnerInvestBalance(partnerData.invest_balance || 0);
           setTargetPartnerOroplayBalance(partnerData.oroplay_balance || 0);
-          console.log('✅ Lv2 소속 파트너 보유금 설정:', {
-            invest: partnerData.invest_balance || 0,
-            oroplay: partnerData.oroplay_balance || 0
+          console.log('✅ Lv2 소속 파트너 보유금 설정 (두 개 지갑):', {
+            invest_balance: partnerData.invest_balance || 0,
+            oroplay_balance: partnerData.oroplay_balance || 0
           });
         }
-        // Lv3~7의 경우: 단일 balance 저장
+        // ✅ Lv3~7의 경우: partners.balance 사용
         else {
           setTargetPartnerBalance(partnerData.balance || 0);
           console.log('✅ Lv3~7 소속 파트너 보유금 설정:', partnerData.balance || 0);
@@ -2003,8 +1929,6 @@ export function UserManagement() {
         onTypeChange={setForceTransactionType}
         currentUserLevel={targetPartnerLevel}
         currentUserBalance={targetPartnerBalance}
-        currentUserInvestBalance={targetPartnerInvestBalance}
-        currentUserOroplayBalance={targetPartnerOroplayBalance}
       />
 
       {/* 사용자 상세 분석 모달 */}

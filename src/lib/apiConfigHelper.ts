@@ -1,0 +1,346 @@
+import { supabase } from './supabase';
+
+/**
+ * API Config 헬퍼 함수
+ * 테이블 구조: partner_id + api_provider 조합으로 각 API별 1개 행
+ * JSONB 없이 각 컬럼 직접 사용
+ */
+
+/**
+ * Invest Credentials 타입
+ */
+export interface InvestCredentials {
+  opcode: string;
+  secret_key: string;
+  token: string;
+}
+
+/**
+ * OroPlay Credentials 타입
+ */
+export interface OroplayCredentials {
+  client_id: string;
+  client_secret: string;
+  token: string;
+  token_expires_at: string | null;
+}
+
+/**
+ * Invest API credentials 조회
+ * @param partnerId - 파트너 ID
+ * @returns Invest credentials
+ */
+export async function getInvestCredentials(partnerId: string): Promise<InvestCredentials> {
+  try {
+    const { data, error } = await supabase
+      .from('api_configs')
+      .select('invest_opcode, invest_secret_key, invest_token')
+      .eq('partner_id', partnerId)
+      .eq('api_provider', 'invest')
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ [API Config] Invest credentials 조회 실패:', error);
+      return { opcode: '', secret_key: '', token: '' };
+    }
+
+    if (!data) {
+      console.warn('⚠️ [API Config] Invest 레코드 없음:', partnerId);
+      return { opcode: '', secret_key: '', token: '' };
+    }
+
+    return {
+      opcode: data.invest_opcode || '',
+      secret_key: data.invest_secret_key || '',
+      token: data.invest_token || ''
+    };
+  } catch (err) {
+    console.error('❌ [API Config] Invest credentials 조회 예외:', err);
+    return { opcode: '', secret_key: '', token: '' };
+  }
+}
+
+/**
+ * OroPlay API credentials 조회
+ * @param partnerId - 파트너 ID
+ * @returns OroPlay credentials
+ */
+export async function getOroplayCredentials(partnerId: string): Promise<OroplayCredentials> {
+  try {
+    const { data, error } = await supabase
+      .from('api_configs')
+      .select('oroplay_client_id, oroplay_client_secret, oroplay_token, oroplay_token_expires_at')
+      .eq('partner_id', partnerId)
+      .eq('api_provider', 'oroplay')
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ [API Config] OroPlay credentials 조회 실패:', error);
+      return { client_id: '', client_secret: '', token: '', token_expires_at: null };
+    }
+
+    if (!data) {
+      console.warn('⚠️ [API Config] OroPlay 레코드 없음:', partnerId);
+      return { client_id: '', client_secret: '', token: '', token_expires_at: null };
+    }
+
+    return {
+      client_id: data.oroplay_client_id || '',
+      client_secret: data.oroplay_client_secret || '',
+      token: data.oroplay_token || '',
+      token_expires_at: data.oroplay_token_expires_at || null
+    };
+  } catch (err) {
+    console.error('❌ [API Config] OroPlay credentials 조회 예외:', err);
+    return { client_id: '', client_secret: '', token: '', token_expires_at: null };
+  }
+}
+
+/**
+ * Lv1 시스템관리자의 Invest credentials 조회
+ * @param partnerId - 현재 파트너 ID (Lv1까지 자동으로 탐색)
+ * @returns Lv1의 Invest credentials
+ */
+export async function getLv1InvestCredentials(partnerId: string): Promise<InvestCredentials> {
+  try {
+    // Lv1 파트너 찾기
+    const { data: lv1Partner, error: lv1Error } = await supabase
+      .from('partners')
+      .select('id')
+      .eq('level', 1)
+      .limit(1)
+      .maybeSingle();
+
+    if (lv1Error || !lv1Partner) {
+      console.error('❌ [API Config] Lv1 파트너 조회 실패:', lv1Error);
+      return { opcode: '', secret_key: '', token: '' };
+    }
+
+    return getInvestCredentials(lv1Partner.id);
+  } catch (err) {
+    console.error('❌ [API Config] Lv1 Invest credentials 조회 예외:', err);
+    return { opcode: '', secret_key: '', token: '' };
+  }
+}
+
+/**
+ * Lv1 시스템관리자의 OroPlay credentials 조회
+ * @param partnerId - 현재 파트너 ID (Lv1까지 자동으로 탐색)
+ * @returns Lv1의 OroPlay credentials
+ */
+export async function getLv1OroplayCredentials(partnerId: string): Promise<OroplayCredentials> {
+  try {
+    // Lv1 파트너 찾기
+    const { data: lv1Partner, error: lv1Error } = await supabase
+      .from('partners')
+      .select('id')
+      .eq('level', 1)
+      .limit(1)
+      .maybeSingle();
+
+    if (lv1Error || !lv1Partner) {
+      console.error('❌ [API Config] Lv1 파트너 조회 실패:', lv1Error);
+      return { client_id: '', client_secret: '', token: '', token_expires_at: null };
+    }
+
+    return getOroplayCredentials(lv1Partner.id);
+  } catch (err) {
+    console.error('❌ [API Config] Lv1 OroPlay credentials 조회 예외:', err);
+    return { client_id: '', client_secret: '', token: '', token_expires_at: null };
+  }
+}
+
+/**
+ * Invest 잔액 업데이트
+ * @param partnerId - 파트너 ID
+ * @param balance - 새 잔액
+ * @returns 성공 여부
+ */
+export async function updateInvestBalance(partnerId: string, balance: number): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('api_configs')
+      .update({
+        balance: balance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('partner_id', partnerId)
+      .eq('api_provider', 'invest');
+
+    if (error) {
+      console.error('❌ [API Config] Invest 잔액 업데이트 실패:', error);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error('❌ [API Config] Invest 잔액 업데이트 예외:', err);
+    return false;
+  }
+}
+
+/**
+ * OroPlay 잔액 업데이트
+ * @param partnerId - 파트너 ID
+ * @param balance - 새 잔액
+ * @returns 성공 여부
+ */
+export async function updateOroplayBalance(partnerId: string, balance: number): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('api_configs')
+      .update({
+        balance: balance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('partner_id', partnerId)
+      .eq('api_provider', 'oroplay');
+
+    if (error) {
+      console.error('❌ [API Config] OroPlay 잔액 업데이트 실패:', error);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error('❌ [API Config] OroPlay 잔액 업데이트 예외:', err);
+    return false;
+  }
+}
+
+/**
+ * 파트너의 Invest + OroPlay 잔액 동시 조회
+ * @param partnerId - 파트너 ID
+ * @returns { investBalance, oroplayBalance }
+ */
+export async function getPartnerBalances(partnerId: string): Promise<{ investBalance: number; oroplayBalance: number }> {
+  try {
+    const { data, error } = await supabase
+      .from('api_configs')
+      .select('api_provider, balance')
+      .eq('partner_id', partnerId)
+      .in('api_provider', ['invest', 'oroplay']);
+
+    if (error) {
+      console.error('❌ [API Config] 잔액 조회 실패:', error);
+      return { investBalance: 0, oroplayBalance: 0 };
+    }
+
+    if (!data || data.length === 0) {
+      console.warn('⚠️ [API Config] 잔액 레코드 없음:', partnerId);
+      return { investBalance: 0, oroplayBalance: 0 };
+    }
+
+    const investData = data.find((row: any) => row.api_provider === 'invest');
+    const oroplayData = data.find((row: any) => row.api_provider === 'oroplay');
+
+    return {
+      investBalance: investData?.balance || 0,
+      oroplayBalance: oroplayData?.balance || 0
+    };
+  } catch (err) {
+    console.error('❌ [API Config] 잔액 조회 예외:', err);
+    return { investBalance: 0, oroplayBalance: 0 };
+  }
+}
+
+/**
+ * API 사용 여부 조회
+ * @param partnerId - 파트너 ID
+ * @returns { useInvestApi, useOroplayApi }
+ */
+export async function getApiUsageSettings(partnerId: string): Promise<{ useInvestApi: boolean; useOroplayApi: boolean }> {
+  try {
+    const { data, error } = await supabase
+      .from('api_configs')
+      .select('api_provider, is_active')
+      .eq('partner_id', partnerId)
+      .in('api_provider', ['invest', 'oroplay']);
+
+    if (error) {
+      console.error('❌ [API Config] API 사용 설정 조회 실패:', error);
+      return { useInvestApi: true, useOroplayApi: true };
+    }
+
+    if (!data || data.length === 0) {
+      console.warn('⚠️ [API Config] API 설정 레코드 없음:', partnerId);
+      return { useInvestApi: true, useOroplayApi: true };
+    }
+
+    const investData = data.find((row: any) => row.api_provider === 'invest');
+    const oroplayData = data.find((row: any) => row.api_provider === 'oroplay');
+
+    return {
+      useInvestApi: investData?.is_active !== false,
+      useOroplayApi: oroplayData?.is_active !== false
+    };
+  } catch (err) {
+    console.error('❌ [API Config] API 사용 설정 조회 예외:', err);
+    return { useInvestApi: true, useOroplayApi: true };
+  }
+}
+
+/**
+ * Invest Token 업데이트
+ * @param partnerId - 파트너 ID
+ * @param token - 새 토큰
+ * @returns 성공 여부
+ */
+export async function updateInvestToken(partnerId: string, token: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('api_configs')
+      .update({
+        invest_token: token,
+        updated_at: new Date().toISOString()
+      })
+      .eq('partner_id', partnerId)
+      .eq('api_provider', 'invest');
+
+    if (error) {
+      console.error('❌ [API Config] Invest token 업데이트 실패:', error);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error('❌ [API Config] Invest token 업데이트 예외:', err);
+    return false;
+  }
+}
+
+/**
+ * OroPlay Token 업데이트
+ * @param partnerId - 파트너 ID
+ * @param token - 새 토큰
+ * @param expiresAt - 만료 시간
+ * @returns 성공 여부
+ */
+export async function updateOroplayToken(partnerId: string, token: string, expiresAt?: string): Promise<boolean> {
+  try {
+    const updateData: any = {
+      oroplay_token: token,
+      updated_at: new Date().toISOString()
+    };
+
+    if (expiresAt) {
+      updateData.oroplay_token_expires_at = expiresAt;
+    }
+
+    const { error } = await supabase
+      .from('api_configs')
+      .update(updateData)
+      .eq('partner_id', partnerId)
+      .eq('api_provider', 'oroplay');
+
+    if (error) {
+      console.error('❌ [API Config] OroPlay token 업데이트 실패:', error);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error('❌ [API Config] OroPlay token 업데이트 예외:', err);
+    return false;
+  }
+}

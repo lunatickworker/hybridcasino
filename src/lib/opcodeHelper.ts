@@ -40,12 +40,66 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
   if (admin.partner_type === 'system_admin') {
     const opcodeList: OpcodeInfo[] = [];
 
-    // 1-1. 시스템관리자 본인의 api_configs 조회
-    const { data: systemConfig } = await supabase
+    // 1-1. 시스템관리자 본인의 api_configs 조회 (새 구조: api_provider='invest')
+    console.log('🔍 [시스템관리자] api_configs 조회 시작:', {
+      partner_id: admin.id,
+      partner_id_type: typeof admin.id,
+      api_provider: 'invest'
+    });
+    
+    // 🔍 먼저 모든 api_configs 조회해서 실제 데이터 확인
+    const { data: allConfigs, error: allError, count: allCount } = await supabase
       .from('api_configs')
-      .select('partner_id, invest_opcode, invest_secret_key, invest_token')
+      .select('*', { count: 'exact' });
+    
+    console.log('🔍🔍 [DEBUG] 전체 api_configs 테이블 데이터:', {
+      count: allCount,
+      total_rows: allConfigs?.length || 0,
+      configs: allConfigs,
+      error: allError?.message
+    });
+
+    // partner_id로 필터링 시도 (다양한 방법)
+    const { data: filteredConfigs1, error: filterError1 } = await supabase
+      .from('api_configs')
+      .select('*')
+      .eq('partner_id', admin.id);
+
+    console.log('🔍🔍 [DEBUG] partner_id 필터링 결과 (eq):', {
+      partner_id: admin.id,
+      count: filteredConfigs1?.length || 0,
+      configs: filteredConfigs1,
+      error: filterError1?.message
+    });
+
+    // String으로 변환해서 시도
+    const { data: filteredConfigs2, error: filterError2 } = await supabase
+      .from('api_configs')
+      .select('*')
+      .eq('partner_id', String(admin.id));
+
+    console.log('🔍🔍 [DEBUG] partner_id 필터링 결과 (String):', {
+      partner_id: String(admin.id),
+      count: filteredConfigs2?.length || 0,
+      configs: filteredConfigs2,
+      error: filterError2?.message
+    });
+    
+    const { data: systemConfig, error: systemError } = await supabase
+      .from('api_configs')
+      .select('partner_id, invest_opcode, invest_secret_key, invest_token, api_provider')
       .eq('partner_id', admin.id)
-      .single();
+      .eq('api_provider', 'invest')
+      .maybeSingle();
+
+    console.log('📊 [시스템관리자] api_configs 조회 결과:', {
+      found: !!systemConfig,
+      data: systemConfig,
+      error: systemError,
+      has_opcode: !!systemConfig?.invest_opcode,
+      has_secret: !!systemConfig?.invest_secret_key,
+      has_token: !!systemConfig?.invest_token
+    });
 
     if (systemConfig?.invest_opcode && systemConfig?.invest_secret_key && systemConfig?.invest_token) {
       opcodeList.push({
@@ -57,7 +111,13 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
       });
       console.log('✅ 시스템관리자 본인 OPCODE 추가:', systemConfig.invest_opcode);
     } else {
-      console.warn('⚠️ 시스템관리자 api_configs 정보 불완전');
+      console.warn('⚠️ 시스템관리자 api_configs 정보 불완전:', {
+        partner_id: admin.id,
+        has_config: !!systemConfig,
+        invest_opcode: systemConfig?.invest_opcode,
+        invest_secret_key: systemConfig?.invest_secret_key ? '***' : undefined,
+        invest_token: systemConfig?.invest_token ? '***' : undefined
+      });
     }
 
     // 1-2. 모든 대본사의 api_configs 조회
@@ -71,11 +131,12 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
       // 대본사 ID 목록 생성
       const headOfficeIds = headOfficePartners.map(p => p.id);
 
-      // api_configs 조회
+      // api_configs 조회 (새 구조: api_provider='invest')
       const { data: headOfficeConfigs } = await supabase
         .from('api_configs')
         .select('partner_id, invest_opcode, invest_secret_key, invest_token')
         .in('partner_id', headOfficeIds)
+        .eq('api_provider', 'invest')
         .not('invest_opcode', 'is', null)
         .not('invest_secret_key', 'is', null)
         .not('invest_token', 'is', null);
@@ -135,12 +196,13 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
       throw new Error(`대본사의 상위 파트너는 Lv1(시스템관리자)여야 합니다. 현재: Lv${lv1Partner.level}`);
     }
 
-    // 상위 Lv1의 api_configs 조회
+    // 상위 Lv1의 api_configs 조회 (새 구조: api_provider='invest')
     const { data: config, error } = await supabase
       .from('api_configs')
       .select('invest_opcode, invest_secret_key, invest_token')
       .eq('partner_id', lv1Partner.id)
-      .single();
+      .eq('api_provider', 'invest')
+      .maybeSingle();
     
     console.log('📊 [Lv2] 상위 Lv1의 api_configs 조회 결과:', {
       lv1_id: lv1Partner.id,
@@ -222,12 +284,13 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
 
     // 대본사 발견
     if (parentPartner.partner_type === 'head_office') {
-      // api_configs에서 opcode 조회
+      // api_configs에서 opcode 조회 (새 구조: api_provider='invest')
       const { data: config } = await supabase
         .from('api_configs')
         .select('invest_opcode, invest_secret_key, invest_token')
         .eq('partner_id', parentPartner.id)
-        .single();
+        .eq('api_provider', 'invest')
+        .maybeSingle();
       
       if (!config?.invest_opcode || !config?.invest_secret_key || !config?.invest_token) {
         console.error('❌ 대본사 api_configs 정보 부족:', {

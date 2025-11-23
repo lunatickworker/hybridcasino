@@ -29,6 +29,7 @@ import { AnimatedCurrency } from "../common/AnimatedNumber";
 import { getInfo } from "../../lib/investApi";
 import { getAgentBalance, getOroPlayToken } from "../../lib/oroplayApi";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { getInvestCredentials, updateInvestBalance, updateOroplayBalance } from "../../lib/apiConfigHelper";
 
 interface AdminHeaderProps {
   user: Partner;
@@ -91,7 +92,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   // =====================================================
   const handleSyncInvestBalance = async () => {
     if (user.level !== 1) {
-      toast.error('Lv1 시스템관리자만 API 잔고를 조회할 수 있습니다.');
+      // Lv2 이상은 토스트 없이 조용히 무시
       return;
     }
 
@@ -99,19 +100,15 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     try {
       console.log('💰 [AdminHeader] Invest 보유금 수동 동기화 시작');
 
-      // opcode, secretKey 조회
-      const { data: apiConfig, error: configError } = await supabase
-        .from('api_configs')
-        .select('invest_opcode, invest_secret_key')
-        .eq('partner_id', user.id)
-        .single();
+      // credentials 조회 (헬퍼 함수 사용)
+      const creds = await getInvestCredentials(user.id);
 
-      if (configError || !apiConfig || !apiConfig.invest_opcode || !apiConfig.invest_secret_key) {
+      if (!creds.opcode || !creds.secret_key) {
         throw new Error('Invest API 설정을 찾을 수 없습니다.');
       }
 
       // GET /api/info 호출
-      const result = await getInfo(apiConfig.invest_opcode, apiConfig.invest_secret_key);
+      const result = await getInfo(creds.opcode, creds.secret_key);
 
       if (result.error) {
         throw new Error(result.error);
@@ -129,17 +126,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
       console.log('✅ [AdminHeader] Invest API 응답:', { balance: newBalance });
 
-      // api_configs 업데이트
-      const { error: updateError } = await supabase
-        .from('api_configs')
-        .update({
-          invest_balance: newBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('partner_id', user.id);
+      // 잔액 업데이트 (헬퍼 함수 사용)
+      const success = await updateInvestBalance(user.id, newBalance);
 
-      if (updateError) {
-        throw new Error(`DB 업데이트 실패: ${updateError.message}`);
+      if (!success) {
+        throw new Error('DB 업데이트 실패');
       }
 
       toast.success(`Invest 보유금 동기화 완료: ${formatCurrency(newBalance)}`);
@@ -156,7 +147,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   // =====================================================
   const handleSyncOroplayBalance = async () => {
     if (user.level !== 1) {
-      toast.error('Lv1 시스템관리자만 API 잔고를 조회할 수 있습니다.');
+      // Lv2 이상은 토스트 없이 조용히 무시
       return;
     }
 
@@ -172,17 +163,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
       console.log('✅ [AdminHeader] OroPlay API 응답:', { balance });
 
-      // api_configs 업데이트
-      const { error: updateError } = await supabase
-        .from('api_configs')
-        .update({
-          oroplay_balance: balance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('partner_id', user.id);
+      // 잔액 업데이트 (헬퍼 함수 사용)
+      const success = await updateOroplayBalance(user.id, balance);
 
-      if (updateError) {
-        throw new Error(`DB 업데이트 실패: ${updateError.message}`);
+      if (!success) {
+        throw new Error('DB 업데이트 실패');
       }
 
       toast.success(`OroPlay 보유금 동기화 완료: ${formatCurrency(balance)}`);

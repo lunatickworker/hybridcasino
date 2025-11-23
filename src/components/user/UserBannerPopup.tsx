@@ -176,37 +176,35 @@ export function UserBannerPopup({ userId }: UserBannerPopupProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div 
-        className="relative max-w-[90vw] max-h-[90vh] bg-transparent animate-in zoom-in-95 duration-200"
+        className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center animate-in zoom-in-95 duration-200"
       >
-        {/* 닫기 버튼 */}
+        {/* 닫기 버튼 - 더 크고 명확하게 */}
         <Button
           onClick={handleDismiss}
           variant="ghost"
           size="sm"
-          className="absolute top-3 right-3 z-10 h-8 w-8 p-0 rounded-full bg-black/60 hover:bg-black/80 text-white hover:text-white border border-white/20"
+          className="absolute -top-12 right-0 z-10 h-12 w-12 p-0 rounded-full bg-white/90 hover:bg-white text-black hover:text-black shadow-lg hover:shadow-xl transition-all"
         >
-          <X className="h-4 w-4" />
+          <X className="h-6 w-6" />
         </Button>
 
         {/* 배너 이미지 */}
         {currentBanner.image_url ? (
-          <div className="relative">
+          <div className="relative flex flex-col items-center gap-4">
             <img
               src={currentBanner.image_url}
               alt={currentBanner.title}
               className="w-full h-auto object-contain rounded-lg shadow-2xl"
-              style={{ maxHeight: '90vh', maxWidth: '90vw' }}
+              style={{ maxHeight: 'calc(90vh - 60px)', maxWidth: '90vw' }}
             />
             
-            {/* 하단 "오늘은 그만보기" */}
-            <div className="absolute bottom-3 left-0 right-0 flex justify-center">
-              <button
-                onClick={handleDontShowToday}
-                className="text-xs text-white/80 hover:text-white bg-black/50 hover:bg-black/70 px-3 py-1.5 rounded-full transition-all backdrop-blur-sm border border-white/10"
-              >
-                {t.user.dontShowToday}
-              </button>
-            </div>
+            {/* 하단 "오늘은 그만보기" - 이미지 외부 배치 */}
+            <button
+              onClick={handleDontShowToday}
+              className="text-sm text-white hover:text-white bg-slate-800/90 hover:bg-slate-700/90 px-6 py-3 rounded-full transition-all backdrop-blur-sm border border-white/20 shadow-lg hover:shadow-xl hover:scale-105"
+            >
+              {t.user.dontShowToday}
+            </button>
           </div>
         ) : (
           // 이미지가 없는 경우 (텍스트만)

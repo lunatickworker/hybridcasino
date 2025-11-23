@@ -278,19 +278,30 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
           }
         }
 
-        // Lv1의 api_configs 조회
-        const { data: apiConfig } = await supabase
+        // Lv1의 api_configs 조회 (새 구조: 각 api_provider별로 조회)
+        const { data: investConfig } = await supabase
           .from('api_configs')
-          .select('use_invest_api, use_oroplay_api')
+          .select('partner_id, is_active')
           .eq('partner_id', lv1PartnerId)
-          .single();
+          .eq('api_provider', 'invest')
+          .maybeSingle();
 
-        if (apiConfig) {
-          setHiddenApis({
-            invest: apiConfig.use_invest_api === false,
-            oroplay: apiConfig.use_oroplay_api === false
-          });
-        }
+        const { data: oroplayConfig } = await supabase
+          .from('api_configs')
+          .select('partner_id, is_active')
+          .eq('partner_id', lv1PartnerId)
+          .eq('api_provider', 'oroplay')
+          .maybeSingle();
+
+        setHiddenApis({
+          invest: !investConfig || investConfig.is_active === false,
+          oroplay: !oroplayConfig || oroplayConfig.is_active === false
+        });
+        
+        console.log('✅ API 숨김 설정 로드:', {
+          invest_hidden: !investConfig || investConfig.is_active === false,
+          oroplay_hidden: !oroplayConfig || oroplayConfig.is_active === false
+        });
       } catch (error) {
         console.error('API 숨김 설정 로드 실패:', error);
       }

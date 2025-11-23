@@ -23,8 +23,6 @@ interface ForceTransactionModalProps {
     nickname: string;
     balance: number | string;
     level?: number;
-    invest_balance?: number; // Lv2의 개별 잔액
-    oroplay_balance?: number; // Lv2의 개별 잔액
   } | null;
   targets?: Array<{
     id: string;
@@ -32,8 +30,6 @@ interface ForceTransactionModalProps {
     nickname: string;
     balance: number | string;
     level?: number;
-    invest_balance?: number;
-    oroplay_balance?: number;
   }>;
   onSubmit: (data: {
     targetId: string;
@@ -45,8 +41,8 @@ interface ForceTransactionModalProps {
   onTypeChange: (type: 'deposit' | 'withdrawal') => void;
   currentUserLevel?: number; // Lv1인지 확인용
   currentUserBalance?: number; // 현재 관리자의 보유금 (입금 시 검증용) - Lv3~7용
-  currentUserInvestBalance?: number; // Lv1/Lv2의 invest_balance
-  currentUserOroplayBalance?: number; // Lv1/Lv2의 oroplay_balance
+  currentUserInvestBalance?: number; // Lv1의 invest API balance
+  currentUserOroplayBalance?: number; // Lv1의 oroplay API balance
 }
 
 export function ForceTransactionModal({
@@ -124,19 +120,9 @@ export function ForceTransactionModal({
   if (selectedTarget && amountNum > 0) {
     // 출금 시: 대상의 전체 balance만 체크
     if (type === 'withdrawal') {
-      // Lv1 → Lv2 출금: API별 보유금 검증
-      if (isLv1ToLv2) {
-        const targetApiBalance = apiType === 'invest' 
-          ? (selectedTarget.invest_balance || 0) 
-          : (selectedTarget.oroplay_balance || 0);
-        
-        if (amountNum > targetApiBalance) {
-          const apiName = apiType === 'invest' ? 'Invest' : 'OroPlay';
-          errorMessage = `${apiName} API 출금 가능 금액을 초과했습니다. (최대: ${targetApiBalance.toLocaleString()}원)`;
-        }
-      }
-      // Lv3 및 일반 출금: 단일 balance 검증
-      else if (amountNum > currentBalance) {
+      // ✅ Lv1 → Lv2 출금: Lv2의 GMS 머니(balance)만 체크
+      // (API별로 나눠진 건 Lv1의 api_configs만 해당)
+      if (amountNum > currentBalance) {
         errorMessage = `출금 가능 금액을 초과했습니다. (최대: ${currentBalance.toLocaleString()}원)`;
       }
     }
@@ -212,17 +198,8 @@ export function ForceTransactionModal({
   // 전액출금
   const handleFullWithdrawal = () => {
     if (selectedTarget && type === 'withdrawal') {
-      // API별 출금 시: 선택한 API의 보유금 전액
-      if (showApiSelector) {
-        const targetApiBalance = apiType === 'invest' 
-          ? (selectedTarget.invest_balance || 0) 
-          : (selectedTarget.oroplay_balance || 0);
-        setAmount(targetApiBalance.toString());
-      }
-      // 일반 출금: 전체 balance
-      else {
-        setAmount(currentBalance.toString());
-      }
+      // ✅ Lv2는 GMS 머니(balance)만 사용하므로 단일 balance 전액 출금
+      setAmount(currentBalance.toString());
     }
   };
 
@@ -388,21 +365,12 @@ export function ForceTransactionModal({
                   {currentBalance.toLocaleString()}원
                 </span>
               </div>
-              {/* ✅ Lv2 파트너의 경우 개별 API 잔액 표시 (입출금 모두) */}
-              {selectedTarget.level === 2 && isLv1ToLv2 && (
-                <div className="mt-2 pt-2 border-t border-slate-700 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-400">└ Invest API:</span>
-                    <span className={`font-mono text-xs ${apiType === 'invest' ? 'text-cyan-400' : 'text-slate-500'}`}>
-                      {(selectedTarget.invest_balance || 0).toLocaleString()}원
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-400">└ OroPlay API:</span>
-                    <span className={`font-mono text-xs ${apiType === 'oroplay' ? 'text-cyan-400' : 'text-slate-500'}`}>
-                      {(selectedTarget.oroplay_balance || 0).toLocaleString()}원
-                    </span>
-                  </div>
+              {/* ✅ Lv2 파트너: 두 개 지갑 표시 */}
+              {selectedTarget.level === 2 && (
+                <div className="mt-2 pt-2 border-t border-slate-700">
+                  <p className="text-[10px] text-slate-500">
+                    ※ Lv2는 두 개의 지갑(invest_balance, oroplay_balance)을 사용합니다.
+                  </p>
                 </div>
               )}
               {/* Lv3 파트너: balance만 표시 (단일 지갑) */}

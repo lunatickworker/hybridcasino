@@ -53,7 +53,7 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
         .from('system_settings')
         .select('setting_value')
         .eq('setting_key', 'settlement_method')
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       if (data) {

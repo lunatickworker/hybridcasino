@@ -458,23 +458,31 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
   // API 활성화 설정 로드 (Lv1 전용)
   const loadApiSettings = async () => {
     try {
-      const { data, error } = await supabase
+      // ✅ 새 구조: invest와 oroplay가 각각 별도의 행으로 존재
+      // is_active 컬럼으로 활성화 상태 판단
+      const { data: investConfig } = await supabase
         .from('api_configs')
-        .select('use_invest_api, use_oroplay_api')
+        .select('is_active')
         .eq('partner_id', user.id)
-        .single();
+        .eq('api_provider', 'invest')
+        .maybeSingle();
 
-      if (error) {
-        console.error('API 설정 로드 실패:', error);
-        return;
-      }
+      const { data: oroplayConfig } = await supabase
+        .from('api_configs')
+        .select('is_active')
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'oroplay')
+        .maybeSingle();
 
-      if (data) {
-        setUseInvestApi(data.use_invest_api !== false); // 기본값 true
-        setUseOroplayApi(data.use_oroplay_api !== false); // 기본값 true
-      }
+      setUseInvestApi(investConfig?.is_active ?? false);
+      setUseOroplayApi(oroplayConfig?.is_active ?? false);
+      
+      console.log('✅ API 설정 로드:', { 
+        invest: investConfig?.is_active ?? false, 
+        oroplay: oroplayConfig?.is_active ?? false 
+      });
     } catch (error) {
-      console.error('API 설정 로드 오류:', error);
+      console.error('❌ API 설정 로드 실패:', error);
     }
   };
 
@@ -493,26 +501,38 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
 
     setApiSettingsLoading(true);
     try {
-      const { error } = await supabase
+      // ✅ is_active 컬럼 업데이트
+      const updates = [];
+
+      // invest API 업데이트
+      const investUpdate = supabase
         .from('api_configs')
-        .update({
-          use_invest_api: useInvestApi,
-          use_oroplay_api: useOroplayApi,
-          updated_at: new Date().toISOString()
-        })
-        .eq('partner_id', user.id);
+        .update({ is_active: useInvestApi })
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'invest');
+      updates.push(investUpdate);
 
-      if (error) throw error;
+      // oroplay API 업데이트
+      const oroplayUpdate = supabase
+        .from('api_configs')
+        .update({ is_active: useOroplayApi })
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'oroplay');
+      updates.push(oroplayUpdate);
 
-      // ✅ API 설정 변경 시 Lv2~Lv6 balance 재계산 트리거 실행됨 (데이터베이스 트리거)
-      console.log('✅ API 설정 변경 완료. Lv2~Lv6 balance 자동 재계산됨.', {
-        use_invest_api: useInvestApi,
-        use_oroplay_api: useOroplayApi
+      await Promise.all(updates);
+      
+      toast.success(t.systemSettings.apiSettingsSaved);
+      
+      console.log('✅ API 설정 저장 완료:', {
+        invest: useInvestApi,
+        oroplay: useOroplayApi
       });
 
-      toast.success(t.systemSettings.apiSettingsSaved);
+      // 설정 다시 로드
+      await loadApiSettings();
     } catch (error: any) {
-      console.error('API 설정 저장 실패:', error);
+      console.error('❌ API 설정 저장 실패:', error);
       toast.error(t.systemSettings.apiSettingsSaveFailed);
     } finally {
       setApiSettingsLoading(false);
@@ -526,16 +546,23 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
       
       const { md5Hash } = await import('../../lib/investApi');
       
-      // ✅ api_configs에서 조회
+      // ✅ api_configs에서 조회 (api_provider='invest' 필터 추가)
       const { data: apiConfig, error: configError } = await supabase
         .from('api_configs')
         .select('invest_opcode, invest_secret_key')
         .eq('partner_id', partnerId)
-        .single();
+        .eq('api_provider', 'invest')
+        .maybeSingle();
 
-      if (configError || !apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
-        console.error('API config error:', configError, apiConfig);
+      if (configError) {
+        console.error('❌❌ [시스템설정] API config 조회 에러:', configError);
         toast.error(t.systemSettings.partnerApiConfigNotFound);
+        return;
+      }
+
+      if (!apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
+        console.warn('⚠️ [시스템설정] API config 없음. partner_id:', partnerId);
+        toast.error(`${t.systemSettings.partnerApiConfigNotFound} (Partner ID: ${partnerId})`);
         return;
       }
 
