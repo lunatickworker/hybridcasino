@@ -44,15 +44,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   const { t, formatCurrency } = useLanguage();
   const { balance, investBalance, oroplayBalance, loading: balanceLoading, error: balanceError, lastSyncTime, useInvestApi, useOroplayApi } = useBalance(); // ✅ API 활성화 상태 추가
 
-  console.log('🔍 [AdminHeader] useBalance 값:', {
-    balance,
-    investBalance,
-    oroplayBalance,
-    balanceLoading,
-    balanceError,
-    userLevel: user?.level
-  });
-
   // 사용자 정보가 없으면 기본 헤더 표시
   if (!user) {
     return (
@@ -185,12 +176,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       try {
         console.log('📊 헤더 통계 조회 시작 (계층 필터링):', { id: user.id, level: user.level });
         
-        // 오늘 날짜 (KST 기준)
+        // 오늘 날짜 (UTC 기준 오늘 00:00:00)
         const now = new Date();
-        const kstOffset = 9 * 60 * 60 * 1000;
-        const kstDate = new Date(now.getTime() + kstOffset);
-        const todayStart = new Date(kstDate.getFullYear(), kstDate.getMonth(), kstDate.getDate());
-        const todayStartISO = new Date(todayStart.getTime() - kstOffset).toISOString();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayStartISO = todayStart.toISOString();
         
         // 🔍 Hierarchical filtering: self + child partners' users
         let allowedUserIds: string[] = [];
@@ -382,7 +371,32 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       }
     };
     
+    // 초기 로드
     fetchHeaderStats();
+    
+    // ⏰ 자정 리셋 타이머 설정
+    const setupMidnightReset = () => {
+      const now = new Date();
+      const kstOffset = 9 * 60 * 60 * 1000;
+      const kstNow = new Date(now.getTime() + kstOffset);
+      
+      // 다음 자정(KST) 계산
+      const nextMidnight = new Date(kstNow);
+      nextMidnight.setHours(24, 0, 0, 0);
+      
+      const msUntilMidnight = nextMidnight.getTime() - kstNow.getTime();
+      
+      return setTimeout(() => {
+        fetchHeaderStats();
+        
+        // 자정 이후 매일 자정마다 리셋되도록 24시간 간격으로 설정
+        setInterval(() => {
+          fetchHeaderStats();
+        }, 24 * 60 * 60 * 1000);
+      }, msUntilMidnight);
+    };
+    
+    const midnightTimer = setupMidnightReset();
     
     console.log('🔔 헤더 Realtime 구독 시작:', user.id);
     
@@ -504,6 +518,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
     return () => {
       console.log('🔕 헤더 Realtime 구독 해제');
+      clearTimeout(midnightTimer);
       supabase.removeChannel(transactionChannel);
       supabase.removeChannel(usersChannel);
       supabase.removeChannel(messagesChannel);

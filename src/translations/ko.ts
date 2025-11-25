@@ -264,7 +264,7 @@ export const ko = {
   // 파트너 관리
   partnerManagement: {
     title: '파트너 관리',
-    description: '파트너를 생성하고 관리합니다. (API 등록은 api_configs 테이블에서 수동 등록)',
+    description: '파트너를 생성하고 관리합니다.',
     createPartner: '파트너 생성',
     newPartner: '새 파트너 생성',
     createPartnerDescription: '새로운 파트너를 시스템에 등록합니다.',
@@ -2024,7 +2024,7 @@ export const ko = {
   // 파트너 생성
   partnerCreation: {
     title: '파트너 관리',
-    description: '파트너를 생성하고 관리합니다. (API 설정은 api_configs 테이블에서 수동 입력)',
+    description: '파트너를 생성하고 관리합니다.',
     createPartner: '새 파트너 생성',
     createDescription: '파트너 정보를 입력하고 권한을 설정합니다.',
     partnerList: '파트너 목록',

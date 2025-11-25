@@ -39,13 +39,11 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
   // ========================================
   useEffect(() => {
     if (!user?.id) {
-      console.log('⚠️ [OnlineBalanceSync] user 정보 없음, 동기화 스킵');
       return;
     }
 
     // ✅ Lv1 권한 체크
     if (user.level !== 1) {
-      console.warn('⛔ [OnlineBalanceSync] Lv1만 Balance 동기화 가능 (현재:', user.level, ')');
       return;
     }
 
@@ -65,12 +63,6 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
       try {
         isOnlineSyncingRef.current = true;
         lastOnlineSyncTimeRef.current = now;
-
-        console.log('🟢 [OnlineBalanceSync] 온라인 사용자 동기화 시작:', {
-          timestamp: new Date().toISOString(),
-          admin_user: user.username,
-          admin_level: user.level
-        });
 
         // opcode 정보 조회
         const opcodeInfo = await opcodeHelper.getAdminOpcode(user);
@@ -105,7 +97,6 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
         }
 
         if (!activeGameSessions || activeGameSessions.length === 0) {
-          console.log('ℹ️ [OnlineBalanceSync] 게임 중인 사용자 없음');
           return;
         }
 
@@ -124,11 +115,8 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
         }
 
         if (!onlineUsers || onlineUsers.length === 0) {
-          console.log('ℹ️ [OnlineBalanceSync] 게임 중인 사용자 없음');
           return;
         }
-
-        console.log(`📊 [OnlineBalanceSync] ${onlineUsers.length}명의 게임 중인 사용자 발견`);
 
         let successCount = 0;
         let logoutCount = 0;
@@ -138,7 +126,6 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
           const username = onlineUser.username;
           
           if (!username || !token) {
-            console.warn('⚠️ [OnlineBalanceSync] username 또는 token 없음:', { username });
             continue;
           }
 
@@ -163,7 +150,7 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
                   newBalance = parseFloat(apiData.balance || 0);
                 }
               } else if (apiData.is_text && apiData.text_response) {
-                const balanceMatch = apiData.text_response.match(/balance[\\\"'\\s:]+(\\d+\\.?\\d*)/i);
+                const balanceMatch = apiData.text_response.match(/balance[\\\"'\\\s:]+(\\d+\\.?\\d*)/i);
                 if (balanceMatch) {
                   newBalance = parseFloat(balanceMatch[1]);
                 }
@@ -180,21 +167,8 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
             const currentCount = userData?.balance_sync_call_count || 0;
             const newCount = currentCount + 1;
 
-            console.log(`✅ [OnlineBalanceSync] 보유금 업데이트 (${username}):`, {
-              new_balance: newBalance,
-              call_count: newCount,
-              limit: LOGOUT_COUNT_LIMIT,
-              will_logout: newCount >= LOGOUT_COUNT_LIMIT
-            });
-
             // 설정된 카운트 도달 시 강제 로그아웃
             if (newCount >= LOGOUT_COUNT_LIMIT) {
-              console.log(`🚪 [OnlineBalanceSync] 강제 로그아웃 (${username}):`, {
-                call_count: newCount,
-                limit: LOGOUT_COUNT_LIMIT,
-                duration: LOGOUT_COUNT_LIMIT === 60 ? '30분' : '테스트 모드'
-              });
-
               // 보유금 업데이트 + 로그아웃 + 카운터 초기화
               await supabase
                 .from('users')
@@ -226,12 +200,6 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
           }
         }
 
-        console.log('✅ [OnlineBalanceSync] 온라인 사용자 동기화 완료:', {
-          total_online: onlineUsers.length,
-          success_count: successCount,
-          logout_count: logoutCount
-        });
-
       } catch (error) {
         console.error('❌ [OnlineBalanceSync] 동기화 오류:', error);
       } finally {
@@ -239,44 +207,23 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
       }
     };
 
-    console.log('🟢 [OnlineBalanceSync] 온라인 사용자 동기화 초기화:', {
-      admin_user: user.username,
-      admin_id: user.id,
-      admin_level: user.level,
-      logout_limit: LOGOUT_COUNT_LIMIT,
-      interval: '30초',
-      first_run_delay: '10초'
-    });
-
     // 기존 interval이 있으면 제거
     if (onlineIntervalRef.current) {
-      console.log('🧹 [OnlineBalanceSync] 기존 타이머 제거');
       clearInterval(onlineIntervalRef.current);
       onlineIntervalRef.current = null;
     }
 
     // 10초 후 첫 실행 (PATCH와 시간 분산)
     const initialTimeout = setTimeout(() => {
-      console.log('🚀 [OnlineBalanceSync] 첫 동기화 실행 (10초 대기 완료)');
       syncOnlineUserBalances();
       
       // 이후 30초마다 실행
       onlineIntervalRef.current = setInterval(() => {
-        console.log('⏰ [OnlineBalanceSync] 30초 타이머 발동:', {
-          timestamp: new Date().toISOString(),
-          next_run: new Date(Date.now() + 30000).toISOString()
-        });
         syncOnlineUserBalances();
       }, 30000);
-      
-      console.log('✅ [OnlineBalanceSync] 30초 반복 타이머 설정 완료');
     }, 10000);
 
     return () => {
-      console.log('🛑 [OnlineBalanceSync] 동기화 중지:', {
-        reason: 'useEffect cleanup',
-        admin_user: user.username
-      });
       clearTimeout(initialTimeout);
       if (onlineIntervalRef.current) {
         clearInterval(onlineIntervalRef.current);
@@ -290,13 +237,11 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
   // ========================================
   useEffect(() => {
     if (!user?.id) {
-      console.log('⚠️ [BalanceSync] user 정보 없음, 동기화 스킵');
       return;
     }
 
     // ✅ Lv1 권한 체크
     if (user.level !== 1) {
-      console.warn('⛔ [BalanceSync] Lv1만 Balance 동기화 가능 (현재:', user.level, ')');
       return;
     }
 
@@ -316,13 +261,6 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
       try {
         isSyncingRef.current = true;
         lastSyncTimeRef.current = now;
-
-        console.log('🔄 [BalanceSync] 자동 동기화 시작:', {
-          partner_id: user.id,
-          username: user.username,
-          level: user.level,
-          timestamp: new Date().toISOString()
-        });
 
         // opcode 정보 조회
         const opcodeInfo = await opcodeHelper.getAdminOpcode(user);
@@ -348,18 +286,12 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
         // ⚠️ 이 컴포넌트는 Lv1만 사용합니다 (AdminLayout.tsx에서 조건부 렌더링)
         // Lv2~Lv6은 Seamless Wallet이므로 외부 API 호출하지 않습니다
         if (user.level !== 1) {
-          console.warn('⚠️ [BalanceSync] Lv1이 아닌 사용자가 BalanceSyncManager 실행 시도:', {
-            level: user.level,
-            username: user.username
-          });
           return;
         }
 
         // ========================================
         // Lv1: GET /api/info (자신의 보유금 동기화)
         // ========================================
-        console.log('📡 [BalanceSync] GET /api/info 호출 (Lv1 전용)');
-        
         const apiResult = await getInfo(opcode, secretKey);
 
         if (apiResult.error) {
@@ -378,7 +310,7 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
               newBalance = parseFloat(apiData.balance || 0);
             }
           } else if (apiData.is_text && apiData.text_response) {
-            const balanceMatch = apiData.text_response.match(/balance[\"'\\s:]+(\\d+\\.?\\d*)/i);
+            const balanceMatch = apiData.text_response.match(/balance[\"'\\\s:]+(\\d+\\.?\\d*)/i);
             if (balanceMatch) {
               newBalance = parseFloat(balanceMatch[1]);
             }
@@ -392,11 +324,6 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
             updated_at: new Date().toISOString()
           })
           .eq('id', partnerId);
-
-        console.log('✅ [BalanceSync] Lv1 보유금 동기화 완료:', {
-          partner_id: partnerId,
-          new_balance: newBalance
-        });
 
         // ========================================
         // PATCH /api/account/balance (온라인 게임 사용자만 보유금 일괄 조회)
@@ -415,7 +342,6 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
         }
 
         if (!onlineGameSessions || onlineGameSessions.length === 0) {
-          console.log('ℹ️ [BalanceSync] 온라인 게임 중인 사용자 없음 - PATCH API 호출 스킵');
           return;
         }
 
@@ -433,14 +359,10 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
         }
 
         if (!onlineUsers || onlineUsers.length === 0) {
-          console.log('ℹ️ [BalanceSync] 온라인 사용자 username 없음 - PATCH API 호출 스킵');
           return;
         }
 
         const onlineUsernames = onlineUsers.map((u: any) => u.username);
-        console.log(`🎮 [BalanceSync] 온라인 게임 중인 사용자: ${onlineUsernames.length}명`, onlineUsernames);
-        
-        console.log('📡 [BalanceSync] PATCH /api/account/balance 호출 (온라인 게임 사용자만)');
         
         const patchResult = await getAllAccountBalances(opcode, secretKey);
 
@@ -475,15 +397,11 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
           const targetUsernames = allUsernames.filter(username => onlineUsernames.includes(username));
           
           if (targetUsernames.length === 0) {
-            console.log('ℹ️ [BalanceSync] PATCH 응답에 온라인 사용자 데이터 없음');
             return;
           }
 
-          console.log(`📊 [BalanceSync] ${targetUsernames.length}명의 온라인 사용자 보유금 업데이트 시작 (전체 응답: ${allUsernames.length}명)`);
-
           let successCount = 0;
           let failCount = 0;
-          let dbTrustedCount = 0;
 
           // ✅ 온라인 사용자만 DB 업데이트
           for (const username of targetUsernames) {
@@ -509,15 +427,6 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
               failCount++;
             }
           }
-          
-          dbTrustedCount = allUsernames.length - targetUsernames.length;
-
-          console.log('✅ [BalanceSync] PATCH 온라인 사용자 보유금 동기화 완료:', {
-            online_users: targetUsernames.length,
-            success: successCount,
-            fail: failCount,
-            db_trusted: dbTrustedCount
-          });
         }
 
       } catch (error) {
@@ -527,42 +436,21 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
       }
     };
 
-    console.log('🎯 [BalanceSync] PATCH API 동기화 초기화:', {
-      admin_user: user.username,
-      admin_id: user.id,
-      admin_level: user.level,
-      interval: '30초',
-      first_run: '즉시'
-    });
-
     // 기존 interval이 있으면 제거
     if (intervalRef.current) {
-      console.log('🧹 [BalanceSync] 기존 타이머 제거');
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
 
     // 즉시 1회 실행
-    console.log('🚀 [BalanceSync] 첫 동기화 실행 (즉시)');
     syncAllBalances();
 
     // 30초마다 실행
     intervalRef.current = setInterval(() => {
-      console.log('⏰ [BalanceSync] 30초 타이머 발동:', {
-        timestamp: new Date().toISOString(),
-        next_run: new Date(Date.now() + 30000).toISOString()
-      });
       syncAllBalances();
     }, 30000);
-    
-    console.log('✅ [BalanceSync] 30초 반복 타이머 설정 완료');
 
     return () => {
-      console.log('🛑 [BalanceSync] 자동 동기화 중지:', {
-        reason: 'useEffect cleanup',
-        admin_user: user.username,
-        timestamp: new Date().toISOString()
-      });
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;

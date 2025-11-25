@@ -414,7 +414,8 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
           }}
           className={cn(
             "flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200",
-            "text-base group relative w-full",
+            "text-base group relative",
+            depth === 0 ? "w-full" : "w-[calc(100%-12px)]", // 서브메뉴는 오른쪽 여백 추가
             isActive
               ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30 scale-[1.02]"
               : "text-slate-300 hover:bg-slate-800/50 hover:text-white hover:scale-[1.01]",

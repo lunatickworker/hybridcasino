@@ -43,6 +43,7 @@ interface ForceTransactionModalProps {
   currentUserBalance?: number; // 현재 관리자의 보유금 (입금 시 검증용) - Lv3~7용
   currentUserInvestBalance?: number; // Lv1의 invest API balance
   currentUserOroplayBalance?: number; // Lv1의 oroplay API balance
+  useGmsMoney?: boolean; // ✅ GMS 머니 모드 (API 선택 없이 GMS로만 처리)
 }
 
 export function ForceTransactionModal({
@@ -57,7 +58,8 @@ export function ForceTransactionModal({
   currentUserLevel,
   currentUserBalance = 0,
   currentUserInvestBalance = 0,
-  currentUserOroplayBalance = 0
+  currentUserOroplayBalance = 0,
+  useGmsMoney = false
 }: ForceTransactionModalProps) {
   const { t } = useLanguage();
   const { useInvestApi, useOroplayApi } = useBalance(); // ✅ API 활성화 상태
@@ -92,7 +94,8 @@ export function ForceTransactionModal({
   
   // ✅ Lv1 → Lv2 입출금 시에만 API 선택 표시
   // Lv3는 단일 지갑이므로 API 선택 불필요
-  const showApiSelector = targetType === 'partner' && 
+  // useGmsMoney가 true면 API 선택 숨김
+  const showApiSelector = !useGmsMoney && targetType === 'partner' && 
                           (
                             // Lv1 → Lv2: 입금/출금 모두 API 선택
                             (currentUserLevel === 1 && selectedTarget?.level === 2)

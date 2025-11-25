@@ -8,7 +8,7 @@ const BlacklistManagement = lazy(() => import("../admin/BlacklistManagement").th
 const PointManagement = lazy(() => import("../admin/PointManagement").then(m => ({ default: m.PointManagement })));
 const OnlineUsers = lazy(() => import("../admin/OnlineUsers").then(m => ({ default: m.OnlineUsers })));
 const PartnerConnectionStatus = lazy(() => import("../admin/PartnerConnectionStatus").then(m => ({ default: m.PartnerConnectionStatus })));
-const PartnerManagement = lazy(() => import("../admin/PartnerManagement").then(m => ({ default: m.PartnerManagement })));
+const PartnerManagement = lazy(() => import("../admin/PartnerManagementV2").then(m => ({ default: m.PartnerManagementV2 })));
 const PartnerCreation = lazy(() => import("../admin/PartnerCreation").then(m => ({ default: m.PartnerCreation })));
 const PartnerTransactions = lazy(() => import("../admin/PartnerTransactions").then(m => ({ default: m.PartnerTransactions })));
 const CommissionSettlement = lazy(() => import("../admin/CommissionSettlement").then(m => ({ default: m.CommissionSettlement })));

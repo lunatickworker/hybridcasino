@@ -32,7 +32,7 @@ function AppContent() {
   // 초기 리다이렉트 처리 (useEffect로 이동하여 render phase 오류 방지)
   useEffect(() => {
     if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
-      window.location.hash = '#/user';
+      window.location.hash = '#/admin';
     }
   }, []);
 
@@ -209,38 +209,30 @@ function AppContent() {
         // 1. users.is_online = false 업데이트
         const { error: userError } = await supabase
           .from('users')
-          .update({ 
-            is_online: false,
-            updated_at: new Date().toISOString()
-          })
+          .update({ is_online: false })
           .eq('id', userSession.id);
 
         if (userError) {
           console.error('❌ is_online 업데이트 오류:', userError);
-        } else {
-          console.log('✅ is_online = false 업데이트 완료');
         }
 
-        // 2. user_sessions 테이블의 활성 세션 종료
+        // 2. user_sessions 종료
         const { error: sessionError } = await supabase
           .from('user_sessions')
-          .update({ 
-            is_active: false,
-            logout_at: new Date().toISOString()
+          .update({
+            status: 'ended',
+            ended_at: new Date().toISOString()
           })
           .eq('user_id', userSession.id)
-          .eq('is_active', true);
+          .is('ended_at', null);
 
         if (sessionError) {
           console.error('❌ user_sessions 종료 오류:', sessionError);
-        } else {
-          console.log('✅ user_sessions 종료 완료');
         }
 
-        // 3. game_launch_sessions는 로그아웃 시 종료하지 않음
+        // 3. game_launch_sessions는 종료하지 않음!
         // ⚠️ 중요: 게임창을 닫을 때만 세션이 종료되어야 함
         // UserCasino.tsx와 UserSlot.tsx에서 게임창 닫힘 감지 시 syncBalanceAfterGame() 호출하여 세션 종료
-        console.log('ℹ️ game_launch_sessions는 게임창 닫힘 시에만 종료됨 (로그아웃 시 유지)');
 
         // 4. 활동 로그 기록
         await supabase

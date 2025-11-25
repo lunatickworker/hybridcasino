@@ -219,18 +219,6 @@ export function generateSignature(params: string[], secretKey: string): string {
   const combined = params.join('') + secretKey;
   const signature = md5Hash(combined);
   
-  // 디버깅: Signature 생성 로그
-  console.log('🔐 Signature 생성:', {
-    params: params,
-    secretKey: '***' + secretKey.slice(-4),
-    combined_string_preview: combined.substring(0, 100) + (combined.length > 100 ? '...' : ''),
-    combined_length: combined.length,
-    signature: signature,
-    // Guidelines 확인용
-    validation: `md5(${params.join(' + ')} + secretKey)`,
-    exact_formula: `md5("${params.join('" + "')}" + "***${secretKey.slice(-4)}")`
-  });
-  
   return signature;
 }
 
@@ -261,15 +249,6 @@ export async function callInvestApi(
         },
         body
       };
-      
-      if (attempt === 0) {
-        console.log('🌐 Proxy 서버 호출:', {
-          proxy_url: PROXY_URL,
-          target_url: url,
-          method: method,
-          opcode: body?.opcode || 'N/A'
-        });
-      }
       
       // Timeout 설정 (30초)
       const controller = new AbortController();

@@ -546,11 +546,24 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
       
       const { md5Hash } = await import('../../lib/investApi');
       
-      // ✅ api_configs에서 조회 (api_provider='invest' 필터 추가)
+      // ✅ Lv1의 api_configs를 조회 (Lv2도 Lv1의 설정을 사용)
+      const { data: lv1Partner, error: lv1Error } = await supabase
+        .from('partners')
+        .select('id')
+        .eq('level', 1)
+        .single();
+      
+      if (lv1Error || !lv1Partner) {
+        console.error('❌ [시스템설정] Lv1 파트너 조회 실패:', lv1Error);
+        toast.error('시스템 관리자(Lv1) 정보를 찾을 수 없습니다.');
+        return;
+      }
+      
+      // ✅ Lv1의 api_configs에서 조회 (api_provider='invest' 필터 추가)
       const { data: apiConfig, error: configError } = await supabase
         .from('api_configs')
         .select('invest_opcode, invest_secret_key')
-        .eq('partner_id', partnerId)
+        .eq('partner_id', lv1Partner.id)
         .eq('api_provider', 'invest')
         .maybeSingle();
 
@@ -561,8 +574,8 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
       }
 
       if (!apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
-        console.warn('⚠️ [시스템설정] API config 없음. partner_id:', partnerId);
-        toast.error(`${t.systemSettings.partnerApiConfigNotFound} (Partner ID: ${partnerId})`);
+        console.warn('⚠️ [시스템설정] Lv1 API config 없음. Lv1 partner_id:', lv1Partner.id);
+        toast.error(`${t.systemSettings.partnerApiConfigNotFound} (Lv1 Partner ID: ${lv1Partner.id})`);
         return;
       }
 

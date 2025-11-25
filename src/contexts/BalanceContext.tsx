@@ -49,15 +49,8 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
   
   const loadBalanceFromDB = useCallback(async () => {
     if (!user?.id) {
-      console.log('⚠️ [Balance] user.id 없음, 로드 중단');
       return;
     }
-
-    console.log('💾 [Balance] DB에서 초기 보유금 로드 시작:', {
-      partner_id: user.id,
-      nickname: user.nickname,
-      level: user.level
-    });
 
     try {
       // partners 테이블에서 기본 balance 조회
@@ -75,12 +68,10 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
 
       const currentBalance = data?.balance || 0;
       setBalance(currentBalance);
-      console.log('✅ [Balance] partners balance 로드:', currentBalance);
 
       // Lv1: api_configs 조회 (+ API 활성화 설정), Lv2: partners 조회
       if (user.level === 1) {
         // Lv1은 api_configs 사용 (새 구조: api_provider별 분리)
-        console.log('💾 [Balance] [Lv1] api_configs 조회 시작...');
         
         // Invest API 잔액 조회
         const { data: investData, error: investError } = await supabase
@@ -106,11 +97,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           console.error('❌ [Balance] OroPlay api_config 조회 실패:', oroplayError);
         }
 
-        console.log('🔍 [Balance] api_configs 조회 결과:', {
-          invest: investData,
-          oroplay: oroplayData
-        });
-
         const investRaw = investData?.balance;
         const oroRaw = oroplayData?.balance;
         
@@ -121,28 +107,13 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         const useInvest = investData?.is_active !== false; // 기본값 true
         const useOro = oroplayData?.is_active !== false;   // 기본값 true
         
-        console.log('📊 [Balance] API별 잔고 파싱:', {
-          invest_balance_raw: investRaw,
-          oroplay_balance_raw: oroRaw,
-          invest_balance_parsed: invest,
-          oroplay_balance_parsed: oro,
-          use_invest_api: useInvest,
-          use_oroplay_api: useOro
-        });
-        
         setInvestBalance(invest);
         setOroplayBalance(oro);
         setUseInvestApi(useInvest);
         setUseOroplayApi(useOro);
 
-        console.log('✅ [Balance] [Lv1] DB 로드 완료:', {
-          balance: currentBalance,
-          investBalance: invest,
-          oroplayBalance: oro
-        });
       } else if (user.level === 2) {
         // Lv2는 partners 테이블에서 invest_balance + oroplay_balance 조회
-        console.log('💾 [Balance] [Lv2] partners.invest_balance + oroplay_balance 조회 시작...');
         
         const { data: lv2Data, error: lv2Error } = await supabase
           .from('partners')
@@ -150,21 +121,18 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           .eq('id', user.id)
           .single();
         
+        // 변수를 블록 밖에서 선언
+        let invest = 0;
+        let oro = 0;
+        
         if (lv2Error) {
           console.error('❌ [Balance] Lv2 partners 조회 실패:', lv2Error);
         } else {
           const investRaw = lv2Data?.invest_balance;
           const oroRaw = lv2Data?.oroplay_balance;
           
-          const invest = typeof investRaw === 'number' && !isNaN(investRaw) ? investRaw : 0;
-          const oro = typeof oroRaw === 'number' && !isNaN(oroRaw) ? oroRaw : 0;
-          
-          console.log('📊 [Balance] [Lv2] 잔고 파싱:', {
-            invest_balance_raw: investRaw,
-            oroplay_balance_raw: oroRaw,
-            invest_balance_parsed: invest,
-            oroplay_balance_parsed: oro
-          });
+          invest = typeof investRaw === 'number' && !isNaN(investRaw) ? investRaw : 0;
+          oro = typeof oroRaw === 'number' && !isNaN(oroRaw) ? oroRaw : 0;
           
           setInvestBalance(invest);
           setOroplayBalance(oro);
@@ -199,14 +167,8 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           setUseOroplayApi(oroplayConfig?.is_active !== false);
         }
         
-        console.log('✅ [Balance] [Lv2] DB 로드 완료:', {
-          balance: currentBalance,
-          investBalance: invest,
-          oroplayBalance: oro
-        });
       } else {
         // Lv3 이상은 API별 잔고 없음, Lv1의 API 설정만 조회
-        console.log('ℹ️ [Balance] [Lv3+] API별 잔고 없음');
         setInvestBalance(0);
         setOroplayBalance(0);
         
@@ -257,7 +219,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
 
     // ✅ Lv2 이하는 잔고 동기화 안 함
     if (user.level !== 1) {
-      console.log('ℹ️ [Balance] Lv2 이하는 Invest+OroPlay 잔고 동기화 스킵 (현재 Lv:', user.level, ')');
       return;
     }
 
@@ -269,7 +230,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
     try {
       const { getAdminOpcode, isMultipleOpcode } = await import('../lib/opcodeHelper');
       
-      console.log('🔍 [Balance] 상위 대본사 opcode 조회 시작');
       const opcodeInfo = await getAdminOpcode(user);
       
       // 시스템 관리자인 경우 첫 번째 opcode 사용
@@ -281,12 +241,10 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         opcode = opcodeInfo.opcodes[0].opcode;
         secretKey = opcodeInfo.opcodes[0].secretKey;
         apiToken = opcodeInfo.opcodes[0].token;
-        console.log('✅ [Balance] 시스템관리자 - 첫 번째 opcode 사용:', opcode);
       } else {
         opcode = opcodeInfo.opcode;
         secretKey = opcodeInfo.secretKey;
         apiToken = opcodeInfo.token;
-        console.log('✅ [Balance] 상위 대본사 opcode 조회 성공:', opcode);
       }
     } catch (err: any) {
       console.error('❌ [Balance] opcode 조회 실패:', err);
@@ -299,7 +257,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
     }
 
     if (isSyncingRef.current) {
-      console.log('⏳ [Balance] 이미 동기화 중...');
       return;
     }
 
@@ -312,12 +269,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
     try {
       // ✅ Lv1만 GET /api/info 호출
       const apiEndpoint = '/api/info';
-      
-      console.log(`📡 [Balance] API ${apiEndpoint} 호출 시작:`, {
-        partner_id: user.id,
-        level: user.level,
-        opcode: opcode
-      });
 
       const apiStartTime = Date.now();
       const apiResult = await getInfo(opcode, secretKey);
@@ -352,8 +303,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
       const apiData = apiResult.data;
       let newBalance = 0;
 
-      console.log('📊 [Balance] API 응답:', JSON.stringify(apiData, null, 2));
-
       // GET /api/info 응답 파싱 (Lv1 시스템관리자만)
       if (apiData) {
         if (typeof apiData === 'object' && !apiData.is_text) {
@@ -363,14 +312,12 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
             newBalance = parseFloat(apiData.balance || 0);
           }
         } else if (apiData.is_text && apiData.text_response) {
-          const balanceMatch = apiData.text_response.match(/balance[\"'\\s:]+(\\d+\\.?\\d*)/i);
+          const balanceMatch = apiData.text_response.match(/balance[\"'\\\s:]+(\\d+\\.?\\d*)/i);
           if (balanceMatch) {
             newBalance = parseFloat(balanceMatch[1]);
           }
         }
       }
-
-      console.log('💰 [Balance] Invest API 파싱된 보유금:', newBalance);
 
       // =====================================================
       // 🔥 OroPlay API 잔고 조회 (GET /agent/balance) - Lv1만
@@ -378,8 +325,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
       let oroBalance = 0;
       
       try {
-        console.log('📡 [Balance] OroPlay credentials 확인 중...');
-        
         // OroPlay API config 조회 (새 구조: api_provider='oroplay')
         const { data: oroConfig } = await supabase
           .from('api_configs')
@@ -396,22 +341,12 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         
         const { getAgentBalance, getOroPlayToken } = await import('../lib/oroplayApi');
         
-        console.log('📡 [Balance] OroPlay API 잔고 조회 시작...');
-        console.log('📡 [Balance] Partner ID:', user.id);
-        
         const oroToken = await getOroPlayToken(user.id);
-        console.log('📡 [Balance] OroPlay Token 조회 성공');
         
-        console.log('📡 [Balance] GET /agent/balance 호출 중...');
         const rawOroBalance = await getAgentBalance(oroToken);
         
         // ✅ NaN 방지: 숫자가 아니거나 NaN이면 0으로 처리
         oroBalance = typeof rawOroBalance === 'number' && !isNaN(rawOroBalance) ? rawOroBalance : 0;
-        
-        console.log('✅ [Balance] OroPlay API 잔고 조회 성공:', {
-          raw: rawOroBalance,
-          parsed: oroBalance
-        });
         
         // api_configs 테이블 업데이트 (새 구조: api_provider별)
         const { error: oroUpdateError } = await supabase
@@ -425,8 +360,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         
         if (oroUpdateError) {
           console.error('❌ [Balance] OroPlay 잔고 DB 저장 실패:', oroUpdateError);
-        } else {
-          console.log('✅ [Balance] OroPlay 잔고 DB 저장 완료');
         }
           
       } catch (oroErr: any) {
@@ -450,7 +383,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
 
       // ⚠️ Lv1은 partners.balance를 사용하지 않음 (외부 API 지갑만 사용)
       // Lv1의 보유금은 api_configs (invest + oroplay 각각의 balance) 사용
-      console.log('ℹ️ [Balance] Lv1은 partners.balance를 업데이트하지 않음 (설계 정책)');
 
       // ✅ 항상 State 업데이트 (에러 여부 무관)
       setInvestBalance(newBalance);
@@ -458,12 +390,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
       setBalance(newBalance + oroBalance);  // 🔧 수정: Lv1은 Invest + OroPlay 합계
       setLastSyncTime(new Date());
       setError(null);
-      
-      console.log('✅ [Balance] React State 업데이트 완료:', {
-        invest: newBalance,
-        oroplay: oroBalance,
-        balance: newBalance + oroBalance  // 🔧 수정: 합계 표시
-      });
       
       // ✅ 수동 동기화일 때만 성공 토스트 표시
       if (isManual) {
@@ -503,21 +429,11 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
   useEffect(() => {
     if (!user?.id) return;
 
-    console.log('🔄 [Balance] 초기화:', {
-      partner_id: user.id,
-      nickname: user.nickname,
-      level: user.level,
-      has_opcode: !!user.opcode,
-      has_secret_key: !!user.secret_key
-    });
-
     // ✅ 1단계: DB에서 초기 보유금 로드 (즉시 화면 표시)
     loadBalanceFromDB();
 
     // ⭐ 2단계: API 동기화 삭제됨 (사용자 요청: 보유금 카드 클릭 시에만 호출)
     // isManual = false: 자동 동기화 (loading 미표시, 토스트 없음)
-    // console.log('📡 [Balance] 로그인 시 자동 동기화 시작 (Lv1만)');
-    // syncBalanceFromAPI(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -525,23 +441,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
   // 5. 30초 주기 자동 동기화 (Lv1만) - ❌ 삭제됨
   // =====================================================
   // ⭐ 사용자 요청: 자동 호출 제거, 보유금 카드 클릭 시에만 API 호출
-  // useEffect(() => {
-  //   if (!user?.id || user.level !== 1) return;
-  //   
-  //   console.log('⏰ [Balance] 30초 주기 자동 동기화 시작 (Lv1만)');
-  //   
-  //   // 30초마다 양쪽 API 잔고 동기화
-  //   const syncInterval = setInterval(() => {
-  //     console.log('🔄 [Balance] 30초 타이머 - Invest & OroPlay 잔고 동기화');
-  //     // isManual = false: 자동 동기화 (loading 미표시, 토스트 없음)
-  //     syncBalanceFromAPI(false);
-  //   }, 30000); // 30초
-  //   
-  //   return () => {
-  //     console.log('🛑 [Balance] 30초 주기 동기화 중지');
-  //     clearInterval(syncInterval);
-  //   };
-  // }, [user?.id, user?.level, syncBalanceFromAPI]);
 
   // =====================================================
   // 6. Realtime 구독: partners 테이블 + api_configs 테이블 변경 감지
@@ -549,8 +448,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
   
   useEffect(() => {
     if (!user?.id) return;
-
-    console.log('🔔 [Balance] Realtime 구독 시작:', user.id);
 
     // partners 테이블 구독
     const partnersChannel = supabase
@@ -566,13 +463,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         (payload) => {
           const newBalance = parseFloat(payload.new?.balance) || 0;
           const oldBalance = parseFloat(payload.old?.balance) || 0;
-
-          console.log('💰 [Balance] partners Realtime 업데이트 감지:', {
-            old: oldBalance,
-            new: newBalance,
-            change: newBalance - oldBalance,
-            level: user.level
-          });
 
           setBalance(newBalance);
           setLastSyncTime(new Date());
@@ -598,8 +488,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           filter: `partner_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('🔔 [Balance] api_configs Realtime 업데이트 감지:', payload);
-
           const newData = payload.new as any;
           if (newData && user.level === 1) {
             // ✅ Lv1만 api_configs balance 업데이트
@@ -607,12 +495,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
             const apiProvider = newData.api_provider;
             const balanceRaw = newData.balance;
             const balanceValue = typeof balanceRaw === 'number' && !isNaN(balanceRaw) ? balanceRaw : 0;
-            
-            console.log('📊 [Balance] [Lv1] API별 잔고 Realtime 업데이트:', {
-              api_provider: apiProvider,
-              balance_raw: balanceRaw,
-              balance_parsed: balanceValue
-            });
 
             if (apiProvider === 'invest') {
               setInvestBalance(balanceValue);
@@ -627,7 +509,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
       .subscribe();
 
     return () => {
-      console.log('🔕 [Balance] Realtime 구독 해제:', user.id);
       supabase.removeChannel(partnersChannel);
       supabase.removeChannel(apiConfigsChannel);
     };

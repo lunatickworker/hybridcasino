@@ -6,7 +6,7 @@ import { supabase } from './supabase';
 const timezoneCache = new Map<string, number>();
 
 /**
- * 파트너의 타임존 오프셋 조회 (Lv1은 system_settings, Lv2+는 partners 테이블)
+ * 파트너의 타임존 오프셋 조회 (Lv1은 system_settings, Lv2는 partners, Lv3~Lv7은 Lv2를 따름)
  * @param partnerId - 파트너 ID
  * @param partnerLevel - 파트너 레벨
  * @returns 타임존 오프셋 (UTC 기준 시간)
@@ -32,8 +32,8 @@ export async function getPartnerTimezoneOffset(partnerId: string, partnerLevel: 
       if (!error && data) {
         offset = parseInt(data.setting_value);
       }
-    } else {
-      // Lv2+ 파트너는 partners 테이블에서 조회
+    } else if (partnerLevel === 2) {
+      // Lv2 대본사는 partners 테이블에서 조회
       const { data, error } = await supabase
         .from('partners')
         .select('timezone_offset')
@@ -53,6 +53,56 @@ export async function getPartnerTimezoneOffset(partnerId: string, partnerLevel: 
         if (!systemError && systemData) {
           offset = parseInt(systemData.setting_value);
         }
+      }
+    } else {
+      // Lv3~Lv7은 상위 Lv2의 timezone_offset을 따름
+      // parent_id 체인을 따라 올라가서 Lv2를 찾음
+      let currentPartnerId = partnerId;
+      
+      while (true) {
+        const { data, error } = await supabase
+          .from('partners')
+          .select('parent_id')
+          .eq('id', currentPartnerId)
+          .maybeSingle();
+
+        if (error || !data || !data.parent_id) {
+          // 상위 파트너를 찾을 수 없는 경우 기본값 사용
+          break;
+        }
+
+        // parent의 level 확인
+        const { data: parentData, error: parentError } = await supabase
+          .from('partners')
+          .select('level, timezone_offset')
+          .eq('id', data.parent_id)
+          .maybeSingle();
+
+        if (parentError || !parentData) {
+          break;
+        }
+
+        // Lv2를 찾았으면 timezone_offset 사용
+        if (parentData.level === 2) {
+          if (parentData.timezone_offset !== null) {
+            offset = parentData.timezone_offset;
+          } else {
+            // Lv2에도 설정이 없으면 system_settings 기본값 사용
+            const { data: systemData, error: systemError } = await supabase
+              .from('system_settings')
+              .select('setting_value')
+              .eq('setting_key', 'timezone_offset')
+              .maybeSingle();
+
+            if (!systemError && systemData) {
+              offset = parseInt(systemData.setting_value);
+            }
+          }
+          break;
+        }
+
+        // Lv2가 아니면 계속 올라감
+        currentPartnerId = data.parent_id;
       }
     }
 

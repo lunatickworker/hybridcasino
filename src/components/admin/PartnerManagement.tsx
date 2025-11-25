@@ -1,3 +1,18 @@
+/**
+ * ⚠️ ⚠️ ⚠️ 이 파일은 더 이상 사용되지 않습니다! ⚠️ ⚠️ ⚠️
+ * 
+ * 백업용으로만 보관됩니다.
+ * 
+ * 실제 사용 파일: /components/admin/PartnerManagementV2.tsx
+ * 
+ * 모듈화 완료 (3900줄 → 400줄):
+ * - usePartnerManagement 커스텀 훅 사용
+ * - PartnerTransferDialog 컴포넌트 분리
+ * - transferService, partnerService 분리
+ * 
+ * ⚠️ 이 파일을 수정하지 마세요! V2를 수정하세요!
+ */
+
 import { useState, useEffect } from "react";
 import { Plus, Search, Filter, Download, Edit, Eye, DollarSign, Users, Building2, Shield, Key, TrendingUp, Activity, CreditCard, ArrowUpDown, Trash2, ChevronRight, ChevronDown, Send, ArrowDown } from "lucide-react";
 import { Button } from "../ui/button";
@@ -18,6 +33,7 @@ import { toast } from "sonner@2.0.3";
 import { MetricCard } from "./MetricCard";
 import { PartnerTransactions } from "./PartnerTransactions";
 import { ForceTransactionModal } from "./ForceTransactionModal";
+import { PartnerTransferDialog } from "./partner/PartnerTransferDialog";
 
 interface Partner {
   id: string;
@@ -2476,9 +2492,9 @@ export function PartnerManagement() {
 
           {/* 액션 버튼 */}
           <div className="flex items-center gap-1.5 w-[240px] flex-shrink-0">
-            {/* 보유금 지급/회수 버튼 - 시스템관리자->대본사 또는 직접 하위 파트너 */}
-            {((authState.user?.level === 1 && partner.partner_type === 'head_office') || 
-              (partner.parent_id === authState.user?.id && partner.partner_type !== 'head_office')) && (
+            {/* 보유금 지급/회수 버튼 - 시스템관리자->대본사는 ForceTransactionModal, 나머지는 PartnerTransferDialog */}
+            {/* Lv1 -> Lv2 대본사: 강제 입출금 (API 호출) */}
+            {authState.user?.level === 1 && partner.partner_type === 'head_office' && (
               <>
                 <Button
                   variant="outline"
@@ -2489,7 +2505,7 @@ export function PartnerManagement() {
                     setShowForceTransactionModal(true);
                   }}
                   className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
-                  title={authState.user?.level === 1 && partner.partner_type === 'head_office' ? "입금" : "보유금 지급"}
+                  title="입금 (API 호출)"
                 >
                   <DollarSign className="h-4 w-4" />
                 </Button>
@@ -2502,7 +2518,38 @@ export function PartnerManagement() {
                     setShowForceTransactionModal(true);
                   }}
                   className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
-                  title={authState.user?.level === 1 && partner.partner_type === 'head_office' ? "출금" : "보유금 회수"}
+                  title="출금 (API 호출)"
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+            {/* Lv2~Lv7 -> 직접 하위 파트너: 보유금 입출금 (GMS 머니) */}
+            {partner.parent_id === authState.user?.id && partner.partner_type !== 'head_office' && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setTransferTargetPartner(partner);
+                    setTransferMode('deposit');
+                    setShowTransferDialog(true);
+                  }}
+                  className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
+                  title="보유금 지급 (GMS 머니)"
+                >
+                  <DollarSign className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setTransferTargetPartner(partner);
+                    setTransferMode('withdrawal');
+                    setShowTransferDialog(true);
+                  }}
+                  className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
+                  title="보유금 회수 (GMS 머니)"
                 >
                   <ArrowDown className="h-4 w-4" />
                 </Button>
@@ -3833,6 +3880,33 @@ export function PartnerManagement() {
         currentUserBalance={currentUserBalance}
         currentUserInvestBalance={currentUserInvestBalance}
         currentUserOroplayBalance={currentUserOroplayBalance}
+      />
+
+      {/* 보유금 입출금 다이얼로그 (GMS 머니 시스템) */}
+      <PartnerTransferDialog
+        open={showTransferDialog}
+        onOpenChange={setShowTransferDialog}
+        targetPartner={transferTargetPartner}
+        transferMode={transferMode}
+        setTransferMode={setTransferMode}
+        transferAmount={transferAmount}
+        setTransferAmount={setTransferAmount}
+        transferMemo={transferMemo}
+        setTransferMemo={setTransferMemo}
+        transferLoading={transferLoading}
+        currentUserId={authState.user?.id || ''}
+        onSuccess={() => {
+          setTransferTargetPartner(null);
+          setTransferAmount("");
+          setTransferMemo("");
+          setTransferMode('deposit');
+          fetchPartners(); // 목록 새로고침
+        }}
+        onWebSocketUpdate={(data) => {
+          if (sendMessage && connected) {
+            sendMessage(data);
+          }
+        }}
       />
     </div>
   );
