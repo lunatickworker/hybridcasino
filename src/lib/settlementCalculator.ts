@@ -124,45 +124,54 @@ export async function getBettingStats(
     return { totalBetAmount: 0, totalLossAmount: 0 };
   }
 
-  // ⚡ 필요한 컬럼만 조회하여 네트워크 부하 감소
-  let query = supabase
-    .from('game_records')
-    .select('bet_amount, win_amount')
-    .in('user_id', userIds)
-    .gte('played_at', startDate)
-    .lte('played_at', endDate);
+  try {
+    // ⚡ 최적화: userIds가 너무 많으면 청크로 나누어 처리
+    const CHUNK_SIZE = 100;
+    let totalBetAmount = 0;
+    let totalLossAmount = 0;
 
-  // API 필터 적용
-  if (apiFilter !== 'all') {
-    query = query.eq('api_type', apiFilter);
-  }
+    for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
+      const chunk = userIds.slice(i, i + CHUNK_SIZE);
 
-  const { data: bettingData, error } = await query;
+      // ⚡ 필요한 컬럼만 조회하여 네트워크 부하 감소
+      let query = supabase
+        .from('game_records')
+        .select('bet_amount, win_amount')
+        .in('user_id', chunk)
+        .gte('played_at', startDate)
+        .lte('played_at', endDate);
 
-  if (error) {
-    console.error('베팅 데이터 조회 오류:', error);
-    return { totalBetAmount: 0, totalLossAmount: 0 };
-  }
+      // API 필터 적용
+      if (apiFilter !== 'all') {
+        query = query.eq('api_type', apiFilter);
+      }
 
-  if (!bettingData || bettingData.length === 0) {
-    return { totalBetAmount: 0, totalLossAmount: 0 };
-  }
+      const { data: bettingData, error } = await query;
 
-  // ⚡ 한 번의 순회로 두 값 모두 계산
-  let totalBetAmount = 0;
-  let totalLossAmount = 0;
-  
-  for (const record of bettingData) {
-    const bet = record.bet_amount || 0;
-    const win = record.win_amount || 0;
-    totalBetAmount += bet;
-    const loss = bet - win;
-    if (loss > 0) {
-      totalLossAmount += loss;
+      if (error) {
+        console.error('베팅 데이터 조회 오류 (chunk):', error);
+        continue; // 에러 발생 시 해당 청크는 건너뛰고 계속 진행
+      }
+
+      if (bettingData && bettingData.length > 0) {
+        // ⚡ 한 번의 순회로 두 값 모두 계산
+        for (const record of bettingData) {
+          const bet = record.bet_amount || 0;
+          const win = record.win_amount || 0;
+          totalBetAmount += bet;
+          const loss = bet - win;
+          if (loss > 0) {
+            totalLossAmount += loss;
+          }
+        }
+      }
     }
-  }
 
-  return { totalBetAmount, totalLossAmount };
+    return { totalBetAmount, totalLossAmount };
+  } catch (error) {
+    console.error('베팅 통계 계산 실패:', error);
+    return { totalBetAmount: 0, totalLossAmount: 0 };
+  }
 }
 
 /**
@@ -181,25 +190,38 @@ export async function getWithdrawalAmount(
     return 0;
   }
 
-  const { data: withdrawalData, error } = await supabase
-    .from('transactions')
-    .select('amount')
-    .in('user_id', userIds)
-    .eq('transaction_type', 'withdrawal')
-    .eq('status', 'approved')
-    .gte('created_at', startDate)
-    .lte('created_at', endDate);
+  try {
+    // ⚡ 최적화: userIds가 너무 많으면 청크로 나누어 처리
+    const CHUNK_SIZE = 100;
+    let totalWithdrawalAmount = 0;
 
-  if (error) {
-    console.error('출금 데이터 조회 오류:', error);
+    for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
+      const chunk = userIds.slice(i, i + CHUNK_SIZE);
+
+      const { data: withdrawalData, error } = await supabase
+        .from('transactions')
+        .select('amount')
+        .in('user_id', chunk)
+        .eq('transaction_type', 'withdrawal')
+        .eq('status', 'approved')
+        .gte('created_at', startDate)
+        .lte('created_at', endDate);
+
+      if (error) {
+        console.error('출금 데이터 조회 오류 (chunk):', error);
+        continue; // 에러 발생 시 해당 청크는 건너뛰고 계속 진행
+      }
+
+      if (withdrawalData && withdrawalData.length > 0) {
+        totalWithdrawalAmount += withdrawalData.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+      }
+    }
+
+    return totalWithdrawalAmount;
+  } catch (error) {
+    console.error('출금 총액 계산 실패:', error);
     return 0;
   }
-
-  if (!withdrawalData) {
-    return 0;
-  }
-
-  return withdrawalData.reduce((sum, tx) => sum + (tx.amount || 0), 0);
 }
 
 /**
@@ -399,7 +421,7 @@ export async function calculateMyIncome(
       apiFilter
     );
 
-    // 출금 총액 조회
+    // 출금 총액 ���회
     const totalWithdrawalAmount = await getWithdrawalAmount(
       descendantUserIds,
       startDate,
@@ -656,25 +678,38 @@ export async function calculatePendingDeposits(
     return 0;
   }
 
-  const { data: pendingData, error } = await supabase
-    .from('transactions')
-    .select('amount')
-    .eq('transaction_type', 'deposit')
-    .eq('status', 'pending')
-    .in('user_id', userIds)
-    .gte('created_at', startDate)
-    .lte('created_at', endDate);
+  try {
+    // ⚡ 최적화: userIds가 너무 많으면 청크로 나누어 처리 (URL 길이 제한 방지)
+    const CHUNK_SIZE = 100;
+    let totalPendingAmount = 0;
 
-  if (error) {
-    console.error('만충금 조회 오류:', error);
+    for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
+      const chunk = userIds.slice(i, i + CHUNK_SIZE);
+
+      const { data: pendingData, error } = await supabase
+        .from('transactions')
+        .select('amount')
+        .eq('transaction_type', 'deposit')
+        .eq('status', 'pending')
+        .in('user_id', chunk)
+        .gte('created_at', startDate)
+        .lte('created_at', endDate);
+
+      if (error) {
+        console.error('만충금 조회 오류 (chunk):', error);
+        continue; // 에러 발생 시 해당 청크는 건너뛰고 계속 진행
+      }
+
+      if (pendingData && pendingData.length > 0) {
+        totalPendingAmount += pendingData.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+      }
+    }
+
+    return totalPendingAmount;
+  } catch (error) {
+    console.error('만충금 계산 실패:', error);
     return 0;
   }
-
-  if (!pendingData) {
-    return 0;
-  }
-
-  return pendingData.reduce((sum, t) => sum + Number(t.amount), 0);
 }
 
 /**

@@ -31,6 +31,7 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
   const [settlementMethod, setSettlementMethod] = useState<'differential' | 'direct_subordinate'>('direct_subordinate');
   const [periodFilter, setPeriodFilter] = useState("today");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  // Lv3~Lv6은 통합 GMS 머니만 사용하므로 API 필터 불필요
   const [apiFilter, setApiFilter] = useState<'all' | 'invest' | 'oroplay'>('all');
   const [commissions, setCommissions] = useState<PartnerCommissionInfo[]>([]);
   
@@ -318,17 +319,19 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
               </CardDescription>
             </div>
             <div className="flex items-center gap-3">
-              {/* API 필터 */}
-              <Select value={apiFilter} onValueChange={(value) => setApiFilter(value as 'all' | 'invest' | 'oroplay')}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t.settlement.allApi}</SelectItem>
-                  <SelectItem value="invest">{t.settlement.investOnly}</SelectItem>
-                  <SelectItem value="oroplay">{t.settlement.oroplaysOnly}</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* API 필터 - Lv3~Lv6은 통합 GMS 머니만 사용하므로 숨김 */}
+              {user.level <= 2 && (
+                <Select value={apiFilter} onValueChange={(value) => setApiFilter(value as 'all' | 'invest' | 'oroplay')}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t.settlement.allApi}</SelectItem>
+                    <SelectItem value="invest">{t.settlement.investOnly}</SelectItem>
+                    <SelectItem value="oroplay">{t.settlement.oroplaysOnly}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
 
               <Select value={periodFilter} onValueChange={setPeriodFilter}>
                 <SelectTrigger className="w-[180px]">

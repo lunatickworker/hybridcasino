@@ -108,14 +108,12 @@ export async function handleForceTransaction(
           return;
         }
       }
-      // Lv2 → Lv3 GMS 입금 시: 두 개 지갑 중 최소값 검증
+      // Lv2 → Lv3 GMS 입금 시: oroplay_balance만 검증
       else if (isLv2ToLv3 && !data.apiType) {
-        const investBalance = adminPartner.invest_balance || 0;
         const oroplayBalance = adminPartner.oroplay_balance || 0;
-        const minBalance = Math.min(investBalance, oroplayBalance);
         
-        if (data.amount > minBalance) {
-          toast.error(t.partnerManagement.balanceInsufficientError.replace('{{balance}}', minBalance.toLocaleString()));
+        if (data.amount > oroplayBalance) {
+          toast.error(`OroPlay API 보유금이 부족합니다. (현재: ${oroplayBalance.toLocaleString()}원)`);
           return;
         }
       }
@@ -181,7 +179,7 @@ export async function handleForceTransaction(
       return;
     }
 
-    // ✅ 6. Lv1 → Lv2 출금도 외부 API 호출 없이 DB만 업데이트
+    // ✅ 6. Lv1 → Lv2 출금도 외부 API ���출 없이 DB만 업데이트
     if (isLv1ToLv2 && data.type === 'withdrawal' && data.apiType) {
       console.log('✅ [Lv1→Lv2 출금] Lv1 외부 지갑은 변경하지 않고 Lv2에서만 회수');
 

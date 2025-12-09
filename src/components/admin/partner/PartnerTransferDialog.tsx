@@ -96,6 +96,39 @@ export function PartnerTransferDialog({
       if (error.message?.includes('TARGET_BALANCE_INSUFFICIENT')) {
         const balance = error.message.split(':')[1];
         toast.error(t.partnerManagement.targetBalanceInsufficientError.replace('{{balance}}', parseInt(balance).toLocaleString()));
+      } else if (error.message?.includes('SENDER_BALANCE_INSUFFICIENT')) {
+        // 송신자 보유금 부족
+        const message = error.message.split(':')[1];
+        
+        // Lv2 보유금 부족 (OroPlay만 표시)
+        if (message?.includes('oroplay=')) {
+          const oroplayMatch = message.match(/oroplay=(\d+)/);
+          const requiredMatch = message.match(/required=(\d+)/);
+          
+          const oroplayBalance = oroplayMatch ? parseInt(oroplayMatch[1]) : 0;
+          const required = requiredMatch ? parseInt(requiredMatch[1]) : 0;
+          
+          toast.error(
+            `OroPlay API 보유금이 부족합니다.\n` +
+            `현재 보유금: ${oroplayBalance.toLocaleString()}원\n` +
+            `필요 금액: ${required.toLocaleString()}원`,
+            { duration: 5000 }
+          );
+        } else {
+          // Lv3~7 보유금 부족
+          const balance = parseInt(message);
+          toast.error(t.partnerManagement.balanceLowError.replace('{{balance}}', balance.toLocaleString()));
+        }
+      } else if (error.message?.includes('BALANCE_LOW_LV2')) {
+        // Lv2 보유금 부족 (invest_balance, oroplay_balance 중 최소값)
+        const parts = error.message.split(':');
+        const minBalance = parts[1];
+        const insufficientApi = parts[2];
+        toast.error(
+          `${insufficientApi} API 보유금이 부족합니다.\n` +
+          `입금 가능 금액: ${parseInt(minBalance).toLocaleString()}원`,
+          { duration: 5000 }
+        );
       } else if (error.message?.includes('BALANCE_LOW')) {
         const balance = error.message.split(':')[1];
         toast.error(t.partnerManagement.balanceLowError.replace('{{balance}}', parseInt(balance).toLocaleString()));

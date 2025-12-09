@@ -20,10 +20,10 @@ export const transferBalanceToPartner = async ({
   transferMode,
   transferMemo = ""
 }: TransferBalanceParams) => {
-  // 1. 현재 관리자의 보유금 조회
+  // 1. 현재 관리자의 보유금 조회 (Lv2는 invest_balance, oroplay_balance도 조회)
   const { data: currentPartnerData, error: fetchError } = await supabase
     .from('partners')
-    .select('balance, nickname, partner_type, level')
+    .select('balance, invest_balance, oroplay_balance, nickname, partner_type, level')
     .eq('id', currentUserId)
     .single();
 
@@ -48,9 +48,19 @@ export const transferBalanceToPartner = async ({
 
   // 2. 지급 모드: 보유금 검증
   if (transferMode === 'deposit' && !isSystemAdmin) {
-    // ✅ Lv2는 GMS 머니(balance)만 사용
-    if (currentPartnerData.balance < amount) {
-      throw new Error(`BALANCE_LOW:${currentPartnerData.balance}`);
+    // ✅ Lv2: oroplay_balance만 차감
+    if (currentPartnerData.level === 2) {
+      const oroplayBalance = currentPartnerData.oroplay_balance || 0;
+      
+      if (oroplayBalance < amount) {
+        throw new Error(`SENDER_BALANCE_INSUFFICIENT:oroplay=${oroplayBalance},required=${amount}`);
+      }
+    }
+    // ✅ Lv3~7: GMS 머니(balance) 검증
+    else {
+      if (currentPartnerData.balance < amount) {
+        throw new Error(`SENDER_BALANCE_INSUFFICIENT:${currentPartnerData.balance}`);
+      }
     }
   }
 
@@ -70,17 +80,20 @@ export const transferBalanceToPartner = async ({
 
     const currentChildBalanceSum = (childMainOffices || []).reduce((sum, office) => sum + (office.balance || 0), 0);
     const afterTransferChildBalanceSum = currentChildBalanceSum + amount;
+    
+    // Lv2는 oroplay_balance로 검증
+    const lv2AvailableBalance = currentPartnerData.oroplay_balance || 0;
 
     console.log('💰 [대본사→본사 지급 검증]', {
-      대본사_보유금: currentPartnerData.balance,
+      대본사_OroPlay_보유금: lv2AvailableBalance,
       현재_하위본사_보유금합계: currentChildBalanceSum,
       지급액: amount,
       지급후_하위본사_보유금합계: afterTransferChildBalanceSum,
-      초과여부: afterTransferChildBalanceSum > currentPartnerData.balance
+      초과여부: afterTransferChildBalanceSum > lv2AvailableBalance
     });
 
-    if (afterTransferChildBalanceSum > currentPartnerData.balance) {
-      throw new Error(`CHILD_BALANCE_EXCEEDS:${currentChildBalanceSum}:${afterTransferChildBalanceSum}:${currentPartnerData.balance}`);
+    if (afterTransferChildBalanceSum > lv2AvailableBalance) {
+      throw new Error(`CHILD_BALANCE_EXCEEDS:${currentChildBalanceSum}:${afterTransferChildBalanceSum}:${lv2AvailableBalance}`);
     }
   }
 
@@ -93,32 +106,63 @@ export const transferBalanceToPartner = async ({
   if (transferMode === 'deposit') {
     // 지급: 송금자 차감, 수신자 증가
     if (!isSystemAdmin) {
-      // ✅ Lv2~7: GMS 머니(balance) 차감
-      senderNewBalance = currentPartnerData.balance - amount;
-      const { error: deductError } = await supabase
-        .from('partners')
-        .update({ 
-          balance: senderNewBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentUserId);
+      // ✅ Lv2: oroplay_balance만 차감
+      if (currentPartnerData.level === 2) {
+        const newOroplayBalance = (currentPartnerData.oroplay_balance || 0) - amount;
+        
+        const { error: deductError } = await supabase
+          .from('partners')
+          .update({ 
+            oroplay_balance: newOroplayBalance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentUserId);
 
-      if (deductError) throw deductError;
+        if (deductError) throw deductError;
 
-      // 송신자 로그 기록
-      await supabase
-        .from('partner_balance_logs')
-        .insert({
-          partner_id: currentUserId,
-          balance_before: currentPartnerData.balance,
-          balance_after: senderNewBalance,
-          amount: -amount,
-          transaction_type: 'withdrawal',
-          from_partner_id: currentUserId,
-          to_partner_id: transferTargetPartner.id,
-          processed_by: currentUserId,
-          memo: `[보유금 지급] ${transferTargetPartner.nickname}에게 ${amount.toLocaleString()}원 지급${transferMemo ? `: ${transferMemo}` : ''}`
-        });
+        // 송신자 로그 기록
+        await supabase
+          .from('partner_balance_logs')
+          .insert({
+            partner_id: currentUserId,
+            balance_before: currentPartnerData.oroplay_balance || 0,
+            balance_after: newOroplayBalance,
+            amount: -amount,
+            transaction_type: 'withdrawal',
+            from_partner_id: currentUserId,
+            to_partner_id: transferTargetPartner.id,
+            processed_by: currentUserId,
+            memo: `[Lv2 보유금 지급] ${transferTargetPartner.nickname}에게 ${amount.toLocaleString()}원 지급 (OroPlay: ${newOroplayBalance.toLocaleString()})${transferMemo ? `: ${transferMemo}` : ''}`
+          });
+      }
+      // ✅ Lv3~7: GMS 머니(balance) 차감
+      else {
+        senderNewBalance = currentPartnerData.balance - amount;
+        const { error: deductError } = await supabase
+          .from('partners')
+          .update({ 
+            balance: senderNewBalance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentUserId);
+
+        if (deductError) throw deductError;
+
+        // 송신자 로그 기록
+        await supabase
+          .from('partner_balance_logs')
+          .insert({
+            partner_id: currentUserId,
+            balance_before: currentPartnerData.balance,
+            balance_after: senderNewBalance,
+            amount: -amount,
+            transaction_type: 'withdrawal',
+            from_partner_id: currentUserId,
+            to_partner_id: transferTargetPartner.id,
+            processed_by: currentUserId,
+            memo: `[보유금 지급] ${transferTargetPartner.nickname}에게 ${amount.toLocaleString()}원 지급${transferMemo ? `: ${transferMemo}` : ''}`
+          });
+      }
     }
 
     // 수신자 보유금 증가
@@ -178,31 +222,63 @@ export const transferBalanceToPartner = async ({
 
     // 송금자 보유금 증가 (시스템관리자가 아닌 경우)
     if (!isSystemAdmin) {
-      senderNewBalance = currentPartnerData.balance + amount;
-      const { error: increaseError } = await supabase
-        .from('partners')
-        .update({ 
-          balance: senderNewBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentUserId);
+      // ✅ Lv2: oroplay_balance만 증가
+      if (currentPartnerData.level === 2) {
+        const newOroplayBalance = (currentPartnerData.oroplay_balance || 0) + amount;
+        
+        const { error: increaseError } = await supabase
+          .from('partners')
+          .update({ 
+            oroplay_balance: newOroplayBalance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentUserId);
 
-      if (increaseError) throw increaseError;
+        if (increaseError) throw increaseError;
 
-      // 송신자 로그 기록
-      await supabase
-        .from('partner_balance_logs')
-        .insert({
-          partner_id: currentUserId,
-          balance_before: currentPartnerData.balance,
-          balance_after: senderNewBalance,
-          amount: amount,
-          transaction_type: 'deposit',
-          from_partner_id: transferTargetPartner.id,
-          to_partner_id: currentUserId,
-          processed_by: currentUserId,
-          memo: `[보유금 회수] ${transferTargetPartner.nickname}으로부터 ${amount.toLocaleString()}원 회수${transferMemo ? `: ${transferMemo}` : ''}`
-        });
+        // 송신자 로그 기록
+        await supabase
+          .from('partner_balance_logs')
+          .insert({
+            partner_id: currentUserId,
+            balance_before: currentPartnerData.oroplay_balance || 0,
+            balance_after: newOroplayBalance,
+            amount: amount,
+            transaction_type: 'deposit',
+            from_partner_id: transferTargetPartner.id,
+            to_partner_id: currentUserId,
+            processed_by: currentUserId,
+            memo: `[Lv2 보유금 회수] ${transferTargetPartner.nickname}으로부터 ${amount.toLocaleString()}원 회수 (OroPlay: ${newOroplayBalance.toLocaleString()})${transferMemo ? `: ${transferMemo}` : ''}`
+          });
+      }
+      // ✅ Lv3~7: GMS 머니(balance) 증가
+      else {
+        senderNewBalance = currentPartnerData.balance + amount;
+        const { error: increaseError } = await supabase
+          .from('partners')
+          .update({ 
+            balance: senderNewBalance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', currentUserId);
+
+        if (increaseError) throw increaseError;
+
+        // 송신자 로그 기록
+        await supabase
+          .from('partner_balance_logs')
+          .insert({
+            partner_id: currentUserId,
+            balance_before: currentPartnerData.balance,
+            balance_after: senderNewBalance,
+            amount: amount,
+            transaction_type: 'deposit',
+            from_partner_id: transferTargetPartner.id,
+            to_partner_id: currentUserId,
+            processed_by: currentUserId,
+            memo: `[보유금 회수] ${transferTargetPartner.nickname}으로부터 ${amount.toLocaleString()}원 회수${transferMemo ? `: ${transferMemo}` : ''}`
+          });
+      }
     }
   }
 
