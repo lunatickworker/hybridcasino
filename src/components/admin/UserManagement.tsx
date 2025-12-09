@@ -844,10 +844,10 @@ export function UserManagement() {
 
       // 입금 시 관리자 보유금 검증 (시스템관리자는 제외)
       if (data.type === 'deposit' && !isSystemAdmin) {
-        // Lv2: invest_balance와 oroplay_balance 중 최소값 체크
+        // Lv2: oroplay_balance만 우선 체크
         if (adminPartner.level === 2) {
-          const minBalance = Math.min(adminPartner.invest_balance || 0, adminPartner.oroplay_balance || 0);
-          if (minBalance < data.amount) {
+          const oroplayBalance = adminPartner.oroplay_balance || 0;
+          if (oroplayBalance < data.amount) {
             console.error('❌ Lv2 보유금 부족:', { invest: adminPartner.invest_balance, oroplay: adminPartner.oroplay_balance, required: data.amount });
             return;
           }
