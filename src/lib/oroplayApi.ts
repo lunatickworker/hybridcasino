@@ -50,6 +50,13 @@ async function proxyCall<T = any>(config: ProxyConfig): Promise<T> {
     if (data && typeof data === 'object') {
       if (data.RESULT === false || data.result === false) {
         const errorMessage = data.message || data.DATA?.message || '알 수 없는 오류가 발생했습니다.';
+        
+        // ✅ "게임기록이 존재하지 않습니다" 메시지는 정상 응답으로 처리
+        if (errorMessage.includes('게임기록이 존재하지 않습니다')) {
+          console.log('ℹ️ [OroPlay] 게임기록이 없습니다 (정상)');
+          return data; // 원본 데이터 그대로 반환
+        }
+        
         console.error('❌ OroPlay Proxy 응답 오류 (RESULT: false):', errorMessage);
         throw new Error(errorMessage);
       }
@@ -420,8 +427,8 @@ export async function getBettingHistory(
   limit: number = 5000,
   vendorCode?: string
 ): Promise<BettingHistoryResponse> {
-  const executeCall = async () => {
-    return await proxyCall<any>({
+  try {
+    const response = await proxyCall<any>({
       url: `${OROPLAY_BASE_URL}/betting/history/by-date-v2`,
       method: 'POST',
       headers: {
@@ -434,15 +441,48 @@ export async function getBettingHistory(
         limit
       }
     });
-  };
-  
-  const response = await oroplayRateLimiter.enqueue(executeCall);
-  
-  if (response.errorCode !== undefined && response.errorCode !== 0) {
-    throw new Error(`Failed to get betting history: errorCode ${response.errorCode}`);
+    
+    // ✅ "게임기록이 존재하지 않습니다" 메시지는 정상 처리 (빈 배열 반환)
+    if (response.RESULT === false || response.result === false) {
+      const errorMessage = response.message || response.DATA?.message || '';
+      if (errorMessage.includes('게임기록이 존재하지 않습니다')) {
+        return {
+          nextStartDate: startDate,
+          limit: limit,
+          histories: []
+        };
+      }
+    }
+    
+    // ✅ errorCode 체크
+    if (response.errorCode !== undefined && response.errorCode !== 0) {
+      // errorCode 5 = 배팅 기록이 없습니다 (정상 처리)
+      if (response.errorCode === 5) {
+        return {
+          nextStartDate: startDate,
+          limit: limit,
+          histories: []
+        };
+      }
+      throw new Error(`Failed to get betting history: errorCode ${response.errorCode}`);
+    }
+    
+    // ✅ response.message 또는 response를 직접 반환
+    const result = response.message || response;
+    
+    return result;
+  } catch (error: any) {
+    console.error('❌ [OroPlay] getBettingHistory 에러:', error);
+    // ✅ "게임기록이 존재하지 않습니다" 메시지는 정상 처리 (빈 배열 반환)
+    if (error.message && error.message.includes('게임기록이 존재하지 않습니다')) {
+      return {
+        nextStartDate: startDate,
+        limit: limit,
+        histories: []
+      };
+    }
+    throw error;
   }
-  
-  return response.message || response;
 }
 
 // ============================================
@@ -630,10 +670,6 @@ export function getErrorMessage(errorCode: number): string {
 }
 
 // ============================================
-// 통합 Export 객체
-// ============================================
-
-// ============================================
 // 9. Seamless Wallet 헬퍼 함수
 // ============================================
 
@@ -682,6 +718,33 @@ export async function withdrawBalance(
   }
 }
 
+/**
+ * API 응답에서 잔고 추출
+ */
+export function extractBalanceFromResponse(response: any, username: string): number {
+  // OroPlay는 입금/출금 후 잔고를 직접 반환
+  if (typeof response === 'number') {
+    return response;
+  }
+  
+  // balance 필드가 있으면 사용
+  if (response?.balance !== undefined) {
+    return typeof response.balance === 'number' ? response.balance : parseFloat(response.balance) || 0;
+  }
+  
+  // message 필드에 잔고가 있을 수 있음
+  if (response?.message !== undefined && typeof response.message === 'number') {
+    return response.message;
+  }
+  
+  console.warn('⚠️ [OroPlay] 잔고 추출 실패, 0 반환:', response);
+  return 0;
+}
+
+// ============================================
+// 통합 Export 객체
+// ============================================
+
 export const oroplayApi = {
   // 인증
   createToken: createOroPlayToken,
@@ -716,4 +779,5 @@ export const oroplayApi = {
   
   // 유틸리티
   getErrorMessage,
+  extractBalanceFromResponse,
 };

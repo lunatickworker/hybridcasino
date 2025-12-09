@@ -199,6 +199,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         
         if (userIds.length > 0) {
           query = query.in('user_id', userIds);
+          console.log('🔍 Query with user IDs filter');
         } else {
           // 하위 회원이 없으면 빈 결과 반환
           console.log('⚠️ 하위 회원이 없습니다.');
@@ -285,7 +286,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   useEffect(() => {
     setLoading(true);
     loadBettingData().finally(() => setLoading(false));
-  }, [dateFilter]);
+  }, [dateFilter, user.id]);
 
   // ✅ Realtime 구독 - 자동 업데이트 (한번만 설정)
   useEffect(() => {

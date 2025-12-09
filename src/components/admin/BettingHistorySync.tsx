@@ -366,33 +366,40 @@ const processSingleOpcode = async (
  * 새로고침 버튼 클릭 시 사용
  */
 export async function forceSyncBettingHistory(user: Partner) {
-  const now = new Date();
-  const year = now.getFullYear().toString();
-  const month = (now.getMonth() + 1).toString();
-
-  console.log('🔄 [BETTING-FORCE-SYNC] 강제 동기화 시작', { year, month });
+  console.log('🔄 [BETTING-FORCE-SYNC] OroPlay 베팅 동기화 시작');
 
   try {
-    const opcodeInfo = await opcodeHelper.getAdminOpcode(user);
-    
-    if (opcodeHelper.isMultipleOpcode(opcodeInfo)) {
-      // 시스템관리자: 여러 opcode 처리
-      const uniqueOpcodes = new Map<string, typeof opcodeInfo.opcodes[0]>();
-      for (const info of opcodeInfo.opcodes) {
-        if (!uniqueOpcodes.has(info.opcode)) {
-          uniqueOpcodes.set(info.opcode, info);
+    // ✅ OroPlay API 베팅 동기화만 실행
+    // Lv1 파트너 ID 찾기
+    let topLevelPartnerId = user.id;
+    if (user.level !== 1) {
+      // Lv1까지 올라가기
+      let currentId = user.id;
+      let currentLevel = user.level;
+      
+      while (currentLevel > 1) {
+        const { data: parentPartner } = await supabase
+          .from('partners')
+          .select('id, level, parent_id')
+          .eq('id', (await supabase.from('partners').select('parent_id').eq('id', currentId).single()).data?.parent_id || '')
+          .single();
+        
+        if (!parentPartner) break;
+        
+        currentId = parentPartner.id;
+        currentLevel = parentPartner.level;
+        
+        if (currentLevel === 1) {
+          topLevelPartnerId = currentId;
+          break;
         }
       }
-
-      for (const [, info] of uniqueOpcodes) {
-        await processSingleOpcode(info.opcode, info.secretKey, info.partnerId, year, month);
-      }
-    } else {
-      // 일반 관리자: 단일 opcode
-      await processSingleOpcode(opcodeInfo.opcode, opcodeInfo.secretKey, opcodeInfo.partnerId, year, month);
     }
+    
+    // OroPlay 베팅 동기화 실행
+    await syncOroPlayBettingHistory(topLevelPartnerId);
 
-    console.log('✅ [BETTING-FORCE-SYNC] 강제 동기화 완료');
+    console.log('✅ [BETTING-FORCE-SYNC] OroPlay 베팅 동기화 완료');
   } catch (error) {
     console.error('❌ [BETTING-FORCE-SYNC] 오류:', error);
     throw error;
@@ -410,10 +417,12 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
     // 1. OroPlay 토큰 가져오기
     const token = await oroplayApi.getOroPlayToken(partnerId);
     
-    // 2. 최근 동기화 시간 확인 (없으면 1시간 전부터)
+    // 2. 최근 동기화 시간 확인 (없으면 24시간 전부터)
     const lastSyncKey = `oroplay_last_sync_${partnerId}`;
     const lastSyncTime = localStorage.getItem(lastSyncKey);
-    const startDate = lastSyncTime || new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    
+    // ✅ 더 넓은 범위로 조회 (24시간)
+    const startDate = lastSyncTime || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     
     // 3. Apply rate limit to betting history query (V2 by-date, limit 4000)
     const result = await callWithRateLimit(async () => {
@@ -478,7 +487,10 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
             win_amount: bet.winAmount,
             balance_before: bet.beforeBalance,
             balance_after: bet.afterBalance,
-            played_at: new Date(bet.createdAt).toISOString()
+            // ✅ createdAt이 Unix timestamp(초 단위)면 변환, 문자열이면 그대로 사용
+            played_at: typeof bet.createdAt === 'number' 
+              ? new Date(bet.createdAt * 1000).toISOString() 
+              : new Date(bet.createdAt).toISOString()
           });
         
         if (error) {

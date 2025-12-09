@@ -394,10 +394,11 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
                   <tr className="border-b border-slate-700">
                     <th className="text-left p-3 text-slate-400">{t.settlement.partner}</th>
                     <th className="text-left p-3 text-slate-400">{t.settlement.grade}</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.betAmount}</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.rollingCommission}</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.losingCommission}</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.withdrawalCommission}</th>
+                    <th className="text-right p-3 text-blue-400">🎰 카지노 롤링</th>
+                    <th className="text-right p-3 text-blue-400">🎰 카지노 루징</th>
+                    <th className="text-right p-3 text-purple-400">🎮 슬롯 롤링</th>
+                    <th className="text-right p-3 text-purple-400">🎮 슬롯 루징</th>
+                    <th className="text-right p-3 text-emerald-400">💰 환전 수수료</th>
                     <th className="text-right p-3 text-slate-400">{t.settlement.totalCommission}</th>
                   </tr>
                 </thead>
@@ -413,27 +414,42 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
                       <td className="p-3">
                         <Badge variant="outline">{getLevelText(comm.partner_level)}</Badge>
                       </td>
-                      <td className="p-3 text-right text-slate-300">
-                        ₩{comm.total_bet_amount.toLocaleString()}
-                      </td>
+                      {/* 카지노 롤링 */}
                       <td className="p-3 text-right">
                         <div>
-                          <p className="text-blue-400">₩{comm.rolling_commission.toLocaleString()}</p>
-                          <p className="text-xs text-slate-500">{comm.commission_rolling}%</p>
+                          <p className="text-blue-400">₩{comm.casino_rolling_commission_amount.toLocaleString()}</p>
+                          <p className="text-xs text-slate-500">{comm.casino_rolling_commission}% · ₩{comm.casino_bet_amount.toLocaleString()}</p>
                         </div>
                       </td>
+                      {/* 카지노 루징 */}
                       <td className="p-3 text-right">
                         <div>
-                          <p className="text-purple-400">₩{comm.losing_commission.toLocaleString()}</p>
-                          <p className="text-xs text-slate-500">{comm.commission_losing}%</p>
+                          <p className="text-blue-400">₩{comm.casino_losing_commission_amount.toLocaleString()}</p>
+                          <p className="text-xs text-slate-500">{comm.casino_losing_commission}% · ₩{comm.casino_loss_amount.toLocaleString()}</p>
                         </div>
                       </td>
+                      {/* 슬롯 롤링 */}
                       <td className="p-3 text-right">
                         <div>
-                          <p className="text-green-400">₩{comm.withdrawal_commission.toLocaleString()}</p>
+                          <p className="text-purple-400">₩{comm.slot_rolling_commission_amount.toLocaleString()}</p>
+                          <p className="text-xs text-slate-500">{comm.slot_rolling_commission}% · ₩{comm.slot_bet_amount.toLocaleString()}</p>
+                        </div>
+                      </td>
+                      {/* 슬롯 루징 */}
+                      <td className="p-3 text-right">
+                        <div>
+                          <p className="text-purple-400">₩{comm.slot_losing_commission_amount.toLocaleString()}</p>
+                          <p className="text-xs text-slate-500">{comm.slot_losing_commission}% · ₩{comm.slot_loss_amount.toLocaleString()}</p>
+                        </div>
+                      </td>
+                      {/* 환전 수수료 */}
+                      <td className="p-3 text-right">
+                        <div>
+                          <p className="text-emerald-400">₩{comm.withdrawal_commission.toLocaleString()}</p>
                           <p className="text-xs text-slate-500">{comm.withdrawal_fee}%</p>
                         </div>
                       </td>
+                      {/* 전체 커미션 */}
                       <td className="p-3 text-right">
                         <p className="text-orange-400 font-mono">₩{comm.total_commission.toLocaleString()}</p>
                       </td>
@@ -442,14 +458,20 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-800/50 border-t-2 border-slate-600">
-                    <td colSpan={3} className="p-3 text-white">{t.settlement.totalSum}</td>
+                    <td colSpan={2} className="p-3 text-white">{t.settlement.totalSum}</td>
                     <td className="p-3 text-right text-blue-400 font-mono">
-                      ₩{stats.totalRollingCommission.toLocaleString()}
+                      ₩{commissions.reduce((sum, c) => sum + c.casino_rolling_commission_amount, 0).toLocaleString()}
+                    </td>
+                    <td className="p-3 text-right text-blue-400 font-mono">
+                      ₩{commissions.reduce((sum, c) => sum + c.casino_losing_commission_amount, 0).toLocaleString()}
                     </td>
                     <td className="p-3 text-right text-purple-400 font-mono">
-                      ₩{stats.totalLosingCommission.toLocaleString()}
+                      ₩{commissions.reduce((sum, c) => sum + c.slot_rolling_commission_amount, 0).toLocaleString()}
                     </td>
-                    <td className="p-3 text-right text-green-400 font-mono">
+                    <td className="p-3 text-right text-purple-400 font-mono">
+                      ₩{commissions.reduce((sum, c) => sum + c.slot_losing_commission_amount, 0).toLocaleString()}
+                    </td>
+                    <td className="p-3 text-right text-emerald-400 font-mono">
                       ₩{stats.totalWithdrawalCommission.toLocaleString()}
                     </td>
                     <td className="p-3 text-right text-orange-400 font-mono">

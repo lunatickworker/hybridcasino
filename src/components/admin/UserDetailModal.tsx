@@ -77,6 +77,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
   const [evolutionLimit, setEvolutionLimit] = useState<number>(100000000); // 기본값 1억
   const [currentEvolutionLimit, setCurrentEvolutionLimit] = useState<number | null>(null);
   const [evolutionLoading, setEvolutionLoading] = useState(false);
+  const [hasInvestApi, setHasInvestApi] = useState<boolean>(false); // invest API 사용 여부
 
 
 
@@ -371,18 +372,20 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
       
       const { md5Hash } = await import('../../lib/investApi');
       
-      // ✅ API 설정 조회 - api_configs 테이블에서 조회
-      const { data: apiConfig, error: configError } = await supabase
+      // ✅ API 설정 조회 - api_configs 테이블에서 조회 (배열로 받아서 invest 찾기)
+      const { data: apiConfigs, error: configError } = await supabase
         .from('api_configs')
         .select('invest_opcode, invest_secret_key')
-        .eq('partner_id', user.referrer_id)
-        .maybeSingle();
+        .eq('partner_id', user.referrer_id);
 
       if (configError) {
         console.error('❌ [사용자상세] API config 조회 에러:', configError);
         toast.error('파트너 API 설정 조회 중 오류가 발생했습니다.');
         return;
       }
+
+      // invest_opcode가 있는 레코드 찾기
+      const apiConfig = apiConfigs?.find(config => config.invest_opcode && config.invest_secret_key);
 
       if (!apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
         console.warn('⚠️ [사용자상세] API config 없음. referrer_id:', user.referrer_id);
@@ -428,15 +431,24 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
 
       const { md5Hash } = await import('../../lib/investApi');
       
-      // ✅ API 설정 조회 - api_configs 테이블에서 조회
-      const { data: apiConfig, error: configError } = await supabase
+      // ✅ API 설정 조회 - api_configs 테이블에서 조회 (배열로 받아서 invest 찾기)
+      const { data: apiConfigs, error: configError } = await supabase
         .from('api_configs')
         .select('invest_opcode, invest_secret_key')
-        .eq('partner_id', user.referrer_id)
-        .single();
+        .eq('partner_id', user.referrer_id);
 
-      if (configError || !apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
-        toast.error('파트너 API 설정을 찾을 수 없습니다.');
+      if (configError) {
+        console.error('❌ [사용자상세] API config 조회 에러:', configError);
+        toast.error('파트너 API 설정 조회 중 오류가 발생했습니다.');
+        return;
+      }
+
+      // invest_opcode가 있는 레코드 찾기
+      const apiConfig = apiConfigs?.find(config => config.invest_opcode && config.invest_secret_key);
+
+      if (!apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
+        console.warn('⚠️ [사용자상세] API config 없음. referrer_id:', user.referrer_id);
+        toast.error(`파트너 API 설정을 찾을 수 없습니다. (Partner ID: ${user.referrer_id})`);
         return;
       }
 
@@ -493,6 +505,38 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
       fetchEvolutionLimit();
     }
   }, [activeTab, isOpen, user]);
+
+  // invest API 사용 여부 확인
+  useEffect(() => {
+    const checkInvestApi = async () => {
+      if (!isOpen || !user?.referrer_id) {
+        setHasInvestApi(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('api_configs')
+          .select('invest_opcode')
+          .eq('partner_id', user.referrer_id);
+
+        if (error) {
+          console.error('invest API 확인 에러:', error);
+          setHasInvestApi(false);
+          return;
+        }
+
+        // 배열에서 invest_opcode가 존재하고 null이 아닌 레코드 찾기
+        const hasInvest = data?.some(config => !!config.invest_opcode);
+        setHasInvestApi(hasInvest);
+      } catch (error) {
+        console.error('invest API 확인 에러:', error);
+        setHasInvestApi(false);
+      }
+    };
+
+    checkInvestApi();
+  }, [isOpen, user]);
 
   const formatCurrency = (amount: number) => `₩${amount.toLocaleString()}`;
   const formatDate = (date: string) => {
@@ -552,7 +596,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full px-6">
           <div className="bg-slate-800/30 rounded-xl p-1.5 border border-slate-700/40">
-            <TabsList className="bg-transparent h-auto p-0 border-0 gap-2 w-full grid grid-cols-5">
+            <TabsList className={`bg-transparent h-auto p-0 border-0 gap-2 w-full grid ${hasInvestApi ? 'grid-cols-5' : 'grid-cols-4'}`}>
               <TabsTrigger 
                 value="basic" 
                 className="bg-transparent text-slate-400 rounded-lg px-4 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
@@ -581,13 +625,15 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                 <Brain className="h-4 w-4 mr-2" />
                 <span className="text-sm">AI 게임패턴</span>
               </TabsTrigger>
-              <TabsTrigger 
-                value="evolution" 
-                className="bg-transparent text-slate-400 rounded-lg px-4 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-red-500/20 data-[state=active]:to-rose-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-red-500/20 data-[state=active]:border data-[state=active]:border-red-400/30 transition-all duration-200"
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                <span className="text-sm">에볼루션 설정</span>
-              </TabsTrigger>
+              {hasInvestApi && (
+                <TabsTrigger 
+                  value="evolution" 
+                  className="bg-transparent text-slate-400 rounded-lg px-4 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-red-500/20 data-[state=active]:to-rose-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-red-500/20 data-[state=active]:border data-[state=active]:border-red-400/30 transition-all duration-200"
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  <span className="text-sm">에볼루션 설정</span>
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 

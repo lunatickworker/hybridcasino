@@ -45,8 +45,12 @@ interface Partner {
   level: number;
   status: 'active' | 'inactive' | 'blocked';
   balance: number;
-  commission_rolling: number;
-  commission_losing: number;
+  commission_rolling: number; // ⚠️ 하위 호환성용 (향후 삭제 예정)
+  commission_losing: number; // ⚠️ 하위 호환성용 (향후 삭제 예정)
+  casino_rolling_commission: number; // ✅ 카지노 롤링 커미션
+  casino_losing_commission: number; // ✅ 카지노 루징 커미션
+  slot_rolling_commission: number; // ✅ 슬롯 롤링 커미션
+  slot_losing_commission: number; // ✅ 슬롯 루징 커미션
   withdrawal_fee: number;
   min_withdrawal_amount?: number;
   max_withdrawal_amount?: number;
@@ -148,8 +152,12 @@ export function PartnerManagement() {
     password: "",
     partner_type: "head_office" as Partner['partner_type'],
     parent_id: "",
-    commission_rolling: 0.5,
-    commission_losing: 5.0,
+    commission_rolling: 0.5, // ⚠️ 하위 호환성용
+    commission_losing: 5.0, // ⚠️ 하위 호환성용
+    casino_rolling_commission: 0.5, // ✅ 카지노 롤링
+    casino_losing_commission: 5.0, // ✅ 카지노 루징
+    slot_rolling_commission: 0.5, // ✅ 슬롯 롤링
+    slot_losing_commission: 5.0, // ✅ 슬롯 루징
     withdrawal_fee: 0,
     min_withdrawal_amount: 10000,
     max_withdrawal_amount: 1000000,
@@ -473,7 +481,7 @@ export function PartnerManagement() {
                   balance: 0 // ✅ Lv1은 partners.balance를 0으로 유지
                 };
                 
-                // api_provider에 따라 해당 balance 업데이트
+                // api_provider에 따라 ��당 balance 업데이트
                 if (apiProvider === 'invest') {
                   updates.invest_balance = newBalance;
                 } else if (apiProvider === 'oroplay') {
@@ -895,8 +903,12 @@ export function PartnerManagement() {
         partner_type: formData.partner_type,
         level,
         parent_id: parentId,
-        commission_rolling: rollingCommission,
-        commission_losing: losingCommission,
+        commission_rolling: formData.casino_rolling_commission || rollingCommission, // ⚠️ 하위 호환성
+        commission_losing: formData.casino_losing_commission || losingCommission, // ⚠️ 하위 호환성
+        casino_rolling_commission: formData.casino_rolling_commission || rollingCommission,
+        casino_losing_commission: formData.casino_losing_commission || losingCommission,
+        slot_rolling_commission: formData.slot_rolling_commission || rollingCommission,
+        slot_losing_commission: formData.slot_losing_commission || losingCommission,
         withdrawal_fee: withdrawalFee,
         status: 'active'
       };
@@ -989,8 +1001,12 @@ export function PartnerManagement() {
 
       const updateData: any = {
         nickname: formData.nickname,
-        commission_rolling: formData.commission_rolling,
-        commission_losing: formData.commission_losing,
+        commission_rolling: formData.casino_rolling_commission, // ⚠️ 하위 호환성 (카지노 값으로 업데이트)
+        commission_losing: formData.casino_losing_commission, // ⚠️ 하위 호환성 (카지노 값으로 업데이트)
+        casino_rolling_commission: formData.casino_rolling_commission,
+        casino_losing_commission: formData.casino_losing_commission,
+        slot_rolling_commission: formData.slot_rolling_commission,
+        slot_losing_commission: formData.slot_losing_commission,
         withdrawal_fee: formData.withdrawal_fee,
         min_withdrawal_amount: formData.min_withdrawal_amount,
         max_withdrawal_amount: formData.max_withdrawal_amount,
@@ -1359,13 +1375,10 @@ export function PartnerManagement() {
       let targetNewBalance = targetPartner.balance;
 
       if (data.type === 'deposit') { 
-        // Lv1/Lv2 → Lv3 입금: Lv2 변동 없음, Lv3 balance만 증가
-        if ((isLv1ToLv3 || isLv2ToLv3) && targetPartner.level === 3) {
-          console.log('✅ [Lv1/Lv2→Lv3 입금] Lv2 변동 없음, Lv3 balance만 증가');
+        // ✅ Lv1 → Lv3 입금: Lv1 변동 없음, Lv3 balance만 증가
+        if (isLv1ToLv3 && targetPartner.level === 3) {
+          console.log('✅ [Lv1→Lv3 입금] Lv1 변동 없음, Lv3 balance만 증가');
           
-          // Lv1/Lv2: 변동 없음 (기록만)
-          // (입금 시에도 Lv2는 변동이 없음 - Lv1과 동일한 로직)
-
           // Lv3: balance 증가
           const targetBalanceBefore = targetPartner.balance;
           const targetBalanceAfter = targetBalanceBefore + data.amount;
@@ -1378,7 +1391,7 @@ export function PartnerManagement() {
             })
             .eq('id', data.targetId);
 
-          // ✅ 로그 기록 - Lv3 입금 내역만 기록 (나의 입장에서만)
+          // ✅ 로그 기록 - Lv3 입금 내역만 기록
           await supabase
             .from('partner_balance_logs')
             .insert({
@@ -1399,29 +1412,46 @@ export function PartnerManagement() {
           fetchPartners();
           return;
         }
-        // ✅ Lv2 → Lv4~6 입금: Lv2의 두 개 지갑 중 하나 차감, Lv4~6 증가
-        if (adminPartner.level === 2 && targetPartner.level >= 4 && data.apiType) {
-          // Lv2의 invest_balance 또는 oroplay_balance 차감
-          const balanceField = data.apiType === 'invest' ? 'invest_balance' : 'oroplay_balance';
-          const currentBalance = (data.apiType === 'invest' ? adminPartner.invest_balance : adminPartner.oroplay_balance) || 0;
+        // ✅ Lv2 → Lv3+ 입금: 무조건 oroplay_balance 차감 (UserManagement와 동일)
+        if (adminPartner.level === 2 && targetPartner.level >= 3) {
+          // Lv2의 oroplay_balance 차감
+          const currentBalance = adminPartner.oroplay_balance || 0;
           const newLv2Balance = currentBalance - data.amount;
           
+          console.log(`✅ [Lv2→Lv${targetPartner.level} 입금] Lv2 oroplay_balance 차감: ${currentBalance.toLocaleString()} → ${newLv2Balance.toLocaleString()}`);
+
           await supabase
             .from('partners')
             .update({ 
-              [balanceField]: newLv2Balance,
+              oroplay_balance: newLv2Balance,
               updated_at: new Date().toISOString()
             })
             .eq('id', authState.user.id);
 
-          // 대상 파트너(Lv4~6) balance 증가
+          // 대상 파트너(Lv3+) balance 증가
           targetNewBalance = targetPartner.balance + data.amount;
           await supabase
             .from('partners')
             .update({ balance: targetNewBalance, updated_at: new Date().toISOString() })
             .eq('id', data.targetId);
 
-          // ✅ 로그 기록 - Lv4~6 입금 내역만 기록 (나의 입장에서만)
+          // ✅ 로그 기록 - Lv2 차감
+          await supabase
+            .from('partner_balance_logs')
+            .insert({
+              partner_id: authState.user.id,
+              balance_before: currentBalance,
+              balance_after: newLv2Balance,
+              amount: -data.amount,
+              transaction_type: 'withdrawal',
+              from_partner_id: authState.user.id,
+              to_partner_id: data.targetId,
+              processed_by: authState.user.id,
+              api_type: 'oroplay',
+              memo: `[OroPlay 보유금 지급] ${targetPartner.nickname}에게 ${data.amount.toLocaleString()}원 지급${data.memo ? `: ${data.memo}` : ''}`
+            });
+
+          // ✅ 로그 기록 - Lv3+ 입금
           await supabase
             .from('partner_balance_logs')
             .insert({
@@ -1435,6 +1465,12 @@ export function PartnerManagement() {
               processed_by: authState.user.id,
               memo: `[강제입금] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 입금${data.memo ? `: ${data.memo}` : ''}`
             });
+
+          toast.success(t.partnerManagement.depositCompleted
+          .replace('{{nickname}}', targetPartner.nickname)
+          .replace('{{amount}}', data.amount.toLocaleString()));
+          fetchPartners();
+          return;
         }
         // 일반 입금: 관리자 차감, 파트너 증가
         else {
@@ -1468,9 +1504,9 @@ export function PartnerManagement() {
 
       } else {
         // 출금 처리
-        // Lv1/Lv2 → Lv3 회수: Lv2 변동 없음, Lv3 balance만 차감
-        if ((isLv1ToLv3 || isLv2ToLv3) && targetPartner.level === 3) {
-          console.log(`✅ [Lv1/Lv2→Lv3 회수] Lv2 변동 없음, Lv3 balance만 차감`);
+        // ✅ Lv1 → Lv3 회수: Lv1 변동 없음, Lv3 balance만 차감
+        if (isLv1ToLv3 && targetPartner.level === 3) {
+          console.log(`✅ [Lv1→Lv3 회수] Lv1 변동 없음, Lv3 balance만 차감`);
           
           // Lv3: balance 차감
           const targetBalanceBefore = targetPartner.balance;
@@ -1484,10 +1520,7 @@ export function PartnerManagement() {
             })
             .eq('id', data.targetId);
 
-          // Lv1/Lv2: 변동 없음 (기록만)
-          // (입금할 때도 변동이 없었으니까 회수할 때도 변동 없음)
-
-          // ✅ 로그 기록 - Lv3 출금 내역만 기록 (나의 입장에서만)
+          // ✅ 로그 기록 - Lv3 출금 내역만 기록
           await supabase
             .from('partner_balance_logs')
             .insert({
@@ -1508,29 +1541,30 @@ export function PartnerManagement() {
           fetchPartners();
           return;
         }
-        // ✅ Lv2 → Lv4~6 출금: Lv4~6 차감, Lv2의 두 개 지갑 중 하나 증가
-        if (adminPartner.level === 2 && targetPartner.level >= 4 && data.apiType) {
-          // 대상 파트너(Lv4~6) balance 차감
+        // ✅ Lv2 → Lv3+ 출금: 무조건 oroplay_balance 증가 (UserManagement와 동일)
+        if (adminPartner.level === 2 && targetPartner.level >= 3) {
+          // 대상 파트너(Lv3+) balance 차감
           targetNewBalance = targetPartner.balance - data.amount;
           await supabase
             .from('partners')
             .update({ balance: targetNewBalance, updated_at: new Date().toISOString() })
             .eq('id', data.targetId);
 
-          // Lv2의 invest_balance 또는 oroplay_balance 증가
-          const balanceField = data.apiType === 'invest' ? 'invest_balance' : 'oroplay_balance';
-          const currentBalance = (data.apiType === 'invest' ? adminPartner.invest_balance : adminPartner.oroplay_balance) || 0;
+          // Lv2의 oroplay_balance 증가
+          const currentBalance = adminPartner.oroplay_balance || 0;
           const newLv2Balance = currentBalance + data.amount;
           
+          console.log(`✅ [Lv2→Lv${targetPartner.level} 회수] Lv2 oroplay_balance 증가: ${currentBalance.toLocaleString()} → ${newLv2Balance.toLocaleString()}`);
+
           await supabase
             .from('partners')
             .update({ 
-              [balanceField]: newLv2Balance,
+              oroplay_balance: newLv2Balance,
               updated_at: new Date().toISOString()
             })
             .eq('id', authState.user.id);
 
-          // ✅ 로그 기록 - Lv4~6 출금 내역만 기록 (나의 입장에서만)
+          // ✅ 로그 기록 - Lv3+ 출금
           await supabase
             .from('partner_balance_logs')
             .insert({
@@ -1544,6 +1578,28 @@ export function PartnerManagement() {
               processed_by: authState.user.id,
               memo: `[강제출금] ${adminPartner.nickname}에게 ${data.amount.toLocaleString()}원 출금${data.memo ? `: ${data.memo}` : ''}`
             });
+
+          // ✅ 로그 기록 - Lv2 증가
+          await supabase
+            .from('partner_balance_logs')
+            .insert({
+              partner_id: authState.user.id,
+              balance_before: currentBalance,
+              balance_after: newLv2Balance,
+              amount: data.amount,
+              transaction_type: 'deposit',
+              from_partner_id: data.targetId,
+              to_partner_id: authState.user.id,
+              processed_by: authState.user.id,
+              api_type: 'oroplay',
+              memo: `[OroPlay 보유금 회수] ${targetPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 회수${data.memo ? `: ${data.memo}` : ''}`
+            });
+
+          toast.success(t.partnerManagement.withdrawalCompleted
+            .replace('{{nickname}}', targetPartner.nickname)
+            .replace('{{amount}}', data.amount.toLocaleString()));
+          fetchPartners();
+          return;
         }
         // 일반 출금: 파트너 차감, 관리자 증가
         else {
@@ -2276,8 +2332,12 @@ export function PartnerManagement() {
       opcode: "",
       secret_key: "",
       api_token: "",
-      commission_rolling: systemDefaultCommission.rolling,
-      commission_losing: systemDefaultCommission.losing,
+      commission_rolling: systemDefaultCommission.rolling, // ⚠️ 하위 호환성
+      commission_losing: systemDefaultCommission.losing, // ⚠️ 하위 호환성
+      casino_rolling_commission: systemDefaultCommission.rolling,
+      casino_losing_commission: systemDefaultCommission.losing,
+      slot_rolling_commission: systemDefaultCommission.rolling,
+      slot_losing_commission: systemDefaultCommission.losing,
       withdrawal_fee: systemDefaultCommission.fee
     });
   };
@@ -2293,8 +2353,12 @@ export function PartnerManagement() {
       opcode: partner.opcode || "",
       secret_key: partner.secret_key || "",
       api_token: partner.api_token || "",
-      commission_rolling: partner.commission_rolling,
-      commission_losing: partner.commission_losing,
+      commission_rolling: partner.commission_rolling, // ⚠️ 하위 호환성
+      commission_losing: partner.commission_losing, // ⚠️ 하위 호환성
+      casino_rolling_commission: partner.casino_rolling_commission || partner.commission_rolling,
+      casino_losing_commission: partner.casino_losing_commission || partner.commission_losing,
+      slot_rolling_commission: partner.slot_rolling_commission || partner.commission_rolling,
+      slot_losing_commission: partner.slot_losing_commission || partner.commission_losing,
       withdrawal_fee: partner.withdrawal_fee
     });
   };
@@ -3466,102 +3530,154 @@ export function PartnerManagement() {
                   </p>
                 </div>
               )}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="commission_rolling">{t.partnerManagement.rollingCommissionLabel}</Label>
-                  <Input
-                    id="commission_rolling"
-                    type="text"
-                    step="0.1"
-                    min="0"
-                    max={formData.partner_type === 'head_office' ? 100 : parentCommission?.rolling || 100}
-                    value={formData.partner_type === 'head_office' ? 100 : formData.commission_rolling}
-                    onChange={(e) => {
-                      if (formData.partner_type === 'head_office') return;
-                      const value = e.target.value;
-                      if (value === '') {
-                        setFormData(prev => ({ ...prev, commission_rolling: 0 }));
-                        return;
-                      }
-                      const numValue = parseFloat(value);
-                      if (isNaN(numValue)) return;
-                      const maxValue = parentCommission?.rolling || 100;
-                      if (numValue > maxValue) {
-                        toast.error(t.partnerManagement.rollingExceedError.replace('{{max}}', maxValue.toString()));
-                        return;
-                      }
-                      setFormData(prev => ({ ...prev, commission_rolling: numValue }));
-                    }}
-                    disabled={formData.partner_type === 'head_office'}
-                    className={formData.partner_type === 'head_office' ? 'bg-muted' : ''}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {formData.partner_type === 'head_office' ? t.partnerManagement.headOfficeFixed : t.partnerManagement.totalBettingAmount}
-                  </p>
+              {/* 카지노 커미션 */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-blue-400">🎰 카지노 커미션</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="casino_rolling">카지노 롤링 (%)</Label>
+                    <Input
+                      id="casino_rolling"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max={formData.partner_type === 'head_office' ? 100 : parentCommission?.rolling || 100}
+                      value={formData.partner_type === 'head_office' ? 100 : formData.casino_rolling_commission}
+                      onChange={(e) => {
+                        if (formData.partner_type === 'head_office') return;
+                        const numValue = parseFloat(e.target.value) || 0;
+                        const maxValue = parentCommission?.rolling || 100;
+                        if (numValue > maxValue) {
+                          toast.error(t.partnerManagement.rollingExceedError.replace('{{max}}', maxValue.toString()));
+                          return;
+                        }
+                        setFormData(prev => ({ ...prev, casino_rolling_commission: numValue }));
+                      }}
+                      disabled={formData.partner_type === 'head_office'}
+                      className={formData.partner_type === 'head_office' ? 'bg-muted' : ''}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.partner_type === 'head_office' ? '대본사 고정값' : '카지노 베팅액 × 커미션 요율'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="casino_losing">카지노 루징 (%)</Label>
+                    <Input
+                      id="casino_losing"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max={formData.partner_type === 'head_office' ? 100 : parentCommission?.losing || 100}
+                      value={formData.partner_type === 'head_office' ? 100 : formData.casino_losing_commission}
+                      onChange={(e) => {
+                        if (formData.partner_type === 'head_office') return;
+                        const numValue = parseFloat(e.target.value) || 0;
+                        const maxValue = parentCommission?.losing || 100;
+                        if (numValue > maxValue) {
+                          toast.error(t.partnerManagement.losingExceedError.replace('{{max}}', maxValue.toString()));
+                          return;
+                        }
+                        setFormData(prev => ({ ...prev, casino_losing_commission: numValue }));
+                      }}
+                      disabled={formData.partner_type === 'head_office'}
+                      className={formData.partner_type === 'head_office' ? 'bg-muted' : ''}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.partner_type === 'head_office' ? '대본사 고정값' : '카지노 순손실액 × 커미션 요율'}
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="commission_losing">{t.partnerManagement.losingCommissionLabel}</Label>
-                  <Input
-                    id="commission_losing"
-                    type="text"
-                    step="0.1"
-                    min="0"
-                    max={formData.partner_type === 'head_office' ? 100 : parentCommission?.losing || 100}
-                    value={formData.partner_type === 'head_office' ? 100 : formData.commission_losing}
-                    onChange={(e) => {
-                      if (formData.partner_type === 'head_office') return;
-                      const value = e.target.value;
-                      if (value === '') {
-                        setFormData(prev => ({ ...prev, commission_losing: 0 }));
-                        return;
-                      }
-                      const numValue = parseFloat(value);
-                      if (isNaN(numValue)) return;
-                      const maxValue = parentCommission?.losing || 100;
-                      if (numValue > maxValue) {
-                        toast.error(t.partnerManagement.losingExceedError.replace('{{max}}', maxValue.toString()));
-                        return;
-                      }
-                      setFormData(prev => ({ ...prev, commission_losing: numValue }));
-                    }}
-                    disabled={formData.partner_type === 'head_office'}
-                    className={formData.partner_type === 'head_office' ? 'bg-muted' : ''}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {formData.partner_type === 'head_office' ? t.partnerManagement.headOfficeFixed : t.partnerManagement.memberNetLoss}
-                  </p>
+              </div>
+
+              {/* 슬롯 커미션 */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-purple-400">🎮 슬롯 커미션</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="slot_rolling">슬롯 롤링 (%)</Label>
+                    <Input
+                      id="slot_rolling"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max={formData.partner_type === 'head_office' ? 100 : parentCommission?.rolling || 100}
+                      value={formData.partner_type === 'head_office' ? 100 : formData.slot_rolling_commission}
+                      onChange={(e) => {
+                        if (formData.partner_type === 'head_office') return;
+                        const numValue = parseFloat(e.target.value) || 0;
+                        const maxValue = parentCommission?.rolling || 100;
+                        if (numValue > maxValue) {
+                          toast.error(t.partnerManagement.rollingExceedError.replace('{{max}}', maxValue.toString()));
+                          return;
+                        }
+                        setFormData(prev => ({ ...prev, slot_rolling_commission: numValue }));
+                      }}
+                      disabled={formData.partner_type === 'head_office'}
+                      className={formData.partner_type === 'head_office' ? 'bg-muted' : ''}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.partner_type === 'head_office' ? '대본사 고정값' : '슬롯 베팅액 × 커미션 요율'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="slot_losing">슬롯 루징 (%)</Label>
+                    <Input
+                      id="slot_losing"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max={formData.partner_type === 'head_office' ? 100 : parentCommission?.losing || 100}
+                      value={formData.partner_type === 'head_office' ? 100 : formData.slot_losing_commission}
+                      onChange={(e) => {
+                        if (formData.partner_type === 'head_office') return;
+                        const numValue = parseFloat(e.target.value) || 0;
+                        const maxValue = parentCommission?.losing || 100;
+                        if (numValue > maxValue) {
+                          toast.error(t.partnerManagement.losingExceedError.replace('{{max}}', maxValue.toString()));
+                          return;
+                        }
+                        setFormData(prev => ({ ...prev, slot_losing_commission: numValue }));
+                      }}
+                      disabled={formData.partner_type === 'head_office'}
+                      className={formData.partner_type === 'head_office' ? 'bg-muted' : ''}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.partner_type === 'head_office' ? '대본사 고정값' : '슬롯 순손실액 × 커미션 요율'}
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="withdrawal_fee">{t.partnerManagement.withdrawalFeeLabel}</Label>
-                  <Input
-                    id="withdrawal_fee"
-                    type="text"
-                    step="0.1"
-                    min="0"
-                    max={formData.partner_type === 'head_office' ? 100 : parentCommission?.fee || 100}
-                    value={formData.partner_type === 'head_office' ? 100 : formData.withdrawal_fee}
-                    onChange={(e) => {
-                      if (formData.partner_type === 'head_office') return;
-                      const value = e.target.value;
-                      if (value === '') {
-                        setFormData(prev => ({ ...prev, withdrawal_fee: 0 }));
-                        return;
-                      }
-                      const numValue = parseFloat(value);
-                      if (isNaN(numValue)) return;
-                      const maxValue = parentCommission?.fee || 100;
-                      if (numValue > maxValue) {
-                        toast.error(t.partnerManagement.feeExceedError.replace('{{max}}', maxValue.toString()));
-                        return;
-                      }
-                      setFormData(prev => ({ ...prev, withdrawal_fee: numValue }));
-                    }}
-                    disabled={formData.partner_type === 'head_office'}
-                    className={formData.partner_type === 'head_office' ? 'bg-muted' : ''}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {formData.partner_type === 'head_office' ? t.partnerManagement.headOfficeFixed : t.partnerManagement.withdrawalFeeDesc}
-                  </p>
+              </div>
+
+              {/* 환전 수수료 */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-emerald-400">💰 환전 수수료</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="withdrawal_fee">환전 수수료 (%)</Label>
+                    <Input
+                      id="withdrawal_fee"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max={formData.partner_type === 'head_office' ? 100 : parentCommission?.fee || 100}
+                      value={formData.partner_type === 'head_office' ? 100 : formData.withdrawal_fee}
+                      onChange={(e) => {
+                        if (formData.partner_type === 'head_office') return;
+                        const numValue = parseFloat(e.target.value) || 0;
+                        const maxValue = parentCommission?.fee || 100;
+                        if (numValue > maxValue) {
+                          toast.error(t.partnerManagement.feeExceedError.replace('{{max}}', maxValue.toString()));
+                          return;
+                        }
+                        setFormData(prev => ({ ...prev, withdrawal_fee: numValue }));
+                      }}
+                      disabled={formData.partner_type === 'head_office'}
+                      className={formData.partner_type === 'head_office' ? 'bg-muted' : ''}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {formData.partner_type === 'head_office' ? '대본사 고정값' : '환전 금액에 적용되는 수수료'}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3696,57 +3812,109 @@ export function PartnerManagement() {
                 </div>
               )}
               
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit_commission_rolling">롤링 커미션 (%)</Label>
-                  <Input
-                    id="edit_commission_rolling"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.rolling || 100}
-                    value={formData.commission_rolling}
-                    onChange={(e) => setFormData(prev => ({ ...prev, commission_rolling: parseFloat(e.target.value) || 0 }))}
-                    disabled={selectedPartner?.partner_type === 'head_office'}
-                    className={selectedPartner?.partner_type === 'head_office' ? 'bg-muted' : ''}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {selectedPartner?.partner_type === 'head_office' ? '대본사 고정값' : '회원 총 베팅액 × 커미션 요율'}
-                  </p>
+              {/* 카지노 커미션 */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-blue-400">🎰 카지노 커미션</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_casino_rolling">카지노 롤링 (%)</Label>
+                    <Input
+                      id="edit_casino_rolling"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.rolling || 100}
+                      value={formData.casino_rolling_commission}
+                      onChange={(e) => setFormData(prev => ({ ...prev, casino_rolling_commission: parseFloat(e.target.value) || 0 }))}
+                      disabled={selectedPartner?.partner_type === 'head_office'}
+                      className={selectedPartner?.partner_type === 'head_office' ? 'bg-muted' : ''}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {selectedPartner?.partner_type === 'head_office' ? '대본사 고정값' : '카지노 베팅액 × 커미션 요율'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_casino_losing">카지노 루징 (%)</Label>
+                    <Input
+                      id="edit_casino_losing"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.losing || 100}
+                      value={formData.casino_losing_commission}
+                      onChange={(e) => setFormData(prev => ({ ...prev, casino_losing_commission: parseFloat(e.target.value) || 0 }))}
+                      disabled={selectedPartner?.partner_type === 'head_office'}
+                      className={selectedPartner?.partner_type === 'head_office' ? 'bg-muted' : ''}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {selectedPartner?.partner_type === 'head_office' ? '대본사 고정값' : '카지노 순손실액 × 커미션 요율'}
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_commission_losing">루징 커미션 (%)</Label>
-                  <Input
-                    id="edit_commission_losing"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.losing || 100}
-                    value={formData.commission_losing}
-                    onChange={(e) => setFormData(prev => ({ ...prev, commission_losing: parseFloat(e.target.value) || 0 }))}
-                    disabled={selectedPartner?.partner_type === 'head_office'}
-                    className={selectedPartner?.partner_type === 'head_office' ? 'bg-muted' : ''}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {selectedPartner?.partner_type === 'head_office' ? '대본사 고정값' : '회원 순손실액 × 커미션 요율'}
-                  </p>
+              </div>
+
+              {/* 슬롯 커미션 */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-purple-400">🎮 슬롯 커미션</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_slot_rolling">슬롯 롤링 (%)</Label>
+                    <Input
+                      id="edit_slot_rolling"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.rolling || 100}
+                      value={formData.slot_rolling_commission}
+                      onChange={(e) => setFormData(prev => ({ ...prev, slot_rolling_commission: parseFloat(e.target.value) || 0 }))}
+                      disabled={selectedPartner?.partner_type === 'head_office'}
+                      className={selectedPartner?.partner_type === 'head_office' ? 'bg-muted' : ''}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {selectedPartner?.partner_type === 'head_office' ? '대본사 고정값' : '슬롯 베팅액 × 커미션 요율'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_slot_losing">슬롯 루징 (%)</Label>
+                    <Input
+                      id="edit_slot_losing"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.losing || 100}
+                      value={formData.slot_losing_commission}
+                      onChange={(e) => setFormData(prev => ({ ...prev, slot_losing_commission: parseFloat(e.target.value) || 0 }))}
+                      disabled={selectedPartner?.partner_type === 'head_office'}
+                      className={selectedPartner?.partner_type === 'head_office' ? 'bg-muted' : ''}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {selectedPartner?.partner_type === 'head_office' ? '대본사 고정값' : '슬롯 순손실액 × 커미션 요율'}
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_withdrawal_fee">환전 수수료 (%)</Label>
-                  <Input
-                    id="edit_withdrawal_fee"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.fee || 100}
-                    value={formData.withdrawal_fee}
-                    onChange={(e) => setFormData(prev => ({ ...prev, withdrawal_fee: parseFloat(e.target.value) || 0 }))}
-                    disabled={selectedPartner?.partner_type === 'head_office'}
-                    className={selectedPartner?.partner_type === 'head_office' ? 'bg-muted' : ''}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {selectedPartner?.partner_type === 'head_office' ? '대본사 고정값' : '환전 금액에 적용되는 수수료'}
-                  </p>
+              </div>
+
+              {/* 환전 수수료 */}
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm text-emerald-400">💰 환전 수수료</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_withdrawal_fee">환전 수수료 (%)</Label>
+                    <Input
+                      id="edit_withdrawal_fee"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.fee || 100}
+                      value={formData.withdrawal_fee}
+                      onChange={(e) => setFormData(prev => ({ ...prev, withdrawal_fee: parseFloat(e.target.value) || 0 }))}
+                      disabled={selectedPartner?.partner_type === 'head_office'}
+                      className={selectedPartner?.partner_type === 'head_office' ? 'bg-muted' : ''}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {selectedPartner?.partner_type === 'head_office' ? '대본사 고정값' : '환전 금액에 적용되는 수수료'}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3895,6 +4063,9 @@ export function PartnerManagement() {
         setTransferMemo={setTransferMemo}
         transferLoading={transferLoading}
         currentUserId={authState.user?.id || ''}
+        currentUserBalance={currentUserBalance}
+        currentUserInvestBalance={currentUserInvestBalance}
+        currentUserOroplayBalance={currentUserOroplayBalance}
         onSuccess={() => {
           setTransferTargetPartner(null);
           setTransferAmount("");

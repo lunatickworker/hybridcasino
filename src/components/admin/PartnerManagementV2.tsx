@@ -5,6 +5,7 @@ import { Partner } from "./partner/types";
 import { handleForceTransaction as executeForceTransaction } from "./partner/handleForceTransaction";
 import { useState } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { useBalance } from "../../contexts/BalanceContext";
 import { ChevronDown, ChevronRight, Building2, Users, Edit, DollarSign, ArrowDown, Download, Plus, Search, Eye, Shield, TrendingUp } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -14,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { MetricCard } from "./MetricCard";
 import { ForceTransactionModal } from "./ForceTransactionModal";
+import { HierarchyTransactionModal } from "./HierarchyTransactionModal";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { toast } from "sonner";
 
@@ -34,6 +36,7 @@ const statusColors = {
 
 export function PartnerManagementV2() {
   const { t } = useLanguage();
+  const { balance, investBalance, oroplayBalance, syncBalance } = useBalance();
   
   const {
     // State
@@ -97,6 +100,12 @@ export function PartnerManagementV2() {
     fee: number;
     nickname?: string;
   } | null>(null);
+  
+  // 계층 입출금 모달 state
+  const [showHierarchyTransactionModal, setShowHierarchyTransactionModal] = useState(false);
+  const [hierarchyTransactionType, setHierarchyTransactionType] = useState<'deposit' | 'withdrawal'>('deposit');
+  const [hierarchyTransactionTarget, setHierarchyTransactionTarget] = useState<Partner | null>(null);
+  
   const [systemDefaultCommission] = useState({
     rolling: 0.5,
     losing: 5.0,
@@ -284,18 +293,32 @@ export function PartnerManagementV2() {
               )}
             </div>
 
-            {/* 커미션 정보 */}
+            {/* 커미션 정보 - Casino/Slot 분리 */}
             <div className="min-w-[170px] flex-shrink-0">
-              <div className="flex items-center gap-1 text-xs">
-                <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-xs px-1">
-                  R:{partner.commission_rolling}%
-                </Badge>
-                <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30 text-xs px-1">
-                  L:{partner.commission_losing}%
-                </Badge>
-                <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30 text-xs px-1">
-                  F:{partner.withdrawal_fee}%
-                </Badge>
+              <div className="flex flex-col gap-1 text-xs">
+                {/* Casino 커미션 */}
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-slate-500 w-8">C:</span>
+                  <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px] px-1 py-0">
+                    R:{partner.casino_commission_rolling || 0}%
+                  </Badge>
+                  <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30 text-[10px] px-1 py-0">
+                    L:{partner.casino_commission_losing || 0}%
+                  </Badge>
+                </div>
+                {/* Slot 커미션 */}
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-slate-500 w-8">S:</span>
+                  <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px] px-1 py-0">
+                    R:{partner.slot_commission_rolling || 0}%
+                  </Badge>
+                  <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30 text-[10px] px-1 py-0">
+                    L:{partner.slot_commission_losing || 0}%
+                  </Badge>
+                  <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30 text-[10px] px-1 py-0">
+                    F:{partner.withdrawal_fee || 0}%
+                  </Badge>
+                </div>
               </div>
             </div>
 
@@ -329,73 +352,142 @@ export function PartnerManagementV2() {
 
           {/* 액션 버튼 */}
           <div className="flex items-center gap-1.5 w-[240px] flex-shrink-0">
-            {/* 보유금 지급/회수 버튼 - 시스템관리자->대본사는 ForceTransactionModal, 나머지는 PartnerTransferDialog */}
-            {/* Lv1 -> Lv2 대본사: 강제 입출금 (API 호출) */}
-            {/* Lv2 -> Lv3 본사: 강제 입출금 (API 호출) */}
-            {((authState.user?.level === 1 && partner.partner_type === 'head_office') ||
-              (authState.user?.level === 2 && partner.partner_type === 'main_office' && partner.parent_id === authState.user?.id)) && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setForceTransactionTarget(partner);
-                    setForceTransactionType('deposit');
-                    setShowForceTransactionModal(true);
-                  }}
-                  className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
-                  title="입금 (API 호출)"
-                >
-                  <DollarSign className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setForceTransactionTarget(partner);
-                    setForceTransactionType('withdrawal');
-                    setShowForceTransactionModal(true);
-                  }}
-                  className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
-                  title="출금 (API 호출)"
-                >
-                  <ArrowDown className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-            {/* Lv3~Lv7 -> 직접 하위 파트너: 보유금 입출금 (GMS 머니) */}
-            {partner.parent_id === authState.user?.id && 
-             partner.partner_type !== 'head_office' && 
-             partner.partner_type !== 'main_office' && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setTransferTargetPartner(partner);
-                    setTransferMode('deposit');
-                    setShowTransferDialog(true);
-                  }}
-                  className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
-                  title="보유금 지급 (GMS 머니)"
-                >
-                  <DollarSign className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setTransferTargetPartner(partner);
-                    setTransferMode('withdrawal');
-                    setShowTransferDialog(true);
-                  }}
-                  className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
-                  title="보유금 회수 (GMS 머니)"
-                >
-                  <ArrowDown className="h-4 w-4" />
-                </Button>
-              </>
-            )}
+            {/* 입출금 버튼 - 상위 권한자는 모든 하위 조직에 대해 입출금 가능 */}
+            {authState.user && authState.user.level < partner.level && partner.id !== authState.user.id && (() => {
+              // Lv1 -> Lv2 (head_office, API 호출)
+              if (authState.user.level === 1 && partner.partner_type === 'head_office') {
+                return (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setForceTransactionTarget(partner);
+                        setForceTransactionType('deposit');
+                        setShowForceTransactionModal(true);
+                      }}
+                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
+                      title="입금 (API 호출)"
+                    >
+                      <DollarSign className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setForceTransactionTarget(partner);
+                        setForceTransactionType('withdrawal');
+                        setShowForceTransactionModal(true);
+                      }}
+                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
+                      title="출금 (API 호출)"
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                  </>
+                );
+              }
+              // Lv2 -> Lv3 직속 본사 (API 호출)
+              else if (authState.user.level === 2 && partner.partner_type === 'main_office' && partner.parent_id === authState.user.id) {
+                return (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setForceTransactionTarget(partner);
+                        setForceTransactionType('deposit');
+                        setShowForceTransactionModal(true);
+                      }}
+                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
+                      title="입금 (API 호출)"
+                    >
+                      <DollarSign className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setForceTransactionTarget(partner);
+                        setForceTransactionType('withdrawal');
+                        setShowForceTransactionModal(true);
+                      }}
+                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
+                      title="출금 (API 호출)"
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                  </>
+                );
+              }
+              // 직속 하위 (Lv3~7, GMS 머니)
+              else if (partner.parent_id === authState.user.id && partner.partner_type !== 'head_office' && partner.partner_type !== 'main_office') {
+                return (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setTransferTargetPartner(partner);
+                        setTransferMode('deposit');
+                        setShowTransferDialog(true);
+                      }}
+                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
+                      title="보유금 지급 (GMS 머니)"
+                    >
+                      <DollarSign className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setTransferTargetPartner(partner);
+                        setTransferMode('withdrawal');
+                        setShowTransferDialog(true);
+                      }}
+                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
+                      title="보유금 회수 (GMS 머니)"
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                  </>
+                );
+              }
+              // 나머지 모든 하위 조직 (계층 입출금)
+              else {
+                return (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setHierarchyTransactionTarget(partner);
+                        setHierarchyTransactionType('deposit');
+                        setShowHierarchyTransactionModal(true);
+                      }}
+                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
+                      title="하위 파트너 입금"
+                    >
+                      <DollarSign className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setHierarchyTransactionTarget(partner);
+                        setHierarchyTransactionType('withdrawal');
+                        setShowHierarchyTransactionModal(true);
+                      }}
+                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
+                      title="하위 파트너 출금"
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                  </>
+                );
+              }
+            })()}
+            
             <Button
               variant="outline"
               size="sm"
@@ -441,12 +533,14 @@ export function PartnerManagementV2() {
   };
 
   // 보유금 입출금 성공 핸들러
-  const handleTransferSuccess = () => {
+  const handleTransferSuccess = async () => {
     setTransferTargetPartner(null);
     setTransferAmount("");
     setTransferMemo("");
     setTransferMode('deposit');
     fetchPartners();
+    // ✅ 보유금 실시간 업데이트
+    await syncBalance();
   };
 
   if (loading) {
@@ -918,6 +1012,24 @@ export function PartnerManagementV2() {
           }
         }}
       />
+
+      {/* 계층 입출금 모달 */}
+      {hierarchyTransactionTarget && authState.user && (
+        <HierarchyTransactionModal
+          open={showHierarchyTransactionModal}
+          onClose={() => {
+            setShowHierarchyTransactionModal(false);
+            setHierarchyTransactionTarget(null);
+          }}
+          type={hierarchyTransactionType}
+          targetPartner={hierarchyTransactionTarget}
+          currentUser={authState.user}
+          onSuccess={() => {
+            fetchPartners();
+            syncBalance();
+          }}
+        />
+      )}
 
       {/* 파트너 생성 다이얼로그 */}
       <PartnerFormDialog

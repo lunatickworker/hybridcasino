@@ -417,10 +417,15 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
   const syncBalance = useCallback(async () => {
     if (!user?.id) return;
 
-    // ✅ 항상 API 동기화 시도 (내부에서 DB 재조회함)
-    // isManual = true: 수동 동기화 (loading 표시, 토스트 메시지)
-    await syncBalanceFromAPI(true);
-  }, [user, syncBalanceFromAPI]);
+    // ✅ Lv1: API 동기화
+    if (user.level === 1) {
+      await syncBalanceFromAPI(true);
+    } 
+    // ✅ Lv2~7: DB 재조회
+    else {
+      await loadBalanceFromDB();
+    }
+  }, [user, syncBalanceFromAPI, loadBalanceFromDB]);
 
   // =====================================================
   // 4. 초기 로드 (컴포넌트 마운트 시 한 번만)
@@ -449,6 +454,8 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
   useEffect(() => {
     if (!user?.id) return;
 
+    console.log('🔔 [Realtime] partners 테이블 구독 시작:', { userId: user.id, level: user.level });
+
     // partners 테이블 구독
     const partnersChannel = supabase
       .channel(`partner_balance_${user.id}`)
@@ -461,20 +468,43 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           filter: `id=eq.${user.id}`
         },
         (payload) => {
+          console.log('🔔 [Realtime] partners 테이블 UPDATE 감지:', {
+            userId: user.id,
+            level: user.level,
+            old: payload.old,
+            new: payload.new
+          });
+          
+          console.log('🔍 [DEBUG] payload.new 상세:', JSON.stringify(payload.new, null, 2));
+
           const newBalance = parseFloat(payload.new?.balance) || 0;
           const oldBalance = parseFloat(payload.old?.balance) || 0;
 
           setBalance(newBalance);
+          
+          // ✅ Lv2: invest_balance, oroplay_balance 변경 감지
+          if (user.level === 2) {
+            const newInvestBalance = parseFloat(payload.new?.invest_balance) || 0;
+            const newOroplayBalance = parseFloat(payload.new?.oroplay_balance) || 0;
+            
+            console.log('🔔 [Realtime] Lv2 보유금 업데이트:', {
+              invest_balance: newInvestBalance,
+              oroplay_balance: newOroplayBalance
+            });
+            
+            setInvestBalance(newInvestBalance);
+            setOroplayBalance(newOroplayBalance);
+          }
+          
           setLastSyncTime(new Date());
           setError(null);
-          
-          // ✅ Lv2는 두 개 지갑(invest_balance, oroplay_balance) 사용
-          // Lv3~7은 단일 지갑(balance) 사용
           
           // ✅ 토스트 메시지 제거 (자동 동기화 시 깜박임 방지)
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('🔔 [Realtime] partners 채널 상태:', status);
+      });
 
     // api_configs 테이블 구독
     const apiConfigsChannel = supabase

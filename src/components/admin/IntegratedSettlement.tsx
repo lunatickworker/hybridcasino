@@ -32,6 +32,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   // Lv3~Lv6은 통합 GMS 머니만 사용하므로 API 필터 불필요
   const [apiFilter, setApiFilter] = useState<'all' | 'invest' | 'oroplay'>('all');
+  const [availableApis, setAvailableApis] = useState<string[]>([]);
   const [summary, setSummary] = useState<SettlementSummary>({
     myRollingIncome: 0,
     myLosingIncome: 0,
@@ -50,8 +51,32 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
   useEffect(() => {
     loadSettlementMethod();
+    loadAvailableApis();
     loadIntegratedSettlement();
   }, [user.id, periodFilter, dateRange, apiFilter]);
+
+  const loadAvailableApis = async () => {
+    try {
+      // Lv1의 활성화된 API 조회
+      const { data, error } = await supabase
+        .from('api_configs')
+        .select('api_provider, is_active')
+        .eq('partner_id', user.level === 1 ? user.id : user.parent_id) // Lv1 찾기
+        .eq('is_active', true);
+
+      if (error) throw error;
+      
+      const apis = data?.map(config => config.api_provider) || [];
+      setAvailableApis(apis);
+      
+      // 현재 선택된 API가 비활성화된 경우 'all'로 변경
+      if (apiFilter !== 'all' && !apis.includes(apiFilter)) {
+        setApiFilter('all');
+      }
+    } catch (error) {
+      console.error('활성화된 API 조회 실패:', error);
+    }
+  };
 
   const loadSettlementMethod = async () => {
     try {
@@ -302,8 +327,12 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">{t.settlement.allApi}</SelectItem>
-                    <SelectItem value="invest">{t.settlement.investOnly}</SelectItem>
-                    <SelectItem value="oroplay">{t.settlement.oroplaysOnly}</SelectItem>
+                    {availableApis.includes('invest') && (
+                      <SelectItem value="invest">{t.settlement.investOnly}</SelectItem>
+                    )}
+                    {availableApis.includes('oroplay') && (
+                      <SelectItem value="oroplay">{t.settlement.oroplaysOnly}</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               )}
@@ -368,8 +397,18 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                 <thead>
                   <tr className="border-b border-slate-700">
                     <th className="text-left p-3 text-slate-400">{t.settlement.partner}</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.rollingPayment}</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.losingPayment}</th>
+                    <th className="text-right p-3 text-slate-400">
+                      <div className="text-blue-400">카지노 롤링</div>
+                    </th>
+                    <th className="text-right p-3 text-slate-400">
+                      <div className="text-blue-400">카지노 루징</div>
+                    </th>
+                    <th className="text-right p-3 text-slate-400">
+                      <div className="text-purple-400">슬롯 롤링</div>
+                    </th>
+                    <th className="text-right p-3 text-slate-400">
+                      <div className="text-purple-400">슬롯 루징</div>
+                    </th>
                     <th className="text-right p-3 text-slate-400">{t.settlement.withdrawalPayment}</th>
                     <th className="text-right p-3 text-slate-400">{t.settlement.totalPayment}</th>
                   </tr>
@@ -381,10 +420,16 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                         <p className="text-white">{payment.partner_nickname}</p>
                       </td>
                       <td className="p-3 text-right text-blue-400 font-mono">
-                        ₩{payment.rolling_payment.toLocaleString()}
+                        ₩{payment.casino_rolling_payment.toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right text-blue-300 font-mono">
+                        ₩{payment.casino_losing_payment.toLocaleString()}
                       </td>
                       <td className="p-3 text-right text-purple-400 font-mono">
-                        ₩{payment.losing_payment.toLocaleString()}
+                        ₩{payment.slot_rolling_payment.toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right text-purple-300 font-mono">
+                        ₩{payment.slot_losing_payment.toLocaleString()}
                       </td>
                       <td className="p-3 text-right text-green-400 font-mono">
                         ₩{payment.withdrawal_payment.toLocaleString()}
@@ -399,10 +444,16 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                   <tr className="bg-slate-800/50 border-t-2 border-slate-600">
                     <td className="p-3 text-white">{t.settlement.totalSum}</td>
                     <td className="p-3 text-right text-blue-400 font-mono">
-                      ₩{summary.partnerRollingPayments.toLocaleString()}
+                      ₩{summary.partnerCasinoRollingPayments.toLocaleString()}
+                    </td>
+                    <td className="p-3 text-right text-blue-300 font-mono">
+                      ₩{summary.partnerCasinoLosingPayments.toLocaleString()}
                     </td>
                     <td className="p-3 text-right text-purple-400 font-mono">
-                      ₩{summary.partnerLosingPayments.toLocaleString()}
+                      ₩{summary.partnerSlotRollingPayments.toLocaleString()}
+                    </td>
+                    <td className="p-3 text-right text-purple-300 font-mono">
+                      ₩{summary.partnerSlotLosingPayments.toLocaleString()}
                     </td>
                     <td className="p-3 text-right text-green-400 font-mono">
                       ₩{summary.partnerWithdrawalPayments.toLocaleString()}

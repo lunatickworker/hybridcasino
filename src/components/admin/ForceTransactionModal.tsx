@@ -69,8 +69,8 @@ export function ForceTransactionModal({
   const [searchOpen, setSearchOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
-  // ✅ 기본 API 선택: 활성화된 API 중 첫 번째
-  const defaultApiType = useInvestApi ? 'invest' : 'oroplay';
+  // ✅ 기본 API 선택: oroplay (UserManagement와 동일)
+  const defaultApiType = 'oroplay';
   const [apiType, setApiType] = useState<'invest' | 'oroplay'>(defaultApiType);
 
   // 금액 단축 버튼 (포인트 모달과 동일하게 4개씩)
@@ -93,7 +93,7 @@ export function ForceTransactionModal({
   const isTargetFixed = !!propSelectedTarget;
   
   // ✅ Lv1 → Lv2 입출금 시에만 API 선택 표시
-  // Lv3는 단일 지갑이므로 API 선택 불필요
+  // Lv2 → Lv3+는 무조건 oroplay_balance 사용 (UserManagement와 동일)
   // useGmsMoney가 true면 API 선택 숨김
   const showApiSelector = !useGmsMoney && targetType === 'partner' && 
                           (
@@ -376,11 +376,11 @@ export function ForceTransactionModal({
                   </p>
                 </div>
               )}
-              {/* Lv3 파트너: balance만 표시 (단일 지갑) */}
-              {selectedTarget.level === 3 && (
+              {/* ✅ Lv3~Lv7 파트너: 전체 지갑(balance) 표시 */}
+              {selectedTarget.level && selectedTarget.level >= 3 && selectedTarget.level <= 7 && (
                 <div className="mt-2 pt-2 border-t border-slate-700">
                   <p className="text-[10px] text-slate-500">
-                    ※ Lv3는 단일 지갑(balance)을 사용합니다.
+                    ※ Lv{selectedTarget.level}은 전체 지갑(balance)을 사용합니다.
                   </p>
                 </div>
               )}

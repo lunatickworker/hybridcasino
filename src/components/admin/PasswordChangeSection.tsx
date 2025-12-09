@@ -38,25 +38,28 @@ export function PasswordChangeSection({ userId }: PasswordChangeSectionProps) {
       setPasswordLoading(true);
 
       // users 테이블의 password_hash 업데이트 (평문 저장)
-      const { error: updateError } = await supabase
+      const { data, error: updateError } = await supabase
         .from('users')
         .update({
           password_hash: newPassword,
           updated_at: new Date().toISOString()
         })
-        .eq('id', userId);
+        .eq('id', userId)
+        .select();
 
       if (updateError) {
+        console.error('Update error:', updateError);
         throw updateError;
       }
 
+      console.log('Password update result:', data);
       toast.success(t.passwordChange.changeSuccess);
       setNewPassword('');
       setConfirmPassword('');
 
     } catch (error: any) {
       console.error('Password change error:', error);
-      toast.error(t.passwordChange.changeFailed);
+      toast.error(error.message || t.passwordChange.changeFailed);
     } finally {
       setPasswordLoading(false);
     }

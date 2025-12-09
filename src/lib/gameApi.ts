@@ -237,6 +237,13 @@ export async function syncOroPlayProviders(): Promise<void> {
 
     console.log(`📊 OroPlay 제공사 ${vendors.length}개 발견`);
 
+    // 🔍 디버깅: 제공사 목록 상세 출력
+    console.log('📋 OroPlay 제공사 목록:', vendors.map(v => ({
+      name: v.name,
+      vendorCode: v.vendorCode,
+      type: v.type
+    })));
+
     // 타입 매핑 (OroPlay type → GMS type)
     const typeMap: Record<number, 'casino' | 'slot' | 'minigame'> = {
       1: 'casino',
@@ -627,6 +634,7 @@ export async function syncOroPlayGames(): Promise<SyncResult> {
       }
 
       try {
+        console.log(`🔍 제공사 ${provider.name} (vendorCode: ${provider.vendor_code}) 게임 목록 조회 중...`);
         const games = await oroplayApi.getGameList(token, provider.vendor_code, 'ko');
 
         if (!games || games.length === 0) {
@@ -635,6 +643,7 @@ export async function syncOroPlayGames(): Promise<SyncResult> {
         }
 
         console.log(`📊 제공사 ${provider.name}: ${games.length}개 게임 발견`);
+        console.log(`   첫 3개 게임:`, games.slice(0, 3).map(g => g.gameName));
 
         const timestamp = new Date().toISOString();
         const processedGames = games.map(game => ({

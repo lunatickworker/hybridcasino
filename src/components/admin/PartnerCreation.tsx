@@ -27,6 +27,10 @@ interface PartnerFormData {
   level: number;
   commission_rolling: number;
   commission_losing: number;
+  casino_rolling_commission: number;
+  casino_losing_commission: number;
+  slot_rolling_commission: number;
+  slot_losing_commission: number;
   withdrawal_fee: number;
   bank_name: string;
   bank_account: string;
@@ -57,6 +61,10 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     level: 2,
     commission_rolling: 0.5,
     commission_losing: 5.0,
+    casino_rolling_commission: 0.5,
+    casino_losing_commission: 5.0,
+    slot_rolling_commission: 0.5,
+    slot_losing_commission: 5.0,
     withdrawal_fee: 1.0,
     bank_name: '',
     bank_account: '',
@@ -219,6 +227,10 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         level: formData.level,
         commission_rolling: formData.commission_rolling,
         commission_losing: formData.commission_losing,
+        casino_rolling_commission: formData.casino_rolling_commission,
+        casino_losing_commission: formData.casino_losing_commission,
+        slot_rolling_commission: formData.slot_rolling_commission,
+        slot_losing_commission: formData.slot_losing_commission,
         withdrawal_fee: formData.withdrawal_fee,
         bank_name: formData.bank_name,
         bank_account: formData.bank_account,
@@ -285,6 +297,10 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         level: 2,
         commission_rolling: 0.5,
         commission_losing: 5.0,
+        casino_rolling_commission: 0.5,
+        casino_losing_commission: 5.0,
+        slot_rolling_commission: 0.5,
+        slot_losing_commission: 5.0,
         withdrawal_fee: 1.0,
         bank_name: '',
         bank_account: '',
@@ -581,37 +597,80 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                 <span className="font-medium">{t.partnerCreation.commissionSettings}</span>
               </div>
               
+              {/* 카지노 커미션 */}
+              <div className="space-y-3">
+                <Label className="text-sm text-blue-400">카지노 커미션</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="casino_rolling_commission">카지노 롤링 커미션 (%)</Label>
+                    <Input
+                      id="casino_rolling_commission"
+                      type="number"
+                      step="0.1"
+                      value={formData.casino_rolling_commission}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        handleInputChange('casino_rolling_commission', isNaN(value) ? 0 : value);
+                      }}
+                      placeholder="0.5"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="casino_losing_commission">카지노 루징 커미션 (%)</Label>
+                    <Input
+                      id="casino_losing_commission"
+                      type="number"
+                      step="0.1"
+                      value={formData.casino_losing_commission}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        handleInputChange('casino_losing_commission', isNaN(value) ? 0 : value);
+                      }}
+                      placeholder="5.0"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 슬롯 커미션 */}
+              <div className="space-y-3">
+                <Label className="text-sm text-purple-400">슬롯 커미션</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="slot_rolling_commission">슬롯 롤링 커미션 (%)</Label>
+                    <Input
+                      id="slot_rolling_commission"
+                      type="number"
+                      step="0.1"
+                      value={formData.slot_rolling_commission}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        handleInputChange('slot_rolling_commission', isNaN(value) ? 0 : value);
+                      }}
+                      placeholder="0.5"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="slot_losing_commission">슬롯 루징 커미션 (%)</Label>
+                    <Input
+                      id="slot_losing_commission"
+                      type="number"
+                      step="0.1"
+                      value={formData.slot_losing_commission}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value);
+                        handleInputChange('slot_losing_commission', isNaN(value) ? 0 : value);
+                      }}
+                      placeholder="5.0"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 롤링 수수료 */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="commission_rolling">{t.partnerCreation.rollingCommission}</Label>
-                  <Input
-                    id="commission_rolling"
-                    type="number"
-                    step="0.1"
-                    value={formData.commission_rolling}
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value);
-                      handleInputChange('commission_rolling', isNaN(value) ? 0 : value);
-                    }}
-                    placeholder="0.5"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="commission_losing">{t.partnerCreation.losingCommission}</Label>
-                  <Input
-                    id="commission_losing"
-                    type="number"
-                    step="0.1"
-                    value={formData.commission_losing}
-                    onChange={(e) => {
-                      const value = parseFloat(e.target.value);
-                      handleInputChange('commission_losing', isNaN(value) ? 0 : value);
-                    }}
-                    placeholder="5.0"
-                  />
-                </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="withdrawal_fee">{t.partnerCreation.withdrawalFee}</Label>
                   <Input

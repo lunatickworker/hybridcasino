@@ -52,11 +52,32 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [apiFilter, setApiFilter] = useState<string>("all");
+  const [availableApis, setAvailableApis] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   useEffect(() => {
+    loadAvailableApis();
     loadSettlements();
-  }, [user.id, typeFilter, dateRange]);
+  }, [user.id, typeFilter, apiFilter, dateRange]);
+
+  const loadAvailableApis = async () => {
+    try {
+      // Lv1의 활성화된 API 조회
+      const { data, error } = await supabase
+        .from('api_configs')
+        .select('api_provider, is_active')
+        .eq('partner_id', user.level === 1 ? user.id : user.parent_id) // Lv1 찾기
+        .eq('is_active', true);
+
+      if (error) throw error;
+      
+      const apis = data?.map(config => config.api_provider) || [];
+      setAvailableApis(apis);
+    } catch (error) {
+      console.error('활성화된 API 조회 실패:', error);
+    }
+  };
 
   const loadSettlements = async () => {
     try {
@@ -81,7 +102,13 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
         return;
       }
 
-      setSettlements(data || []);
+      // API 필터 적용 (클라이언트 측)
+      let filteredData = data || [];
+      if (apiFilter !== 'all') {
+        filteredData = filteredData.filter((s: Settlement) => s.api_filter === apiFilter);
+      }
+
+      setSettlements(filteredData);
     } catch (error) {
       console.error('정산 이력 조회 실패:', error);
       toast.error(t.settlement.historyLoadFailed);
@@ -174,6 +201,21 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
                   <SelectItem value="losing">{t.settlement.losingType}</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Lv1, Lv2만 API 필터 표시 */}
+              {user.level <= 2 && (
+                <Select value={apiFilter} onValueChange={setApiFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t.settlement.all}</SelectItem>
+                    {availableApis.map(api => (
+                      <SelectItem key={api} value={api}>{api}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
 
               <Popover>
                 <PopoverTrigger asChild>

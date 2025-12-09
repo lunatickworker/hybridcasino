@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { Badge } from "../ui/badge";
 import { MetricCard } from "./MetricCard";
 import { PremiumSectionCard, SectionRow } from "./PremiumSectionCard";
+import { OroPlayAutoSync } from "./OroPlayAutoSync";
+import { Lv2BalanceSync } from "./Lv2BalanceSync";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { useBalance } from "../../contexts/BalanceContext";
@@ -930,6 +932,12 @@ export function Dashboard({ user }: DashboardProps) {
           </div>
         </div>
       )}
+
+      {/* OroPlay 베팅 자동 동기화 */}
+      <OroPlayAutoSync />
+
+      {/* Lv2 보유금 자동 동기화 */}
+      <Lv2BalanceSync />
     </div>
   );
 }

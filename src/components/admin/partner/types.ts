@@ -43,3 +43,12 @@ export const statusColors = {
 
 export type TransferMode = 'deposit' | 'withdrawal';
 export type ForceTransactionType = 'deposit' | 'withdrawal';
+
+export interface TransferBalanceParams {
+  transferTargetPartner: Partner;
+  currentUserId: string;
+  amount: number;
+  transferMode: TransferMode;
+  transferMemo?: string;
+  apiType?: 'invest' | 'oroplay'; // ✅ Lv2가 파트너에게 입출금 시 API 선택
+}

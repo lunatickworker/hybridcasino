@@ -171,6 +171,25 @@ export async function updateInvestBalance(partnerId: string, balance: number): P
       console.error('❌ [API Config] Invest 잔액 업데이트 실패:', error);
       return false;
     }
+    
+    // ✅ Lv1 업데이트 시 Lv2도 동기화
+    const { data: lv2Partners } = await supabase
+      .from('partners')
+      .select('id')
+      .eq('level', 2);
+    
+    if (lv2Partners && lv2Partners.length > 0) {
+      for (const lv2 of lv2Partners) {
+        await supabase
+          .from('partners')
+          .update({
+            invest_balance: balance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', lv2.id);
+      }
+      console.log(`✅ [API Config] Lv2 invest_balance 동기화 완료: ${balance.toLocaleString()}`);
+    }
 
     return true;
   } catch (err) {
@@ -199,6 +218,25 @@ export async function updateOroplayBalance(partnerId: string, balance: number): 
     if (error) {
       console.error('❌ [API Config] OroPlay 잔액 업데이트 실패:', error);
       return false;
+    }
+    
+    // ✅ Lv1 업데이트 시 Lv2도 동기화
+    const { data: lv2Partners } = await supabase
+      .from('partners')
+      .select('id')
+      .eq('level', 2);
+    
+    if (lv2Partners && lv2Partners.length > 0) {
+      for (const lv2 of lv2Partners) {
+        await supabase
+          .from('partners')
+          .update({
+            oroplay_balance: balance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', lv2.id);
+      }
+      console.log(`✅ [API Config] Lv2 oroplay_balance 동기화 완료: ${balance.toLocaleString()}`);
     }
 
     return true;

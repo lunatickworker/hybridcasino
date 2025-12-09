@@ -12,10 +12,12 @@ import { Label } from "../ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { useAuth } from "../../hooks/useAuth";
 import { useWebSocketContext } from "../../contexts/WebSocketContext";
+import { useBalance } from "../../contexts/BalanceContext";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { getAdminOpcode, isMultipleOpcode } from "../../lib/opcodeHelper";
 import * as investApi from "../../lib/investApi";
+import { getOroPlayToken, depositBalance as oroplayDeposit, withdrawBalance as oroplayWithdraw } from "../../lib/oroplayApi";
 import { retryApiAccountCreation, createApiAccounts } from "../../lib/apiAccountManager";
 import { UserDetailModal } from "./UserDetailModal";
 import { MetricCard } from "./MetricCard";
@@ -100,6 +102,7 @@ export function UserManagement() {
   const { lastMessage, connected, sendMessage } = useWebSocketContext();
   const { userLevel, isSystemAdmin, getLevelName } = useHierarchyAuth();
   const { t } = useLanguage();
+  const { syncBalance } = useBalance();
   
   // 사용자 데이터 (직접 조회)
   const [users, setUsers] = useState<any[]>([]);
@@ -844,83 +847,45 @@ export function UserManagement() {
 
       // 입금 시 관리자 보유금 검증 (시스템관리자는 제외)
       if (data.type === 'deposit' && !isSystemAdmin) {
-        // Lv2: oroplay_balance만 우선 체크
+        // ✅ Lv2: oroplay_balance만 검증 (OroPlay 전용 지갑)
         if (adminPartner.level === 2) {
           const oroplayBalance = adminPartner.oroplay_balance || 0;
           if (oroplayBalance < data.amount) {
-            console.error('❌ Lv2 보유금 부족:', { invest: adminPartner.invest_balance, oroplay: adminPartner.oroplay_balance, required: data.amount });
+            console.error('❌ Lv2 OroPlay 보유금 부족:', { 
+              level: adminPartner.level,
+              oroplay_balance: oroplayBalance, 
+              required: data.amount 
+            });
+            toast.error(`OroPlay 보유금이 부족합니다. (보유: ${oroplayBalance.toLocaleString()}, 필요: ${data.amount.toLocaleString()})`);
             return;
           }
         }
-        // Lv3~7: 단일 balance 체크
-        else if (adminPartner.balance < data.amount) {
-          console.error('❌ 보유금 부족:', { balance: adminPartner.balance, required: data.amount });
-          return;
+        // ✅ Lv3~Lv7: balance (통합 지갑)
+        else {
+          const balance = adminPartner.balance || 0;
+          if (balance < data.amount) {
+            console.error('❌ 보유금 부족:', { 
+              level: adminPartner.level,
+              balance: balance, 
+              required: data.amount 
+            });
+            toast.error(`보유금이 부족합니다. (보유: ${balance.toLocaleString()}, 필요: ${data.amount.toLocaleString()})`);
+            return;
+          }
         }
       }
 
-      const opcodeConfigResult = await getAdminOpcode(authState.user);
-      if (!opcodeConfigResult) {
-        console.error('❌ API 설정이 없습니다. api_configs 테이블에 invest_opcode, invest_token, invest_secret_key를 설정하세요.');
-        return;
-      }
-
-      // isMultipleOpcode인 경우 첫 번째 opcode 사용
-      const opcodeConfig = isMultipleOpcode(opcodeConfigResult) 
-        ? opcodeConfigResult.opcodes[0] 
-        : opcodeConfigResult;
-
-      if (!opcodeConfig) {
-        return;
-      }
-
-      // 1. 외부 API 호출 (Lv1, Lv2는 입출금 모두 건너뜀)
-      let apiResult: any = null;
+      // 1. 사용자 잔고 계산 (모든 레벨에서 API 호출 없이 내부 거래만)
       let actualBalance = user.balance || 0;
       
-      // ✅ Lv1, Lv2 → Lv7 입금: 외부 API 호출 없이 내부 거래만
-      if ((adminPartner.level === 1 || adminPartner.level === 2) && data.type === 'deposit') {
-        console.log('✅ Lv1/Lv2 → Lv7 입금: 외부 API 호출 건너뜀 (내부 거래만, 게임 플레이 시에만 외부 API 차감)');
-        // 사용자 잔고는 입금액만큼 증가 (API 호출 없이)
-        actualBalance = (user.balance || 0) + data.amount;
-      }
-      // ✅ Lv1, Lv2 → Lv7 출금: 외부 API 호출 없이 내부 거래만 (강제 입금과 동일)
-      else if ((adminPartner.level === 1 || adminPartner.level === 2) && data.type === 'withdrawal') {
-        console.log('✅ Lv1/Lv2 → Lv7 출금: 외부 API 호출 건너뜀 (내부 거래만, 게임 종료 시에만 외부 API 회수)');
-        // 사용자 잔고는 출금액만큼 감소 (API 호출 없이)
-        actualBalance = (user.balance || 0) - data.amount;
-      }
-      // ✅ Lv3~6 → Lv7: 외부 API 호출
-      else {
-        apiResult = data.type === 'deposit'
-          ? await investApi.depositBalance(
-              user.username,
-              data.amount,
-              opcodeConfig.opcode,
-              opcodeConfig.token,
-              opcodeConfig.secretKey
-            )
-          : await investApi.withdrawBalance(
-              user.username,
-              data.amount,
-              opcodeConfig.opcode,
-              opcodeConfig.token,
-              opcodeConfig.secretKey
-            );
+      console.log(`Lv${adminPartner.level} 내부 거래 (GMS 머니)`);
+      
+      // 사용자 잔고 계산 (API 호출 없이)
+      actualBalance = data.type === 'deposit'
+        ? (user.balance || 0) + data.amount
+        : (user.balance || 0) - data.amount;
 
-        if (!apiResult.success || apiResult.error) {
-          console.error(`API ${data.type === 'deposit' ? '입금' : '출금'} 실패:`, apiResult.error);
-          return;
-        }
-
-        console.log(`✅ API ${data.type === 'deposit' ? '입금' : '출금'} 성공:`, apiResult.data);
-
-        // 2. API 응답에서 실제 잔고 추출
-        actualBalance = investApi.extractBalanceFromResponse(apiResult.data, user.username);
-        console.log('💰 실제 잔고:', actualBalance);
-      }
-
-      // 3. DB에 트랜잭션 기록
+      // 2. DB에 트랜잭션 기록
       const { error } = await supabase
         .from('transactions')
         .insert({
@@ -932,13 +897,12 @@ export function UserManagement() {
           processed_by: authState.user?.id,
           memo: data.memo || `[관리자 강제 ${data.type === 'deposit' ? '입금' : '출금'}] ${authState.user?.username}`,
           balance_before: user.balance || 0,
-          balance_after: actualBalance,
-          external_response: apiResult?.data || null
+          balance_after: actualBalance
         });
 
       if (error) throw error;
 
-      // 4. 사용자 잔고를 API 실제 값으로 동기화
+      // 3. 사용자 잔고 동기화
       const { error: balanceError } = await supabase
         .from('users')
         .update({ 
@@ -949,103 +913,157 @@ export function UserManagement() {
 
       if (balanceError) throw balanceError;
 
-      // 5. 관리자 보유금 업데이트 및 로그 기록
+      // 4. 관리자 보유금 업데이트 및 로그 기록
       // ✅ Lv1: 사용자 입출금은 내부 ��래만 (게임 플레이 시에만 외부 API 호출)
       if (adminPartner.level === 1) {
         console.log('ℹ️ Lv1 → Lv7 입출금은 내부 거래만 (Lv1 api_configs 변동 없음, 게임 플레이 시에만 외부 API 호출)');
       }
-      // ✅ Lv2: 입출금 모두 내부 거래만 (입금과 동일 로직)
+      // ✅ Lv2: 입출금 시 oroplay_balance 차감/증가
       else if (adminPartner.level === 2) {
         if (data.type === 'deposit') {
-          // ✅ 입금: 내부 거래만 (API 보유금 변동 없음)
-          console.log('ℹ️ Lv2 → Lv7 입금은 내부 거래만 (게임 플레이 시에만 외부 API 차감)');
+          // ✅ 입금: oroplay_balance 차감
+          const currentBalance = adminPartner.oroplay_balance || 0;
+          const newBalance = currentBalance - data.amount;
+          console.log(`💰 Lv2 → Lv7 입금: oroplay_balance 차감 ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
           
-          // 로그만 기록 (보유금 변동 없음을 명시)
+          // 파트너 oroplay_balance 업데이트
+          const { error: updateError } = await supabase
+            .from('partners')
+            .update({ oroplay_balance: newBalance })
+            .eq('id', authState.user.id);
+
+          if (updateError) {
+            console.error('❌ 파트너 oroplay_balance 업데이트 실패:', updateError);
+            throw updateError;
+          }
+
+          // 로그 기록
           await supabase
             .from('partner_balance_logs')
             .insert({
               partner_id: authState.user.id,
-              balance_before: adminPartner.invest_balance || 0,
-              balance_after: adminPartner.invest_balance || 0,
-              amount: 0,
-              transaction_type: 'internal',
+              balance_before: currentBalance,
+              balance_after: newBalance,
+              amount: -data.amount,
+              transaction_type: 'user_deposit',
               from_partner_id: authState.user.id,
               to_partner_id: null,
               processed_by: authState.user.id,
-              api_type: 'invest',
-              memo: `[회원 강제입금 - 내부거래] ${user.username}에게 ${data.amount.toLocaleString()}원 입금 (게임 플레이 시 차감)${data.memo ? `: ${data.memo}` : ''}`
+              api_type: 'oroplay',
+              memo: `[회원 강제입금] ${user.username}에게 ${data.amount.toLocaleString()}원 입금${data.memo ? `: ${data.memo}` : ''}`
             });
 
+          console.log(`✅ Lv2 oroplay_balance 차감 완료: ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
+
         } else {
-          // ✅ 출금: 내부 거래만 (API 보유금 변동 없음, 강제입금과 동일 로직)
-          console.log('ℹ️ Lv2 → Lv7 출금은 내부 거래만 (게임 종료 시에만 외부 API 회수)');
+          // ✅ 출금: oroplay_balance 증가
+          const currentBalance = adminPartner.oroplay_balance || 0;
+          const newBalance = currentBalance + data.amount;
+          console.log(`💰 Lv2 → Lv7 출금: oroplay_balance 증가 ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
           
-          // 로그만 기록 (보유금 변동 없음을 명시)
+          // 파트너 oroplay_balance 업데이트
+          const { error: updateError } = await supabase
+            .from('partners')
+            .update({ oroplay_balance: newBalance })
+            .eq('id', authState.user.id);
+
+          if (updateError) {
+            console.error('❌ 파트너 oroplay_balance 업데이트 실패:', updateError);
+            throw updateError;
+          }
+
+          // 로그 기록
           await supabase
             .from('partner_balance_logs')
             .insert({
               partner_id: authState.user.id,
-              balance_before: adminPartner.invest_balance || 0,
-              balance_after: adminPartner.invest_balance || 0,
-              amount: 0,
-              transaction_type: 'internal',
+              balance_before: currentBalance,
+              balance_after: newBalance,
+              amount: data.amount,
+              transaction_type: 'user_withdrawal',
               from_partner_id: null,
               to_partner_id: authState.user.id,
               processed_by: authState.user.id,
-              api_type: 'invest',
-              memo: `[회원 강제출금 - 내부거래] ${user.username}으로부터 ${data.amount.toLocaleString()}원 출금 (게임 종료 시 회수)${data.memo ? `: ${data.memo}` : ''}`
+              api_type: 'oroplay',
+              memo: `[회원 강제출금] ${user.username}으로부터 ${data.amount.toLocaleString()}원 출금${data.memo ? `: ${data.memo}` : ''}`
             });
 
-          console.log(`💰 Lv2 보유금 변동 없음 (내부 거래만): Invest(${(adminPartner.invest_balance || 0).toLocaleString()}), OroPlay(${(adminPartner.oroplay_balance || 0).toLocaleString()})`);
+          console.log(`✅ Lv2 oroplay_balance 증가 완료: ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
         }
       }
-      // ✅ Lv3~7: 입출금 모두 내부 거래만 (입금과 동일 로직)
+      // ✅ Lv3~7: 입출금 시 파트너 balance 차감/증가
       else {
         if (data.type === 'deposit') {
-          // ✅ 입금: 내부 거래만 (관리자 보유금 변동 없음)
-          console.log('ℹ️ Lv3~7 → Lv7 입금은 내부 거래만 (게임 플레이 시에만 외부 API 차감)');
+          // ✅ 입금: 파트너 보유금 차감
+          const currentBalance = adminPartner.balance || 0;
+          const newBalance = currentBalance - data.amount;
+          console.log(`💰 Lv${adminPartner.level} → Lv7 입금: 파트너 balance 차감 ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
           
-          // 로그만 기록 (보유금 변동 없음을 명시)
+          // 파트너 balance 업데이트
+          const { error: updateError } = await supabase
+            .from('partners')
+            .update({ balance: newBalance })
+            .eq('id', authState.user.id);
+
+          if (updateError) {
+            console.error('❌ 파트너 balance 업데이트 실패:', updateError);
+            throw updateError;
+          }
+
+          // 로그 기록 (보유금 차감 명시)
           await supabase
             .from('partner_balance_logs')
             .insert({
               partner_id: authState.user.id,
-              balance_before: adminPartner.balance,
-              balance_after: adminPartner.balance,
-              amount: 0,
-              transaction_type: 'internal',
+              balance_before: currentBalance,
+              balance_after: newBalance,
+              amount: -data.amount,
+              transaction_type: 'user_deposit',
               from_partner_id: authState.user.id,
               to_partner_id: null,
               processed_by: authState.user.id,
-              memo: `[회원 강제입금 - 내부거래] ${user.username}에게 ${data.amount.toLocaleString()}원 입금 (게임 플레이 시 차감)${data.memo ? `: ${data.memo}` : ''}`
+              memo: `[회원 강제입금] ${user.username}에게 ${data.amount.toLocaleString()}원 입금${data.memo ? `: ${data.memo}` : ''}`
             });
 
-          console.log(`💰 Lv3~7 보유금 변동 없음 (내부 거래만): balance(${adminPartner.balance.toLocaleString()})`);
+          console.log(`✅ Lv${adminPartner.level} 보유금 차감 완료: ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
 
         } else {
-          // ✅ 출금: 내부 거래만 (관리자 보유금 변동 없음, 강제입금과 동일 로직)
-          console.log('ℹ️ Lv3~7 → Lv7 출금은 내부 거래만 (게임 종료 시에만 외부 API 회수)');
+          // ✅ 출금: 파트너 보유금 증가
+          const currentBalance = adminPartner.balance || 0;
+          const newBalance = currentBalance + data.amount;
+          console.log(`💰 Lv${adminPartner.level} → Lv7 출금: 파트너 balance 증가 ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
           
-          // 로그만 기록 (보유금 변동 없음을 명시)
+          // 파트너 balance 업데이트
+          const { error: updateError } = await supabase
+            .from('partners')
+            .update({ balance: newBalance })
+            .eq('id', authState.user.id);
+
+          if (updateError) {
+            console.error('❌ 파트너 balance 업데이트 실패:', updateError);
+            throw updateError;
+          }
+
+          // 로그 기록 (보유금 증가 명시)
           await supabase
             .from('partner_balance_logs')
             .insert({
               partner_id: authState.user.id,
-              balance_before: adminPartner.balance,
-              balance_after: adminPartner.balance,
-              amount: 0,
-              transaction_type: 'internal',
+              balance_before: currentBalance,
+              balance_after: newBalance,
+              amount: data.amount,
+              transaction_type: 'user_withdrawal',
               from_partner_id: null,
               to_partner_id: authState.user.id,
               processed_by: authState.user.id,
-              memo: `[회원 강제출금 - 내부거래] ${user.username}으로부터 ${data.amount.toLocaleString()}원 출금 (게임 종료 시 회수)${data.memo ? `: ${data.memo}` : ''}`
+              memo: `[회원 강제출금] ${user.username}으로부터 ${data.amount.toLocaleString()}원 출금${data.memo ? `: ${data.memo}` : ''}`
             });
 
-          console.log(`💰 Lv3~7 보유금 변동 없음 (내부 거래만): balance(${adminPartner.balance.toLocaleString()})`);
+          console.log(`✅ Lv${adminPartner.level} 보유금 증가 완료: ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
         }
       }
 
-      // 6. 실시간 업데이트 웹소켓 메시지
+      // 5. 실시간 업데이트 웹소켓 메시지
       if (connected && sendMessage) {
         sendMessage({
           type: 'user_balance_updated',
@@ -1066,12 +1084,21 @@ export function UserManagement() {
         });
       }
 
-      await fetchUsers();
+      // ✅ Realtime 구독이 자동으로 처리하므로 fetchUsers() 제거
+      // ✅ BalanceContext의 Realtime 구독이 자동으로 처리하므로 syncBalance() 제거
       
       // 성공 메시지
       const actionText = data.type === 'deposit' ? '입금' : '출금';
       toast.success(`${user.username}님에게 ${data.amount.toLocaleString()}원 ${actionText} 완료`);
     } catch (error: any) {
+      // 롤백: Optimistic Update 되돌리기
+      setUsers(prevUsers => 
+        prevUsers.map(u => 
+          u.id === data.targetId 
+            ? { ...u, balance: user.balance, updated_at: user.updated_at }
+            : u
+        )
+      );
       console.error('강제 입출금 처리 실패:', error);
       toast.error('강제 입출금 처리에 실패했습니다.');
     } finally {

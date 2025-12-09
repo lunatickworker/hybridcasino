@@ -186,7 +186,6 @@
     --color-pink-600: oklch(.592 .249 .584);
     --color-pink-700: oklch(.525 .223 3.958);
     --color-pink-800: oklch(.459 .187 3.815);
-    --color-rose-300: oklch(.81 .117 11.638);
     --color-rose-400: oklch(.712 .194 13.428);
     --color-rose-500: oklch(.645 .246 16.439);
     --color-rose-600: oklch(.586 .253 17.585);
@@ -3732,16 +3731,6 @@
     }
   }
 
-  .bg-rose-900\/30 {
-    background-color: color-mix(in srgb, oklch(.41 .159 10.272) 30%, transparent);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-rose-900\/30 {
-      background-color: color-mix(in oklab, var(--color-rose-900) 30%, transparent);
-    }
-  }
-
   .bg-secondary {
     background-color: var(--secondary);
   }
@@ -5852,10 +5841,6 @@
     padding-block: calc(var(--spacing) * 2);
   }
 
-  .py-2\.5 {
-    padding-block: calc(var(--spacing) * 2.5);
-  }
-
   .py-3 {
     padding-block: calc(var(--spacing) * 3);
   }
@@ -6436,10 +6421,6 @@
 
   .text-red-800 {
     color: var(--color-red-800);
-  }
-
-  .text-rose-300 {
-    color: var(--color-rose-300);
   }
 
   .text-rose-400 {
@@ -7743,6 +7724,12 @@
   }
 
   @media (hover: hover) {
+    .hover\:bg-green-600:hover {
+      background-color: var(--color-green-600);
+    }
+  }
+
+  @media (hover: hover) {
     .hover\:bg-green-700:hover {
       background-color: var(--color-green-700);
     }
@@ -7941,6 +7928,12 @@
   }
 
   @media (hover: hover) {
+    .hover\:bg-red-600:hover {
+      background-color: var(--color-red-600);
+    }
+  }
+
+  @media (hover: hover) {
     .hover\:bg-red-600\/20:hover {
       background-color: color-mix(in srgb, oklch(.577 .245 27.325) 20%, transparent);
     }
@@ -8075,6 +8068,12 @@
       .hover\:bg-slate-700\/90:hover {
         background-color: color-mix(in oklab, var(--color-slate-700) 90%, transparent);
       }
+    }
+  }
+
+  @media (hover: hover) {
+    .hover\:bg-slate-800:hover {
+      background-color: var(--color-slate-800);
     }
   }
 

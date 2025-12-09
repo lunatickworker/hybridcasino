@@ -420,7 +420,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             
             if (transaction.status === 'pending') {
               if (transaction.transaction_type === 'deposit') {
-                toast.info('새로운 입금 요청이 있습니다.', {
+                toast.info('새로운 입금 요청이 있습니���.', {
                   description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${transaction.user_id}`,
                   duration: 10000,
                   action: {
@@ -672,26 +672,14 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     }
   };
 
-  // Lv2 전용: 보유금 5% 경고 체크
+  // Lv2 전용: 보유금 5% 경고 체크 (✅ 비활성화)
   const checkLv2Warning = (totalUsersBalance: number) => {
-    const fivePercent = totalUsersBalance * 0.05;
-    const shouldShowWarning = investBalance < fivePercent || oroplayBalance < fivePercent;
-    setShowLv2Warning(shouldShowWarning);
+    // ✅ 경고 배너 비활성화
+    setShowLv2Warning(false);
   };
 
   return (
     <div className="w-full border-b border-slate-800/50 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900">
-      {/* Lv2 전용: 5% 경고 배너 */}
-      {user.level === 2 && showLv2Warning && (
-        <div className="bg-rose-900/30 border-b border-rose-500/50 px-6 py-2.5">
-          <div className="flex items-center gap-2 text-rose-300">
-            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-            <span className="text-sm font-medium">
-              ⚠️ 보유금 충전이 필요합니다 또는 부족한 보유금의 게임을 비노출로 변경하세요
-            </span>
-          </div>
-        </div>
-      )}
       <div className="px-6 py-3">
         <div className="flex items-center justify-between">
           {/* 왼쪽: 통계 카드 */}
