@@ -293,11 +293,14 @@ export async function getGamesList(
   });
   
   if (response.errorCode !== undefined && response.errorCode !== 0) {
-    console.error(`❌ [OroPlay] 게임 목록 조회 실패:`, {
-      vendorCode,
-      errorCode: response.errorCode,
-      errorMessage: getErrorMessage(response.errorCode)
-    });
+    // ✅ 500 에러는 API 서버 문제이므로 로그 출력 없이 throw만 (상위에서 처리)
+    if (response.errorCode !== 500) {
+      console.error(`❌ [OroPlay] 게임 목록 조회 실패:`, {
+        vendorCode,
+        errorCode: response.errorCode,
+        errorMessage: getErrorMessage(response.errorCode)
+      });
+    }
     throw new Error(`Failed to get games list: errorCode ${response.errorCode} - ${getErrorMessage(response.errorCode)}`);
   }
   

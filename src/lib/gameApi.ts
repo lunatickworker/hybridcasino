@@ -677,41 +677,22 @@ export async function syncOroPlayGames(): Promise<SyncResult> {
         const newGames = processedGames.filter(g => !existingIds.has(g.id));
         const existingToUpdate = processedGames.filter(g => existingIds.has(g.id));
 
-        // 신규 게임 추가
-        if (newGames.length > 0) {
-          const { error: insertError } = await supabase
+        // ✅ upsert를 사용하여 신규 게임 추가 및 기존 게임 업데이트 (중복 키 오류 방지)
+        if (processedGames.length > 0) {
+          const { error: upsertError } = await supabase
             .from('games')
-            .insert(newGames);
+            .upsert(processedGames, {
+              onConflict: 'id',
+              ignoreDuplicates: false
+            });
 
-          if (!insertError) {
+          if (!upsertError) {
             totalNew += newGames.length;
-            console.log(`✅ ${provider.name}: 신규 ${newGames.length}개`);
+            totalUpdated += existingToUpdate.length;
+            console.log(`✅ ${provider.name}: 신규 ${newGames.length}개, 업데이트 ${existingToUpdate.length}개`);
           } else {
-            console.error(`❌ ${provider.name}: 신규 게임 추가 오류:`, insertError);
+            console.error(`❌ ${provider.name}: 게임 upsert 오류:`, upsertError);
           }
-        }
-
-        // 기존 게임 업데이트
-        if (existingToUpdate.length > 0) {
-          for (const game of existingToUpdate) {
-            const { error: updateError } = await supabase
-              .from('games')
-              .update({
-                name: game.name,
-                status: game.status,
-                is_visible: game.is_visible,
-                image_url: game.image_url,
-                is_featured: game.is_featured,
-                priority: game.priority,
-                updated_at: game.updated_at,
-              })
-              .eq('id', game.id);
-
-            if (!updateError) {
-              totalUpdated++;
-            }
-          }
-          console.log(`✅ ${provider.name}: 업데이트 ${totalUpdated}개`);
         }
 
         totalGames += processedGames.length;
@@ -719,8 +700,15 @@ export async function syncOroPlayGames(): Promise<SyncResult> {
         // Rate Limit 방지
         await new Promise(resolve => setTimeout(resolve, 500));
 
-      } catch (error) {
-        console.error(`⚠️ 제공사 ${provider.name} 건너뛰기:`, error);
+      } catch (error: any) {
+        // API 서버 오류는 간결한 로그만 출력하고 계속 진행
+        if (error.message?.includes('errorCode 500')) {
+          // 500 에러는 제공사명만 간단히 출력
+          continue;
+        } else {
+          console.warn(`⚠️ ${provider.name}: ${error.message || error}`);
+        }
+        continue;
       }
     }
 

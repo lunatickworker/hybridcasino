@@ -234,8 +234,52 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         console.log('📋 첫 번째 레코드:', data[0]);
       }
       
+      // ✅ 게임 및 제공사 정보 가져오기 (별도 쿼리)
+      const gameIds = [...new Set(data?.map(r => r.game_id).filter(Boolean))] as number[];
+      const providerIds = [...new Set(data?.map(r => r.provider_id).filter(Boolean))] as number[];
+      
+      console.log('🎮 고유 게임 ID:', gameIds.length, '개');
+      console.log('🏢 고유 제공사 ID:', providerIds.length, '개');
+      
+      // 게임 정보 조회
+      const gameMap = new Map<number, string>();
+      if (gameIds.length > 0) {
+        const { data: gamesData } = await supabase
+          .from('games')
+          .select('id, name')
+          .in('id', gameIds);
+        
+        gamesData?.forEach(game => {
+          gameMap.set(game.id, game.name);
+        });
+        console.log('✅ 게임 맵 생성:', gameMap.size, '개');
+      }
+      
+      // 제공사 정보 조회
+      const providerMap = new Map<number, string>();
+      if (providerIds.length > 0) {
+        const { data: providersData } = await supabase
+          .from('game_providers')
+          .select('id, name')
+          .in('id', providerIds);
+        
+        providersData?.forEach(provider => {
+          providerMap.set(provider.id, provider.name);
+        });
+        console.log('✅ 제공사 맵 생성:', providerMap.size, '개');
+      }
+      
+      // ✅ 데이터 매핑
+      const mappedData = (data || []).map((record: any) => ({
+        ...record,
+        game_title: record.game_id ? gameMap.get(record.game_id) || null : null,
+        provider_name: record.provider_id ? providerMap.get(record.provider_id) || null : null
+      }));
+      
+      console.log('📋 매핑된 첫 레코드:', mappedData[0]);
+      
       // 데이터 상태 업데이트
-      setBettingRecords(data || []);
+      setBettingRecords(mappedData);
     } catch (error) {
       console.error('❌ 베팅 데이터 로드 오류:', error);
       toast.error(t.bettingHistory.loadFailed);
@@ -342,7 +386,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         totalBets: filteredRecords.length,
         totalBetAmount,
         totalWinAmount,
-        netProfit: totalWinAmount - totalBetAmount
+        netProfit: totalBetAmount - totalWinAmount  // ✅ 순손익 = 총 베팅액 - 당첨액
       };
     } else {
       return {
@@ -469,7 +513,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
           title={t.bettingHistory.netProfit}
           value={`₩${stats.netProfit.toLocaleString()}`}
           icon={CreditCard}
-          color={stats.netProfit >= 0 ? "green" : "red"}
+          color={stats.netProfit <= 0 ? "green" : "red"}
         />
       </div>
 

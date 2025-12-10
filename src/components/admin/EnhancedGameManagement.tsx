@@ -334,9 +334,26 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     if (apiType === "invest" && !useInvestApi) return [];
     if (apiType === "oroplay" && !useOroplayApi) return [];
 
-    return providers.filter(
+    const filtered = providers.filter(
       (p) => p.api_type === apiType && p.type === gameType
     );
+    
+    // 🔍 디버깅: 현재 탭의 제공사 목록 출력
+    console.log('🎯 현재 제공사 목록:', {
+      tab: activeTab,
+      apiType,
+      gameType,
+      total: filtered.length,
+      providers: filtered.map(p => ({
+        id: p.id,
+        name: p.name,
+        vendor_code: p.vendor_code,
+        type: p.type,
+        api_type: p.api_type
+      }))
+    });
+    
+    return filtered;
   }, [providers, activeTab, useInvestApi, useOroplayApi]);
 
   // 필터링된 게임 목록
@@ -349,7 +366,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     if (apiType === "invest" && !useInvestApi) return [];
     if (apiType === "oroplay" && !useOroplayApi) return [];
 
-    return games.filter((game) => {
+    const filtered = games.filter((game) => {
       // API 타입과 게임 타입 필터
       if (game.api_type !== apiType || game.type !== gameType) return false;
 
@@ -375,7 +392,35 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
 
       return true;
     });
-  }, [games, activeTab, debouncedSearchTerm, selectedProvider, statusFilter, useInvestApi, useOroplayApi]);
+    
+    // 🔍 디버깅: 필터링된 게임 통계
+    const gamesByProvider = games
+      .filter(g => g.api_type === apiType && g.type === gameType)
+      .reduce((acc, game) => {
+        const pid = game.provider_id;
+        if (!acc[pid]) acc[pid] = { count: 0, name: game.provider_name };
+        acc[pid].count++;
+        return acc;
+      }, {} as Record<number, { count: number; name?: string }>);
+    
+    console.log('🎮 게임 필터링 결과:', {
+      tab: activeTab,
+      apiType,
+      gameType,
+      selectedProvider,
+      selectedProviderName: currentProviders.find(p => p.id === selectedProvider)?.name,
+      totalGames: games.filter(g => g.api_type === apiType && g.type === gameType).length,
+      filteredGames: filtered.length,
+      gamesByProvider: Object.entries(gamesByProvider).map(([pid, info]) => ({
+        provider_id: Number(pid),
+        provider_name: info.name,
+        game_count: info.count,
+        vendor_code: currentProviders.find(p => p.id === Number(pid))?.vendor_code
+      }))
+    });
+    
+    return filtered;
+  }, [games, activeTab, debouncedSearchTerm, selectedProvider, statusFilter, useInvestApi, useOroplayApi, currentProviders]);
 
   // 제공사별 게임 그룹화
   const groupedGames = useMemo(() => {
