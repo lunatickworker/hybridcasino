@@ -47,6 +47,8 @@ async function handleReadyTimeout() {
       .lt('ready_at', tenMinutesAgo.toISOString());
     
     if (error) {
+      // Supabase 연결 안 됨 - 조용히 실패
+      if (error?.message?.includes('Failed to fetch')) return;
       console.error('❌ ready 타임아웃 체크 실패:', error);
       return;
     }
@@ -86,6 +88,8 @@ async function cleanupEndedSessions() {
       .select('id');
     
     if (error) {
+      // Supabase 연결 안 됨 - 조용히 실패
+      if (error?.message?.includes('Failed to fetch')) return;
       console.error('❌ ended 세션 삭제 실패:', error);
       return;
     }

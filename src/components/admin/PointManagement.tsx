@@ -84,12 +84,24 @@ export function PointManagement() {
           )
         `);
 
-      // 시스템관리자가 아니면 referrer_id 필터링
+      // ✅ 계층 구조 필터링: 시스템관리자가 아니면 하위 파트너들의 회원까지 포함
       if (authState.user?.level && authState.user.level > 1) {
+        // get_hierarchical_partners RPC로 모든 하위 파트너 조회
+        const { data: hierarchicalPartners } = await supabase
+          .rpc('get_hierarchical_partners', { p_partner_id: authState.user.id });
+        
+        // ✅ 안전장치: 현재 사용자보다 level이 큰 파트너만 포함 (하위만)
+        const childPartnerIds = (hierarchicalPartners || [])
+          .filter((p: any) => p.level > authState.user.level)
+          .map((p: any) => p.id);
+        
+        const partnerIds = [authState.user.id, ...childPartnerIds];
+        
+        // 자신과 하위 파트너들의 회원 조회
         const { data: userList } = await supabase
           .from('users')
           .select('id')
-          .eq('referrer_id', authState.user.id);
+          .in('referrer_id', partnerIds);
         
         const userIds = userList?.map(u => u.id) || [];
         
@@ -132,9 +144,21 @@ export function PointManagement() {
         .select('id, username, nickname, points, balance')
         .eq('status', 'active');
 
-      // 시스템관리자가 아니면 referrer_id 필터링
+      // ✅ 계층 구조 필터링: 시스템관리자가 아니면 하위 파트너들의 회원까지 포함
       if (authState.user?.level && authState.user.level > 1) {
-        userQuery = userQuery.eq('referrer_id', authState.user.id);
+        // get_hierarchical_partners RPC로 모든 하위 파트너 조회
+        const { data: hierarchicalPartners } = await supabase
+          .rpc('get_hierarchical_partners', { p_partner_id: authState.user.id });
+        
+        // ✅ 안전장치: 현재 사용자보다 level이 큰 파트너만 포함 (하위만)
+        const childPartnerIds = (hierarchicalPartners || [])
+          .filter((p: any) => p.level > authState.user.level)
+          .map((p: any) => p.id);
+        
+        const partnerIds = [authState.user.id, ...childPartnerIds];
+        
+        // 자신과 하위 파트너들의 회원만 조회
+        userQuery = userQuery.in('referrer_id', partnerIds);
       }
 
       const { data, error } = await userQuery.order('username');

@@ -28,6 +28,7 @@ const BannerManagement = lazy(() => import("../admin/BannerManagement").then(m =
 const MenuManagement = lazy(() => import("../admin/MenuManagement").then(m => ({ default: m.MenuManagement })));
 const ApiTester = lazy(() => import("../admin/ApiTester").then(m => ({ default: m.ApiTester })));
 const AutoSyncMonitor = lazy(() => import("../admin/AutoSyncMonitor").then(m => ({ default: m.AutoSyncMonitor })));
+const ActivityLogs = lazy(() => import("../admin/ActivityLogs").then(m => ({ default: m.ActivityLogs })));
 
 interface AdminRoutesProps {
   currentRoute: string;
@@ -133,6 +134,8 @@ export function AdminRoutes({ currentRoute, user }: AdminRoutesProps) {
       return <MenuManagement user={user} />;
     case '/admin/auto-sync-monitor':
       return <AutoSyncMonitor />;
+    case '/admin/activity-logs':
+      return <ActivityLogs user={user} />;
 
       default:
         return <Dashboard user={user} />;

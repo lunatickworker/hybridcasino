@@ -61,6 +61,11 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         .single();
 
       if (dbError) {
+        // Supabase 연결 안 됨 - 조용히 실패
+        if (dbError?.message?.includes('Failed to fetch')) {
+          setLoading(false);
+          return;
+        }
         console.error('❌ [Balance] partners 테이블 조회 실패:', dbError);
         setError(dbError.message);
         return;
@@ -468,15 +473,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           filter: `id=eq.${user.id}`
         },
         (payload) => {
-          console.log('🔔 [Realtime] partners 테이블 UPDATE 감지:', {
-            userId: user.id,
-            level: user.level,
-            old: payload.old,
-            new: payload.new
-          });
-          
-          console.log('🔍 [DEBUG] payload.new 상세:', JSON.stringify(payload.new, null, 2));
-
           const newBalance = parseFloat(payload.new?.balance) || 0;
           const oldBalance = parseFloat(payload.old?.balance) || 0;
 
@@ -486,11 +482,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           if (user.level === 2) {
             const newInvestBalance = parseFloat(payload.new?.invest_balance) || 0;
             const newOroplayBalance = parseFloat(payload.new?.oroplay_balance) || 0;
-            
-            console.log('🔔 [Realtime] Lv2 보유금 업데이트:', {
-              invest_balance: newInvestBalance,
-              oroplay_balance: newOroplayBalance
-            });
             
             setInvestBalance(newInvestBalance);
             setOroplayBalance(newOroplayBalance);
@@ -502,45 +493,10 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           // ✅ 토스트 메시지 제거 (자동 동기화 시 깜박임 방지)
         }
       )
-      .subscribe((status) => {
-        console.log('🔔 [Realtime] partners 채널 상태:', status);
-      });
-
-    // api_configs 테이블 구독
-    const apiConfigsChannel = supabase
-      .channel(`api_configs_${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'api_configs',
-          filter: `partner_id=eq.${user.id}`
-        },
-        (payload) => {
-          const newData = payload.new as any;
-          if (newData && user.level === 1) {
-            // ✅ Lv1만 api_configs balance 업데이트
-            // api_provider로 구분하여 balance 업데이트
-            const apiProvider = newData.api_provider;
-            const balanceRaw = newData.balance;
-            const balanceValue = typeof balanceRaw === 'number' && !isNaN(balanceRaw) ? balanceRaw : 0;
-
-            if (apiProvider === 'invest') {
-              setInvestBalance(balanceValue);
-            } else if (apiProvider === 'oroplay') {
-              setOroplayBalance(balanceValue);
-            }
-            
-            setLastSyncTime(new Date());
-          }
-        }
-      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(partnersChannel);
-      supabase.removeChannel(apiConfigsChannel);
     };
   }, [user?.id]);
 

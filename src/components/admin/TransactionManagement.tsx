@@ -149,12 +149,24 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         .gte('created_at', dateRange.start)
         .lte('created_at', dateRange.end);
 
-      // 시스템관리자가 아니면 하위 회원만 조회
+      // ✅ 계층 구조 필터링: 시스템관리자가 아니면 하위 파트너들의 회원까지 포함
       if (user.level > 1) {
+        // get_hierarchical_partners RPC로 모든 하위 파트너 조회
+        const { data: hierarchicalPartners } = await supabase
+          .rpc('get_hierarchical_partners', { p_partner_id: user.id });
+        
+        // ✅ 안전장치: 현재 사용자보다 level이 큰 파트너만 포함 (하위만)
+        const childPartnerIds = (hierarchicalPartners || [])
+          .filter((p: any) => p.level > user.level)
+          .map((p: any) => p.id);
+        
+        const partnerIds = [user.id, ...childPartnerIds];
+        
+        // 자신과 하위 파트너들의 회원 조회
         const { data: userList } = await supabase
           .from('users')
           .select('id')
-          .eq('referrer_id', user.id);
+          .in('referrer_id', partnerIds);
         
         const userIds = userList?.map(u => u.id) || [];
         
@@ -186,8 +198,21 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         .select('id, nickname, username, balance, bank_name, bank_account, bank_holder')
         .eq('status', 'active');
 
+      // ✅ 계층 구조 필터링: 하위 파트너들의 회원까지 포함
       if (user.level > 1) {
-        userQuery = userQuery.eq('referrer_id', user.id);
+        // get_hierarchical_partners RPC로 모든 하위 파트너 조회
+        const { data: hierarchicalPartners } = await supabase
+          .rpc('get_hierarchical_partners', { p_partner_id: user.id });
+        
+        // ✅ 안전장치: 현재 사용자보다 level이 큰 파트너만 포함 (하위만)
+        const childPartnerIds = (hierarchicalPartners || [])
+          .filter((p: any) => p.level > user.level)
+          .map((p: any) => p.id);
+        
+        const partnerIds = [user.id, ...childPartnerIds];
+        
+        // 자신과 하위 파트너들의 회원만 조회
+        userQuery = userQuery.in('referrer_id', partnerIds);
       }
 
       const { data: usersData } = await userQuery.order('nickname');
@@ -529,7 +554,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           status: 'completed',
           balance_before: balanceBefore,
           balance_after: balanceAfter,
-          memo: `[관리자 강제 ${type === 'deposit' ? '입금' : '출금'}] ${memo}`,
+          memo: memo || `[관리자 강제 ${type === 'deposit' ? '입금' : '출금'}]`,
           processed_by: user.id,
           processed_at: new Date().toISOString(),
           external_response: apiResult.data

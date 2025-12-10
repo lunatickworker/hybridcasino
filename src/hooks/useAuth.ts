@@ -4,6 +4,7 @@ import { Partner, User as CustomUser } from '../types';
 import { getInfo } from '../lib/investApi';
 import { updateInvestBalance, updateOroplayBalance, getInvestCredentials, getOroplayCredentials } from '../lib/apiConfigHelper';
 import { storage } from '../lib/utils';
+import { logLogin, getClientIP, getUserAgent } from '../lib/activityLogger';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -155,6 +156,11 @@ export function useAuthProvider() {
           }, 500);
         }
       }
+
+      // ✅ 로그인 활동 기록
+      const clientIP = await getClientIP();
+      const userAgent = getUserAgent();
+      await logLogin(systemAdminUser.id, 'partner', clientIP, userAgent, true);
 
       return { success: true };
     } catch (error) {

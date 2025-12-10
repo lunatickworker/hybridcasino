@@ -1,14 +1,31 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Alert, AlertDescription } from "../ui/alert";
-import { Eye, EyeOff, LogIn, UserPlus, Loader2, CheckCircle, XCircle } from "lucide-react";
-import { toast } from "sonner@2.0.3";
-import { supabase } from "../../lib/supabase";
+import { useState, useEffect } from 'react';
+import { supabase } from '../../lib/supabase';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
+import { Alert, AlertDescription } from '../ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { toast } from 'sonner@2.0.3';
+import { 
+  Eye, 
+  EyeOff, 
+  Wallet, 
+  TrendingUp, 
+  Award, 
+  Lock, 
+  User, 
+  Mail, 
+  Phone,
+  Loader2,
+  LogIn,
+  UserPlus,
+  CheckCircle,
+  XCircle
+} from 'lucide-react';
+import { generateUUID } from '../../lib/utils';
+import { logLogin, getClientIP, getUserAgent } from '../../lib/activityLogger';
 
 interface IndoLoginProps {
   onLoginSuccess: (user: any) => void;
@@ -22,18 +39,6 @@ interface Bank {
   name_ko: string;
   name_en: string;
 }
-
-// UUID 생성 헬퍼 함수
-const generateUUID = (): string => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-};
 
 export function IndoLogin({ onLoginSuccess, onRouteChange }: IndoLoginProps) {
   const [activeTab, setActiveTab] = useState("login");
@@ -219,12 +224,9 @@ export function IndoLogin({ onLoginSuccess, onRouteChange }: IndoLoginProps) {
       }]);
 
       // activity_logs 기록
-      await supabase.from('activity_logs').insert([{
-        actor_type: 'user',
-        actor_id: user.id,
-        action: 'login',
-        details: { username: user.username, login_time: new Date().toISOString() }
-      }]);
+      const clientIP = await getClientIP();
+      const userAgent = getUserAgent();
+      await logLogin(user.id, 'user', clientIP, userAgent, true);
 
       console.log('✅ 로그인 처리 완료');
       

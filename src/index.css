@@ -100,8 +100,6 @@
     --color-orange-700: oklch(.553 .195 38.402);
     --color-orange-800: oklch(.47 .157 37.304);
     --color-orange-900: oklch(.408 .123 38.172);
-    --color-amber-50: oklch(.987 .022 95.277);
-    --color-amber-200: oklch(.924 .12 95.746);
     --color-amber-300: oklch(.879 .169 91.605);
     --color-amber-400: oklch(.828 .189 84.429);
     --color-amber-500: oklch(.769 .188 70.08);
@@ -1910,6 +1908,10 @@
     cursor: default;
   }
 
+  .cursor-not-allowed {
+    cursor: not-allowed;
+  }
+
   .cursor-pointer {
     cursor: pointer;
   }
@@ -2315,10 +2317,6 @@
   .border-none {
     --tw-border-style: none;
     border-style: none;
-  }
-
-  .border-amber-200 {
-    border-color: var(--color-amber-200);
   }
 
   .border-amber-500\/30 {
@@ -3127,10 +3125,6 @@
     background-color: var(--accent);
   }
 
-  .bg-amber-50 {
-    background-color: var(--color-amber-50);
-  }
-
   .bg-amber-400 {
     background-color: var(--color-amber-400);
   }
@@ -3337,6 +3331,16 @@
 
   .bg-cyan-400 {
     background-color: var(--color-cyan-400);
+  }
+
+  .bg-cyan-500\/10 {
+    background-color: color-mix(in srgb, oklch(.715 .143 215.221) 10%, transparent);
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .bg-cyan-500\/10 {
+      background-color: color-mix(in oklab, var(--color-cyan-500) 10%, transparent);
+    }
   }
 
   .bg-cyan-500\/20 {
@@ -6152,16 +6156,22 @@
     color: var(--color-amber-400);
   }
 
+  .text-amber-400\/80 {
+    color: color-mix(in srgb, oklch(.828 .189 84.429) 80%, transparent);
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-amber-400\/80 {
+      color: color-mix(in oklab, var(--color-amber-400) 80%, transparent);
+    }
+  }
+
   .text-amber-500 {
     color: var(--color-amber-500);
   }
 
   .text-amber-600 {
     color: var(--color-amber-600);
-  }
-
-  .text-amber-700 {
-    color: var(--color-amber-700);
   }
 
   .text-black {
@@ -6382,6 +6392,16 @@
 
   .text-purple-400 {
     color: var(--color-purple-400);
+  }
+
+  .text-purple-400\/80 {
+    color: color-mix(in srgb, oklch(.714 .203 305.504) 80%, transparent);
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .text-purple-400\/80 {
+      color: color-mix(in oklab, var(--color-purple-400) 80%, transparent);
+    }
   }
 
   .text-purple-500 {
@@ -6665,6 +6685,10 @@
 
   .opacity-30 {
     opacity: .3;
+  }
+
+  .opacity-40 {
+    opacity: .4;
   }
 
   .opacity-50 {
@@ -7054,6 +7078,11 @@
 
   .transition-none {
     transition-property: none;
+  }
+
+  .duration-100 {
+    --tw-duration: .1s;
+    transition-duration: .1s;
   }
 
   .duration-200 {
@@ -7551,6 +7580,18 @@
   @media (hover: hover) {
     .hover\:border-purple-500:hover {
       border-color: var(--color-purple-500);
+    }
+  }
+
+  @media (hover: hover) {
+    .hover\:border-red-400\/50:hover {
+      border-color: color-mix(in srgb, oklch(.704 .191 22.216) 50%, transparent);
+    }
+
+    @supports (color: color-mix(in lab, red, red)) {
+      .hover\:border-red-400\/50:hover {
+        border-color: color-mix(in oklab, var(--color-red-400) 50%, transparent);
+      }
     }
   }
 
@@ -10115,10 +10156,6 @@
     }
   }
 
-  .dark\:border-amber-800:is(.dark *) {
-    border-color: var(--color-amber-800);
-  }
-
   .dark\:border-blue-800:is(.dark *) {
     border-color: var(--color-blue-800);
   }
@@ -10133,16 +10170,6 @@
 
   .dark\:border-red-800:is(.dark *) {
     border-color: var(--color-red-800);
-  }
-
-  .dark\:bg-amber-900\/10:is(.dark *) {
-    background-color: color-mix(in srgb, oklch(.414 .112 45.904) 10%, transparent);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .dark\:bg-amber-900\/10:is(.dark *) {
-      background-color: color-mix(in oklab, var(--color-amber-900) 10%, transparent);
-    }
   }
 
   .dark\:bg-blue-900\/10:is(.dark *) {
@@ -10247,10 +10274,6 @@
     .dark\:to-purple-900\/10:is(.dark *) {
       --tw-gradient-to: color-mix(in oklab, var(--color-purple-900) 10%, transparent);
     }
-  }
-
-  .dark\:text-amber-300:is(.dark *) {
-    color: var(--color-amber-300);
   }
 
   .dark\:text-blue-100:is(.dark *) {

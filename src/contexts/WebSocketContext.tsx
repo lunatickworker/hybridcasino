@@ -135,7 +135,6 @@ export const WebSocketProvider = React.memo(({ children }: WebSocketProviderProp
 
     try {
       const wsUrl = 'wss://vi8282.com/ws';
-      console.log('🔌 WebSocket 서버 연결 시도:', wsUrl);
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;

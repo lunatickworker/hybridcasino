@@ -557,12 +557,10 @@ export function BettingHistorySync({ user }: BettingHistorySyncProps) {
 
     // 30초마다 세션 상태 모니터링 실행
     intervalRef.current = setInterval(() => {
-      console.log('⏰ [SESSION-MONITOR] 30초 타이머 실행:', new Date().toISOString());
       monitorSessionStates();
     }, 30000);
 
     return () => {
-      console.log('🛑 [SESSION-MONITOR] 타이머 중지');
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;

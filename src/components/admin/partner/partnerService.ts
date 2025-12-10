@@ -19,17 +19,16 @@ export const fetchPartners = async (currentUserId: string, userLevel: number) =>
       oroplay_balance,
       commission_rolling,
       commission_losing,
+      casino_rolling_commission,
+      casino_losing_commission,
+      slot_rolling_commission,
+      slot_losing_commission,
       withdrawal_fee,
       status,
       created_at,
-      updated_at,
-      parent:parent_id (
-        nickname
-      )
-    `)
-    .order('level', { ascending: true })
-    .order('created_at', { ascending: false });
-
+      last_login_at
+    `);
+  
   const isSystemAdmin = userLevel === 1;
   
   const { data, error } = isSystemAdmin
@@ -102,7 +101,17 @@ export const loadPartnerCommissionById = async (partnerId: string) => {
   try {
     const { data, error } = await supabase
       .from('partners')
-      .select('commission_rolling, commission_losing, withdrawal_fee, partner_type, nickname')
+      .select(`
+        commission_rolling, 
+        commission_losing, 
+        casino_rolling_commission,
+        casino_losing_commission,
+        slot_rolling_commission,
+        slot_losing_commission,
+        withdrawal_fee, 
+        partner_type, 
+        nickname
+      `)
       .eq('id', partnerId)
       .maybeSingle();
 
@@ -115,6 +124,10 @@ export const loadPartnerCommissionById = async (partnerId: string) => {
       return {
         rolling: data.commission_rolling || 100,
         losing: data.commission_losing || 100,
+        casinoRolling: data.casino_rolling_commission || data.commission_rolling || 100,
+        casinoLosing: data.casino_losing_commission || data.commission_losing || 100,
+        slotRolling: data.slot_rolling_commission || data.commission_rolling || 100,
+        slotLosing: data.slot_losing_commission || data.commission_losing || 100,
         fee: data.withdrawal_fee || 100,
         nickname: data.nickname
       };

@@ -10,10 +10,12 @@ export interface Partner {
   balance: number;
   commission_rolling: number;
   commission_losing: number;
+  // 카지노/슬롯 커미션 분리 - 실제 DB 컬럼명과 일치
+  casino_rolling_commission?: number;
+  casino_losing_commission?: number;
+  slot_rolling_commission?: number;
+  slot_losing_commission?: number;
   withdrawal_fee: number;
-  min_withdrawal_amount?: number;
-  max_withdrawal_amount?: number;
-  daily_withdrawal_limit?: number;
   bank_name?: string;
   bank_account?: string;
   bank_holder?: string;

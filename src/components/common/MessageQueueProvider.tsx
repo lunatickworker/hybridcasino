@@ -89,7 +89,9 @@ export const MessageQueueProvider = React.memo(({ children, userType, userId }: 
 
       if (error) throw error;
       setPendingMessages(data || []);
-    } catch (error) {
+    } catch (error: any) {
+      // Supabase 연결 안 됨 - 조용히 실패
+      if (error?.message?.includes('Failed to fetch')) return;
       console.error('대기 메시지 조회 실패:', error);
     }
   }, [userType]);
@@ -111,7 +113,9 @@ export const MessageQueueProvider = React.memo(({ children, userType, userId }: 
       // 읽지 않은 알림 수 계산
       const unread = (data || []).filter(n => n.status !== 'read').length;
       setUnreadCount(unread);
-    } catch (error) {
+    } catch (error: any) {
+      // Supabase 연결 안 됨 - 조용히 실패
+      if (error?.message?.includes('Failed to fetch')) return;
       console.error('알림 조회 실패:', error);
     }
   }, [userType, userId]);
@@ -238,22 +242,9 @@ export const MessageQueueProvider = React.memo(({ children, userType, userId }: 
     if (!lastMessage) return;
 
     // 메시지 구조 정규화
-    let messageType: string;
-    let messageData: any;
-
-    // 중첩된 구조 확인 및 정규화
-    if (lastMessage.type && typeof lastMessage.type === 'object' && lastMessage.type.type) {
-      // 중첩된 구조인 경우 (type.type)
-      messageType = lastMessage.type.type;
-      messageData = lastMessage.type.data || lastMessage.data || {};
-    } else if (typeof lastMessage.type === 'string') {
-      // 정상적인 구조인 경우
-      messageType = lastMessage.type;
-      messageData = lastMessage.data || {};
-    } else {
-      console.error('Invalid message structure received:', lastMessage);
-      return;
-    }
+    const rawMessage = lastMessage;
+    const messageType = typeof rawMessage.type === 'string' ? rawMessage.type : rawMessage.data?.type;
+    const messageData = rawMessage.data || rawMessage;
     
     // type이 유효한 문자열인지 확인
     if (!messageType || typeof messageType !== 'string') {

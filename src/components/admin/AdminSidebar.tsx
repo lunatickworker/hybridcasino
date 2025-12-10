@@ -179,6 +179,18 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
         .eq('is_enabled', true);
 
       if (menuError) {
+        // Supabase 연결 안 됨 - 조용히 실패하고 기본 메뉴 표시
+        if (menuError?.message?.includes('Failed to fetch')) {
+          setMenuItems([{
+            id: 'dashboard',
+            title: t.menu.dashboard,
+            icon: LayoutDashboard,
+            path: '/admin/dashboard',
+            minLevel: 6
+          }]);
+          setLoadingMenus(false);
+          return;
+        }
         console.error('메뉴 권한 조회 오류:', menuError);
         // 오류 발생 시 기본 대시보드만 표시
         setMenuItems([{
@@ -236,7 +248,8 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
           { menu_id: 'settings', menu_name: '설정', menu_name_en: 'Settings', menu_path: '/admin/settings', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 23 },
           { menu_id: 'system-info', menu_name: '시스템 정보', menu_name_en: 'System Info', menu_path: '/admin/system-info', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 24 },
           { menu_id: 'api-tester', menu_name: 'API 테스터', menu_name_en: 'API Tester', menu_path: '/admin/api-tester', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 25 },
-          { menu_id: 'menu-management', menu_name: '메뉴 관리', menu_name_en: 'Menu Management', menu_path: '/admin/menu-management', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 26 }
+          { menu_id: 'menu-management', menu_name: '메뉴 관리', menu_name_en: 'Menu Management', menu_path: '/admin/menu-management', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 26 },
+          { menu_id: 'activity-logs', menu_name: '접속 및 사용 기록', menu_name_en: 'Activity Logs', menu_path: '/admin/activity-logs', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 27 }
         ];
 
         const converted = convertDbMenusToMenuItems(hardcodedMenus);
@@ -254,7 +267,6 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       }
 
       // ✅ 3단계: DB에서 조회한 활성화된 메뉴만 변환
-      console.log(`✅ ${user.nickname} - 활성화된 메뉴 ${partnerMenus.length}개 로드`);
       
       const dbMenus: DbMenuItem[] = partnerMenus
         .filter(pm => pm.menu_permission) // menu_permission이 있는 것만

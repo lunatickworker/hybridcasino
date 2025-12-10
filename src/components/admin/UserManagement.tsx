@@ -1861,7 +1861,7 @@ export function UserManagement() {
         
         <MetricCard
           title={t.userManagement.onlineUsers}
-          value={users.filter(u => u.status === 'active').length.toLocaleString()}
+          value={users.filter(u => u.is_online === true).length.toLocaleString()}
           subtitle={t.userManagement.realtimeUsers}
           icon={Activity}
           color="cyan"

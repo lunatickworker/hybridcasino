@@ -199,22 +199,13 @@ export function Dashboard({ user }: DashboardProps) {
 
 
   // ✅ 실제 데이터 기반 대시보드 통계 가져오기 (Guidelines 준수)
-  const fetchDashboardStats = async () => {
+  const loadDashboardStats = async () => {
+    setIsLoadingStats(true);
+    
     try {
-      setIsLoadingStats(true);
-      
-      console.log('============================================');
-      console.log('📊 대시보드 통계 조회 시작');
-      console.log('Partner ID:', user.id);
-      console.log('Partner Level:', user.level);
-      console.log('Partner Type:', user.partner_type);
-      console.log('============================================');
-      
       // ✅ 실제 DB 데이터 직접 확인 (디버깅)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
-      console.log('🔍 직접 DB 조회 시작...');
       
       // 1. transactions 테이블 직접 조회
       const { data: transData, error: transError } = await supabase
@@ -222,10 +213,7 @@ export function Dashboard({ user }: DashboardProps) {
         .select('transaction_type, status, amount, created_at')
         .gte('created_at', today.toISOString());
       
-      console.log('📊 오늘 transactions:', transData?.length || 0, '건');
       if (transData && transData.length > 0) {
-        console.log('상세:', transData);
-        
         // 입금 계산
         const deposits = transData
           .filter(t => 
@@ -241,9 +229,6 @@ export function Dashboard({ user }: DashboardProps) {
             (t.transaction_type === 'admin_adjustment' && t.amount < 0 && ['approved', 'completed'].includes(t.status))
           )
           .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
-        
-        console.log('💰 직접 계산 입금:', deposits);
-        console.log('💸 직접 계산 출금:', withdrawals);
       }
       
       // 2. game_records 테이블 직접 조회
@@ -252,10 +237,7 @@ export function Dashboard({ user }: DashboardProps) {
         .select('provider_id, bet_amount, played_at')
         .gte('played_at', today.toISOString());
       
-      console.log('🎮 오늘 game_records:', gameData?.length || 0, '건');
       if (gameData && gameData.length > 0) {
-        console.log('상세:', gameData);
-        
         // 카지노/슬롯 계산
         const casinoProviders = [410, 77, 2, 30, 78, 86, 11, 28, 89, 91, 44, 85, 0];
         const casino = gameData
@@ -265,22 +247,13 @@ export function Dashboard({ user }: DashboardProps) {
         const slot = gameData
           .filter(g => !casinoProviders.includes(Number(g.provider_id)))
           .reduce((sum, g) => sum + Number(g.bet_amount), 0);
-        
-        console.log('🎰 직접 계산 카지노:', casino);
-        console.log('🎲 직접 계산 슬롯:', slot);
       }
-      
-      console.log('');
-      console.log('🔧 직접 SELECT 쿼리 시작 (RPC 제거)...');
       
       // 오늘 날짜 (UTC 기준 오늘 00:00:00)
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const todayStartISO = todayStart.toISOString();
       
-      console.log('📅 오늘 시작 시각 (UTC):', todayStartISO);
-      console.log('📅 현재 시각 (로컬):', now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
-
       // ✅ 권한별 하위 파트너 ID 목록 조회
       let allowedPartnerIds: string[] = [];
       
@@ -348,8 +321,6 @@ export function Dashboard({ user }: DashboardProps) {
         }
       }
       
-      console.log('👥 하위 파트너 ID 개수:', allowedPartnerIds.length);
-
       // ✅ 직속 회원 ID 목록 (referrer_id = user.id)
       let directUserIds: string[] = [];
       const { data: directUsersData } = await supabase
@@ -358,8 +329,7 @@ export function Dashboard({ user }: DashboardProps) {
         .eq('referrer_id', user.id);
       
       directUserIds = directUsersData?.map(u => u.id) || [];
-      console.log('👤 직속 회원 ID 개수:', directUserIds.length);
-
+      
       // ✅ 하위 파트너 회원 ID 목록 (referrer_id가 하위 파트너들)
       let subPartnerUserIds: string[] = [];
       const subPartnerIds = allowedPartnerIds.filter(id => id !== user.id);
@@ -371,7 +341,6 @@ export function Dashboard({ user }: DashboardProps) {
           .in('referrer_id', subPartnerIds);
         
         subPartnerUserIds = subUsersData?.map(u => u.id) || [];
-        console.log('👥 하위 파트너 회원 ID 개수:', subPartnerUserIds.length);
       }
 
       // 1️⃣ 직속 회원 입금
@@ -385,7 +354,6 @@ export function Dashboard({ user }: DashboardProps) {
           .in('user_id', directUserIds)
           .gte('created_at', todayStartISO);
         
-        console.log('💰 직속 회원 입금 데이터:', depositData);
         directDeposit = depositData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
       }
 
@@ -400,7 +368,6 @@ export function Dashboard({ user }: DashboardProps) {
           .in('user_id', directUserIds)
           .gte('created_at', todayStartISO);
         
-        console.log('💸 직속 회원 출금 데이터:', withdrawalData);
         directWithdrawal = withdrawalData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
       }
 
@@ -415,7 +382,6 @@ export function Dashboard({ user }: DashboardProps) {
           .in('user_id', subPartnerUserIds)
           .gte('created_at', todayStartISO);
         
-        console.log('💰 하위 파트너 회원 입금 데이터:', depositData);
         subPartnerDeposit = depositData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
       }
 
@@ -430,7 +396,6 @@ export function Dashboard({ user }: DashboardProps) {
           .in('user_id', subPartnerUserIds)
           .gte('created_at', todayStartISO);
         
-        console.log('💸 하위 파트너 회원 출금 데이터:', withdrawalData);
         subPartnerWithdrawal = withdrawalData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
       }
 
@@ -446,15 +411,18 @@ export function Dashboard({ user }: DashboardProps) {
         totalUsers = count || 0;
       }
 
-      // 4️⃣ 온라인 사용자 수 - game_launch_sessions에서 status='active'인 세션 카운트
+      // 4️⃣ 온라인 사용자 수 - users 테이블에서 is_online=true인 회원 카운트
       let onlineCount = 0;
       
-      const { count } = await supabase
-        .from('game_launch_sessions')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'active');
-      
-      onlineCount = count || 0;
+      if (allowedPartnerIds.length > 0) {
+        const { count } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_online', true)
+          .in('referrer_id', allowedPartnerIds);
+        
+        onlineCount = count || 0;
+      }
 
       // 5️⃣ 만충금 조회 (직속 + 하위 파트너 회원) - ✅ 통합 모듈 사용
       const allUserIds = [...directUserIds, ...subPartnerUserIds];
@@ -548,27 +516,17 @@ export function Dashboard({ user }: DashboardProps) {
       
       setPendingDeposits(pendingDepositAmount);
       
-      console.log('');
-      console.log('✅ 대시보드 통계 업데이트 완료 (RPC 없음)');
-      console.log('============================================');
+      setIsLoadingStats(false);
     } catch (error: any) {
-      console.error('');
-      console.error('============================================');
-      console.error('❌ 대시보드 통계 로딩 오류');
-      console.error('Error:', error);
-      console.error('Message:', error?.message);
-      console.error('Details:', error?.details);
-      console.error('Hint:', error?.hint);
-      console.error('============================================');
-      toast.error('대시보드 통계를 불러올 수 없습니다: ' + (error?.message || '알 수 없는 오류'));
-    } finally {
+      console.error('❌ [Dashboard] 통계 로드 실패:', error);
+      toast.error(`통계 로드 실패: ${error.message}`);
       setIsLoadingStats(false);
     }
   };
 
   // 컴포넌트 마운트 시 통계 데이터 로드
   useEffect(() => {
-    fetchDashboardStats();
+    loadDashboardStats();
   }, []);
 
   // 실시간 시간 업데이트
@@ -607,7 +565,7 @@ export function Dashboard({ user }: DashboardProps) {
         },
         (payload) => {
           console.log('💰 [대시보드] transactions 변경 감지:', payload.eventType);
-          fetchDashboardStats(); // 즉시 갱신
+          loadDashboardStats(); // 즉시 갱신
         }
       )
       .subscribe();
@@ -625,7 +583,7 @@ export function Dashboard({ user }: DashboardProps) {
         },
         (payload) => {
           console.log('💰 [대시보드] partners 보유금 변경 감지:', payload.new);
-          fetchDashboardStats(); // 즉시 갱신
+          loadDashboardStats(); // 즉시 갱신
         }
       )
       .subscribe();
@@ -642,7 +600,7 @@ export function Dashboard({ user }: DashboardProps) {
         },
         (payload) => {
           console.log('🎮 [대시보드] game_records 변경 감지:', payload.eventType);
-          fetchDashboardStats(); // 즉시 갱신
+          loadDashboardStats(); // 즉시 갱신
         }
       )
       .subscribe();
@@ -659,7 +617,7 @@ export function Dashboard({ user }: DashboardProps) {
         },
         (payload) => {
           console.log('👤 [대시보드] users 변경 감지:', payload.eventType);
-          fetchDashboardStats(); // 즉시 갱신
+          loadDashboardStats(); // 즉시 갱신
         }
       )
       .subscribe();

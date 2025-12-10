@@ -6,7 +6,7 @@ import { handleForceTransaction as executeForceTransaction } from "./partner/han
 import { useState } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useBalance } from "../../contexts/BalanceContext";
-import { ChevronDown, ChevronRight, Building2, Users, Edit, DollarSign, ArrowDown, Download, Plus, Search, Eye, Shield, TrendingUp } from "lucide-react";
+import { ChevronDown, ChevronRight, Building2, Users, Edit, DollarSign, ArrowDown, Download, Plus, Search, Eye, Shield, TrendingUp, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -18,6 +18,8 @@ import { ForceTransactionModal } from "./ForceTransactionModal";
 import { HierarchyTransactionModal } from "./HierarchyTransactionModal";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { toast } from "sonner";
+import { supabase } from "../../lib/supabase";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
 
 const partnerTypeColors = {
   system_admin: 'bg-purple-500',
@@ -105,6 +107,11 @@ export function PartnerManagementV2() {
   const [showHierarchyTransactionModal, setShowHierarchyTransactionModal] = useState(false);
   const [hierarchyTransactionType, setHierarchyTransactionType] = useState<'deposit' | 'withdrawal'>('deposit');
   const [hierarchyTransactionTarget, setHierarchyTransactionTarget] = useState<Partner | null>(null);
+  
+  // 삭제 확인 다이얼로그 state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteTargetPartner, setDeleteTargetPartner] = useState<Partner | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   
   const [systemDefaultCommission] = useState({
     rolling: 0.5,
@@ -300,20 +307,20 @@ export function PartnerManagementV2() {
                 <div className="flex items-center gap-1">
                   <span className="text-[10px] text-slate-500 w-8">C:</span>
                   <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px] px-1 py-0">
-                    R:{partner.casino_commission_rolling || 0}%
+                    R:{partner.casino_rolling_commission || 0}%
                   </Badge>
                   <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30 text-[10px] px-1 py-0">
-                    L:{partner.casino_commission_losing || 0}%
+                    L:{partner.casino_losing_commission || 0}%
                   </Badge>
                 </div>
                 {/* Slot 커미션 */}
                 <div className="flex items-center gap-1">
                   <span className="text-[10px] text-slate-500 w-8">S:</span>
                   <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px] px-1 py-0">
-                    R:{partner.slot_commission_rolling || 0}%
+                    R:{partner.slot_rolling_commission || 0}%
                   </Badge>
                   <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30 text-[10px] px-1 py-0">
-                    L:{partner.slot_commission_losing || 0}%
+                    L:{partner.slot_losing_commission || 0}%
                   </Badge>
                   <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30 text-[10px] px-1 py-0">
                     F:{partner.withdrawal_fee || 0}%
@@ -499,6 +506,19 @@ export function PartnerManagementV2() {
             >
               <Edit className="h-3 w-3" />
             </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setDeleteTargetPartner(partner);
+                setShowDeleteDialog(true);
+              }}
+              className="bg-red-500/10 border-red-500/50 text-red-400 hover:bg-red-500/20 flex-shrink-0"
+              title="파트너 삭제"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
           </div>
         </div>
 
@@ -541,6 +561,78 @@ export function PartnerManagementV2() {
     fetchPartners();
     // ✅ 보유금 실시간 업데이트
     await syncBalance();
+  };
+
+  // 파트너 삭제 핸들러
+  const handleDeletePartner = async () => {
+    if (!deleteTargetPartner) return;
+
+    try {
+      setDeleteLoading(true);
+
+      // 1. 하위 회원 삭제 (users 테이블)
+      const { error: usersError } = await supabase
+        .from('users')
+        .delete()
+        .eq('referrer_id', deleteTargetPartner.id);
+
+      if (usersError) {
+        console.error('하위 회원 삭제 오류:', usersError);
+        throw new Error('하위 회원 삭제에 실패했습니다.');
+      }
+
+      // 2. 하위 파트너 재귀 삭제 함수
+      const deleteChildPartners = async (partnerId: string) => {
+        // 현재 파트너의 하위 파트너 조회
+        const { data: childPartners, error: fetchError } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('parent_id', partnerId);
+
+        if (fetchError) throw fetchError;
+
+        // 하위 파트너가 있으면 재귀적으로 삭제
+        if (childPartners && childPartners.length > 0) {
+          for (const child of childPartners) {
+            await deleteChildPartners(child.id);
+          }
+        }
+
+        // 현재 파트너의 회원 삭제
+        await supabase
+          .from('users')
+          .delete()
+          .eq('referrer_id', partnerId);
+
+        // 현재 파트너 삭제
+        await supabase
+          .from('partners')
+          .delete()
+          .eq('id', partnerId);
+      };
+
+      // 3. 하위 파트너와 그들의 회원 모두 삭제
+      await deleteChildPartners(deleteTargetPartner.id);
+
+      toast.success(`파트너 "${deleteTargetPartner.nickname}"와 모든 하위 조직이 삭제되었습니다.`);
+      
+      setShowDeleteDialog(false);
+      setDeleteTargetPartner(null);
+      fetchPartners();
+
+      // WebSocket 알림
+      if (sendMessage && connected) {
+        sendMessage({
+          type: 'partner_deleted',
+          data: { partnerId: deleteTargetPartner.id }
+        });
+      }
+    } catch (error) {
+      console.error('파트너 삭제 오류:', error);
+      toast.error('파트너 삭제에 실패했습니다.');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   if (loading) {
@@ -1008,7 +1100,7 @@ export function PartnerManagementV2() {
         onSuccess={handleTransferSuccess}
         onWebSocketUpdate={(data) => {
           if (sendMessage && connected) {
-            sendMessage(data);
+            sendMessage(data.type, data.data);
           }
         }}
       />
@@ -1042,7 +1134,7 @@ export function PartnerManagementV2() {
         }}
         onWebSocketUpdate={(data) => {
           if (sendMessage && connected) {
-            sendMessage(data);
+            sendMessage(data.type, data.data);
           }
         }}
       />
@@ -1059,10 +1151,35 @@ export function PartnerManagementV2() {
         }}
         onWebSocketUpdate={(data) => {
           if (sendMessage && connected) {
-            sendMessage(data);
+            sendMessage(data.type, data.data);
           }
         }}
       />
+
+      {/* 파트너 삭제 확인 다이얼로그 */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>파트너 삭제 확인</AlertDialogTitle>
+            <AlertDialogDescription>
+              파트너 "{deleteTargetPartner?.nickname}"와 모든 하위 조직을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeletePartner}
+              className="bg-red-500/10 border-red-500/50 text-red-400 hover:bg-red-500/20 hover:border-red-400/50"
+            >
+              {deleteLoading ? (
+                <LoadingSpinner />
+              ) : (
+                "삭제"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

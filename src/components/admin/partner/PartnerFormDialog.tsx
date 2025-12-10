@@ -37,8 +37,10 @@ export function PartnerFormDialog({
   const [loading, setLoading] = useState(false);
   const [hierarchyWarning, setHierarchyWarning] = useState("");
   const [parentCommission, setParentCommission] = useState<{
-    rolling: number;
-    losing: number;
+    casinoRolling: number;
+    casinoLosing: number;
+    slotRolling: number;
+    slotLosing: number;
     fee: number;
     nickname?: string;
   } | null>(null);
@@ -52,12 +54,11 @@ export function PartnerFormDialog({
     opcode: "",
     secret_key: "",
     api_token: "",
-    commission_rolling: 0.5,
-    commission_losing: 5.0,
-    withdrawal_fee: 1.0,
-    min_withdrawal_amount: 10000,
-    max_withdrawal_amount: 1000000,
-    daily_withdrawal_limit: 5000000
+    casino_rolling_commission: 0.5,
+    casino_losing_commission: 5.0,
+    slot_rolling_commission: 0.5,
+    slot_losing_commission: 5.0,
+    withdrawal_fee: 1.0
   });
 
   // 파트너 데이터 로드 (수정 모드)
@@ -72,12 +73,11 @@ export function PartnerFormDialog({
         opcode: "",
         secret_key: "",
         api_token: "",
-        commission_rolling: partner.commission_rolling,
-        commission_losing: partner.commission_losing,
-        withdrawal_fee: partner.withdrawal_fee,
-        min_withdrawal_amount: partner.min_withdrawal_amount || 10000,
-        max_withdrawal_amount: partner.max_withdrawal_amount || 1000000,
-        daily_withdrawal_limit: partner.daily_withdrawal_limit || 5000000
+        casino_rolling_commission: partner.casino_rolling_commission || partner.commission_rolling || 0.5,
+        casino_losing_commission: partner.casino_losing_commission || partner.commission_losing || 5.0,
+        slot_rolling_commission: partner.slot_rolling_commission || partner.commission_rolling || 0.5,
+        slot_losing_commission: partner.slot_losing_commission || partner.commission_losing || 5.0,
+        withdrawal_fee: partner.withdrawal_fee
       });
     } else if (mode === 'create') {
       resetForm();
@@ -94,12 +94,11 @@ export function PartnerFormDialog({
       opcode: "",
       secret_key: "",
       api_token: "",
-      commission_rolling: 0.5,
-      commission_losing: 5.0,
-      withdrawal_fee: 1.0,
-      min_withdrawal_amount: 10000,
-      max_withdrawal_amount: 1000000,
-      daily_withdrawal_limit: 5000000
+      casino_rolling_commission: 0.5,
+      casino_losing_commission: 5.0,
+      slot_rolling_commission: 0.5,
+      slot_losing_commission: 5.0,
+      withdrawal_fee: 1.0
     });
     setHierarchyWarning("");
     setParentCommission(null);
@@ -134,12 +133,15 @@ export function PartnerFormDialog({
 
         const updateData: any = {
           nickname: formData.nickname,
-          commission_rolling: formData.commission_rolling,
-          commission_losing: formData.commission_losing,
+          // 카지노/슬롯 분리 커미션 (실제 DB 컬럼명)
+          casino_rolling_commission: formData.casino_rolling_commission,
+          casino_losing_commission: formData.casino_losing_commission,
+          slot_rolling_commission: formData.slot_rolling_commission,
+          slot_losing_commission: formData.slot_losing_commission,
+          // 하위 호환성을 위한 기존 컬럼 (평균값 또는 카지노 값 사용)
+          commission_rolling: formData.casino_rolling_commission,
+          commission_losing: formData.casino_losing_commission,
           withdrawal_fee: formData.withdrawal_fee,
-          min_withdrawal_amount: formData.min_withdrawal_amount,
-          max_withdrawal_amount: formData.max_withdrawal_amount,
-          daily_withdrawal_limit: formData.daily_withdrawal_limit,
           updated_at: new Date().toISOString()
         };
 
@@ -286,85 +288,168 @@ export function PartnerFormDialog({
           )}
 
           {/* 커미션 설정 */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-2">
+              <Label className="flex items-center gap-2 text-base">
                 <DollarSign className="h-4 w-4 text-green-500" />
                 {t.partnerManagement.commissionSettingsLabel}
               </Label>
               {formData.partner_type !== 'head_office' && parentCommission && (
-                <Badge variant="outline" className="text-xs">
-                  {t.partnerManagement.upperLimit} {parentCommission.rolling}% / {parentCommission.losing}% / {parentCommission.fee}%
+                <Badge variant="outline" className="text-xs bg-slate-800/50 border-slate-600">
+                  상위: C {parentCommission.casinoRolling}%/{parentCommission.casinoLosing}% | S {parentCommission.slotRolling}%/{parentCommission.slotLosing}%
                 </Badge>
               )}
             </div>
             
             {formData.partner_type === 'head_office' ? (
-              <div className="p-3 bg-purple-50 dark:bg-purple-900/10 rounded-lg border border-purple-200 dark:border-purple-800">
-                <p className="text-xs text-purple-700 dark:text-purple-300">
-                  🏢 <strong>대본사</strong>는 최상위 파트너로 커미션이 <strong>100%</strong>로 고정됩니다.
-                </p>
+              <div className="p-4 bg-purple-500/10 rounded-lg border border-purple-500/30">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
+                    🏢
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-purple-300">대본사 계정</p>
+                    <p className="text-xs text-purple-400/80 mt-1">
+                      최상위 파트너로 커미션이 100%로 고정됩니다.
+                    </p>
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="p-3 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-800">
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  ⚠️ 커미션 변경 시 정산에 즉시 반영되며, 상위 파트너 요율을 초과할 수 없습니다.
-                </p>
+              <div className="p-4 bg-amber-500/10 rounded-lg border border-amber-500/30">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+                    ⚠️
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-amber-300">커미션 설정 안내</p>
+                    <p className="text-xs text-amber-400/80 mt-1">
+                      커미션 변경 시 정산에 즉시 반영되며, 상위 파트너 요율을 초과할 수 없습니다.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
             
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="commission_rolling">{t.partnerManagement.rollingCommissionLabel}</Label>
-                <Input
-                  id="commission_rolling"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max={formData.partner_type === 'head_office' ? 100 : parentCommission?.rolling || 100}
-                  value={formData.commission_rolling}
-                  onChange={(e) => setFormData(prev => ({ ...prev, commission_rolling: parseFloat(e.target.value) || 0 }))}
-                  disabled={formData.partner_type === 'head_office'}
-                  className={formData.partner_type === 'head_office' ? 'bg-muted' : ''}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {formData.partner_type === 'head_office' ? '대본사 고정값' : t.partnerManagement.totalBettingAmount}
-                </p>
+            {/* 카지노 커미션 */}
+            <div className="space-y-3 p-4 bg-slate-800/30 rounded-lg border border-slate-700/50">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-500/20 border border-blue-500/30">
+                  <span className="text-sm">🎲</span>
+                </div>
+                <Label className="text-sm font-medium text-slate-200">카지노 커미션</Label>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="commission_losing">{t.partnerManagement.losingCommissionLabel}</Label>
-                <Input
-                  id="commission_losing"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max={formData.partner_type === 'head_office' ? 100 : parentCommission?.losing || 100}
-                  value={formData.commission_losing}
-                  onChange={(e) => setFormData(prev => ({ ...prev, commission_losing: parseFloat(e.target.value) || 0 }))}
-                  disabled={formData.partner_type === 'head_office'}
-                  className={formData.partner_type === 'head_office' ? 'bg-muted' : ''}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {formData.partner_type === 'head_office' ? '대본사 고정값' : t.partnerManagement.memberNetLoss}
-                </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="casino_commission_rolling" className="text-xs text-slate-400">
+                    롤링 커미션 (%)
+                  </Label>
+                  <Input
+                    id="casino_commission_rolling"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max={formData.partner_type === 'head_office' ? 100 : parentCommission?.casinoRolling || 100}
+                    value={formData.casino_rolling_commission}
+                    onChange={(e) => setFormData(prev => ({ ...prev, casino_rolling_commission: parseFloat(e.target.value) || 0 }))}
+                    disabled={formData.partner_type === 'head_office'}
+                    className={`bg-slate-800/50 border-slate-600 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    {formData.partner_type === 'head_office' ? '고정값' : '총 베팅액 기준'}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="casino_commission_losing" className="text-xs text-slate-400">
+                    루징 커미션 (%)
+                  </Label>
+                  <Input
+                    id="casino_commission_losing"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max={formData.partner_type === 'head_office' ? 100 : parentCommission?.casinoLosing || 100}
+                    value={formData.casino_losing_commission}
+                    onChange={(e) => setFormData(prev => ({ ...prev, casino_losing_commission: parseFloat(e.target.value) || 0 }))}
+                    disabled={formData.partner_type === 'head_office'}
+                    className={`bg-slate-800/50 border-slate-600 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    {formData.partner_type === 'head_office' ? '고정값' : '회원 순손실 기준'}
+                  </p>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="withdrawal_fee">{t.partnerManagement.withdrawalFeeLabel}</Label>
-                <Input
-                  id="withdrawal_fee"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max={formData.partner_type === 'head_office' ? 100 : parentCommission?.fee || 100}
-                  value={formData.withdrawal_fee}
-                  onChange={(e) => setFormData(prev => ({ ...prev, withdrawal_fee: parseFloat(e.target.value) || 0 }))}
-                  disabled={formData.partner_type === 'head_office'}
-                  className={formData.partner_type === 'head_office' ? 'bg-muted' : ''}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {formData.partner_type === 'head_office' ? '대본사 고정값' : t.partnerManagement.withdrawalFeeDesc}
-                </p>
+            </div>
+
+            {/* 슬롯 커미션 */}
+            <div className="space-y-3 p-4 bg-slate-800/30 rounded-lg border border-slate-700/50">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
+                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/30">
+                  <span className="text-sm">🎰</span>
+                </div>
+                <Label className="text-sm font-medium text-slate-200">슬롯 커미션</Label>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="slot_commission_rolling" className="text-xs text-slate-400">
+                    롤링 커미션 (%)
+                  </Label>
+                  <Input
+                    id="slot_commission_rolling"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max={formData.partner_type === 'head_office' ? 100 : parentCommission?.slotRolling || 100}
+                    value={formData.slot_rolling_commission}
+                    onChange={(e) => setFormData(prev => ({ ...prev, slot_rolling_commission: parseFloat(e.target.value) || 0 }))}
+                    disabled={formData.partner_type === 'head_office'}
+                    className={`bg-slate-800/50 border-slate-600 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    {formData.partner_type === 'head_office' ? '고정값' : '총 베팅액 기준'}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="slot_commission_losing" className="text-xs text-slate-400">
+                    루징 커미션 (%)
+                  </Label>
+                  <Input
+                    id="slot_commission_losing"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max={formData.partner_type === 'head_office' ? 100 : parentCommission?.slotLosing || 100}
+                    value={formData.slot_losing_commission}
+                    onChange={(e) => setFormData(prev => ({ ...prev, slot_losing_commission: parseFloat(e.target.value) || 0 }))}
+                    disabled={formData.partner_type === 'head_office'}
+                    className={`bg-slate-800/50 border-slate-600 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    {formData.partner_type === 'head_office' ? '고정값' : '회원 순손실 기준'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 출금 수수료 */}
+            <div className="space-y-2">
+              <Label htmlFor="withdrawal_fee" className="text-sm text-slate-300">
+                {t.partnerManagement.withdrawalFeeLabel}
+              </Label>
+              <Input
+                id="withdrawal_fee"
+                type="number"
+                step="0.1"
+                min="0"
+                max={formData.partner_type === 'head_office' ? 100 : parentCommission?.fee || 100}
+                value={formData.withdrawal_fee}
+                onChange={(e) => setFormData(prev => ({ ...prev, withdrawal_fee: parseFloat(e.target.value) || 0 }))}
+                disabled={formData.partner_type === 'head_office'}
+                className={`bg-slate-800/50 border-slate-600 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+              />
+              <p className="text-xs text-slate-500">
+                {formData.partner_type === 'head_office' ? '대본사 고정값' : t.partnerManagement.withdrawalFeeDesc}
+              </p>
             </div>
           </div>
         </div>

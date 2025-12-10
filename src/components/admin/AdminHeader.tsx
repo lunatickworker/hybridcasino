@@ -175,8 +175,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   useEffect(() => {
     const fetchHeaderStats = async () => {
       try {
-        console.log('📊 헤더 통계 조회 시작 (계층 필터링):', { id: user.id, level: user.level });
-        
         // 시스템 타임존 기준 오늘 0시
         const todayStartISO = getTodayStartUTC();
         
@@ -189,21 +187,20 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             .from('users')
             .select('id');
           allowedUserIds = allUsers?.map(u => u.id) || [];
-          console.log('🔑 [System Admin] All users:', allowedUserIds.length);
         } else {
           // Partner: child partners + own users
           const { data: hierarchicalPartners, error: hierarchyError } = await supabase
             .rpc('get_hierarchical_partners', { p_partner_id: user.id });
           
           if (hierarchyError) {
+            // Supabase 연결 안 됨 - 조용히 실패
+            if (hierarchyError?.message?.includes('Failed to fetch')) {
+              return;
+            }
             console.error('❌ Child partners fetch failed:', hierarchyError);
           }
           
           const partnerIds = [user.id, ...(hierarchicalPartners?.map((p: any) => p.id) || [])];
-          console.log('🔑 [Target Partners]', partnerIds.length, 'partners:', {
-            self: user.id,
-            children: hierarchicalPartners?.length || 0
-          });
           
           // Get users with these partners as referrer_id
           const { data: partnerUsers, error: usersError } = await supabase
@@ -216,22 +213,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           }
           
           allowedUserIds = partnerUsers?.map(u => u.id) || [];
-          console.log('🔑 [Partner Users]', allowedUserIds.length, 'users', 
-            allowedUserIds.length === 0 ? '(normal: no users yet)' : '');
-          
-          // Debug: users by referrer_id
-          if (partnerUsers && partnerUsers.length > 0) {
-            const usersByReferrer = partnerUsers.reduce((acc: any, u: any) => {
-              acc[u.referrer_id] = (acc[u.referrer_id] || 0) + 1;
-              return acc;
-            }, {});
-            console.log('📊 [Users by Partner]:', usersByReferrer);
-          }
         }
 
         // No users = empty stats (normal situation)
         if (allowedUserIds.length === 0) {
-          console.log('ℹ️ No users assigned. Initializing stats to 0.');
           setStats(prev => ({
             ...prev,
             daily_deposit: 0,
@@ -277,12 +262,12 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
         const dailyWithdrawal = withdrawalData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
 
-        // 3️⃣ 온라인 사용자 수 - 소속 사용자만
+        // 3️⃣ 온라인 사용자 수 - users 테이블에서 is_online=true인 회원만
         const { count: onlineCount } = await supabase
-          .from('game_launch_sessions')
+          .from('users')
           .select('id', { count: 'exact', head: true })
-          .eq('status', 'active')
-          .in('user_id', allowedUserIds);
+          .eq('is_online', true)
+          .in('id', allowedUserIds);
 
         // 4️⃣ 전체 회원 수 - 소속 사용자만
         const totalUserCount = allowedUserIds.length;
@@ -326,23 +311,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           .in('id', allowedUserIds);
         
         const totalBalance = usersBalanceData?.reduce((sum, u) => sum + Number(u.balance || 0), 0) || 0;
-
-        console.log('💰 헤더 입출금 (계층 필터링):', { 
-          총잔고: totalBalance,
-          입금: dailyDeposit, 
-          출금: dailyWithdrawal,
-          순입출금: dailyDeposit - dailyWithdrawal,
-          온라인: onlineCount || 0,
-          전체회원: totalUserCount || 0,
-          소속사용자수: allowedUserIds.length
-        });
-
-        console.log('🔔 헤더 실시간 알림 (직접 계산):', {
-          가입승인: pendingApprovalsCount || 0,
-          고객문의: pendingMessagesCount || 0,
-          입금요청: pendingDepositsCount || 0,
-          출금요청: pendingWithdrawalsCount || 0,
-        });
         
         setStats(prev => ({
           ...prev,
@@ -358,8 +326,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         }));
         
         setTotalUsers(totalUserCount || 0);
-        
-        console.log('✅ 헤더 통계 업데이트 완료 (계층 필터링 적용)');
         
         // Lv2 전용: 5% 경고 체크
         if (user.level === 2) {
@@ -725,7 +691,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     <div className="flex items-center gap-2">
                       <Wallet className="h-4 w-4 text-green-400" />
                       <div>
-                        <div className="text-[9px] text-green-300 font-medium">Oro</div>
+                        <div className="text-[9px] text-green-300 font-medium">GMS 보유금</div>
                         <div className="text-sm font-bold text-white whitespace-nowrap">
                           {typeof oroplayBalance === 'number' ? <AnimatedCurrency value={oroplayBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
                         </div>

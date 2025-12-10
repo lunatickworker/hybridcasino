@@ -144,6 +144,10 @@ export function PartnerManagement() {
     rolling: number;
     losing: number;
     fee: number;
+    casino_rolling?: number;
+    casino_losing?: number;
+    slot_rolling?: number;
+    slot_losing?: number;
     nickname?: string;
   } | null>(null);
   const [formData, setFormData] = useState({
@@ -176,7 +180,7 @@ export function PartnerManagement() {
       // ✅ .maybeSingle() 사용 - 0개 결과도 에러 없이 null 반환 (PGRST116 방지)
       const { data, error } = await supabase
         .from('partners')
-        .select('commission_rolling, commission_losing, withdrawal_fee, partner_type, nickname')
+        .select('commission_rolling, commission_losing, withdrawal_fee, casino_rolling_commission, casino_losing_commission, slot_rolling_commission, slot_losing_commission, partner_type, nickname')
         .eq('id', partnerId)
         .maybeSingle();
 
@@ -190,6 +194,10 @@ export function PartnerManagement() {
           rolling: data.commission_rolling || 100,
           losing: data.commission_losing || 100,
           fee: data.withdrawal_fee || 100,
+          casino_rolling: data.casino_rolling_commission || data.commission_rolling || 100,
+          casino_losing: data.casino_losing_commission || data.commission_losing || 100,
+          slot_rolling: data.slot_rolling_commission || data.commission_rolling || 100,
+          slot_losing: data.slot_losing_commission || data.commission_losing || 100,
           nickname: data.nickname
         };
       }
@@ -699,16 +707,18 @@ export function PartnerManagement() {
     }
   };
 
-  // 커미션 검증
+  // 커미션 검증 (카지노/슬롯 개별 검증)
   const validateCommission = (
-    rolling: number,
-    losing: number,
+    casinoRolling: number,
+    casinoLosing: number,
+    slotRolling: number,
+    slotLosing: number,
     fee: number,
     partnerType: Partner['partner_type']
   ): boolean => {
     // 대본사는 항상 100%
     if (partnerType === 'head_office') {
-      if (rolling !== 100 || losing !== 100 || fee !== 100) {
+      if (casinoRolling !== 100 || casinoLosing !== 100 || slotRolling !== 100 || slotLosing !== 100 || fee !== 100) {
         toast.error(t.partnerManagement.commissionValidation);
         return false;
       }
@@ -717,14 +727,27 @@ export function PartnerManagement() {
 
     // 하위 파트너는 상위 파트너 커미션을 초과할 수 없음
     if (parentCommission) {
-      if (rolling > parentCommission.rolling) {
-        toast.error(t.partnerManagement.exceedParentRollingError.replace('{{rate}}', parentCommission.rolling.toString()));
+      // 카지노 롤링 검증
+      if (casinoRolling > (parentCommission.casino_rolling || parentCommission.rolling)) {
+        toast.error(`카지노 롤링 커미션이 상위 한도(${parentCommission.casino_rolling || parentCommission.rolling}%)를 초과할 수 없습니다.`);
         return false;
       }
-      if (losing > parentCommission.losing) {
-        toast.error(t.partnerManagement.exceedParentLosingError.replace('{{rate}}', parentCommission.losing.toString()));
+      // 카지노 루징 검증
+      if (casinoLosing > (parentCommission.casino_losing || parentCommission.losing)) {
+        toast.error(`카지노 루징 커미션이 상위 한도(${parentCommission.casino_losing || parentCommission.losing}%)를 초과할 수 없습니다.`);
         return false;
       }
+      // 슬롯 롤링 검증
+      if (slotRolling > (parentCommission.slot_rolling || parentCommission.rolling)) {
+        toast.error(`슬롯 롤링 커미션이 상위 한도(${parentCommission.slot_rolling || parentCommission.rolling}%)를 초과할 수 없습니다.`);
+        return false;
+      }
+      // 슬롯 루징 검증
+      if (slotLosing > (parentCommission.slot_losing || parentCommission.losing)) {
+        toast.error(`슬롯 루징 커미션이 상위 한도(${parentCommission.slot_losing || parentCommission.losing}%)를 초과할 수 없습니다.`);
+        return false;
+      }
+      // 환전 수수료 검증
       if (fee > parentCommission.fee) {
         toast.error(t.partnerManagement.exceedParentFeeError.replace('{{rate}}', parentCommission.fee.toString()));
         return false;
@@ -776,18 +799,22 @@ export function PartnerManagement() {
       }
 
       // 대본사는 커미션 100% 강제 설정
-      let rollingCommission = formData.commission_rolling;
-      let losingCommission = formData.commission_losing;
+      let casinoRolling = formData.casino_rolling_commission;
+      let casinoLosing = formData.casino_losing_commission;
+      let slotRolling = formData.slot_rolling_commission;
+      let slotLosing = formData.slot_losing_commission;
       let withdrawalFee = formData.withdrawal_fee;
 
       if (formData.partner_type === 'head_office') {
-        rollingCommission = 100;
-        losingCommission = 100;
+        casinoRolling = 100;
+        casinoLosing = 100;
+        slotRolling = 100;
+        slotLosing = 100;
         withdrawalFee = 100;
       }
 
       // 커미션 검증
-      if (!validateCommission(rollingCommission, losingCommission, withdrawalFee, formData.partner_type)) {
+      if (!validateCommission(casinoRolling, casinoLosing, slotRolling, slotLosing, withdrawalFee, formData.partner_type)) {
         return;
       }
 
@@ -989,10 +1016,12 @@ export function PartnerManagement() {
     try {
       setLoading(true);
 
-      // 커미션 검증
+      // 커미션 검증 (카지노/슬롯 개별 검증)
       if (!validateCommission(
-        formData.commission_rolling,
-        formData.commission_losing,
+        formData.casino_rolling_commission,
+        formData.casino_losing_commission,
+        formData.slot_rolling_commission,
+        formData.slot_losing_commission,
         formData.withdrawal_fee,
         selectedPartner.partner_type
       )) {
@@ -2622,9 +2651,16 @@ export function PartnerManagement() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
                 setSelectedPartner(partner);
                 setEditFormData(partner);
+                // 상위 파트너 커미션 로드
+                if (partner.parent_id) {
+                  const commission = await loadPartnerCommissionById(partner.parent_id);
+                  if (commission) {
+                    setParentCommission(commission);
+                  }
+                }
                 setShowEditDialog(true);
               }}
               className="bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20 flex-shrink-0"
@@ -2868,9 +2904,16 @@ export function PartnerManagement() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
+            onClick={async () => {
               setSelectedPartner(partner);
               setEditFormData(partner);
+              // 상위 파트너 커미션 로드
+              if (partner.parent_id) {
+                const commission = await loadPartnerCommissionById(partner.parent_id);
+                if (commission) {
+                  setParentCommission(commission);
+                }
+              }
               setShowEditDialog(true);
             }}
             title="수정"
@@ -3428,6 +3471,10 @@ export function PartnerManagement() {
                           rolling: 100,
                           losing: 100,
                           fee: 100,
+                          casino_rolling: 100,
+                          casino_losing: 100,
+                          slot_rolling: 100,
+                          slot_losing: 100,
                           nickname: t.partnerManagement.system
                         });
                       }
@@ -3513,9 +3560,14 @@ export function PartnerManagement() {
                   {t.partnerManagement.commissionSettingsLabel}
                 </Label>
                 {formData.partner_type !== 'head_office' && parentCommission && (
-                  <Badge variant="outline" className="text-xs">
-                    {t.partnerManagement.upperLimit} {parentCommission.rolling}% / {parentCommission.losing}%
-                  </Badge>
+                  <div className="flex flex-col gap-1">
+                    <Badge variant="outline" className="text-xs">
+                      카지노: {parentCommission.casino_rolling || parentCommission.rolling}% / {parentCommission.casino_losing || parentCommission.losing}%
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      슬롯: {parentCommission.slot_rolling || parentCommission.rolling}% / {parentCommission.slot_losing || parentCommission.losing}%
+                    </Badge>
+                  </div>
                 )}
               </div>
               
@@ -3541,14 +3593,14 @@ export function PartnerManagement() {
                       type="number"
                       step="0.1"
                       min="0"
-                      max={formData.partner_type === 'head_office' ? 100 : parentCommission?.rolling || 100}
+                      max={formData.partner_type === 'head_office' ? 100 : (parentCommission?.casino_rolling || parentCommission?.rolling || 100)}
                       value={formData.partner_type === 'head_office' ? 100 : formData.casino_rolling_commission}
                       onChange={(e) => {
                         if (formData.partner_type === 'head_office') return;
                         const numValue = parseFloat(e.target.value) || 0;
-                        const maxValue = parentCommission?.rolling || 100;
+                        const maxValue = parentCommission?.casino_rolling || parentCommission?.rolling || 100;
                         if (numValue > maxValue) {
-                          toast.error(t.partnerManagement.rollingExceedError.replace('{{max}}', maxValue.toString()));
+                          toast.error(`카지노 롤링 커미션이 상위 한도(${maxValue}%)를 초과할 수 없습니다.`);
                           return;
                         }
                         setFormData(prev => ({ ...prev, casino_rolling_commission: numValue }));
@@ -3567,14 +3619,14 @@ export function PartnerManagement() {
                       type="number"
                       step="0.1"
                       min="0"
-                      max={formData.partner_type === 'head_office' ? 100 : parentCommission?.losing || 100}
+                      max={formData.partner_type === 'head_office' ? 100 : (parentCommission?.casino_losing || parentCommission?.losing || 100)}
                       value={formData.partner_type === 'head_office' ? 100 : formData.casino_losing_commission}
                       onChange={(e) => {
                         if (formData.partner_type === 'head_office') return;
                         const numValue = parseFloat(e.target.value) || 0;
-                        const maxValue = parentCommission?.losing || 100;
+                        const maxValue = parentCommission?.casino_losing || parentCommission?.losing || 100;
                         if (numValue > maxValue) {
-                          toast.error(t.partnerManagement.losingExceedError.replace('{{max}}', maxValue.toString()));
+                          toast.error(`카지노 루징 커미션이 상위 한도(${maxValue}%)를 초과할 수 없습니다.`);
                           return;
                         }
                         setFormData(prev => ({ ...prev, casino_losing_commission: numValue }));
@@ -3600,14 +3652,14 @@ export function PartnerManagement() {
                       type="number"
                       step="0.1"
                       min="0"
-                      max={formData.partner_type === 'head_office' ? 100 : parentCommission?.rolling || 100}
+                      max={formData.partner_type === 'head_office' ? 100 : (parentCommission?.slot_rolling || parentCommission?.rolling || 100)}
                       value={formData.partner_type === 'head_office' ? 100 : formData.slot_rolling_commission}
                       onChange={(e) => {
                         if (formData.partner_type === 'head_office') return;
                         const numValue = parseFloat(e.target.value) || 0;
-                        const maxValue = parentCommission?.rolling || 100;
+                        const maxValue = parentCommission?.slot_rolling || parentCommission?.rolling || 100;
                         if (numValue > maxValue) {
-                          toast.error(t.partnerManagement.rollingExceedError.replace('{{max}}', maxValue.toString()));
+                          toast.error(`슬롯 롤링 커미션이 상위 한도(${maxValue}%)를 초과할 수 없습니다.`);
                           return;
                         }
                         setFormData(prev => ({ ...prev, slot_rolling_commission: numValue }));
@@ -3626,14 +3678,14 @@ export function PartnerManagement() {
                       type="number"
                       step="0.1"
                       min="0"
-                      max={formData.partner_type === 'head_office' ? 100 : parentCommission?.losing || 100}
+                      max={formData.partner_type === 'head_office' ? 100 : (parentCommission?.slot_losing || parentCommission?.losing || 100)}
                       value={formData.partner_type === 'head_office' ? 100 : formData.slot_losing_commission}
                       onChange={(e) => {
                         if (formData.partner_type === 'head_office') return;
                         const numValue = parseFloat(e.target.value) || 0;
-                        const maxValue = parentCommission?.losing || 100;
+                        const maxValue = parentCommission?.slot_losing || parentCommission?.losing || 100;
                         if (numValue > maxValue) {
-                          toast.error(t.partnerManagement.losingExceedError.replace('{{max}}', maxValue.toString()));
+                          toast.error(`슬롯 루징 커미션이 상위 한도(${maxValue}%)를 초과할 수 없습니다.`);
                           return;
                         }
                         setFormData(prev => ({ ...prev, slot_losing_commission: numValue }));
@@ -3792,9 +3844,17 @@ export function PartnerManagement() {
                   커미션 설정
                 </Label>
                 {selectedPartner?.partner_type !== 'head_office' && parentCommission && (
-                  <Badge variant="outline" className="text-xs">
-                    상위 한도: {parentCommission.rolling}% / {parentCommission.losing}% / {parentCommission.fee}%
-                  </Badge>
+                  <div className="flex flex-col gap-1">
+                    <Badge variant="outline" className="text-xs">
+                      카지노: {parentCommission.casino_rolling || parentCommission.rolling}% / {parentCommission.casino_losing || parentCommission.losing}%
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      슬롯: {parentCommission.slot_rolling || parentCommission.rolling}% / {parentCommission.slot_losing || parentCommission.losing}%
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      환전: {parentCommission.fee}%
+                    </Badge>
+                  </div>
                 )}
               </div>
               
@@ -3823,7 +3883,7 @@ export function PartnerManagement() {
                       type="number"
                       step="0.1"
                       min="0"
-                      max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.rolling || 100}
+                      max={selectedPartner?.partner_type === 'head_office' ? 100 : (parentCommission?.casino_rolling || parentCommission?.rolling || 100)}
                       value={formData.casino_rolling_commission}
                       onChange={(e) => setFormData(prev => ({ ...prev, casino_rolling_commission: parseFloat(e.target.value) || 0 }))}
                       disabled={selectedPartner?.partner_type === 'head_office'}
@@ -3840,7 +3900,7 @@ export function PartnerManagement() {
                       type="number"
                       step="0.1"
                       min="0"
-                      max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.losing || 100}
+                      max={selectedPartner?.partner_type === 'head_office' ? 100 : (parentCommission?.casino_losing || parentCommission?.losing || 100)}
                       value={formData.casino_losing_commission}
                       onChange={(e) => setFormData(prev => ({ ...prev, casino_losing_commission: parseFloat(e.target.value) || 0 }))}
                       disabled={selectedPartner?.partner_type === 'head_office'}
@@ -3864,7 +3924,7 @@ export function PartnerManagement() {
                       type="number"
                       step="0.1"
                       min="0"
-                      max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.rolling || 100}
+                      max={selectedPartner?.partner_type === 'head_office' ? 100 : (parentCommission?.slot_rolling || parentCommission?.rolling || 100)}
                       value={formData.slot_rolling_commission}
                       onChange={(e) => setFormData(prev => ({ ...prev, slot_rolling_commission: parseFloat(e.target.value) || 0 }))}
                       disabled={selectedPartner?.partner_type === 'head_office'}
@@ -3881,7 +3941,7 @@ export function PartnerManagement() {
                       type="number"
                       step="0.1"
                       min="0"
-                      max={selectedPartner?.partner_type === 'head_office' ? 100 : parentCommission?.losing || 100}
+                      max={selectedPartner?.partner_type === 'head_office' ? 100 : (parentCommission?.slot_losing || parentCommission?.losing || 100)}
                       value={formData.slot_losing_commission}
                       onChange={(e) => setFormData(prev => ({ ...prev, slot_losing_commission: parseFloat(e.target.value) || 0 }))}
                       disabled={selectedPartner?.partner_type === 'head_office'}
@@ -4075,7 +4135,7 @@ export function PartnerManagement() {
         }}
         onWebSocketUpdate={(data) => {
           if (sendMessage && connected) {
-            sendMessage(data);
+            sendMessage(data.type, data.data);
           }
         }}
       />
