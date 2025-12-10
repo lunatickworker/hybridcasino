@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import { Badge } from "../ui/badge";
 import { MetricCard } from "./MetricCard";
 import { PremiumSectionCard, SectionRow } from "./PremiumSectionCard";
-import { OroPlayAutoSync } from "./OroPlayAutoSync";
-import { Lv2BalanceSync } from "./Lv2BalanceSync";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { useBalance } from "../../contexts/BalanceContext";
@@ -14,7 +12,7 @@ import {
   Activity, DollarSign, AlertCircle, Clock, Shield,
   Target, Zap, BarChart3, MessageSquare
 } from "lucide-react";
-import { formatCurrency, formatNumber, getPartnerLevelText } from "../../lib/utils";
+import { formatCurrency as formatCurrencyUtil, formatNumber, getPartnerLevelText } from "../../lib/utils";
 import { DashboardStats, Partner } from "../../types";
 import { calculatePendingDeposits } from "../../lib/settlementCalculator";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -849,48 +847,6 @@ export function Dashboard({ user }: DashboardProps) {
         </PremiumSectionCard>
       </div>
 
-      {/* Lv1 전용: Sample1 (Marvel 테마) 진입 링크 */}
-      {user.level === 1 && (
-        <div className="mt-8 p-6 bg-gradient-to-r from-red-900/20 via-red-800/20 to-red-900/20 border-2 border-yellow-600/50 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-red-700 to-red-900 flex items-center justify-center border-2 border-yellow-600">
-                <Shield className="w-8 h-8 text-yellow-400" />
-              </div>
-              <div>
-                <h3 className="text-xl" style={{ 
-                  fontFamily: 'Impact, sans-serif',
-                  color: '#fff',
-                  letterSpacing: '0.1em',
-                  textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-                }}>
-                  MARVEL THEME CASINO
-                </h3>
-                <p className="text-gray-400 text-sm mt-1">
-                  {t.dashboard.marvelThemeDescription}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                window.location.hash = '#/sample1';
-              }}
-              className="px-6 py-3 bg-gradient-to-r from-yellow-600 to-yellow-700 text-black rounded-md border-2 border-yellow-400 hover:from-yellow-500 hover:to-yellow-600 transition-all duration-200"
-              style={{
-                boxShadow: '0 0 20px rgba(234, 179, 8, 0.4)',
-              }}
-            >
-              <span className="flex items-center gap-2">
-                <span style={{ fontFamily: 'Impact, sans-serif', letterSpacing: '0.05em' }}>
-                  {t.dashboard.experience}
-                </span>
-                <span>→</span>
-              </span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Lv1 전용: Indo Casino 진입 링크 */}
       {user.level === 1 && (
         <div className="mt-6 p-6 bg-gradient-to-r from-orange-900/20 via-amber-900/20 to-orange-900/20 border-2 border-orange-500/50 rounded-lg">
@@ -932,12 +888,6 @@ export function Dashboard({ user }: DashboardProps) {
           </div>
         </div>
       )}
-
-      {/* OroPlay 베팅 자동 동기화 */}
-      <OroPlayAutoSync />
-
-      {/* Lv2 보유금 자동 동기화 */}
-      <Lv2BalanceSync />
     </div>
   );
 }

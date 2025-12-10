@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { RefreshCw, PlayCircle, PauseCircle, Wallet } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
-import { projectId } from '../../utils/supabase';
+import { projectId, publicAnonKey } from '../../utils/supabase';
+import { supabase } from '../../lib/supabase';
 
 const SUPABASE_URL = `https://${projectId}.supabase.co`;
 const SERVER_URL = `${SUPABASE_URL}/functions/v1/server`;
@@ -26,6 +27,46 @@ export function Lv2BalanceSync() {
     syncCount: 0
   });
   const [manualSyncing, setManualSyncing] = useState(false);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+
+  // ✅ isRunning을 별도로 추적하여 무한 루프 방지
+  const isRunningRef = useRef(false);
+
+  // stats.isRunning 변경 시 ref 동기화
+  useEffect(() => {
+    isRunningRef.current = stats.isRunning;
+  }, [stats.isRunning]);
+
+  // 컴포넌트 마운트 시 세션 확인
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          setSessionToken(session.access_token);
+          console.log('✅ [Lv2 Balance Auto Sync] 세션 토큰 확인 완료');
+        }
+        // 세션이 없어도 경고하지 않음 (이 앱은 partners 테이블로 인증)
+      } catch (error) {
+        console.error('❌ [Lv2 Balance Auto Sync] 세션 확인 실패:', error);
+      }
+    };
+
+    checkSession();
+
+    // 세션 변경 감지
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        setSessionToken(session.access_token);
+      } else {
+        setSessionToken(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // 4초마다 자동 동기화
   useEffect(() => {
@@ -35,13 +76,20 @@ export function Lv2BalanceSync() {
       try {
         console.log('🔄 [Lv2 Balance Auto Sync] 보유금 동기화 시작...');
 
+        // ✅ Anon key 사용 (세션이 없어도 동기화 가능)
+        const authToken = sessionToken || publicAnonKey;
+
         const response = await fetch(`${SERVER_URL}/sync/lv2-balances`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          }
         });
 
         if (!response.ok) {
-          console.error('❌ [Lv2 Balance Auto Sync] 동기화 에러:', response.status);
+          const errorText = await response.text();
+          console.error('❌ [Lv2 Balance Auto Sync] 동기화 에러:', response.status, errorText);
           setStats(prev => ({
             ...prev,
             totalErrors: prev.totalErrors + 1,
@@ -78,7 +126,7 @@ export function Lv2BalanceSync() {
     const interval = setInterval(syncBalances, 4000);
 
     return () => clearInterval(interval);
-  }, [stats.isRunning]);
+  }, [stats.isRunning, sessionToken]);
 
   // 수동 동기화
   const handleManualSync = async () => {
@@ -86,14 +134,53 @@ export function Lv2BalanceSync() {
     try {
       console.log('🔄 [Lv2 Balance Manual Sync] 수동 동기화 시작...');
 
+      // ✅ Health check 먼저 확인
+      console.log('🏥 Health check 시작...');
+      console.log('Server URL:', SERVER_URL);
+      
+      try {
+        const healthResponse = await fetch(`${SERVER_URL}/health`);
+        console.log('Health Response Status:', healthResponse.status);
+        
+        if (!healthResponse.ok) {
+          const errorText = await healthResponse.text();
+          console.error('❌ Health check 실패:', healthResponse.status, errorText);
+          toast.error(`Edge Function 연결 실패 (${healthResponse.status})`);
+          return;
+        }
+        
+        const healthData = await healthResponse.json();
+        console.log('✅ Health check 성공:', healthData);
+      } catch (healthError) {
+        console.error('❌ Health check 실패:', healthError);
+        toast.error('Edge Function에 연결할 수 없습니다. Edge Function이 배포되었는지 확인해주세요.');
+        return;
+      }
+
+      // 인증 토큰 가져오기
+      const authToken = sessionToken || publicAnonKey;
+      console.log('🔑 사용 토큰:', authToken.substring(0, 20) + '...');
+      console.log('📍 요청 URL:', `${SERVER_URL}/sync/lv2-balances`);
+
       const response = await fetch(`${SERVER_URL}/sync/lv2-balances`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
       });
 
+      console.log('📡 응답 상태:', response.status, response.statusText);
+
       if (!response.ok) {
-        console.error('❌ [Lv2 Balance Manual Sync] 동기화 에러:', response.status);
-        toast.error('동기화 실패');
+        const errorText = await response.text();
+        console.error('❌ [Lv2 Balance Manual Sync] 동기화 에러:', response.status, errorText);
+        
+        if (response.status === 404) {
+          toast.error('Edge Function 라우트를 찾을 수 없습니다. /sync/lv2-balances 엔드포인트가 배포되었는지 확인해주세요.');
+        } else {
+          toast.error(`동기화 실패: ${response.status} - ${errorText.substring(0, 100)}`);
+        }
         return;
       }
 
@@ -112,24 +199,40 @@ export function Lv2BalanceSync() {
 
     } catch (error) {
       console.error('❌ [Lv2 Balance Manual Sync] 예외 발생:', error);
-      toast.error('동기화 중 오류 발생');
+      toast.error(`동기화 중 오류 발생: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setManualSyncing(false);
     }
   };
 
   // 자동 동기화 시작/중지
-  const toggleAutoSync = () => {
-    setStats(prev => ({
-      ...prev,
-      isRunning: !prev.isRunning
-    }));
-
-    if (!stats.isRunning) {
-      toast.success('Lv2 보유금 자동 동기화 시작 (4초 간격)');
-    } else {
+  const toggleAutoSync = async () => {
+    // 중지하는 경우는 세션 체크 불필요
+    if (stats.isRunning) {
+      setStats(prev => ({ ...prev, isRunning: false }));
       toast.info('Lv2 보유금 자동 동기화 중지');
+      return;
     }
+
+    // 시작하는 경우: 세션 토큰 확인
+    let token = sessionToken;
+    
+    // 세션 토큰이 없으면 다시 가져오기 (선택사항)
+    if (!token) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          token = session.access_token;
+          setSessionToken(token);
+        }
+        // ✅ 세션이 없어도 동기화 시작 가능 (Edge Function에서 처리)
+      } catch (error) {
+        console.error('세션 확인 실패:', error);
+      }
+    }
+
+    setStats(prev => ({ ...prev, isRunning: true }));
+    toast.success('Lv2 보유금 자동 동기화 시작 (4초 간격)');
   };
 
   // 통계 초기화

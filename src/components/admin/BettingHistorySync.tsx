@@ -238,11 +238,10 @@ const processSingleOpcode = async (
         const balanceBefore = balanceAfter - (winAmount - betAmount);
         const playedAtRaw = record.create_at || record.played_at || record.created_at || new Date().toISOString();
 
-        // ✅ API 시간: UTC를 +09로 잘못 표시 → 타임존 제거 후 +9시간하여 진짜 한국 시간으로 변환
-        // 예: API "2025-10-31T07:59:38+09:00" → UTC 07:59:38 → +9시간 → KST 16:59:38
+        // ✅ API 시간: UTC를 +09로 잘못 표시 → 타임존 제거 후 시스템 타임존으로 변환
+        // 예: API "2025-10-31T07:59:38+09:00" → UTC 07:59:38 → 시스템 타임존 적용
         const playedAtUTC = playedAtRaw.replace(/[+-]\d{2}:\d{2}$/, '').replace('Z', ''); // 타임존 제거
-        const playedAtKST = new Date(new Date(playedAtUTC).getTime() + 9 * 60 * 60 * 1000);
-        const playedAt = playedAtKST.toISOString().replace('Z', '+09:00');
+        const playedAt = new Date(playedAtUTC).toISOString(); // UTC 표준 형식으로 저장
 
         // ✅ 개별 INSERT (에러는 조용히 무시)
         const { error } = await supabase

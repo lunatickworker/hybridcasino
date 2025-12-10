@@ -209,6 +209,8 @@ export interface Vendor {
 }
 
 export async function getVendorsList(token: string): Promise<Vendor[]> {
+  console.log('📡 [OroPlay] Vendor 목록 API 호출 시작');
+  
   const response = await proxyCall<any>({
     url: `${OROPLAY_BASE_URL}/vendors/list`,
     method: 'GET',
@@ -218,11 +220,33 @@ export async function getVendorsList(token: string): Promise<Vendor[]> {
     }
   });
   
+  console.log('📊 [OroPlay] Vendor 목록 API 응답:', {
+    errorCode: response.errorCode,
+    hasMessage: !!response.message,
+    responseKeys: Object.keys(response)
+  });
+  
   if (response.errorCode !== undefined && response.errorCode !== 0) {
+    console.error('❌ [OroPlay] Vendor 목록 조회 실패:', {
+      errorCode: response.errorCode,
+      errorMessage: getErrorMessage(response.errorCode)
+    });
     throw new Error(`Failed to get vendors list: errorCode ${response.errorCode}`);
   }
   
-  return response.message || response;
+  const vendors = response.message || response;
+  
+  console.log('✅ [OroPlay] Vendor 목록 수신:', {
+    총개수: vendors.length,
+    vendors: vendors.map((v: Vendor) => ({
+      vendorCode: v.vendorCode,
+      name: v.name,
+      type: v.type,
+      typeLabel: v.type === 1 ? 'casino' : v.type === 2 ? 'slot' : 'minigame'
+    }))
+  });
+  
+  return vendors;
 }
 
 export interface Game {
@@ -243,6 +267,8 @@ export async function getGamesList(
   vendorCode: string,
   language: string = 'ko'
 ): Promise<Game[]> {
+  console.log(`📡 [OroPlay] 게임 목록 API 호출:`, { vendorCode, language });
+  
   const response = await proxyCall<any>({
     url: `${OROPLAY_BASE_URL}/games/list`,
     method: 'POST',
@@ -256,11 +282,29 @@ export async function getGamesList(
     }
   });
   
+  console.log(`📊 [OroPlay] 게임 목록 API 응답:`, {
+    vendorCode,
+    errorCode: response.errorCode,
+    hasMessage: !!response.message,
+    messageType: typeof response.message,
+    messageLength: Array.isArray(response.message) ? response.message.length : 'not array',
+    responseType: typeof response,
+    isArray: Array.isArray(response)
+  });
+  
   if (response.errorCode !== undefined && response.errorCode !== 0) {
-    throw new Error(`Failed to get games list: errorCode ${response.errorCode}`);
+    console.error(`❌ [OroPlay] 게임 목록 조회 실패:`, {
+      vendorCode,
+      errorCode: response.errorCode,
+      errorMessage: getErrorMessage(response.errorCode)
+    });
+    throw new Error(`Failed to get games list: errorCode ${response.errorCode} - ${getErrorMessage(response.errorCode)}`);
   }
   
-  return response.message || response;
+  const games = response.message || response;
+  console.log(`✅ [OroPlay] 게임 ${games.length || 0}개 반환 (vendorCode: ${vendorCode})`);
+  
+  return games;
 }
 
 export async function getLaunchUrl(

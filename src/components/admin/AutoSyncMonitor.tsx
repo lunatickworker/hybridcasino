@@ -67,18 +67,19 @@ export function AutoSyncMonitor() {
     }
   };
 
-  // 한국 시간(KST)으로 변환
-  const formatKST = (utcDateString: string) => {
+  // 시스템 타임존으로 변환
+  const formatSystemTime = (utcDateString: string) => {
     const date = new Date(utcDateString);
-    // UTC에서 KST로 변환 (UTC + 9시간)
-    const kstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000));
+    // UTC에서 시스템 타임존으로 변환 (타임존 오프셋 적용)
+    const { convertUTCToSystemTime } = require('../../utils/timezone');
+    const localDate = convertUTCToSystemTime(date);
     
-    const year = kstDate.getUTCFullYear();
-    const month = String(kstDate.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(kstDate.getUTCDate()).padStart(2, '0');
-    const hours = String(kstDate.getUTCHours()).padStart(2, '0');
-    const minutes = String(kstDate.getUTCMinutes()).padStart(2, '0');
-    const seconds = String(kstDate.getUTCSeconds()).padStart(2, '0');
+    const year = localDate.getUTCFullYear();
+    const month = String(localDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(localDate.getUTCDate()).padStart(2, '0');
+    const hours = String(localDate.getUTCHours()).padStart(2, '0');
+    const minutes = String(localDate.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(localDate.getUTCSeconds()).padStart(2, '0');
     
     return `${year}년${month}월${day}일 ${hours}:${minutes}:${seconds}`;
   };
@@ -202,7 +203,7 @@ export function AutoSyncMonitor() {
         
         <MetricCard
           title="마지막 동기화"
-          value={stats.lastSync ? formatKST(stats.lastSync) : '-'}
+          value={stats.lastSync ? formatSystemTime(stats.lastSync) : '-'}
           subtitle="최근 실행"
           icon={Clock}
           color="purple"
@@ -259,7 +260,7 @@ export function AutoSyncMonitor() {
                         <div className="col-span-2">
                           <span className="text-slate-400">시간:</span>
                           <span className="text-white ml-2 font-mono text-xs">
-                            {formatKST(log.created_at)}
+                            {formatSystemTime(log.created_at)}
                           </span>
                         </div>
                         <div className="col-span-2">

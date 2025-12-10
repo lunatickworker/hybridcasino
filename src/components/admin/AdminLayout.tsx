@@ -4,6 +4,7 @@ import { AdminSidebar } from "./AdminSidebar";
 import { AdminHeader } from "./AdminHeader";
 import { BettingHistorySync } from "./BettingHistorySync";
 import { BalanceSyncManager } from "./BalanceSyncManager";
+import { Lv2AutoSync } from "./Lv2AutoSync";
 import { useAuth } from "../../contexts/AuthContext";
 import { useWebSocketContext } from "../../contexts/WebSocketContext";
 import { Partner } from "../../types";
@@ -44,6 +45,11 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
       {/* ✅ Lv1, Lv2만 베팅내역 동기화 (시스템관리자, 대본사) - active 세션 있을 때만 */}
       {(user.level === 1 || user.level === 2) && (
         <BettingHistorySync user={user} />
+      )}
+      
+      {/* ✅ Lv2만 자동 동기화 */}
+      {user.level === 2 && (
+        <Lv2AutoSync user={user} />
       )}
       
       <div className="h-screen flex w-full overflow-hidden bg-[#0a0e1a]">

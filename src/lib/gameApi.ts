@@ -629,12 +629,12 @@ export async function syncOroPlayGames(): Promise<SyncResult> {
     // 4. 각 제공사별 게임 동기화
     for (const provider of providers) {
       if (!provider.vendor_code) {
-        console.warn(`⚠️ 제공사 ${provider.name}: vendorCode 없음`);
+        console.warn(`⚠️ 제공사 ${provider.name}: vendorCode 없음`, provider);
         continue;
       }
 
       try {
-        console.log(`🔍 제공사 ${provider.name} (vendorCode: ${provider.vendor_code}) 게임 목록 조회 중...`);
+        console.log(`🔍 [OroPlay 게임 동기화] 제공사: ${provider.name}, ID: ${provider.id}, vendorCode: ${provider.vendor_code}, type: ${provider.type}`);
         const games = await oroplayApi.getGameList(token, provider.vendor_code, 'ko');
 
         if (!games || games.length === 0) {

@@ -12,6 +12,7 @@ import { supabase } from "../../lib/supabase";
 import { MetricCard } from "./MetricCard";
 import { forceSyncBettingHistory } from "./BettingHistorySync";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { getTodayStartUTC, formatSystemTime } from "../../utils/timezone";
 
 interface BettingHistoryProps {
   user: Partner;
@@ -58,19 +59,17 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   // 날짜 범위 계산
   const getDateRange = (filter: string) => {
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = getTodayStartUTC();
     
     switch (filter) {
       case 'today':
-        return { start: today.toISOString(), end: now.toISOString() };
+        return { start: todayStart, end: now.toISOString() };
       case 'week':
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - 7);
-        return { start: weekStart.toISOString(), end: now.toISOString() };
+        const weekStart = new Date(new Date(todayStart).getTime() - 7 * 86400000).toISOString();
+        return { start: weekStart, end: now.toISOString() };
       case 'month':
-        const monthStart = new Date(today);
-        monthStart.setMonth(today.getMonth() - 1);
-        return { start: monthStart.toISOString(), end: now.toISOString() };
+        const monthStart = new Date(new Date(todayStart).getTime() - 30 * 86400000).toISOString();
+        return { start: monthStart, end: now.toISOString() };
       default:
         return null;
     }

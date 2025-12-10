@@ -18,6 +18,7 @@ import { MetricCard } from "./MetricCard";
 import { calculateChildPartnersCommission, PartnerCommissionInfo } from "../../lib/settlementCalculator";
 import { executePartnerCommissionSettlement } from "../../lib/settlementExecutor";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { getTodayStartUTC, getTomorrowStartUTC } from "../../utils/timezone";
 
 interface CommissionSettlementProps {
   user: Partner;
@@ -66,32 +67,39 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
   };
 
   const getDateRange = () => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // 시스템 타임존 기준 오늘/내일 0시
+    const todayStart = getTodayStartUTC();
+    const tomorrowStart = getTomorrowStartUTC();
     
     switch (periodFilter) {
       case "today":
         return {
-          start: today.toISOString(),
-          end: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString()
+          start: todayStart,
+          end: tomorrowStart
         };
       case "yesterday":
-        const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
+        const yesterdayStart = new Date(new Date(todayStart).getTime() - 86400000).toISOString();
         return {
-          start: yesterday.toISOString(),
-          end: today.toISOString()
+          start: yesterdayStart,
+          end: todayStart
         };
       case "week":
-        const weekStart = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const weekStart = new Date(new Date(todayStart).getTime() - 7 * 86400000).toISOString();
         return {
-          start: weekStart.toISOString(),
-          end: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString()
+          start: weekStart,
+          end: tomorrowStart
         };
       case "month":
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        // 시스템 타임존 기준 이번 달 1일 0시
+        const todayDate = new Date(todayStart);
+        const monthStart = new Date(Date.UTC(
+          todayDate.getUTCFullYear(),
+          todayDate.getUTCMonth(),
+          1, 0, 0, 0, 0
+        )).toISOString();
         return {
-          start: monthStart.toISOString(),
-          end: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString()
+          start: monthStart,
+          end: tomorrowStart
         };
       case "custom":
         if (dateRange?.from) {
@@ -99,17 +107,17 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
           const end = dateRange.to ? new Date(dateRange.to) : new Date(dateRange.from);
           return {
             start: start.toISOString(),
-            end: new Date(end.getTime() + 24 * 60 * 60 * 1000).toISOString()
+            end: new Date(end.getTime() + 86400000).toISOString()
           };
         }
         return {
-          start: today.toISOString(),
-          end: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString()
+          start: todayStart,
+          end: tomorrowStart
         };
       default:
         return {
-          start: today.toISOString(),
-          end: new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString()
+          start: todayStart,
+          end: tomorrowStart
         };
     }
   };

@@ -9,6 +9,7 @@ import { LoadingSpinner } from "../common/LoadingSpinner";
 import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle, AdminDialogTrigger as DialogTrigger } from "./AdminDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Label } from "../ui/label";
+import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { useAuth } from "../../hooks/useAuth";
 import { useWebSocketContext } from "../../contexts/WebSocketContext";
@@ -137,7 +138,10 @@ export function UserManagement() {
     bank_name: '',
     bank_account: '',
     memo: '',
-    selected_referrer_id: '' // Lv1이 회원 생성 시 소속 파트너 선택
+    selected_referrer_id: '', // Lv1이 회원 생성 시 소속 파트너 선택
+    bulk_mode: false, // 벌크 생성 모드
+    bulk_start: '', // 벌크 시작 (예: dev1)
+    bulk_end: '' // 벌크 종료 (예: dev40)
   });
 
   // 사용자 목록 조회 (하위 파트너 포함)
@@ -411,8 +415,189 @@ export function UserManagement() {
     fetchTargetPartnerBalance();
   }, [forceTransactionTarget?.id]);
 
-  // 회원 생성
+  // 벌크 회원 생성 함수
+  const createBulkUsers = async (prefix: string, startNum: number, endNum: number, password: string, bulkFormData: any) => {
+    setShowCreateDialog(false);
+    setFormData({
+      username: '',
+      nickname: '',
+      password: '',
+      bank_name: '',
+      bank_account: '',
+      memo: '',
+      selected_referrer_id: '',
+      bulk_mode: false,
+      bulk_start: '',
+      bulk_end: ''
+    });
+    
+    setCreateUserLoading(true);
+    
+    const count = endNum - startNum + 1;
+    let successCount = 0;
+    let failCount = 0;
+    const failedUsers: string[] = [];
+    
+    toast.loading(`벌크 회원 생성 시작: ${count}개 (${prefix}${startNum} ~ ${prefix}${endNum})`, { id: 'bulk-create' });
+    
+    try {
+      const actualReferrerId = (authState.user?.level === 1 && bulkFormData.selected_referrer_id) 
+        ? bulkFormData.selected_referrer_id 
+        : authState.user?.id;
+      
+      for (let i = startNum; i <= endNum; i++) {
+        const username = `${prefix}${i}`;
+        const nickname = bulkFormData.nickname ? `${bulkFormData.nickname}${i}` : username;
+        
+        try {
+          toast.loading(`[${i - startNum + 1}/${count}] ${username} 생성 중...`, { id: 'bulk-create' });
+          
+          // 중복 체크
+          const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('username', username)
+            .maybeSingle();
+          
+          if (existingUser) {
+            console.warn(`⚠️ 이미 존재하는 회원: ${username}`);
+            failCount++;
+            failedUsers.push(`${username} (중복)`);
+            continue;
+          }
+          
+          const { data: existingPartner } = await supabase
+            .from('partners')
+            .select('id')
+            .eq('username', username)
+            .maybeSingle();
+          
+          if (existingPartner) {
+            console.warn(`⚠️ 파트너로 존재하는 아이디: ${username}`);
+            failCount++;
+            failedUsers.push(`${username} (파트너 중복)`);
+            continue;
+          }
+          
+          // DB에 사용자 생성
+          const { data: newUser, error: insertError } = await supabase
+            .from('users')
+            .insert({
+              username,
+              nickname,
+              password_hash: password,
+              bank_name: bulkFormData.bank_name || null,
+              bank_account: bulkFormData.bank_account || null,
+              memo: bulkFormData.memo || null,
+              referrer_id: actualReferrerId,
+              status: 'active',
+              balance: 0,
+              points: 0,
+              api_account_status: 'pending',
+              api_invest_created: false,
+              api_oroplay_created: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+          
+          if (insertError) {
+            console.error(`❌ ${username} 생성 실패:`, insertError);
+            failCount++;
+            failedUsers.push(`${username} (DB 오류)`);
+            continue;
+          }
+          
+          // API 계정 생성 (백그라운드)
+          createApiAccounts(
+            newUser.id,
+            username,
+            actualReferrerId || '',
+            undefined // toastId 없음 (벌크는 하나의 토스트만 사용)
+          ).catch(err => {
+            console.error(`⚠️ ${username} API 계정 생성 실패:`, err);
+          });
+          
+          successCount++;
+          
+          // 10개마다 잠시 대기 (API 부하 방지)
+          if (i % 10 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+          
+        } catch (error) {
+          console.error(`❌ ${username} 생성 중 오류:`, error);
+          failCount++;
+          failedUsers.push(`${username} (오류)`);
+        }
+      }
+      
+      // 결과 알림
+      if (failCount === 0) {
+        toast.success(`✅ 벌크 생성 완료! (${successCount}개 성공)`, { id: 'bulk-create', duration: 5000 });
+      } else if (successCount === 0) {
+        toast.error(`❌ 벌크 생성 실패! (${failCount}개 실패)\n실패: ${failedUsers.join(', ')}`, { id: 'bulk-create', duration: 10000 });
+      } else {
+        toast.warning(`⚠️ 벌크 생성 완료: 성공 ${successCount}개, 실패 ${failCount}개\n실패: ${failedUsers.join(', ')}`, { id: 'bulk-create', duration: 10000 });
+      }
+      
+      await fetchUsers();
+      
+    } catch (error: any) {
+      console.error('❌ 벌크 생성 전체 오류:', error);
+      toast.error(`벌크 생성 오류: ${error.message}`, { id: 'bulk-create' });
+    } finally {
+      setCreateUserLoading(false);
+    }
+  };
+
+  // 회원 생성 (단일 또는 벌크)
   const createUser = async () => {
+    // 벌크 모드 검증
+    if (formData.bulk_mode) {
+      if (!formData.bulk_start || !formData.bulk_end || !formData.password) {
+        toast.error('벌크 생성: 시작 ID, 종료 ID, 비밀번호는 필수입니다.');
+        return;
+      }
+      
+      // 벌크 범위 파싱
+      const parseUsername = (str: string) => {
+        const match = str.match(/^(.+?)(\d+)$/);
+        if (!match) return null;
+        return { prefix: match[1], num: parseInt(match[2]) };
+      };
+      
+      const start = parseUsername(formData.bulk_start.trim());
+      const end = parseUsername(formData.bulk_end.trim());
+      
+      if (!start || !end) {
+        toast.error('벌크 생성: 올바른 형식이 아닙니다. (예: dev1, dev40)');
+        return;
+      }
+      
+      if (start.prefix !== end.prefix) {
+        toast.error('벌크 생성: 시작과 종료의 접두사가 일치해야 합니다.');
+        return;
+      }
+      
+      if (start.num > end.num) {
+        toast.error('벌크 생성: 시작 번호가 종료 번호보다 큽니다.');
+        return;
+      }
+      
+      const count = end.num - start.num + 1;
+      if (count > 100) {
+        toast.error(`벌크 생성: 최대 100개까지만 가능합니다. (현재: ${count}개)`);
+        return;
+      }
+      
+      // 벌크 생성 진행
+      await createBulkUsers(start.prefix, start.num, end.num, formData.password, formData);
+      return;
+    }
+    
+    // 단일 생성 검증
     if (!formData.username || !formData.password) {
       toast.error('아이디와 비밀번호는 필수입니다.');
       return;
@@ -436,7 +621,10 @@ export function UserManagement() {
       bank_name: '',
       bank_account: '',
       memo: '',
-      selected_referrer_id: ''
+      selected_referrer_id: '',
+      bulk_mode: false,
+      bulk_start: '',
+      bulk_end: ''
     });
 
     // 백그라운드에서 회원 생성 진행
@@ -1755,48 +1943,181 @@ export function UserManagement() {
               {t.userManagement.createUserDescription}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-5 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="username" className="text-right text-slate-300">
-                {t.userManagement.username}
-              </Label>
-              <Input
-                id="username"
-                value={formData.username}
-                onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
-                placeholder={t.userManagement.enterUsername}
+          <div className="space-y-6 py-4">
+            {/* 벌크 생성 모드 토글 */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-lg border border-blue-500/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-blue-400" />
+                </div>
+                <div>
+                  <Label htmlFor="bulk_mode" className="text-slate-100 cursor-pointer text-base">
+                    벌크 생성 모드
+                  </Label>
+                  <p className="text-xs text-slate-400 mt-0.5">여러 회원을 한 번에 생성합니다 (예: dev1 ~ dev40)</p>
+                </div>
+              </div>
+              <Switch
+                id="bulk_mode"
+                checked={formData.bulk_mode}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, bulk_mode: checked }))}
               />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="nickname" className="text-right text-slate-300">
-                {t.userManagement.nickname}
-              </Label>
-              <Input
-                id="nickname"
-                value={formData.nickname}
-                onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
-                className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
-                placeholder={t.userManagement.enterNickname}
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="password" className="text-right text-slate-300">
-                {t.common.password}
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-2 focus:ring-blue-500/20"
-                placeholder={t.userManagement.enterInitialPassword}
-              />
+
+            {/* 기본 정보 섹션 */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
+                <div className="w-1 h-4 bg-gradient-to-b from-blue-400 to-cyan-400 rounded-full"></div>
+                <h4 className="text-sm font-semibold text-slate-200">기본 정보</h4>
+                <span className="text-xs text-red-400">* 필수</span>
+              </div>
+
+              {/* 벌크 모드일 때 */}
+              {formData.bulk_mode ? (
+                <>
+                  <div className="space-y-3 bg-slate-800/30 p-4 rounded-lg border border-slate-700/50">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="bulk_start" className="text-right text-slate-300">
+                        시작 ID <span className="text-red-400">*</span>
+                      </Label>
+                      <Input
+                        id="bulk_start"
+                        value={formData.bulk_start}
+                        onChange={(e) => setFormData(prev => ({ ...prev, bulk_start: e.target.value }))}
+                        className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="예: dev1"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="bulk_end" className="text-right text-slate-300">
+                        종료 ID <span className="text-red-400">*</span>
+                      </Label>
+                      <Input
+                        id="bulk_end"
+                        value={formData.bulk_end}
+                        onChange={(e) => setFormData(prev => ({ ...prev, bulk_end: e.target.value }))}
+                        className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="예: dev40"
+                      />
+                    </div>
+                  </div>
+                  
+                  {formData.bulk_start && formData.bulk_end && (() => {
+                    const parseUsername = (str: string) => {
+                      const match = str.match(/^(.+?)(\d+)$/);
+                      if (!match) return null;
+                      return { prefix: match[1], num: parseInt(match[2]) };
+                    };
+                    const start = parseUsername(formData.bulk_start.trim());
+                    const end = parseUsername(formData.bulk_end.trim());
+                    if (start && end && start.prefix === end.prefix) {
+                      const count = end.num - start.num + 1;
+                      return (
+                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3.5">
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <Bell className="h-4 w-4 text-blue-400" />
+                            </div>
+                            <div>
+                              <p className="text-sm text-blue-300 font-medium mb-1">
+                                {formData.bulk_start} ~ {formData.bulk_end}
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                총 <strong className="text-blue-400">{count}개</strong> 회원이 생성됩니다
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                  
+                  <div className="col-span-4 hidden text-sm text-slate-400 bg-blue-500/10 border border-blue-500/30 rounded p-3">
+                  💡 <strong>{formData.bulk_start && formData.bulk_end ? 
+                    `${formData.bulk_start} ~ ${formData.bulk_end}` : 
+                    '범위를 입력하세요'}</strong> 
+                  {formData.bulk_start && formData.bulk_end && (() => {
+                    const parseUsername = (str: string) => {
+                      const match = str.match(/^(.+?)(\d+)$/);
+                      if (!match) return null;
+                      return { prefix: match[1], num: parseInt(match[2]) };
+                    };
+                    const start = parseUsername(formData.bulk_start.trim());
+                    const end = parseUsername(formData.bulk_end.trim());
+                    if (start && end && start.prefix === end.prefix) {
+                      const count = end.num - start.num + 1;
+                      return ` (총 ${count}개 회원 생성)`;
+                    }
+                    return '';
+                  })()}
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="nickname" className="text-right text-slate-300">
+                    닉네임 접두사
+                  </Label>
+                  <Input
+                    id="nickname"
+                    value={formData.nickname}
+                    onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
+                    className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="비워두면 아이디와 동일"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                  {/* 단일 생성 모드일 때 */}
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="username" className="text-right text-slate-300">
+                      {t.userManagement.username} <span className="text-red-400">*</span>
+                    </Label>
+                    <Input
+                      id="username"
+                      value={formData.username}
+                      onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                      className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                      placeholder={t.userManagement.enterUsername}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="nickname" className="text-right text-slate-300">
+                      {t.userManagement.nickname}
+                    </Label>
+                    <Input
+                      id="nickname"
+                      value={formData.nickname}
+                      onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
+                      className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                      placeholder={t.userManagement.enterNickname}
+                    />
+                  </div>
+                </>
+              )}
+              
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="password" className="text-right text-slate-300">
+                  {t.common.password} <span className="text-red-400">*</span>
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-2 focus:ring-blue-500/20"
+                  placeholder={t.userManagement.enterInitialPassword}
+                />
+              </div>
             </div>
             
             {/* Lv1(시스템관리자)이 회원 생성 시 소속 파트너 선택 */}
             {authState.user?.level === 1 && availablePartners.length > 0 && (
-              <div className="grid grid-cols-4 items-center gap-4">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
+                  <div className="w-1 h-4 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
+                  <h4 className="text-sm font-semibold text-slate-200">조직 설정</h4>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
                 <Label className="text-right text-slate-300">
                   {t.userManagement.partnerAffiliation}
                 </Label>
@@ -1828,14 +2149,22 @@ export function UserManagement() {
                       );
                     })}
                   </SelectContent>
-                </Select>
+                  </Select>
+                </div>
               </div>
             )}
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right text-slate-300">
-                {t.userManagement.bankName}
-              </Label>
+            {/* 은행 정보 섹션 */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
+                <div className="w-1 h-4 bg-gradient-to-b from-green-400 to-emerald-400 rounded-full"></div>
+                <h4 className="text-sm font-semibold text-slate-200">은행 정보</h4>
+                <span className="text-xs text-slate-400">선택사항</span>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right text-slate-300">
+                  {t.userManagement.bankName}
+                </Label>
               <Select 
                 value={formData.bank_name || undefined} 
                 onValueChange={(value) => setFormData(prev => ({ ...prev, bank_name: value }))}
@@ -1848,31 +2177,41 @@ export function UserManagement() {
                     <SelectItem key={bank} value={bank} className="text-slate-200 focus:bg-slate-700 focus:text-slate-100">{bank}</SelectItem>
                   ))}
                 </SelectContent>
-              </Select>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="bank_account" className="text-right text-slate-300">
+                  {t.userManagement.accountNumber}
+                </Label>
+                <Input
+                  id="bank_account"
+                  value={formData.bank_account}
+                  onChange={(e) => setFormData(prev => ({ ...prev, bank_account: e.target.value }))}
+                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                  placeholder={t.userManagement.enterAccountNumber}
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="bank_account" className="text-right text-slate-300">
-                {t.userManagement.accountNumber}
-              </Label>
-              <Input
-                id="bank_account"
-                value={formData.bank_account}
-                onChange={(e) => setFormData(prev => ({ ...prev, bank_account: e.target.value }))}
-                className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
-                placeholder={t.userManagement.enterAccountNumber}
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="memo" className="text-right text-slate-300">
-                {t.common.note}
-              </Label>
-              <Input
-                id="memo"
-                value={formData.memo}
-                onChange={(e) => setFormData(prev => ({ ...prev, memo: e.target.value }))}
-                className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
-                placeholder={t.userManagement.adminMemo}
-              />
+
+            {/* 메모 섹션 */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
+                <div className="w-1 h-4 bg-gradient-to-b from-amber-400 to-orange-400 rounded-full"></div>
+                <h4 className="text-sm font-semibold text-slate-200">메모</h4>
+                <span className="text-xs text-slate-400">선택사항</span>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="memo" className="text-right text-slate-300">
+                  {t.common.note}
+                </Label>
+                <Input
+                  id="memo"
+                  value={formData.memo}
+                  onChange={(e) => setFormData(prev => ({ ...prev, memo: e.target.value }))}
+                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                  placeholder={t.userManagement.adminMemo}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter className="gap-3">

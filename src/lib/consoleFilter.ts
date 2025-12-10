@@ -24,7 +24,9 @@ if (typeof window !== 'undefined' && typeof console !== 'undefined') {
     if (
       typeof message === 'string' &&
       (message.includes('Multiple GoTrueClient instances') ||
-       message.includes('GoTrueClient'))
+       message.includes('GoTrueClient') ||
+       message.includes('MetaMask') ||
+       message.includes('Failed to connect to MetaMask'))
     ) {
       return;
     }
@@ -36,10 +38,26 @@ if (typeof window !== 'undefined' && typeof console !== 'undefined') {
     const message = args[0];
     if (
       typeof message === 'string' &&
-      message.includes('Multiple GoTrueClient instances')
+      (message.includes('Multiple GoTrueClient instances') ||
+       message.includes('MetaMask') ||
+       message.includes('Failed to connect to MetaMask'))
     ) {
       return;
     }
     originalError.apply(console, args);
+  };
+  
+  // info 레벨 메시지도 필터링
+  const originalInfo = console.info;
+  console.info = function(...args: any[]) {
+    const message = args[0];
+    if (
+      typeof message === 'string' &&
+      (message.includes('MetaMask') ||
+       message.includes('Failed to connect to MetaMask'))
+    ) {
+      return;
+    }
+    originalInfo.apply(console, args);
   };
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
@@ -30,6 +30,7 @@ import { getInfo } from "../../lib/investApi";
 import { getAgentBalance, getOroPlayToken } from "../../lib/oroplayApi";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { getInvestCredentials, updateInvestBalance, updateOroplayBalance } from "../../lib/apiConfigHelper";
+import { getTodayStartUTC, getCachedTimezoneOffset, convertUTCToSystemTime } from "../../utils/timezone";
 
 interface AdminHeaderProps {
   user: Partner;
@@ -176,10 +177,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       try {
         console.log('📊 헤더 통계 조회 시작 (계층 필터링):', { id: user.id, level: user.level });
         
-        // 오늘 날짜 (UTC 기준 오늘 00:00:00)
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const todayStartISO = todayStart.toISOString();
+        // 시스템 타임존 기준 오늘 0시
+        const todayStartISO = getTodayStartUTC();
         
         // 🔍 Hierarchical filtering: self + child partners' users
         let allowedUserIds: string[] = [];
@@ -374,23 +373,35 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     // 초기 로드
     fetchHeaderStats();
     
-    // ⏰ 자정 리셋 타이머 설정
+    // ⏰ 자정 리셋 타이머 설정 (시스템 타임존 기준)
     const setupMidnightReset = () => {
       const now = new Date();
-      const kstOffset = 9 * 60 * 60 * 1000;
-      const kstNow = new Date(now.getTime() + kstOffset);
+      const timezoneOffset = getCachedTimezoneOffset(); // 시스템 설정의 타임존 오프셋 사용
+      const systemTime = convertUTCToSystemTime(now, timezoneOffset);
       
-      // 다음 자정(KST) 계산
-      const nextMidnight = new Date(kstNow);
-      nextMidnight.setHours(24, 0, 0, 0);
+      // 다음 자정 계산 (시스템 타임존 기준)
+      const nextMidnight = new Date(
+        Date.UTC(
+          systemTime.getUTCFullYear(),
+          systemTime.getUTCMonth(),
+          systemTime.getUTCDate() + 1,
+          0, 0, 0, 0
+        )
+      );
       
-      const msUntilMidnight = nextMidnight.getTime() - kstNow.getTime();
+      // UTC 기준으로 변환
+      const nextMidnightUTC = new Date(nextMidnight.getTime() - (timezoneOffset * 3600000));
+      const msUntilMidnight = nextMidnightUTC.getTime() - now.getTime();
+      
+      console.log(`⏰ [자정 리셋] 다음 자정까지: ${Math.floor(msUntilMidnight / 1000 / 60)}분 (시스템 타임존: UTC${timezoneOffset >= 0 ? '+' : ''}${timezoneOffset})`);
       
       return setTimeout(() => {
+        console.log('🔄 [자정 리셋] 통계 리셋 실행');
         fetchHeaderStats();
         
         // 자정 이후 매일 자정마다 리셋되도록 24시간 간격으로 설정
         setInterval(() => {
+          console.log('🔄 [자정 리셋] 통계 리셋 실행 (24시간 주기)');
           fetchHeaderStats();
         }, 24 * 60 * 60 * 1000);
       }, msUntilMidnight);
@@ -420,7 +431,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             
             if (transaction.status === 'pending') {
               if (transaction.transaction_type === 'deposit') {
-                toast.info('새로운 입금 요청이 있습니���.', {
+                toast.info('새로운 입금 요청이 있습니.', {
                   description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${transaction.user_id}`,
                   duration: 10000,
                   action: {

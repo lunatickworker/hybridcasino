@@ -16,6 +16,7 @@ import { toast } from "sonner@2.0.3";
 import { Partner } from "../../types";
 import { supabase } from "../../lib/supabase";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { refreshTimezoneCache } from "../../utils/timezone";
 
 interface SystemSetting {
   id: string;
@@ -63,6 +64,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
     max_login_attempts: 5,
     max_concurrent_image_downloads: 1,
     timezone_offset: 9, // 기본값 UTC+9 (한국)
+    edge_function_url: '', // Edge Function URL
   });
 
   // 커미션 설정 상태
@@ -219,6 +221,12 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
           .upsert(update, { onConflict: 'setting_key' });
 
         if (error) throw error;
+      }
+
+      // 타임존 설정이 변경되었으면 캐시 갱신
+      if ('timezone_offset' in settingsData) {
+        await refreshTimezoneCache();
+        console.log('🌍 [System Settings] 타임존 캐시 갱신 완료');
       }
 
       toast.success(`${category} 설정이 저장되었습니다`);
@@ -948,6 +956,21 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                     {t.systemSettings.timezoneOffsetDescription || '배너 등 시간 기반 기능에 적용되는 시간대입니다.'}
                   </p>
                 </div>
+
+                {user.level === 1 && (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="edge_function_url">Edge Function URL</Label>
+                    <Input
+                      id="edge_function_url"
+                      value={generalSettings.edge_function_url}
+                      onChange={(e) => setGeneralSettings(prev => ({ ...prev, edge_function_url: e.target.value }))}
+                      placeholder="https://your-project.supabase.co/functions/v1/server"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Lv2 자동 동기화에 사용되는 Edge Function URL입니다. Supabase 프로젝트의 Edge Function URL을 입력하세요.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-4">
