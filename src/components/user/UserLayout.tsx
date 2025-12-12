@@ -121,12 +121,12 @@ export function UserLayout({ user, currentRoute, onRouteChange, onLogout, childr
       // 5. ⭐ Lv1 파트너의 api_configs에서 credential 조회 (api_provider 필터링)
       const { data: apiConfig, error: configError } = await supabase
         .from('api_configs')
-        .select('invest_opcode, invest_token, invest_secret_key')
+        .select('opcode, token, secret_key')
         .eq('partner_id', topLevelPartnerId)
         .eq('api_provider', sessionData.api_type === 'invest' ? 'invest' : 'oroplay')
         .single();
 
-      if (configError || !apiConfig || !apiConfig.invest_opcode || !apiConfig.invest_token || !apiConfig.invest_secret_key) {
+      if (configError || !apiConfig || !apiConfig.opcode || !apiConfig.token || !apiConfig.secret_key) {
         console.error(`❌ [보유금 동기화] API 설정 누락: partner_id=${topLevelPartnerId}, api_type=${sessionData.api_type}`, configError);
         return;
       }
@@ -135,10 +135,10 @@ export function UserLayout({ user, currentRoute, onRouteChange, onLogout, childr
 
       // 6. 보유금 조회
       const balanceResult = await getUserBalanceWithConfig(
-        apiConfig.invest_opcode,
+        apiConfig.opcode,
         username,
-        apiConfig.invest_token,
-        apiConfig.invest_secret_key
+        apiConfig.token,
+        apiConfig.secret_key
       );
 
       if (balanceResult.success && balanceResult.balance !== undefined) {

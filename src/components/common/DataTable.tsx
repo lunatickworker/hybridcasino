@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import {
   Table,
   TableBody,
@@ -40,7 +40,8 @@ interface DataTableProps<T> {
   rowKey?: string; // 고유 키 필드명
 }
 
-export function DataTable<T extends Record<string, any>>({
+// ✅ React.memo로 감싸서 props가 변경되지 않으면 리렌더링 방지
+export const DataTable = memo(function DataTable<T extends Record<string, any>>({
   columns,
   data,
   loading = false,
@@ -248,4 +249,4 @@ export function DataTable<T extends Record<string, any>>({
       )}
     </div>
   );
-}
+}) as <T extends Record<string, any>>(props: DataTableProps<T>) => JSX.Element;

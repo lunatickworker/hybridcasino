@@ -4,7 +4,7 @@ import { Partner } from "../../types";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { DataTable } from "../common/DataTable";
-import { RefreshCw, Search, Calendar, User, Shield, AlertCircle, CheckCircle, XCircle, Activity, FileText } from "lucide-react";
+import { RefreshCw, Search, Calendar, User, Shield, AlertCircle, CheckCircle, XCircle, Activity, FileText, Trash2 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -36,6 +36,7 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [cleaningLogs, setCleaningLogs] = useState(false);
   
   // 필터
   const [actorTypeFilter, setActorTypeFilter] = useState<'all' | 'partner' | 'user'>('all');
@@ -211,6 +212,74 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
     );
   });
 
+  // 오래된 로그 정리 함수 (Lv1 전용)
+  const cleanOldLogs = async () => {
+    if (user.level !== 1) {
+      toast.error('Lv1 관리자만 로그를 정리할 수 있습니다.');
+      return;
+    }
+
+    try {
+      setCleaningLogs(true);
+
+      // 시스템 설정에서 보관 기간 가져오기
+      const { data: settingData, error: settingError } = await supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'activity_log_retention_days')
+        .single();
+
+      if (settingError && settingError.code !== 'PGRST116') {
+        throw settingError;
+      }
+
+      const retentionDays = settingData?.setting_value ? parseInt(settingData.setting_value) : 90;
+
+      // 삭제 기준 날짜 계산
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+      // 삭제할 로그 수 먼저 확인
+      const { count, error: countError } = await supabase
+        .from('activity_logs')
+        .select('*', { count: 'exact', head: true })
+        .lt('created_at', cutoffDate.toISOString());
+
+      if (countError) throw countError;
+
+      if (!count || count === 0) {
+        toast.info(`${retentionDays}일 이전의 로그가 없습니다.`);
+        return;
+      }
+
+      // 확인 메시지
+      const confirmed = window.confirm(
+        `${retentionDays}일 이전의 활동 로그 ${count}건을 삭제합니다.\n계속하시겠습니까?`
+      );
+
+      if (!confirmed) return;
+
+      // 오래된 로그 삭제
+      const { error: deleteError } = await supabase
+        .from('activity_logs')
+        .delete()
+        .lt('created_at', cutoffDate.toISOString());
+
+      if (deleteError) throw deleteError;
+
+      toast.success(`${count}건의 오래된 활동 로그가 삭제되었습니다.`);
+      
+      // 로그 다시 로드
+      await loadLogs(true);
+
+    } catch (error) {
+      console.error('로그 정리 실패:', error);
+      toast.error('로그 정리 중 오류가 발생했습니다.');
+    } finally {
+      setCleaningLogs(false);
+    }
+  };
+
   const columns = [
     {
       key: 'created_at',
@@ -271,24 +340,6 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
           </Badge>
         );
       },
-    },
-    {
-      key: 'target_type',
-      header: '대상 타입',
-      render: (value: string) => (
-        <span className="text-slate-400 text-sm">
-          {value || '-'}
-        </span>
-      ),
-    },
-    {
-      key: 'target_id',
-      header: '대상 ID',
-      render: (value: string) => (
-        <span className="text-slate-500 font-mono text-xs" title={value}>
-          {value ? value.substring(0, 8) + '...' : '-'}
-        </span>
-      ),
     },
     {
       key: 'details',
@@ -359,10 +410,22 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
             관리자 및 회원의 모든 활동 기록을 조회합니다
           </p>
         </div>
-        <Button onClick={() => loadLogs(true)} disabled={loading || refreshing}>
-          <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          새로고침
-        </Button>
+        <div className="flex gap-2">
+          {user.level === 1 && (
+            <Button 
+              onClick={cleanOldLogs} 
+              disabled={loading || cleaningLogs}
+              variant="destructive"
+            >
+              <Trash2 className={`w-4 h-4 mr-2 ${cleaningLogs ? 'animate-spin' : ''}`} />
+              오래된 로그 정리
+            </Button>
+          )}
+          <Button onClick={() => loadLogs(true)} disabled={loading || refreshing}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            새로고침
+          </Button>
+        </div>
       </div>
 
       {/* 필터 */}

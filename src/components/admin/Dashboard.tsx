@@ -5,7 +5,7 @@ import { PremiumSectionCard, SectionRow } from "./PremiumSectionCard";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { useBalance } from "../../contexts/BalanceContext";
-import { getInfo } from "../../lib/investApi";
+// import { getInfo } from "../../lib/investApi"; // ❌ 사용 중지
 import { getAgentBalance, getOroPlayToken } from "../../lib/oroplayApi";
 import { 
   Users, Wallet, TrendingUp, TrendingDown,
@@ -75,69 +75,12 @@ export function Dashboard({ user }: DashboardProps) {
   }, [balance]);
 
   // =====================================================
-  // Invest 보유금 수동 동기화 (카드 클릭 시)
+  // Invest 보유금 수동 동기화 (카드 클릭 시) - ❌ 비활성화
   // =====================================================
   const handleSyncInvestBalance = async () => {
-    if (user.level !== 1) {
-      toast.error('Lv1 시스템관리자만 API 잔고를 조회할 수 있습니다.');
-      return;
-    }
-
-    setIsSyncingInvest(true);
-    try {
-      console.log('💰 [Dashboard] Invest 보유금 수동 동기화 시작');
-
-      // opcode, secretKey 조회
-      const { data: apiConfig, error: configError } = await supabase
-        .from('api_configs')
-        .select('invest_opcode, invest_secret_key')
-        .eq('partner_id', user.id)
-        .maybeSingle();
-
-      if (configError || !apiConfig || !apiConfig.invest_opcode || !apiConfig.invest_secret_key) {
-        throw new Error('Invest API 설정을 찾을 수 없습니다.');
-      }
-
-      // GET /api/info 호출
-      const result = await getInfo(apiConfig.invest_opcode, apiConfig.invest_secret_key);
-
-      if (result.error) {
-        throw new Error(result.error);
-      }
-
-      // API 응답에서 balance 파싱
-      let newBalance = 0;
-      if (result.data && typeof result.data === 'object') {
-        if (result.data.DATA?.balance !== undefined) {
-          newBalance = parseFloat(result.data.DATA.balance) || 0;
-        } else if (result.data.balance !== undefined) {
-          newBalance = parseFloat(result.data.balance) || 0;
-        }
-      }
-
-      console.log('✅ [Dashboard] Invest API 응답:', { balance: newBalance });
-
-      // api_configs 업데이트 (새 구조: api_provider='invest' 필터 추가)
-      const { error: updateError } = await supabase
-        .from('api_configs')
-        .update({
-          balance: newBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('partner_id', user.id)
-        .eq('api_provider', 'invest');
-
-      if (updateError) {
-        throw new Error(`DB 업데이트 실패: ${updateError.message}`);
-      }
-
-      toast.success(`Invest 보유금 동기화 완료: ${formatCurrency(newBalance)}`);
-    } catch (error: any) {
-      console.error('❌ [Dashboard] Invest 보유금 동기화 실패:', error);
-      toast.error(`Invest 보유금 동기화 실패: ${error.message}`);
-    } finally {
-      setIsSyncingInvest(false);
-    }
+    // ❌ getInfo API 사용 중지로 인해 비활성화
+    console.log('⚠️ Invest 수동 동기화 기능은 현재 비활성화되어 있습니다.');
+    return;
   };
 
   // =====================================================
@@ -805,45 +748,28 @@ export function Dashboard({ user }: DashboardProps) {
         </PremiumSectionCard>
       </div>
 
-      {/* Lv1 전용: Indo Casino 진입 링크 */}
+      {/* 모든 Frontend 바로가기 (작은 버튼) */}
       {user.level === 1 && (
-        <div className="mt-6 p-6 bg-gradient-to-r from-orange-900/20 via-amber-900/20 to-orange-900/20 border-2 border-orange-500/50 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-orange-600 to-amber-700 flex items-center justify-center border-2 border-orange-400">
-                <Shield className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h3 className="text-xl" style={{ 
-                  fontFamily: 'Impact, sans-serif',
-                  color: '#fff',
-                  letterSpacing: '0.1em',
-                  textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-                }}>
-                  INDO CASINO
-                </h3>
-                <p className="text-gray-400 text-sm mt-1">
-                  Experience Indonesian themed casino
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                window.location.hash = '#/indo';
-              }}
-              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-md border-2 border-orange-400 hover:from-orange-400 hover:to-amber-500 transition-all duration-200"
-              style={{
-                boxShadow: '0 0 20px rgba(249, 115, 22, 0.4)',
-              }}
-            >
-              <span className="flex items-center gap-2">
-                <span style={{ fontFamily: 'Impact, sans-serif', letterSpacing: '0.05em' }}>
-                  EXPLORE
-                </span>
-                <span>→</span>
-              </span>
-            </button>
-          </div>
+        <div className="mt-6 flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-500 mr-2">Frontend:</span>
+          <button
+            onClick={() => { window.location.hash = '#/user'; }}
+            className="px-2 py-1 text-xs bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 rounded border border-slate-600/50 transition-colors"
+          >
+            User
+          </button>
+          <button
+            onClick={() => { window.location.hash = '#/indo'; }}
+            className="px-2 py-1 text-xs bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 rounded border border-slate-600/50 transition-colors"
+          >
+            Indo
+          </button>
+          <button
+            onClick={() => { window.location.hash = '#/sample1'; }}
+            className="px-2 py-1 text-xs bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 rounded border border-slate-600/50 transition-colors"
+          >
+            Sample1
+          </button>
         </div>
       )}
     </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { supabase } from '../lib/supabase';
 import { Partner, User as CustomUser } from '../types';
-import { getInfo } from '../lib/investApi';
+// import { getInfo } from '../lib/investApi'; // ❌ 사용 중지
 import { updateInvestBalance, updateOroplayBalance, getInvestCredentials, getOroplayCredentials } from '../lib/apiConfigHelper';
 import { storage } from '../lib/utils';
 import { logLogin, getClientIP, getUserAgent } from '../lib/activityLogger';
@@ -115,7 +115,9 @@ export function useAuthProvider() {
       storage.set('auth_token', newAuthState.token);
       storage.set('auth_user', systemAdminUser);
 
-      // ✅ Lv1, Lv2: 로그인 시 Invest & OroPlay API 보유금 동기화
+      // ✅ Lv1, Lv2: 로그인 시 Invest & OroPlay API 보유금 동기화 - ❌ 비활성화
+      // getInfo API 사용 중지로 인해 로그인 시 자동 동기화도 비활성화
+      /*
       if (systemAdminUser.level === 1 || systemAdminUser.level === 2) {
         if (systemAdminUser.opcode && systemAdminUser.secret_key) {
           console.log('🔄 Invest & OroPlay API 보유금 동기화 시작...');
@@ -156,6 +158,7 @@ export function useAuthProvider() {
           }, 500);
         }
       }
+      */
 
       // ✅ 로그인 활동 기록
       const clientIP = await getClientIP();

@@ -81,10 +81,21 @@ export function IndoLogin({ onLoginSuccess, onRouteChange }: IndoLoginProps) {
           .eq('status', 'active')
           .order('display_order');
         
-        if (error) throw error;
-        setBanks(data || []);
+        if (error) {
+          console.error('은행 목록 로드 오류:', error);
+          setBanks([]);
+          return;
+        }
+        
+        // 중복 제거: name_ko 기준으로 고유한 은행만 유지
+        const uniqueBanks = data?.filter((bank, index, self) =>
+          index === self.findIndex((b) => b.name_ko === bank.name_ko)
+        ) || [];
+        
+        setBanks(uniqueBanks);
       } catch (error) {
         console.error('은행 목록 로드 오류:', error);
+        setBanks([]);
       }
     };
     
@@ -398,7 +409,11 @@ export function IndoLogin({ onLoginSuccess, onRouteChange }: IndoLoginProps) {
           <h1 className="text-4xl bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent mb-2">
             INDO CASINO
           </h1>
-          <p className="text-gray-400">최고의 카지노 경험</p>
+          <p className="text-gray-400">
+            <a href="#/admin" className="hover:text-purple-400 transition-colors">
+              최고의 카지노 경험
+            </a>
+          </p>
         </div>
 
         <Card className="bg-[#1a1f3a] border-purple-900/30">
@@ -606,11 +621,17 @@ export function IndoLogin({ onLoginSuccess, onRouteChange }: IndoLoginProps) {
                         <SelectValue placeholder="은행을 선택하세요" />
                       </SelectTrigger>
                       <SelectContent className="bg-[#1a1f3a] border-purple-900/30">
-                        {banks.map((bank) => (
-                          <SelectItem key={bank.id} value={bank.name_ko} className="text-white">
-                            {bank.name_ko}
+                        {Array.isArray(banks) && banks.length > 0 ? (
+                          banks.map((bank, index) => (
+                            <SelectItem key={`bank-${index}`} value={bank.name_ko || ''} className="text-white">
+                              {bank.name_ko || '알 수 없음'}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="no-banks" disabled className="text-gray-500">
+                            은행 정보를 불러오는 중...
                           </SelectItem>
-                        ))}
+                        )}
                       </SelectContent>
                     </Select>
                   </div>

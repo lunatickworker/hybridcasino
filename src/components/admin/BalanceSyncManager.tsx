@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { getInfo, getAllAccountBalances, getAccountBalance } from '../../lib/investApi';
+// import { getInfo, getAllAccountBalances, getAccountBalance } from '../../lib/investApi'; // ❌ getInfo 사용 중지
+import { getAllAccountBalances, getAccountBalance } from '../../lib/investApi';
 import * as opcodeHelper from '../../lib/opcodeHelper';
 import { Partner } from '../../types';
 
@@ -292,38 +293,38 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
         // ========================================
         // Lv1: GET /api/info (자신의 보유금 동기화)
         // ========================================
-        const apiResult = await getInfo(opcode, secretKey);
+        // const apiResult = await getInfo(opcode, secretKey);
 
-        if (apiResult.error) {
-          console.error('❌ [BalanceSync] API 호출 실패:', apiResult.error);
-          return;
-        }
+        // if (apiResult.error) {
+        //   console.error('❌ [BalanceSync] API 호출 실패:', apiResult.error);
+        //   return;
+        // }
 
-        const apiData = apiResult.data;
-        let newBalance = 0;
+        // const apiData = apiResult.data;
+        // let newBalance = 0;
 
-        if (apiData) {
-          if (typeof apiData === 'object' && !apiData.is_text) {
-            if (apiData.RESULT === true && apiData.DATA) {
-              newBalance = parseFloat(apiData.DATA.balance || 0);
-            } else if (apiData.balance !== undefined) {
-              newBalance = parseFloat(apiData.balance || 0);
-            }
-          } else if (apiData.is_text && apiData.text_response) {
-            const balanceMatch = apiData.text_response.match(/balance[\"'\\\s:]+(\\d+\\.?\\d*)/i);
-            if (balanceMatch) {
-              newBalance = parseFloat(balanceMatch[1]);
-            }
-          }
-        }
+        // if (apiData) {
+        //   if (typeof apiData === 'object' && !apiData.is_text) {
+        //     if (apiData.RESULT === true && apiData.DATA) {
+        //       newBalance = parseFloat(apiData.DATA.balance || 0);
+        //     } else if (apiData.balance !== undefined) {
+        //       newBalance = parseFloat(apiData.balance || 0);
+        //     }
+        //   } else if (apiData.is_text && apiData.text_response) {
+        //     const balanceMatch = apiData.text_response.match(/balance[\"'\\\s:]+(\\d+\\.?\\d*)/i);
+        //     if (balanceMatch) {
+        //       newBalance = parseFloat(balanceMatch[1]);
+        //     }
+        //   }
+        // }
 
-        await supabase
-          .from('partners')
-          .update({
-            balance: newBalance,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', partnerId);
+        // await supabase
+        //   .from('partners')
+        //   .update({
+        //     balance: newBalance,
+        //     updated_at: new Date().toISOString()
+        //   })
+        //   .eq('id', partnerId);
 
         // ========================================
         // PATCH /api/account/balance (온라인 게임 사용자만 보유금 일괄 조회)

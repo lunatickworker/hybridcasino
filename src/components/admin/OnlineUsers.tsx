@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import { Partner } from "../../types";
@@ -109,6 +109,32 @@ interface OnlineUsersProps {
   user: Partner;
 }
 
+// ✅ 체크박스를 별도 컴포넌트로 분리하여 selectedSessions 변경 시에만 리렌더링
+function SessionCheckbox({ 
+  rowId, 
+  isSelected, 
+  isDisabled, 
+  onToggle 
+}: { 
+  rowId: number; 
+  isSelected: boolean; 
+  isDisabled: boolean; 
+  onToggle: (id: number) => void;
+}) {
+  return (
+    <input
+      type="checkbox"
+      checked={isSelected}
+      onChange={() => onToggle(rowId)}
+      disabled={isDisabled}
+      className={cn(
+        "w-4 h-4 rounded border-slate-600 bg-slate-700 text-purple-500 focus:ring-purple-500 focus:ring-offset-slate-900",
+        isDisabled && "opacity-40 cursor-not-allowed"
+      )}
+    />
+  );
+}
+
 export function OnlineUsers({ user }: OnlineUsersProps) {
   const { t } = useLanguage();
   const [sessions, setSessions] = useState<OnlineSession[]>([]);
@@ -117,17 +143,222 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
   const [selectedSession, setSelectedSession] = useState<OnlineSession | null>(null);
   const [showKickDialog, setShowKickDialog] = useState(false);
   const [syncingBalance, setSyncingBalance] = useState<string | null>(null);
-  const [tick, setTick] = useState(0);
   
   // 일괄 종료용 체크박스 상태
   const [selectedSessions, setSelectedSessions] = useState<Set<number>>(new Set());
   const [showBulkKickDialog, setShowBulkKickDialog] = useState(false);
 
-  // 1초마다 접속시간 업데이트용
-  useEffect(() => {
-    const timer = setInterval(() => setTick(prev => prev + 1), 1000);
-    return () => clearInterval(timer);
+  // ✅ 체크박스 토글 함수들을 useCallback으로 최적화
+  const toggleSessionSelection = useCallback((sessionId: number) => {
+    setSelectedSessions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sessionId)) {
+        newSet.delete(sessionId);
+      } else {
+        newSet.add(sessionId);
+      }
+      return newSet;
+    });
   }, []);
+
+  const toggleAllSessions = useCallback(() => {
+    setSelectedSessions(prev => {
+      // sessions 배열 참조를 직접 사용하지 않고 현재 상태 기반으로 판단
+      if (prev.size > 0) {
+        return new Set();
+      } else {
+        return new Set(sessions.map(s => s.id));
+      }
+    });
+  }, [sessions]); // sessions를 dependency로 유지하되 최소화
+
+  // ✅ columns를 최대한 안정화 - dependencies를 syncingBalance와 t만으로 제한
+  const columns = useMemo(() => [
+    {
+      key: 'checkbox',
+      header: '',  // 나중에 동적으로 추가
+      render: (_: any, row: OnlineSession) => (
+        <SessionCheckbox
+          rowId={row.id}
+          isSelected={selectedSessions.has(row.id)}
+          isDisabled={row.status !== 'active'}
+          onToggle={toggleSessionSelection}
+        />
+      ),
+    },
+    {
+      key: 'status',
+      header: '상태',
+      render: (value: string) => {
+        const statusConfig: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
+          active: { label: '접속중', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/30' },
+          ready: { label: '대기중', color: 'text-amber-400', bgColor: 'bg-amber-500/10', borderColor: 'border-amber-500/30' },
+          ended: { label: '종료', color: 'text-slate-400', bgColor: 'bg-slate-500/10', borderColor: 'border-slate-500/30' },
+          force_ended: { label: '강제종료', color: 'text-red-400', bgColor: 'bg-red-500/10', borderColor: 'border-red-500/30' },
+        };
+        const config = statusConfig[value] || statusConfig.ended;
+        return (
+          <Badge variant="outline" className={cn(config.bgColor, config.color, config.borderColor)}>
+            {config.label}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'username',
+      header: t.common.username,
+      sortable: true,
+      render: (value: string, row: OnlineSession) => (
+        <span className={cn("text-slate-200", row.status !== 'active' && "opacity-40")}>
+          {value}
+        </span>
+      ),
+    },
+    {
+      key: 'nickname',
+      header: t.common.nickname,
+      sortable: true,
+      render: (value: string, row: OnlineSession) => (
+        <span className={cn("text-slate-200", row.status !== 'active' && "opacity-40")}>
+          {value}
+        </span>
+      ),
+    },
+    {
+      key: 'game_name',
+      header: t.common.game,
+      sortable: true,
+      render: (value: string, row: OnlineSession) => (
+        <div className={cn("space-y-1", row.status !== 'active' && "opacity-40")}>
+          <div className="text-slate-200">{value}</div>
+          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+            {row.provider_name}
+          </Badge>
+        </div>
+      ),
+    },
+    {
+      key: 'balance_before',
+      header: t.onlineUsers.startingBalance,
+      sortable: true,
+      render: (value: number, row: OnlineSession) => (
+        <span className={cn("font-mono text-slate-300", row.status !== 'active' && "opacity-40")}>
+          ₩{value.toLocaleString()}
+        </span>
+      ),
+    },
+    {
+      key: 'current_balance',
+      header: t.onlineUsers.currentBalance,
+      sortable: true,
+      render: (value: number, row: OnlineSession) => {
+        const diff = value - row.balance_before;
+        const diffColor = diff >= 0 ? 'text-emerald-400' : 'text-red-400';
+        const diffSign = diff >= 0 ? '+' : '';
+        
+        return (
+          <div className="space-y-1">
+            <AnimatedBalance 
+              value={value} 
+              inactive={row.status !== 'active'}
+            />
+            {diff !== 0 && (
+              <div className={cn(`text-xs font-mono ${diffColor}`, row.status !== 'active' && "opacity-40")}>
+                {diffSign}₩{diff.toLocaleString()}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'device_type',
+      header: t.onlineUsers.deviceType,
+      render: (value: string, row: OnlineSession) => (
+        <Badge 
+          variant={value === 'Mobile' ? 'default' : 'secondary'} 
+          className={cn("gap-1", row.status !== 'active' && "opacity-40")}
+        >
+          {value === 'Mobile' ? <Smartphone className="w-3 h-3" /> : <Monitor className="w-3 h-3" />}
+          {value}
+        </Badge>
+      ),
+    },
+    {
+      key: 'ip_address',
+      header: t.onlineUsers.ipAddress,
+      sortable: true,
+      render: (value: string, row: OnlineSession) => (
+        <span className={cn("text-slate-300 font-mono text-xs", row.status !== 'active' && "opacity-40")}>
+          {value}
+        </span>
+      ),
+    },
+    {
+      key: 'launched_at',
+      header: t.onlineUsers.connectionTime,
+      render: (value: string, row: OnlineSession) => (
+        <span className={cn("text-slate-300", row.status !== 'active' && "opacity-40")}>
+          {getSessionTime(value)}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: t.common.actions,
+      render: (_: any, row: OnlineSession) => (
+        <div className="flex items-center gap-2 justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => syncBalance(row)}
+            disabled={syncingBalance === row.user_id || row.status !== 'active'}
+            className={cn(
+              "text-slate-400 hover:text-slate-200",
+              row.status !== 'active' && "opacity-40 cursor-not-allowed"
+            )}
+          >
+            <RefreshCw className={`w-3 h-3 ${syncingBalance === row.user_id ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSelectedSession(row);
+              setShowKickDialog(true);
+            }}
+            disabled={row.status !== 'active'}
+            className={cn(
+              "bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300",
+              row.status !== 'active' && "opacity-40 cursor-not-allowed"
+            )}
+          >
+            <Power className="w-3 h-3" />
+          </Button>
+        </div>
+      ),
+    },
+  ], [syncingBalance, t, toggleSessionSelection, selectedSessions]); // ✅ dependencies를 syncingBalance와 t만으로 최소화
+
+  // ✅ 전체 선택 체크박스 상태를 별도로 계산 (columns 재생성 방지)
+  const isAllSelected = selectedSessions.size === sessions.length && sessions.length > 0;
+
+  // ✅ checkbox column의 header를 동적으로 추가
+  const columnsWithCheckboxHeader = useMemo(() => {
+    const updatedColumns = [...columns];
+    updatedColumns[0] = {
+      ...updatedColumns[0],
+      header: (
+        <input
+          type="checkbox"
+          checked={isAllSelected}
+          onChange={toggleAllSessions}
+          className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-purple-500 focus:ring-purple-500 focus:ring-offset-slate-900"
+        />
+      ),
+    };
+    return updatedColumns;
+  }, [columns, isAllSelected, toggleAllSessions]);
 
   // 온라인 세션 로드
   const loadSessions = async (isManualRefresh = false) => {
@@ -252,36 +483,59 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
 
       // ✅ 기존 데이터와 비교하여 실제로 변경된 경우에만 업데이트 (깜박임 방지)
       setSessions(prevSessions => {
-        // 데이터가 실제로 변경되었는지 확인
+        // 길이가 다르면 무조건 업데이트
         if (prevSessions.length !== formattedSessions.length) {
+          console.log('📊 세션 개수 변경:', prevSessions.length, '->', formattedSessions.length);
           return formattedSessions;
         }
         
-        // 각 세션의 주요 필드를 비교
-        const hasChanges = formattedSessions.some((newSession, index) => {
-          const oldSession = prevSessions.find(s => s.id === newSession.id);
-          if (!oldSession) return true;
+        // 빈 배열이면 그대로 반환
+        if (formattedSessions.length === 0) {
+          return prevSessions;
+        }
+        
+        // ✅ 각 세션을 ID 기준으로 깊은 비교
+        const sessionsById = new Map(formattedSessions.map(s => [s.id, s]));
+        let hasAnyChanges = false;
+        
+        for (const oldSession of prevSessions) {
+          const newSession = sessionsById.get(oldSession.id);
           
-          // 변경 가능성이 있는 필드만 비교 (balance, status, last_activity_at)
-          return (
+          // 새로운 데이터에 없는 세션 = 삭제됨
+          if (!newSession) {
+            hasAnyChanges = true;
+            break;
+          }
+          
+          // 주요 필드 비교 (balance, status, last_activity_at만 변경 가능)
+          if (
             oldSession.current_balance !== newSession.current_balance ||
             oldSession.status !== newSession.status ||
             oldSession.last_activity_at !== newSession.last_activity_at
-          );
-        });
-        
-        // 변경사항이 없으면 기존 상태 유지 (리렌더링 방지)
-        if (!hasChanges && prevSessions.length === formattedSessions.length) {
-          // ID 기준으로 정렬 순서가 변경되었는지 확인
-          const orderChanged = prevSessions.some((session, idx) => 
-            session.id !== formattedSessions[idx]?.id
-          );
-          
-          if (!orderChanged) {
-            return prevSessions;
+          ) {
+            hasAnyChanges = true;
+            break;
           }
         }
         
+        // 새로 추가된 세션이 있는지 확인
+        if (!hasAnyChanges) {
+          const oldSessionIds = new Set(prevSessions.map(s => s.id));
+          for (const newSession of formattedSessions) {
+            if (!oldSessionIds.has(newSession.id)) {
+              hasAnyChanges = true;
+              break;
+            }
+          }
+        }
+        
+        // ✅ 변경사항이 없으면 이전 배열 참조를 그대로 반환 (재렌더링 완전 방지)
+        if (!hasAnyChanges) {
+          console.log('✅ 세션 데이터 변경 없음 - 재렌더링 스킵');
+          return prevSessions;
+        }
+        
+        console.log('📊 세션 데이터 변경 감지 - 업데이트 실행');
         return formattedSessions;
       });
     } catch (error) {
@@ -359,7 +613,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
   };
 
   // 보유금 동기화
-  const syncBalance = async (session: OnlineSession) => {
+  const syncBalance = useCallback(async (session: OnlineSession) => {
     try {
       setSyncingBalance(session.user_id);
 
@@ -393,7 +647,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
     } finally {
       setSyncingBalance(null);
     }
-  };
+  }, [user.id]);
 
   // 세션 종료 시 보유금 동기화
   const syncBalanceOnSessionEnd = async (userId: string) => {
@@ -572,28 +826,6 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
     }
   };
 
-  // 체크박스 토글
-  const toggleSessionSelection = (sessionId: number) => {
-    setSelectedSessions(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(sessionId)) {
-        newSet.delete(sessionId);
-      } else {
-        newSet.add(sessionId);
-      }
-      return newSet;
-    });
-  };
-
-  // 전체 선택/해제
-  const toggleAllSessions = () => {
-    if (selectedSessions.size === sessions.length) {
-      setSelectedSessions(new Set());
-    } else {
-      setSelectedSessions(new Set(sessions.map(s => s.id)));
-    }
-  };
-
   // 통계 계산
   const totalUsers = sessions.length;
   const totalGameBalance = sessions.reduce((sum, s) => sum + s.current_balance, 0);
@@ -610,184 +842,6 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
     }, 0);
     avgSessionTime = Math.floor(totalMinutes / sessions.length);
   }
-
-  const columns = [
-    {
-      key: 'checkbox',
-      header: (
-        <input
-          type="checkbox"
-          checked={selectedSessions.size === sessions.length && sessions.length > 0}
-          onChange={toggleAllSessions}
-          className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-purple-500 focus:ring-purple-500 focus:ring-offset-slate-900"
-        />
-      ),
-      render: (_: any, row: OnlineSession) => (
-        <input
-          type="checkbox"
-          checked={selectedSessions.has(row.id)}
-          onChange={() => toggleSessionSelection(row.id)}
-          disabled={row.status !== 'active'}
-          className={cn(
-            "w-4 h-4 rounded border-slate-600 bg-slate-700 text-purple-500 focus:ring-purple-500 focus:ring-offset-slate-900",
-            row.status !== 'active' && "opacity-40 cursor-not-allowed"
-          )}
-        />
-      ),
-    },
-    {
-      key: 'status',
-      header: '상태',
-      render: (value: string) => {
-        const statusConfig: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
-          active: { label: '접속중', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/30' },
-          ready: { label: '대기중', color: 'text-amber-400', bgColor: 'bg-amber-500/10', borderColor: 'border-amber-500/30' },
-          ended: { label: '종료', color: 'text-slate-400', bgColor: 'bg-slate-500/10', borderColor: 'border-slate-500/30' },
-          force_ended: { label: '강제종료', color: 'text-red-400', bgColor: 'bg-red-500/10', borderColor: 'border-red-500/30' },
-        };
-        const config = statusConfig[value] || statusConfig.ended;
-        return (
-          <Badge variant="outline" className={cn(config.bgColor, config.color, config.borderColor)}>
-            {config.label}
-          </Badge>
-        );
-      },
-    },
-    {
-      key: 'username',
-      header: t.common.username,
-      sortable: true,
-      render: (value: string, row: OnlineSession) => (
-        <span className={cn("text-slate-200", row.status !== 'active' && "opacity-40")}>
-          {value}
-        </span>
-      ),
-    },
-    {
-      key: 'nickname',
-      header: t.common.nickname,
-      sortable: true,
-      render: (value: string, row: OnlineSession) => (
-        <span className={cn("text-slate-200", row.status !== 'active' && "opacity-40")}>
-          {value}
-        </span>
-      ),
-    },
-    {
-      key: 'game_name',
-      header: t.common.game,
-      sortable: true,
-      render: (value: string, row: OnlineSession) => (
-        <div className={cn("space-y-1", row.status !== 'active' && "opacity-40")}>
-          <div className="text-slate-200">{value}</div>
-          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-            {row.provider_name}
-          </Badge>
-        </div>
-      ),
-    },
-    {
-      key: 'balance_before',
-      header: t.onlineUsers.startingBalance,
-      sortable: true,
-      render: (value: number, row: OnlineSession) => (
-        <span className={cn("font-mono text-slate-300", row.status !== 'active' && "opacity-40")}>
-          ₩{value.toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      key: 'current_balance',
-      header: t.onlineUsers.currentBalance,
-      sortable: true,
-      render: (value: number, row: OnlineSession) => {
-        const diff = value - row.balance_before;
-        const diffColor = diff >= 0 ? 'text-emerald-400' : 'text-red-400';
-        const diffSign = diff >= 0 ? '+' : '';
-        
-        return (
-          <div className="space-y-1">
-            <AnimatedBalance 
-              value={value} 
-              inactive={row.status !== 'active'}
-            />
-            {diff !== 0 && (
-              <div className={cn(`text-xs font-mono ${diffColor}`, row.status !== 'active' && "opacity-40")}>
-                {diffSign}₩{diff.toLocaleString()}
-              </div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      key: 'device_type',
-      header: t.onlineUsers.deviceType,
-      render: (value: string, row: OnlineSession) => (
-        <Badge 
-          variant={value === 'Mobile' ? 'default' : 'secondary'} 
-          className={cn("gap-1", row.status !== 'active' && "opacity-40")}
-        >
-          {value === 'Mobile' ? <Smartphone className="w-3 h-3" /> : <Monitor className="w-3 h-3" />}
-          {value}
-        </Badge>
-      ),
-    },
-    {
-      key: 'ip_address',
-      header: t.onlineUsers.ipAddress,
-      sortable: true,
-      render: (value: string, row: OnlineSession) => (
-        <span className={cn("text-slate-300 font-mono text-xs", row.status !== 'active' && "opacity-40")}>
-          {value}
-        </span>
-      ),
-    },
-    {
-      key: 'launched_at',
-      header: t.onlineUsers.connectionTime,
-      render: (value: string, row: OnlineSession) => (
-        <span className={cn("text-slate-300", row.status !== 'active' && "opacity-40")}>
-          {getSessionTime(value)}
-        </span>
-      ),
-    },
-    {
-      key: 'actions',
-      header: t.common.actions,
-      render: (_: any, row: OnlineSession) => (
-        <div className="flex items-center gap-2 justify-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => syncBalance(row)}
-            disabled={syncingBalance === row.user_id || row.status !== 'active'}
-            className={cn(
-              "text-slate-400 hover:text-slate-200",
-              row.status !== 'active' && "opacity-40 cursor-not-allowed"
-            )}
-          >
-            <RefreshCw className={`w-3 h-3 ${syncingBalance === row.user_id ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setSelectedSession(row);
-              setShowKickDialog(true);
-            }}
-            disabled={row.status !== 'active'}
-            className={cn(
-              "bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300",
-              row.status !== 'active' && "opacity-40 cursor-not-allowed"
-            )}
-          >
-            <Power className="w-3 h-3" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -850,7 +904,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
 
       <DataTable
         data={sessions}
-        columns={columns}
+        columns={columnsWithCheckboxHeader}
         loading={loading}
         emptyMessage={t.onlineUsers.noOnlineUsers}
       />

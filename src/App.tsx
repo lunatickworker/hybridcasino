@@ -22,12 +22,18 @@ import { SessionTimeoutManager } from './contexts/SessionTimeoutManager';
 import { MessageQueueProvider } from './components/common/MessageQueueProvider';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { supabase } from './lib/supabase';
+import { initFavicon } from './utils/favicon';
 
 
 
 function AppContent() {
   const { authState, logout } = useAuth();
   const [, forceUpdate] = useState({});
+
+  // Favicon 초기화 (도메인/라우트별 자동 설정)
+  useEffect(() => {
+    initFavicon();
+  }, []);
 
   // 초기 리다이렉트 처리 (useEffect로 이동하여 render phase 오류 방지)
   useEffect(() => {
@@ -220,11 +226,11 @@ function AppContent() {
         const { error: sessionError } = await supabase
           .from('user_sessions')
           .update({
-            status: 'ended',
-            ended_at: new Date().toISOString()
+            is_active: false,
+            logout_at: new Date().toISOString()
           })
           .eq('user_id', userSession.id)
-          .is('ended_at', null);
+          .eq('is_active', true);
 
         if (sessionError) {
           console.error('❌ user_sessions 종료 오류:', sessionError);

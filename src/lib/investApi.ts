@@ -667,18 +667,19 @@ export async function getUserBalance(opcode: string, username: string): Promise<
     // ✅ API 설정 조회 (api_configs 테이블에서)
     console.log(`🔍 [getUserBalance] api_configs 테이블 조회 시작: opcode=${opcode}`);
     
-    // 1. opcode로 partner_id 찾기
+    // 1. partner_id 찾기 (opcode로 api_configs 조회)
     const { data: apiConfig, error: configError } = await supabase
       .from('api_configs')
-      .select('partner_id, invest_token, invest_secret_key, invest_opcode')
-      .eq('invest_opcode', opcode)
-      .maybeSingle();
-
+      .select('partner_id, balance')
+      .eq('opcode', opcode)
+      .eq('api_provider', 'invest')
+      .single();
+    
     console.log(`🔍 [getUserBalance] 조회 결과:`, { 
       apiConfig, 
       configError,
-      hasApiToken: !!apiConfig?.invest_token,
-      hasSecretKey: !!apiConfig?.invest_secret_key
+      hasApiToken: !!apiConfig?.token,
+      hasSecretKey: !!apiConfig?.secret_key
     });
 
     if (configError || !apiConfig) {
@@ -692,19 +693,19 @@ export async function getUserBalance(opcode: string, username: string): Promise<
       return { success: false, error: `API 설정을 찾을 수 없습니다 (opcode: ${opcode})` };
     }
 
-    if (!apiConfig.invest_token || !apiConfig.invest_secret_key) {
+    if (!apiConfig.token || !apiConfig.secret_key) {
       console.error('❌ [보유금 조회] API 설정 불완전:', { 
         opcode, 
-        hasApiToken: !!apiConfig.invest_token,
-        hasSecretKey: !!apiConfig.invest_secret_key,
-        apiTokenLength: apiConfig.invest_token?.length || 0,
-        secretKeyLength: apiConfig.invest_secret_key?.length || 0
+        hasApiToken: !!apiConfig.token,
+        hasSecretKey: !!apiConfig.secret_key,
+        apiTokenLength: apiConfig.token?.length || 0,
+        secretKeyLength: apiConfig.secret_key?.length || 0
       });
       return { success: false, error: 'API 설정이 불완전합니다' };
     }
 
     // 새로운 함수로 위임
-    return await getUserBalanceWithConfig(opcode, username, apiConfig.invest_token, apiConfig.invest_secret_key);
+    return await getUserBalanceWithConfig(opcode, username, apiConfig.token, apiConfig.secret_key);
 
   } catch (error) {
     console.error('❌ [보유금 조회] 오류:', error);
@@ -765,7 +766,7 @@ export async function withdrawBalance(opcode: string, username: string, token: s
   const { data: apiConfig, error: configError } = await supabase
     .from('api_configs')
     .select('partner_id, balance')
-    .eq('invest_opcode', opcode)
+    .eq('opcode', opcode)
     .eq('api_provider', 'invest')
     .single();
   
@@ -848,10 +849,11 @@ export async function withdrawBalance(opcode: string, username: string, token: s
     await supabase
       .from('api_configs')
       .update({ 
-        invest_balance: previousInvestBalance,
+        balance: previousInvestBalance,
         updated_at: new Date().toISOString()
       })
-      .eq('partner_id', apiConfig.partner_id);
+      .eq('partner_id', apiConfig.partner_id)
+      .eq('api_provider', 'invest');
     
     console.log(`🔄 [Rollback] api_configs 복구: ${previousInvestBalance + amount} → ${previousInvestBalance}`);
     
@@ -900,21 +902,21 @@ export async function getAccountHistory(opcode: string, username: string, dateFr
   });
 }
 
-// 기본정보 조회
-export async function getInfo(opcode: string, secretKey: string) {
-  const signature = generateSignature([opcode], secretKey);
-  
-  console.log('📊 기본정보 조회 API 호출:', {
-    opcode,
-    secretKey: '***' + secretKey.slice(-4),
-    signature
-  });
-  
-  return await callInvestApi('/api/info', 'GET', {
-    opcode,
-    signature
-  });
-}
+// ❌ 기본정보 조회 API - 사용 중지
+// export async function getInfo(opcode: string, secretKey: string) {
+//   const signature = generateSignature([opcode], secretKey);
+//   
+//   console.log('📊 기본정보 조회 API 호출:', {
+//     opcode,
+//     secretKey: '***' + secretKey.slice(-4),
+//     signature
+//   });
+//   
+//   return await callInvestApi('/api/info', 'GET', {
+//     opcode,
+//     signature
+//   });
+// }
 
 // 이미지 URL 추출 함수
 // API 응답은 주로 game_image 필드로 제공됨
@@ -1451,22 +1453,23 @@ export async function getUserBalanceWithParams(opcode: string, username: string,
 export async function getApiConfig(partnerId: string): Promise<{ opcode: string; secret_key: string; token: string }> {
   const { data: apiConfig, error } = await supabase
     .from('api_configs')
-    .select('invest_opcode, invest_secret_key, invest_token')
+    .select('opcode, secret_key, token')
     .eq('partner_id', partnerId)
+    .eq('api_provider', 'invest')
     .single();
 
   if (error || !apiConfig) {
     throw new Error('파트너 API 설정을 찾을 수 없습니다.');
   }
 
-  if (!apiConfig.invest_opcode || !apiConfig.invest_secret_key || !apiConfig.invest_token) {
+  if (!apiConfig.opcode || !apiConfig.secret_key || !apiConfig.token) {
     throw new Error('파트너 API 설정이 불완전합니다.');
   }
 
   return {
-    opcode: apiConfig.invest_opcode,
-    secret_key: apiConfig.invest_secret_key,
-    token: apiConfig.invest_token
+    opcode: apiConfig.opcode,
+    secret_key: apiConfig.secret_key,
+    token: apiConfig.token
   };
 }
 
@@ -1569,7 +1572,7 @@ export const investApi = {
   depositToAccount,
   withdrawFromAccount,
   getAccountHistory,
-  getInfo,
+  // getInfo, // ❌ 사용 중지
   getGameList,
   launchGame,
   getGameHistory,

@@ -34,7 +34,7 @@ export async function getInvestCredentials(partnerId: string): Promise<InvestCre
   try {
     const { data, error } = await supabase
       .from('api_configs')
-      .select('invest_opcode, invest_secret_key, invest_token')
+      .select('opcode, secret_key, token')
       .eq('partner_id', partnerId)
       .eq('api_provider', 'invest')
       .maybeSingle();
@@ -50,9 +50,9 @@ export async function getInvestCredentials(partnerId: string): Promise<InvestCre
     }
 
     return {
-      opcode: data.invest_opcode || '',
-      secret_key: data.invest_secret_key || '',
-      token: data.invest_token || ''
+      opcode: data.opcode || '',
+      secret_key: data.secret_key || '',
+      token: data.token || ''
     };
   } catch (err) {
     console.error('❌ [API Config] Invest credentials 조회 예외:', err);
@@ -69,7 +69,7 @@ export async function getOroplayCredentials(partnerId: string): Promise<OroplayC
   try {
     const { data, error } = await supabase
       .from('api_configs')
-      .select('oroplay_client_id, oroplay_client_secret, oroplay_token, oroplay_token_expires_at')
+      .select('client_id, client_secret, token, token_expires_at')
       .eq('partner_id', partnerId)
       .eq('api_provider', 'oroplay')
       .maybeSingle();
@@ -85,10 +85,10 @@ export async function getOroplayCredentials(partnerId: string): Promise<OroplayC
     }
 
     return {
-      client_id: data.oroplay_client_id || '',
-      client_secret: data.oroplay_client_secret || '',
-      token: data.oroplay_token || '',
-      token_expires_at: data.oroplay_token_expires_at || null
+      client_id: data.client_id || '',
+      client_secret: data.client_secret || '',
+      token: data.token || '',
+      token_expires_at: data.token_expires_at || null
     };
   } catch (err) {
     console.error('❌ [API Config] OroPlay credentials 조회 예외:', err);
@@ -329,7 +329,7 @@ export async function updateInvestToken(partnerId: string, token: string): Promi
     const { error } = await supabase
       .from('api_configs')
       .update({
-        invest_token: token,
+        token: token,
         updated_at: new Date().toISOString()
       })
       .eq('partner_id', partnerId)
@@ -357,12 +357,12 @@ export async function updateInvestToken(partnerId: string, token: string): Promi
 export async function updateOroplayToken(partnerId: string, token: string, expiresAt?: string): Promise<boolean> {
   try {
     const updateData: any = {
-      oroplay_token: token,
+      token: token,
       updated_at: new Date().toISOString()
     };
 
     if (expiresAt) {
-      updateData.oroplay_token_expires_at = expiresAt;
+      updateData.token_expires_at = expiresAt;
     }
 
     const { error } = await supabase

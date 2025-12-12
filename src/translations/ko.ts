@@ -86,7 +86,7 @@ export const ko = {
     blacklistManagement: '블랙리스트 관리',
     menuManagement: '메뉴 관리',
     apiTester: 'API 테스터',
-    onlineUsers: '접속자 현황',
+    onlineUsers: '온라인 현황',
     bettingHistory: '베팅 내역',
     logout: '로그아웃',
     
@@ -1862,9 +1862,9 @@ export const ko = {
     size: '크기',
   },
 
-  // 접속자 현황
+  // 온라인 현황
   onlineUsers: {
-    title: '접속자 현황',
+    title: '온라인 현황',
     totalOnline: '전체 접속자',
     userId: '회원 ID',
     username: '아이디',

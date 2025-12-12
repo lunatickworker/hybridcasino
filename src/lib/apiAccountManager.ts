@@ -144,20 +144,20 @@ async function createInvestAccount(
     // 2. api_configs에서 Invest API 설정 조회
     const { data: apiConfig } = await supabase
       .from('api_configs')
-      .select('invest_opcode, invest_secret_key, invest_token')
+      .select('opcode, secret_key, token')
       .eq('partner_id', headOfficeId)
       .eq('api_provider', 'invest')
       .single();
     
-    if (!apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
+    if (!apiConfig?.opcode || !apiConfig?.secret_key) {
       return { success: false, error: 'Invest API 설정이 없습니다 (api_configs 확인 필요)' };
     }
     
     // 3. 계정 생성
     const result = await investApi.createAccount(
-      apiConfig.invest_opcode,
+      apiConfig.opcode,
       username,
-      apiConfig.invest_secret_key
+      apiConfig.secret_key
     );
     
     if (result && result.Result !== false) {
@@ -192,31 +192,31 @@ async function createOroPlayAccount(
     const headOfficeId = await findHeadOfficeId(partnerId);
     console.log('  ✅ [OROPLAY] 대본사 ID 찾기 완료:', headOfficeId);
     
-    console.log('  🔹 [OROPLAY] 2단계: API 설정 조회');
+    console.log('  🔹 [OROPLAY] 2단계: API 설정 조회 (대본사 설정 우선)');
     // 2. API 설정 조회 (대본사 설정 우선)
     let { data: apiConfig } = await supabase
       .from('api_configs')
-      .select('partner_id, oroplay_client_id, oroplay_client_secret')
+      .select('partner_id, client_id, client_secret')
       .eq('partner_id', headOfficeId)
       .eq('api_provider', 'oroplay')
       .single();
     
     // 2-1. 대본사 설정이 없으면 첫 번째 유효한 설정 사용 (폴백)
-    if (!apiConfig?.oroplay_client_id || !apiConfig?.oroplay_client_secret) {
+    if (!apiConfig?.client_id || !apiConfig?.client_secret) {
       console.log('  ⚠️ [OROPLAY] 대본사 설정 없음, 첫 번째 유효한 설정 조회');
       
       const { data: firstConfig } = await supabase
         .from('api_configs')
-        .select('partner_id, oroplay_client_id, oroplay_client_secret')
+        .select('partner_id, client_id, client_secret')
         .eq('api_provider', 'oroplay')
-        .not('oroplay_client_id', 'is', null)
-        .not('oroplay_client_secret', 'is', null)
+        .not('client_id', 'is', null)
+        .not('client_secret', 'is', null)
         .limit(1)
         .single();
       
       if (!firstConfig) {
         console.error('  ❌ [OROPLAY] OroPlay API 설정을 찾을 수 없습니다');
-        console.error('  ❌ [OROPLAY] api_configs 테이블에 oroplay_client_id, oroplay_client_secret을 설정하세요');
+        console.error('  ❌ [OROPLAY] api_configs 테이블에 client_id, client_secret을 설정하세요');
         return { success: false, error: 'OroPlay API 설정을 찾을 수 없습니다. 시스템 관리자에게 문의하세요.' };
       }
       
@@ -230,8 +230,8 @@ async function createOroPlayAccount(
     // 3. 🔥 계정 생성 시마다 **새로운 토큰**을 강제로 발급
     // ✅ Rate Limit 없음 (oroplayapi.md: 토큰 발급은 5회/30초, 계정 생성 시 1회만 호출)
     const tokenData = await oroplayApi.createOroPlayToken(
-      apiConfig.oroplay_client_id,
-      apiConfig.oroplay_client_secret
+      apiConfig.client_id,
+      apiConfig.client_secret
     );
     
     const newToken = tokenData.token;
@@ -243,8 +243,8 @@ async function createOroPlayAccount(
     await supabase
       .from('api_configs')
       .update({
-        oroplay_token: newToken,
-        oroplay_token_expires_at: new Date(tokenData.expiration * 1000).toISOString()
+        token: newToken,
+        token_expires_at: new Date(tokenData.expiration * 1000).toISOString()
       })
       .eq('partner_id', apiConfig.partner_id)
       .eq('api_provider', 'oroplay');

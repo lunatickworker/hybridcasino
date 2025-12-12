@@ -373,10 +373,12 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
       const { md5Hash } = await import('../../lib/investApi');
       
       // ✅ API 설정 조회 - api_configs 테이블에서 조회 (배열로 받아서 invest 찾기)
-      const { data: apiConfigs, error: configError } = await supabase
+      const { data: apiConfig, error: configError } = await supabase
         .from('api_configs')
-        .select('invest_opcode, invest_secret_key')
-        .eq('partner_id', user.referrer_id);
+        .select('opcode, secret_key')
+        .eq('partner_id', user.referrer_id)
+        .eq('api_provider', 'invest')
+        .maybeSingle();
 
       if (configError) {
         console.error('❌ [사용자상세] API config 조회 에러:', configError);
@@ -384,16 +386,13 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
         return;
       }
 
-      // invest_opcode가 있는 레코드 찾기
-      const apiConfig = apiConfigs?.find(config => config.invest_opcode && config.invest_secret_key);
-
-      if (!apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
+      if (!apiConfig?.opcode || !apiConfig?.secret_key) {
         console.warn('⚠️ [사용자상세] API config 없음. referrer_id:', user.referrer_id);
         toast.error(`파트너 API 설정을 찾을 수 없습니다. (Partner ID: ${user.referrer_id})`);
         return;
       }
 
-      const signature = md5Hash(apiConfig.invest_opcode + apiConfig.invest_secret_key);
+      const signature = md5Hash(apiConfig.opcode + apiConfig.secret_key);
 
       const response = await fetch('https://vi8282.com/proxy', {
         method: 'POST',
@@ -403,7 +402,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           body: {
-            opcode: apiConfig.invest_opcode,
+            opcode: apiConfig.opcode,
             signature: signature
           }
         })
@@ -432,10 +431,12 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
       const { md5Hash } = await import('../../lib/investApi');
       
       // ✅ API 설정 조회 - api_configs 테이블에서 조회 (배열로 받아서 invest 찾기)
-      const { data: apiConfigs, error: configError } = await supabase
+      const { data: apiConfig, error: configError } = await supabase
         .from('api_configs')
-        .select('invest_opcode, invest_secret_key')
-        .eq('partner_id', user.referrer_id);
+        .select('opcode, secret_key')
+        .eq('partner_id', user.referrer_id)
+        .eq('api_provider', 'invest')
+        .maybeSingle();
 
       if (configError) {
         console.error('❌ [사용자상세] API config 조회 에러:', configError);
@@ -443,16 +444,13 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
         return;
       }
 
-      // invest_opcode가 있는 레코드 찾기
-      const apiConfig = apiConfigs?.find(config => config.invest_opcode && config.invest_secret_key);
-
-      if (!apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
+      if (!apiConfig?.opcode || !apiConfig?.secret_key) {
         console.warn('⚠️ [사용자상세] API config 없음. referrer_id:', user.referrer_id);
         toast.error(`파트너 API 설정을 찾을 수 없습니다. (Partner ID: ${user.referrer_id})`);
         return;
       }
 
-      const signature = md5Hash(apiConfig.invest_opcode + apiConfig.invest_secret_key);
+      const signature = md5Hash(apiConfig.opcode + apiConfig.secret_key);
 
       const response = await fetch('https://vi8282.com/proxy', {
         method: 'POST',
@@ -462,7 +460,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: {
-            opcode: apiConfig.invest_opcode,
+            opcode: apiConfig.opcode,
             users: [user.username],
             limit: evolutionLimit,
             signature: signature
@@ -517,8 +515,10 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
       try {
         const { data, error } = await supabase
           .from('api_configs')
-          .select('invest_opcode')
-          .eq('partner_id', user.referrer_id);
+          .select('opcode')
+          .eq('partner_id', user.referrer_id)
+          .eq('api_provider', 'invest')
+          .maybeSingle();
 
         if (error) {
           console.error('invest API 확인 에러:', error);
@@ -526,8 +526,8 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
           return;
         }
 
-        // 배열에서 invest_opcode가 존재하고 null이 아닌 레코드 찾기
-        const hasInvest = data?.some(config => !!config.invest_opcode);
+        // opcode가 존재하는지 확인
+        const hasInvest = !!data?.opcode;
         setHasInvestApi(hasInvest);
       } catch (error) {
         console.error('invest API 확인 에러:', error);

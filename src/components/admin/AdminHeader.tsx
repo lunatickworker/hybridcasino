@@ -26,7 +26,7 @@ import { formatCurrency, formatNumber } from "../../lib/utils";
 import { toast } from "sonner@2.0.3";
 import { supabase } from "../../lib/supabase";
 import { AnimatedCurrency } from "../common/AnimatedNumber";
-import { getInfo } from "../../lib/investApi";
+// import { getInfo } from "../../lib/investApi"; // ❌ 사용 중지
 import { getAgentBalance, getOroPlayToken } from "../../lib/oroplayApi";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { getInvestCredentials, updateInvestBalance, updateOroplayBalance } from "../../lib/apiConfigHelper";
@@ -80,58 +80,12 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   const [isSyncingOroplay, setIsSyncingOroplay] = useState(false);
 
   // =====================================================
-  // Invest 보유금 수동 동기화 (카드 클릭 시)
+  // Invest 보유금 수동 동기화 (카드 클릭 시) - ❌ 비활성화
   // =====================================================
   const handleSyncInvestBalance = async () => {
-    if (user.level !== 1) {
-      // Lv2 이상은 토스트 없이 조용히 무시
-      return;
-    }
-
-    setIsSyncingInvest(true);
-    try {
-      console.log('💰 [AdminHeader] Invest 보유금 수동 동기화 시작');
-
-      // credentials 조회 (헬퍼 함수 사용)
-      const creds = await getInvestCredentials(user.id);
-
-      if (!creds.opcode || !creds.secret_key) {
-        throw new Error('Invest API 설정을 찾을 수 없습니다.');
-      }
-
-      // GET /api/info 호출
-      const result = await getInfo(creds.opcode, creds.secret_key);
-
-      if (result.error) {
-        throw new Error(result.error);
-      }
-
-      // API 응답에서 balance 파싱
-      let newBalance = 0;
-      if (result.data && typeof result.data === 'object') {
-        if (result.data.DATA?.balance !== undefined) {
-          newBalance = parseFloat(result.data.DATA.balance) || 0;
-        } else if (result.data.balance !== undefined) {
-          newBalance = parseFloat(result.data.balance) || 0;
-        }
-      }
-
-      console.log('✅ [AdminHeader] Invest API 응답:', { balance: newBalance });
-
-      // 잔액 업데이트 (헬퍼 함수 사용)
-      const success = await updateInvestBalance(user.id, newBalance);
-
-      if (!success) {
-        throw new Error('DB 업데이트 실패');
-      }
-
-      toast.success(`Invest 보유금 동기화 완료: ${formatCurrency(newBalance)}`);
-    } catch (error: any) {
-      console.error('❌ [AdminHeader] Invest 보유금 동기화 실패:', error);
-      toast.error(`Invest 보유금 동기화 실패: ${error.message}`);
-    } finally {
-      setIsSyncingInvest(false);
-    }
+    // ❌ getInfo API 사용 중지로 인해 비활성화
+    console.log('⚠️ Invest 수동 동기화 기능은 현재 비활성화되어 있습니다.');
+    return;
   };
 
   // =====================================================
@@ -262,12 +216,12 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
         const dailyWithdrawal = withdrawalData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
 
-        // 3️⃣ 온라인 사용자 수 - users 테이블에서 is_online=true인 회원만
+        // 3️⃣ 게임중인 사용자 수 - game_launch_sessions 테이블에서 status='active'인 세션만
         const { count: onlineCount } = await supabase
-          .from('users')
+          .from('game_launch_sessions')
           .select('id', { count: 'exact', head: true })
-          .eq('is_online', true)
-          .in('id', allowedUserIds);
+          .eq('status', 'active')
+          .in('user_id', allowedUserIds);
 
         // 4️⃣ 전체 회원 수 - 소속 사용자만
         const totalUserCount = allowedUserIds.length;
@@ -493,12 +447,30 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       )
       .subscribe();
 
+    // ✅ Realtime 구독 4: game_launch_sessions 변경 시 즉시 업데이트 (게임중인 사용자)
+    const gameSessionsChannel = supabase
+      .channel('header_game_sessions')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'game_launch_sessions'
+        },
+        (payload) => {
+          console.log('🎮 [헤더 알림] game_launch_sessions 변경 감지:', payload.eventType);
+          fetchHeaderStats(); // 즉시 갱신
+        }
+      )
+      .subscribe();
+
     return () => {
       console.log('🔕 헤더 Realtime 구독 해제');
       clearTimeout(midnightTimer);
       supabase.removeChannel(transactionChannel);
       supabase.removeChannel(usersChannel);
       supabase.removeChannel(messagesChannel);
+      supabase.removeChannel(gameSessionsChannel);
     };
   }, [user.id]);
 

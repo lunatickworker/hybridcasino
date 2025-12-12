@@ -300,15 +300,16 @@ export function ApiTester() {
         // ✅ api_configs에서 조회
         const { data: apiConfig } = await supabase
           .from('api_configs')
-          .select('invest_opcode, invest_secret_key')
+          .select('opcode, secret_key')
           .eq('partner_id', user.referrer_id)
+          .eq('api_provider', 'invest')
           .maybeSingle();
 
-        if (apiConfig) {
+        if (apiConfig && apiConfig.opcode && apiConfig.secret_key) {
           // Invest API 잔고 조회
           const balanceResult = await investApi.getAllAccountBalances(
-            apiConfig.invest_opcode,
-            apiConfig.invest_secret_key
+            apiConfig.opcode,
+            apiConfig.secret_key
           );
 
           if (balanceResult.data) {
@@ -379,11 +380,12 @@ export function ApiTester() {
       // ✅ 2. api_configs에서 조회
       const { data: apiConfig } = await supabase
         .from('api_configs')
-        .select('invest_opcode, invest_secret_key')
+        .select('opcode, secret_key')
         .eq('partner_id', user.referrer_id)
+        .eq('api_provider', 'invest')
         .maybeSingle();
 
-      if (!apiConfig) throw new Error('Partner API configuration not found');
+      if (!apiConfig || !apiConfig.opcode || !apiConfig.secret_key) throw new Error('Partner API configuration not found');
 
       let totalSynced = 0;
       const errors: any[] = [];
@@ -392,8 +394,8 @@ export function ApiTester() {
       setSyncProgress({ status: 'running', step: 'balance' });
       try {
         const balanceResult = await investApi.getAllAccountBalances(
-          apiConfig.invest_opcode,
-          apiConfig.invest_secret_key
+          apiConfig.opcode,
+          apiConfig.secret_key
         );
 
         if (balanceResult.data) {

@@ -126,7 +126,7 @@ export async function createOroPlayToken(
 export async function getOroPlayToken(partnerId: string): Promise<string> {
   const { data: config, error: configError } = await supabase
     .from('api_configs')
-    .select('oroplay_token, oroplay_token_expires_at, oroplay_client_id, oroplay_client_secret')
+    .select('token, token_expires_at, client_id, client_secret')
     .eq('partner_id', partnerId)
     .eq('api_provider', 'oroplay')
     .maybeSingle();
@@ -139,11 +139,11 @@ export async function getOroPlayToken(partnerId: string): Promise<string> {
     throw new Error('OroPlay API 설정을 찾을 수 없습니다.');
   }
   
-  if (!config.oroplay_client_id || !config.oroplay_client_secret) {
+  if (!config.client_id || !config.client_secret) {
     console.error('❌ [OroPlay] Credentials 정보 없음:', {
       partner_id: partnerId,
-      has_client_id: !!config.oroplay_client_id,
-      has_client_secret: !!config.oroplay_client_secret
+      has_client_id: !!config.client_id,
+      has_client_secret: !!config.client_secret
     });
     throw new Error('OroPlay client_id 또는 client_secret이 설정되지 않았습니다.');
   }
@@ -157,35 +157,35 @@ export async function getOroPlayToken(partnerId: string): Promise<string> {
 async function refreshTokenIfNeeded(
   partnerId: string,
   config: {
-    oroplay_token: string | null;
-    oroplay_token_expires_at: string | null;
-    oroplay_client_id: string;
-    oroplay_client_secret: string;
+    token: string | null;
+    token_expires_at: string | null;
+    client_id: string;
+    client_secret: string;
   }
 ): Promise<string> {
   // 토큰이 있고 아직 유효하면 그대로 사용
-  if (config.oroplay_token && config.oroplay_token_expires_at) {
-    const expiresAt = new Date(config.oroplay_token_expires_at).getTime();
+  if (config.token && config.token_expires_at) {
+    const expiresAt = new Date(config.token_expires_at).getTime();
     const now = Date.now();
     const fiveMinutes = 5 * 60 * 1000;
     
     if (expiresAt - now > fiveMinutes) {
-      return config.oroplay_token;
+      return config.token;
     }
   }
   
   // 토큰 재발급
   const tokenData = await createOroPlayToken(
-    config.oroplay_client_id,
-    config.oroplay_client_secret
+    config.client_id,
+    config.client_secret
   );
   
   // DB에 저장
   const { error: updateError } = await supabase
     .from('api_configs')
     .update({
-      oroplay_token: tokenData.token,
-      oroplay_token_expires_at: new Date(tokenData.expiration * 1000).toISOString(),
+      token: tokenData.token,
+      token_expires_at: new Date(tokenData.expiration * 1000).toISOString(),
       updated_at: new Date().toISOString()
     })
     .eq('partner_id', partnerId)

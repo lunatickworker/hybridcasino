@@ -700,7 +700,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                       <SelectValue placeholder={t.user.selectBank} />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-800 border-slate-700">
-                      {['국민은행', '신한은행', '우리은행', 'KB국민은행', 'KEB하나은행', '농협은행', '기업은행'].map((bank) => (
+                      {['KB국민은행', '신한은행', '우리은행', '하나은행', '농협은행', 'IBK기업은행'].map((bank) => (
                         <SelectItem key={bank} value={bank}>{bank}</SelectItem>
                       ))}
                     </SelectContent>

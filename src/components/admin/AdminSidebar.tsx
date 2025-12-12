@@ -429,7 +429,7 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
             "text-base group relative",
             depth === 0 ? "w-full" : "w-[calc(100%-12px)]", // 서브메뉴는 오른쪽 여백 추가
             isActive
-              ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30 scale-[1.02]"
+              ? "bg-slate-800/80 text-white border border-blue-500/30 shadow-sm"
               : "text-slate-300 hover:bg-slate-800/50 hover:text-white hover:scale-[1.01]",
             depth > 0 && "ml-6"
           )}
@@ -488,14 +488,9 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       </div>
 
       <div className="p-3 border-t border-slate-700/50 flex-shrink-0">
-        <button
-          onClick={() => {
-            window.location.hash = '#/user';
-          }}
-          className="w-full text-xs text-slate-500 hover:text-slate-300 text-center truncate transition-colors cursor-pointer"
-        >
+        <div className="w-full text-xs text-slate-500 text-center truncate">
           GMS v1.0
-        </button>
+        </div>
       </div>
     </div>
   );

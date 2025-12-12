@@ -388,12 +388,12 @@ export async function syncInvestGames(providerId: number): Promise<SyncResult> {
 
     const { data: apiConfig } = await supabase
       .from('api_configs')
-      .select('invest_opcode, invest_secret_key')
+      .select('opcode, secret_key')
       .eq('partner_id', systemAdmin.id)
       .eq('api_provider', 'invest')
       .maybeSingle();
 
-    if (!apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
+    if (!apiConfig?.opcode || !apiConfig?.secret_key) {
       throw new Error('시스템 관리자의 API 설정을 찾을 수 없습니다.');
     }
 
@@ -402,9 +402,9 @@ export async function syncInvestGames(providerId: number): Promise<SyncResult> {
 
     try {
       const apiResponse = await investApi.getGameList(
-        apiConfig.invest_opcode,
+        apiConfig.opcode,
         providerId,
-        apiConfig.invest_secret_key
+        apiConfig.secret_key
       );
 
       if (apiResponse.error) {
@@ -1185,7 +1185,7 @@ async function launchInvestGame(
     // API 설정 조회
     const { data: apiConfig, error: configError } = await supabase
       .from('api_configs')
-      .select('invest_opcode, invest_token, invest_secret_key')
+      .select('opcode, token, secret_key')
       .eq('partner_id', partnerId)
       .eq('api_provider', 'invest')
       .single();
@@ -1198,7 +1198,7 @@ async function launchInvestGame(
       };
     }
 
-    if (!apiConfig.invest_opcode || !apiConfig.invest_token || !apiConfig.invest_secret_key) {
+    if (!apiConfig.opcode || !apiConfig.token || !apiConfig.secret_key) {
       console.error('❌ Invest API 설정 불완전');
       return {
         success: false,
@@ -1288,11 +1288,11 @@ async function launchInvestGame(
     
     try {
       const depositResult = await investApi.depositBalance(
-        apiConfig.invest_opcode,
+        apiConfig.opcode,
         username,
-        apiConfig.invest_token,
+        apiConfig.token,
         userBalance,
-        apiConfig.invest_secret_key
+        apiConfig.secret_key
       );
 
       if (!depositResult.success) {
@@ -1345,11 +1345,11 @@ async function launchInvestGame(
 
     // ⭐ 4. 게임 실행 URL 조회
     const result = await investApi.launchGame(
-      apiConfig.invest_opcode,
+      apiConfig.opcode,
       username,
-      apiConfig.invest_token,
+      apiConfig.token,
       gameId,
-      apiConfig.invest_secret_key
+      apiConfig.secret_key
     );
 
     if (result.success && result.data?.game_url) {
@@ -1377,11 +1377,11 @@ async function launchInvestGame(
         console.log(`🔄 [원복 시도 ${attempt}/3] API 출금 시도 중...`);
         
         const withdrawResult = await investApi.withdrawBalance(
-          apiConfig.invest_opcode,
+          apiConfig.opcode,
           username,
-          apiConfig.invest_token,
+          apiConfig.token,
           userBalance,
-          apiConfig.invest_secret_key
+          apiConfig.secret_key
         );
 
         if (withdrawResult.success) {
@@ -1413,7 +1413,7 @@ async function launchInvestGame(
       console.error('🚨 [긴급] 원복 실패 - 수동 처리 필요!', {
         username,
         amount: userBalance,
-        opcode: apiConfig.invest_opcode
+        opcode: apiConfig.opcode
       });
       
       // TODO: 관리자 알림 발송
@@ -1840,7 +1840,7 @@ export async function generateGameLaunchUrl(
     // 4. ⭐ Lv1 파트너의 API 설정 조회 (api_provider 필터 추가)
     const { data: apiConfig, error: configError } = await supabase
       .from('api_configs')
-      .select('invest_opcode, oroplay_client_id, oroplay_client_secret')
+      .select('opcode, client_id, client_secret')
       .eq('partner_id', topLevelPartnerId)
       .eq('api_provider', game.api_type === 'invest' ? 'invest' : 'oroplay')
       .single();
@@ -1857,7 +1857,7 @@ export async function generateGameLaunchUrl(
     let opcode: string | null = null;
     
     if (game.api_type === 'invest') {
-      opcode = apiConfig.invest_opcode;
+      opcode = apiConfig.opcode;
       if (!opcode) {
         console.error('❌ Invest API opcode가 설정되지 않았습니다.');
         return {
@@ -1867,8 +1867,8 @@ export async function generateGameLaunchUrl(
       }
     } else if (game.api_type === 'oroplay') {
       // OroPlay는 client_id를 opcode 필드에 저장
-      opcode = apiConfig.oroplay_client_id;
-      if (!opcode || !apiConfig.oroplay_client_secret) {
+      opcode = apiConfig.client_id;
+      if (!opcode || !apiConfig.client_secret) {
         console.error('❌ OroPlay API credential이 설정되지 않았습니다.');
         return {
           success: false,
@@ -2032,10 +2032,10 @@ export async function syncBalanceOnSessionEnd(
     
     if (apiType === 'invest') {
       const balanceResult = await investApi.getUserBalance(
-        apiConfig.invest_opcode,
+        apiConfig.opcode,
         user.username,
-        apiConfig.invest_token,
-        apiConfig.invest_secret_key
+        apiConfig.token,
+        apiConfig.secret_key
       );
       
       if (balanceResult.success && balanceResult.balance !== undefined) {
@@ -2071,11 +2071,11 @@ export async function syncBalanceOnSessionEnd(
     if (currentBalance > 0) {
       if (apiType === 'invest') {
         const withdrawResult = await investApi.withdrawBalance(
-          apiConfig.invest_opcode,
+          apiConfig.opcode,
           user.username,
-          apiConfig.invest_token,
+          apiConfig.token,
           currentBalance,
-          apiConfig.invest_secret_key
+          apiConfig.secret_key
         );
 
         if (!withdrawResult.success) {
@@ -2202,10 +2202,10 @@ export async function syncUserBalance(
     
     if (apiType === 'invest') {
       const balanceResult = await investApi.getUserBalance(
-        apiConfig.invest_opcode,
+        apiConfig.opcode,
         user.username,
-        apiConfig.invest_token,
-        apiConfig.invest_secret_key
+        apiConfig.token,
+        apiConfig.secret_key
       );
       
       if (balanceResult.success && balanceResult.balance !== undefined) {

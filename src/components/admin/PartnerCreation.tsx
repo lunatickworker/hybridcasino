@@ -254,35 +254,33 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
       if (createError) throw createError;
 
-      // 4. api_configs 자동 생성 (모든 레벨에 대해)
-      // ✅ 새 구조: api_provider별로 2개의 행 생성
-      const { error: apiConfigError } = await supabase
-        .from('api_configs')
-        .insert([
-          {
-            partner_id: newPartner.id,
-            api_provider: 'invest',
-            invest_opcode: '',
-            invest_secret_key: '',
-            invest_token: '',
-            balance: 0,
-            is_active: true,
-          },
-          {
-            partner_id: newPartner.id,
-            api_provider: 'oroplay',
-            oroplay_client_id: '',
-            oroplay_client_secret: '',
-            oroplay_token: '',
-            balance: 0,
-            is_active: false,
-          }
-        ]);
+      // 4. ✅ api_configs는 Lv1(시스템관리자)만 생성
+      // Lv2~Lv7은 GMS 머니만 사용하므로 api_configs 불필요
+      if (formData.partner_type === 'system_admin') {
+        const { error: apiConfigError } = await supabase
+          .from('api_configs')
+          .insert([
+            {
+              partner_id: newPartner.id,
+              api_provider: 'invest',
+              credentials: {},
+              balance: 0,
+              is_active: true,
+            },
+            {
+              partner_id: newPartner.id,
+              api_provider: 'oroplay',
+              credentials: {},
+              balance: 0,
+              is_active: false,
+            }
+          ]);
 
-      if (apiConfigError) {
-        console.warn('⚠️ [파트너 생성] API config 생성 실패 (무시):', apiConfigError);
-      } else {
-        console.log('✅ [파트너 생성] API config 생성 완료:', newPartner.id);
+        if (apiConfigError) {
+          console.warn('⚠️ [파트너 생성] API config 생성 실패 (무시):', apiConfigError);
+        } else {
+          console.log('✅ [파트너 생성] API config 생성 완료:', newPartner.id);
+        }
       }
 
       toast.success(t.partnerCreation.createSuccess, { id: toastId });

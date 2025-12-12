@@ -36,16 +36,16 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
     // 1-1. 시스템관리자 본인의 api_configs 조회 (새 구조: api_provider='invest')
     const { data: systemConfig, error: systemError } = await supabase
       .from('api_configs')
-      .select('partner_id, invest_opcode, invest_secret_key, invest_token, api_provider')
+      .select('partner_id, opcode, secret_key, token, api_provider')
       .eq('partner_id', admin.id)
       .eq('api_provider', 'invest')
       .maybeSingle();
 
-    if (systemConfig?.invest_opcode && systemConfig?.invest_secret_key && systemConfig?.invest_token) {
+    if (systemConfig?.opcode && systemConfig?.secret_key && systemConfig?.token) {
       opcodeList.push({
-        opcode: systemConfig.invest_opcode,
-        secretKey: systemConfig.invest_secret_key,
-        token: systemConfig.invest_token,
+        opcode: systemConfig.opcode,
+        secretKey: systemConfig.secret_key,
+        token: systemConfig.token,
         partnerId: admin.id,
         partnerName: admin.name || admin.nickname || '시스템관리자'
       });
@@ -65,20 +65,20 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
       // api_configs 조회 (새 구조: api_provider='invest')
       const { data: headOfficeConfigs } = await supabase
         .from('api_configs')
-        .select('partner_id, invest_opcode, invest_secret_key, invest_token')
+        .select('partner_id, opcode, secret_key, token')
         .in('partner_id', headOfficeIds)
         .eq('api_provider', 'invest')
-        .not('invest_opcode', 'is', null)
-        .not('invest_secret_key', 'is', null)
-        .not('invest_token', 'is', null);
+        .not('opcode', 'is', null)
+        .not('secret_key', 'is', null)
+        .not('token', 'is', null);
 
       if (headOfficeConfigs) {
         headOfficeConfigs.forEach((config: any) => {
           const partner = headOfficePartners.find(p => p.id === config.partner_id);
           opcodeList.push({
-            opcode: config.invest_opcode,
-            secretKey: config.invest_secret_key,
-            token: config.invest_token,
+            opcode: config.opcode,
+            secretKey: config.secret_key,
+            token: config.token,
             partnerId: config.partner_id,
             partnerName: partner?.nickname || partner?.username || `대본사-${config.partner_id.slice(0, 8)}`
           });
@@ -121,7 +121,7 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
     // 상위 Lv1의 api_configs 조회 (새 구조: api_provider='invest')
     const { data: config, error } = await supabase
       .from('api_configs')
-      .select('invest_opcode, invest_secret_key, invest_token')
+      .select('opcode, secret_key, token')
       .eq('partner_id', lv1Partner.id)
       .eq('api_provider', 'invest')
       .maybeSingle();
@@ -138,24 +138,24 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
       throw new Error(`상위 시스템관리자의 api_configs 조회 실패: ${error.message}`);
     }
     
-    if (!config || !config.invest_opcode || !config.invest_secret_key || !config.invest_token) {
+    if (!config || !config.opcode || !config.secret_key || !config.token) {
       console.error('❌ [Lv2] 상위 Lv1 api_configs 정보 불완전:', {
         lv1_id: lv1Partner.id,
         lv1_username: lv1Partner.username,
         has_config: !!config,
-        has_opcode: !!config?.invest_opcode,
-        has_secret: !!config?.invest_secret_key,
-        has_token: !!config?.invest_token
+        has_opcode: !!config?.opcode,
+        has_secret: !!config?.secret_key,
+        has_token: !!config?.token
       });
       throw new Error(`상위 시스템관리자(${lv1Partner.username})의 api_configs가 설정되지 않았습니다.`);
     }
 
-    console.log('✅ [Lv2] 상위 Lv1 OPCODE 조회 성공:', config.invest_opcode);
+    console.log('✅ [Lv2] 상위 Lv1 OPCODE 조회 성공:', config.opcode);
 
     return {
-      opcode: config.invest_opcode,
-      secretKey: config.invest_secret_key,
-      token: config.invest_token,
+      opcode: config.opcode,
+      secretKey: config.secret_key,
+      token: config.token,
       partnerId: lv1Partner.id, // Lv1의 partner_id 사용
       partnerName: admin.nickname || admin.username || '내 조직'
     };
@@ -235,7 +235,7 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
       // ✅ Lv1의 api_configs 조회 (새 구조: api_provider='invest')
       const { data: config, error: configError } = await supabase
         .from('api_configs')
-        .select('invest_opcode, invest_secret_key, invest_token')
+        .select('opcode, secret_key, token')
         .eq('partner_id', lv1Partner.id)
         .eq('api_provider', 'invest')
         .maybeSingle();
@@ -252,14 +252,14 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
         throw new Error(`상위 시스템관리자의 api_configs 조회 실패: ${configError.message}`);
       }
       
-      if (!config || !config.invest_opcode || !config.invest_secret_key || !config.invest_token) {
+      if (!config || !config.opcode || !config.secret_key || !config.token) {
         console.error('❌ [Lv3~7] 상위 Lv1 api_configs 정보 불완전:', {
           lv1_id: lv1Partner.id,
           lv1_username: lv1Partner.username,
           has_config: !!config,
-          has_opcode: !!config?.invest_opcode,
-          has_secret: !!config?.invest_secret_key,
-          has_token: !!config?.invest_token
+          has_opcode: !!config?.opcode,
+          has_secret: !!config?.secret_key,
+          has_token: !!config?.token
         });
         throw new Error(`상위 시스템관리자(${lv1Partner.username})의 api_configs가 설정되지 않았습니다.`);
       }
@@ -267,13 +267,13 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
       console.log('✅ [Lv3~7] 상위 Lv1 OPCODE 조회 성공:', {
         lv1_id: lv1Partner.id,
         lv1_username: lv1Partner.username,
-        opcode: config.invest_opcode
+        opcode: config.opcode
       });
 
       return {
-        opcode: config.invest_opcode,
-        secretKey: config.invest_secret_key,
-        token: config.invest_token,
+        opcode: config.opcode,
+        secretKey: config.secret_key,
+        token: config.token,
         partnerId: lv1Partner.id, // ✅ Lv1의 partner_id 사용
         partnerName: lv1Partner.nickname || lv1Partner.username || '시스템관리자'
       };

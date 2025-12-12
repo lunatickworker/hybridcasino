@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { getInfo } from '../lib/investApi';
+// import { getInfo } from '../lib/investApi'; // ❌ 사용 중지
 import { Partner } from '../types';
 import { toast } from 'sonner@2.0.3';
 import { useLanguage } from './LanguageContext';
@@ -272,6 +272,15 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
     }
 
     try {
+      // ❌ GET /api/info 호출 제거됨 (사용 중지)
+      // Lv1도 더 이상 이 API를 호출하지 않습니다.
+      console.log('⚠️ [Balance] getInfo API는 사용 중지되었습니다.');
+      setError('Invest API 동기화는 현재 사용 중지되었습니다.');
+      if (isManual) {
+        toast.error('Invest API 동기화는 현재 사용 중지되었습니다.');
+      }
+      return;
+      
       // ✅ Lv1만 GET /api/info 호출
       const apiEndpoint = '/api/info';
 
@@ -333,12 +342,12 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         // OroPlay API config 조회 (새 구조: api_provider='oroplay')
         const { data: oroConfig } = await supabase
           .from('api_configs')
-          .select('oroplay_client_id, oroplay_client_secret')
+          .select('client_id, client_secret')
           .eq('partner_id', user.id)
           .eq('api_provider', 'oroplay')
           .maybeSingle();
         
-        if (!oroConfig?.oroplay_client_id || !oroConfig?.oroplay_client_secret) {
+        if (!oroConfig?.client_id || !oroConfig?.client_secret) {
           const errorMsg = `Lv1 시스템관리자의 OroPlay credentials가 설정되지 않았습니다. api_configs 테이블을 확인하세요.`;
           console.error('❌ [Balance]', errorMsg);
           throw new Error(errorMsg);
@@ -495,10 +504,61 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
       )
       .subscribe();
 
+    // ✅ Lv1: api_configs 테이블 구독 추가
+    let apiConfigsChannel: any = null;
+    
+    if (user.level === 1) {
+      console.log('🔔 [Realtime] api_configs 테이블 구독 시작 (Lv1):', { userId: user.id });
+      
+      apiConfigsChannel = supabase
+        .channel(`api_configs_${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'api_configs',
+            filter: `partner_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('💰 [Realtime] api_configs 업데이트 감지:', payload);
+            
+            const apiProvider = payload.new?.api_provider;
+            const newBalance = parseFloat(payload.new?.balance) || 0;
+            
+            if (apiProvider === 'invest') {
+              console.log('✅ [Realtime] Invest 잔고 업데이트:', newBalance);
+              setInvestBalance(newBalance);
+            } else if (apiProvider === 'oroplay') {
+              console.log('✅ [Realtime] OroPlay 잔고 업데이트:', newBalance);
+              setOroplayBalance(newBalance);
+            }
+            
+            // ✅ API 활성화 상태 업데이트
+            const isActive = payload.new?.is_active;
+            if (isActive !== undefined) {
+              if (apiProvider === 'invest') {
+                setUseInvestApi(isActive);
+              } else if (apiProvider === 'oroplay') {
+                setUseOroplayApi(isActive);
+              }
+            }
+            
+            setLastSyncTime(new Date());
+            setError(null);
+          }
+        )
+        .subscribe();
+    }
+
     return () => {
+      console.log('🔕 [Realtime] 구독 해제');
       supabase.removeChannel(partnersChannel);
+      if (apiConfigsChannel) {
+        supabase.removeChannel(apiConfigsChannel);
+      }
     };
-  }, [user?.id]);
+  }, [user?.id, user?.level]);
 
   return (
     <BalanceContext.Provider value={{ 

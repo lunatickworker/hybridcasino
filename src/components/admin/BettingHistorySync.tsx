@@ -297,14 +297,15 @@ const processSingleOpcode = async (
       // ✅ 토큰 조회 (api_configs에서)
       const { data: apiConfig } = await supabase
         .from('api_configs')
-        .select('invest_token')
+        .select('token')
         .eq('partner_id', partnerId)
+        .eq('api_provider', 'invest')
         .maybeSingle();
 
-      const token = apiConfig?.invest_token || '';
+      const token = apiConfig?.token || '';
 
       if (!token) {
-        console.warn(`   ⚠️ [BALANCE-SYNC] api_configs에 invest_token 없음, 보유금 동기화 스킵`);
+        console.warn(`   ⚠️ [BALANCE-SYNC] api_configs에 invest token 없음, 보유금 동기화 스킵`);
       } else {
         let balanceSyncSuccess = 0;
         let balanceSyncFail = 0;

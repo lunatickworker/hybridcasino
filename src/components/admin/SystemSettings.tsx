@@ -86,6 +86,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
     two_factor_enabled: false,
     login_log_retention_days: 90,
     audit_log_enabled: true,
+    activity_log_retention_days: 90, // 활동 로그 보관 기간 (일)
   });
 
   // IP 화이트리스트 상태
@@ -570,7 +571,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
       // ✅ Lv1의 api_configs에서 조회 (api_provider='invest' 필터 추가)
       const { data: apiConfig, error: configError } = await supabase
         .from('api_configs')
-        .select('invest_opcode, invest_secret_key')
+        .select('opcode, secret_key')
         .eq('partner_id', lv1Partner.id)
         .eq('api_provider', 'invest')
         .maybeSingle();
@@ -581,13 +582,13 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
         return;
       }
 
-      if (!apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
+      if (!apiConfig?.opcode || !apiConfig?.secret_key) {
         console.warn('⚠️ [시스템설정] Lv1 API config 없음. Lv1 partner_id:', lv1Partner.id);
         toast.error(`${t.systemSettings.partnerApiConfigNotFound} (Lv1 Partner ID: ${lv1Partner.id})`);
         return;
       }
 
-      const signature = md5Hash(apiConfig.invest_opcode + apiConfig.invest_secret_key);
+      const signature = md5Hash(apiConfig.opcode + apiConfig.secret_key);
 
       const response = await fetch('https://vi8282.com/proxy', {
         method: 'POST',
@@ -597,7 +598,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           body: {
-            opcode: apiConfig.invest_opcode,
+            opcode: apiConfig.opcode,
             signature: signature
           }
         })
@@ -628,8 +629,9 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
       // ✅ api_configs에서 조회
       const { data: apiConfig, error: configError } = await supabase
         .from('api_configs')
-        .select('invest_opcode, invest_secret_key')
+        .select('opcode, secret_key')
         .eq('partner_id', selectedEvolutionPartnerId)
+        .eq('api_provider', 'invest')
         .single();
 
       // 파트너 닉네임도 조회
@@ -639,12 +641,12 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
         .eq('id', selectedEvolutionPartnerId)
         .single();
 
-      if (configError || !apiConfig?.invest_opcode || !apiConfig?.invest_secret_key) {
+      if (configError || !apiConfig?.opcode || !apiConfig?.secret_key) {
         toast.error(t.systemSettings.partnerApiConfigNotFound);
         return;
       }
 
-      const signature = md5Hash(apiConfig.invest_opcode + apiConfig.invest_secret_key);
+      const signature = md5Hash(apiConfig.opcode + apiConfig.secret_key);
 
       const response = await fetch('https://vi8282.com/proxy', {
         method: 'POST',
@@ -654,7 +656,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: {
-            opcode: apiConfig.invest_opcode,
+            opcode: apiConfig.opcode,
             limit: evolutionLimit,
             signature: signature
           }
@@ -1531,6 +1533,20 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                     onChange={(e) => setSecuritySettings(prev => ({ ...prev, login_log_retention_days: parseInt(e.target.value) }))}
                     placeholder="90"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="activity_log_retention_days">활동 로그 보관 일수</Label>
+                  <Input
+                    id="activity_log_retention_days"
+                    type="number"
+                    value={securitySettings.activity_log_retention_days}
+                    onChange={(e) => setSecuritySettings(prev => ({ ...prev, activity_log_retention_days: parseInt(e.target.value) }))}
+                    placeholder="90"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    설정한 일수보다 오래된 활동 로그는 자동으로 삭제됩니다.
+                  </p>
                 </div>
               </div>
 

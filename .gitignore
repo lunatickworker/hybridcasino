@@ -13,6 +13,7 @@ TRANSLATION_STATUS.md
 WALLET_SYSTEM_INSPECTION_REPORT.md
 *.md
 *.sql
+*.sql.tsx
 
 
 

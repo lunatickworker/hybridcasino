@@ -13,6 +13,15 @@ import { toast } from "sonner@2.0.3";
 import { useLanguage } from "../../contexts/LanguageContext";
 // API 계정 생성은 관리자 승인 시 수행 (회원가입 시 제거)
 
+// 은행 목록 상수
+const BANK_LIST = [
+  'KB국민은행', '신한은행', '우리은행', '하나은행', '농협은행',
+  'IBK기업은행', '부산은행', '대구은행', '광주은행', '전북은행',
+  '경남은행', '제주은행', 'SC제일은행', 'HSBC은행', 'KDB산업은행',
+  'NH농협은행', '신협중앙회', '우체국예금보험', '새마을금고',
+  '카카오뱅크', '케이뱅크', '토스뱅크'
+];
+
 interface UserLoginProps {
   onLoginSuccess: (user: any) => void;
 }
@@ -64,39 +73,10 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [banks, setBanks] = useState<Bank[]>([]);
   const [nicknameCheck, setNicknameCheck] = useState<{
     status: 'idle' | 'checking' | 'available' | 'unavailable';
     message: string;
   }>({ status: 'idle', message: '' });
-
-  // 은행 목록 로드
-  useEffect(() => {
-    const loadBanks = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('banks')
-          .select('*')
-          .eq('status', 'active')
-          .order('display_order');
-        
-        if (error) {
-          console.error('❌ 은행 목록 로드 오류:', error);
-          // 에러가 발생해도 빈 배열로 처리 (은행 정보는 선택사항)
-          setBanks([]);
-          return;
-        }
-        setBanks(data || []);
-        console.log('✅ 은행 목록 로드 완료:', data?.length || 0, '개');
-      } catch (error) {
-        console.error('❌ 은행 목록 로드 오류:', error);
-        // 네트워크 오류 등으로 실패해도 빈 배열로 처리
-        setBanks([]);
-      }
-    };
-    
-    loadBanks();
-  }, []);
 
   // 로그인 폼 핸들러
   const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -660,9 +640,9 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
                             <SelectValue placeholder={t.user.selectBank} />
                           </SelectTrigger>
                           <SelectContent className="bg-slate-700 border-slate-600">
-                            {banks.map((bank) => (
-                              <SelectItem key={bank.id} value={bank.name_ko} className="text-white">
-                                {bank.name_ko}
+                            {BANK_LIST.map(bank => (
+                              <SelectItem key={bank} value={bank} className="text-white">
+                                {bank}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -735,7 +715,9 @@ export function UserLogin({ onLoginSuccess }: UserLoginProps) {
 
         {/* 하단 정보 */}
         <div className="text-center mt-8 text-sm text-slate-400">
-          <p>© 2025 GMS Casino. All rights reserved.</p>
+          <p>
+            © <a href="#/admin" className="hover:text-cyan-400 transition-colors">2025</a> GMS Casino. All rights reserved.
+          </p>
           <p className="mt-2 text-slate-500">{t.user.responsibleGaming}</p>
         </div>
       </div>
