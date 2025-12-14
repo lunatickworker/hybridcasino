@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { LoadingSpinner } from "./LoadingSpinner";
 
 // Lazy load 컴포넌트들 - 메모리 최적화
-const Dashboard = lazy(() => import("../admin/Dashboard").then(m => ({ default: m.Dashboard })));
+const Dashboard = lazy(() => import("../admin/Dashboard"));
 const UserManagement = lazy(() => import("../admin/UserManagement").then(m => ({ default: m.UserManagement })));
 const BlacklistManagement = lazy(() => import("../admin/BlacklistManagement").then(m => ({ default: m.BlacklistManagement })));
 const PointManagement = lazy(() => import("../admin/PointManagement").then(m => ({ default: m.PointManagement })));

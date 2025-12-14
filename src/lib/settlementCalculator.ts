@@ -489,27 +489,35 @@ export async function calculateChildPartnersCommission(
 }
 
 /**
- * 내 총 수입 계산
+ * 내 총 수입 계산 (카지노/슬롯 구분)
  * @param partnerId 파트너 ID
- * @param commissionRates 내 커미션율 { rolling, losing, withdrawal }
+ * @param commissionRates 내 커미션율 (카지노/슬롯 구분)
  * @param startDate 시작 날짜
  * @param endDate 종료 날짜
  * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay'
- * @returns 롤링/루징/출금 수입과 총합
+ * @returns 카지노/슬롯별 롤링/루징/출금 수입과 총합
  */
 export async function calculateMyIncome(
   partnerId: string,
   commissionRates: {
-    rolling: number;
-    losing: number;
+    rolling: number; // 하위 호환성
+    losing: number; // 하위 호환성
+    casino_rolling: number;
+    casino_losing: number;
+    slot_rolling: number;
+    slot_losing: number;
     withdrawal: number;
   },
   startDate: string,
   endDate: string,
   apiFilter: 'all' | 'invest' | 'oroplay' = 'all'
 ): Promise<{
-  rolling: number;
-  losing: number;
+  casinoRolling: number;
+  casinoLosing: number;
+  slotRolling: number;
+  slotLosing: number;
+  rolling: number; // 하위 호환성
+  losing: number; // 하위 호환성
   withdrawal: number;
   total: number;
 }> {
@@ -518,11 +526,21 @@ export async function calculateMyIncome(
     const descendantUserIds = await getDescendantUserIds(partnerId);
 
     if (descendantUserIds.length === 0) {
-      return { rolling: 0, losing: 0, withdrawal: 0, total: 0 };
+      return { 
+        casinoRolling: 0, 
+        casinoLosing: 0, 
+        slotRolling: 0, 
+        slotLosing: 0, 
+        rolling: 0, 
+        losing: 0, 
+        withdrawal: 0, 
+        total: 0 
+      };
     }
 
-    // 베팅 통계 조회 (API 필터 적용)
-    const { totalBetAmount, totalLossAmount } = await getBettingStats(
+    // 카지노/슬롯 구분 베팅 통계 조회 (API 필터 적용)
+    const { getBettingStatsByGameType } = await import('./settlementCalculatorV2');
+    const gameTypeStats = await getBettingStatsByGameType(
       descendantUserIds,
       startDate,
       endDate,
@@ -536,12 +554,22 @@ export async function calculateMyIncome(
       endDate
     );
 
-    // 내 수수료율로 계산
-    const rollingIncome = totalBetAmount * (commissionRates.rolling / 100);
-    const losingIncome = totalLossAmount * (commissionRates.losing / 100);
+    // 카지노/슬롯별 내 수수료율로 계산
+    const casinoRollingIncome = gameTypeStats.casino.betAmount * (commissionRates.casino_rolling / 100);
+    const casinoLosingIncome = gameTypeStats.casino.lossAmount * (commissionRates.casino_losing / 100);
+    const slotRollingIncome = gameTypeStats.slot.betAmount * (commissionRates.slot_rolling / 100);
+    const slotLosingIncome = gameTypeStats.slot.lossAmount * (commissionRates.slot_losing / 100);
     const withdrawalIncome = totalWithdrawalAmount * (commissionRates.withdrawal / 100);
 
+    // 하위 호환성을 위한 합계
+    const rollingIncome = casinoRollingIncome + slotRollingIncome;
+    const losingIncome = casinoLosingIncome + slotLosingIncome;
+
     return {
+      casinoRolling: casinoRollingIncome,
+      casinoLosing: casinoLosingIncome,
+      slotRolling: slotRollingIncome,
+      slotLosing: slotLosingIncome,
       rolling: rollingIncome,
       losing: losingIncome,
       withdrawal: withdrawalIncome,
@@ -549,7 +577,16 @@ export async function calculateMyIncome(
     };
   } catch (error) {
     console.error('내 수입 계산 실패:', error);
-    return { rolling: 0, losing: 0, withdrawal: 0, total: 0 };
+    return { 
+      casinoRolling: 0, 
+      casinoLosing: 0, 
+      slotRolling: 0, 
+      slotLosing: 0, 
+      rolling: 0, 
+      losing: 0, 
+      withdrawal: 0, 
+      total: 0 
+    };
   }
 }
 
@@ -774,6 +811,10 @@ export async function calculateIntegratedSettlement(
   commissionRates: {
     rolling: number;
     losing: number;
+    casino_rolling: number;
+    casino_losing: number;
+    slot_rolling: number;
+    slot_losing: number;
     withdrawal: number;
   },
   startDate: string,
@@ -781,7 +822,7 @@ export async function calculateIntegratedSettlement(
   apiFilter: 'all' | 'invest' | 'oroplay' = 'all'
 ): Promise<SettlementSummary> {
   try {
-    // 내 총 수입 계산 (API 필터 적용)
+    // 내 총 수입 계산 (API 필터 적용, 카지노/슬롯 구분)
     const myIncome = await calculateMyIncome(partnerId, commissionRates, startDate, endDate, apiFilter);
 
     // 하위 파트너 지급 계산 (API 필터 적용)
@@ -789,10 +830,10 @@ export async function calculateIntegratedSettlement(
 
     // 순수익 계산
     return {
-      myCasinoRollingIncome: myIncome.rolling,
-      myCasinoLosingIncome: myIncome.losing,
-      mySlotRollingIncome: myIncome.rolling,
-      mySlotLosingIncome: myIncome.losing,
+      myCasinoRollingIncome: myIncome.casinoRolling,
+      myCasinoLosingIncome: myIncome.casinoLosing,
+      mySlotRollingIncome: myIncome.slotRolling,
+      mySlotLosingIncome: myIncome.slotLosing,
       myWithdrawalIncome: myIncome.withdrawal,
       myRollingIncome: myIncome.rolling,
       myLosingIncome: myIncome.losing,
@@ -805,10 +846,10 @@ export async function calculateIntegratedSettlement(
       partnerRollingPayments: payments.totalRolling,
       partnerLosingPayments: payments.totalLosing,
       partnerTotalPayments: payments.total,
-      netCasinoRollingProfit: myIncome.rolling - payments.totalCasinoRolling,
-      netCasinoLosingProfit: myIncome.losing - payments.totalCasinoLosing,
-      netSlotRollingProfit: myIncome.rolling - payments.totalSlotRolling,
-      netSlotLosingProfit: myIncome.losing - payments.totalSlotLosing,
+      netCasinoRollingProfit: myIncome.casinoRolling - payments.totalCasinoRolling,
+      netCasinoLosingProfit: myIncome.casinoLosing - payments.totalCasinoLosing,
+      netSlotRollingProfit: myIncome.slotRolling - payments.totalSlotRolling,
+      netSlotLosingProfit: myIncome.slotLosing - payments.totalSlotLosing,
       netWithdrawalProfit: myIncome.withdrawal - payments.totalWithdrawal,
       netRollingProfit: myIncome.rolling - payments.totalRolling,
       netLosingProfit: myIncome.losing - payments.totalLosing,
@@ -884,7 +925,7 @@ export async function calculatePendingDeposits(
       }
 
       if (pendingData && pendingData.length > 0) {
-        totalPendingAmount += pendingData.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+        totalPendingAmount += pendingData.reduce((sum, tx) => sum + (tx.amount || 0), 0);
       }
     }
 
@@ -893,32 +934,4 @@ export async function calculatePendingDeposits(
     console.error('만충금 계산 실패:', error);
     return 0;
   }
-}
-
-/**
- * 이번 달 커미션 계산
- * @param partnerId 파트너 ID
- * @param commissionRates 커미션율
- * @returns 이번 달 총 커미션
- */
-export async function calculateMonthlyCommission(
-  partnerId: string,
-  commissionRates: {
-    rolling: number;
-    losing: number;
-    withdrawal: number;
-  }
-): Promise<number> {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-
-  const income = await calculateMyIncome(
-    partnerId,
-    commissionRates,
-    monthStart.toISOString(),
-    monthEnd.toISOString()
-  );
-
-  return income.total;
 }

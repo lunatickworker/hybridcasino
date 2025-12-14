@@ -43,7 +43,37 @@ interface AdminHeaderProps {
 export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange, currentRoute }: AdminHeaderProps) {
   const { logout } = useAuth();
   const { t, formatCurrency } = useLanguage();
-  const { balance, investBalance, oroplayBalance, loading: balanceLoading, error: balanceError, lastSyncTime, useInvestApi, useOroplayApi } = useBalance(); // ✅ API 활성화 상태 추가
+  
+  // ✅ useBalance를 안전하게 사용 (Provider 없을 때 대비)
+  let balance = 0;
+  let investBalance = 0;
+  let oroplayBalance = 0;
+  let familyapiBalance = 0;
+  let balanceLoading = false;
+  let balanceError = null;
+  let lastSyncTime = null;
+  let useInvestApi = false;
+  let useOroplayApi = false;
+  let useFamilyApi = false;
+  let syncBalance = async () => {};
+  
+  try {
+    const balanceContext = useBalance();
+    balance = balanceContext.balance;
+    investBalance = balanceContext.investBalance;
+    oroplayBalance = balanceContext.oroplayBalance;
+    familyapiBalance = balanceContext.familyapiBalance;
+    balanceLoading = balanceContext.loading;
+    balanceError = balanceContext.error;
+    lastSyncTime = balanceContext.lastSyncTime;
+    useInvestApi = balanceContext.useInvestApi;
+    useOroplayApi = balanceContext.useOroplayApi;
+    useFamilyApi = balanceContext.useFamilyApi;
+    syncBalance = balanceContext.syncBalance;
+  } catch (error) {
+    // BalanceProvider 외부에서 렌더링되는 경우 (예: React Refresh 중)
+    console.warn('AdminHeader rendered outside BalanceProvider');
+  }
 
   // 사용자 정보가 없으면 기본 헤더 표시
   if (!user) {
@@ -78,22 +108,109 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   const [showLv2Warning, setShowLv2Warning] = useState(false);
   const [isSyncingInvest, setIsSyncingInvest] = useState(false);
   const [isSyncingOroplay, setIsSyncingOroplay] = useState(false);
+  const [isSyncingFamily, setIsSyncingFamily] = useState(false);
 
   // =====================================================
-  // Invest 보유금 수동 동기화 (카드 클릭 시) - ❌ 비활성화
+  // Invest 보유금 수동 동기화 (카드 클릭 시)
   // =====================================================
   const handleSyncInvestBalance = async () => {
-    // ❌ getInfo API 사용 중지로 인해 비활성화
-    console.log('⚠️ Invest 수동 동기화 기능은 현재 비활성화되어 있습니다.');
-    return;
+    if (user.level !== 1 && user.level !== 2) {
+      return;
+    }
+
+    setIsSyncingInvest(true);
+    try {
+      console.log('💰 [AdminHeader] Invest 보유금 수동 동기화 시작');
+
+      // Dynamic import
+      const investApiModule = await import('../../lib/investApi');
+      const { checkApiActiveByPartnerId } = await import('../../lib/apiStatusChecker');
+      
+      // Lv1의 API 설정 조회 (Lv2도 Lv1의 API 설정 사용)
+      let partnerId = user.id;
+      if (user.level === 2) {
+        // Lv2는 Lv1의 partner_id 찾기
+        const { data: lv1Partner } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('level', 1)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single();
+        
+        if (!lv1Partner) {
+          throw new Error('Lv1 파트너를 찾을 수 없습니다');
+        }
+        partnerId = lv1Partner.id;
+      }
+      
+      // ✅ Invest API 활성화 체크
+      const isInvestActive = await checkApiActiveByPartnerId(partnerId, 'invest');
+      if (!isInvestActive) {
+        toast.info('Invest API가 비활성화되어 있습니다.');
+        return;
+      }
+      
+      // API 설정 조회
+      const apiConfig = await investApiModule.investApi.getApiConfig(partnerId);
+      
+      // 전체 계정 잔고 조회
+      const balanceResponse = await investApiModule.investApi.getAllAccountBalances(
+        apiConfig.opcode,
+        apiConfig.secret_key
+      );
+      
+      const balance = balanceResponse.data?.balance || 0;
+
+      console.log('✅ [AdminHeader] Invest API 응답:', { balance });
+
+      // DB 업데이트
+      if (user.level === 1) {
+        // Lv1: api_configs 업데이트
+        const { error: updateError } = await supabase
+          .from('api_configs')
+          .update({
+            balance: balance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('partner_id', user.id)
+          .eq('api_provider', 'invest');
+
+        if (updateError) {
+          throw new Error('DB 업데이트 실패');
+        }
+      } else if (user.level === 2) {
+        // Lv2: partners.invest_balance 업데이트
+        const { error: updateError } = await supabase
+          .from('partners')
+          .update({
+            invest_balance: balance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
+
+        if (updateError) {
+          throw new Error('DB 업데이트 실패');
+        }
+      }
+
+      // ✅ BalanceContext 상태 갱신
+      await syncBalance();
+
+      toast.success(`Invest 보유금 동기화 완료: ${formatCurrency(balance)}`);
+    } catch (error: any) {
+      console.error('❌ [AdminHeader] Invest 보유금 동기화 실패:', error);
+      toast.error(`Invest 보유금 동기화 실패: ${error.message}`);
+    } finally {
+      setIsSyncingInvest(false);
+    }
   };
 
   // =====================================================
   // OroPlay 보유금 수동 동기화 (카드 클릭 시)
   // =====================================================
   const handleSyncOroplayBalance = async () => {
-    if (user.level !== 1) {
-      // Lv2 이상은 토스트 없이 조용히 무시
+    if (user.level !== 1 && user.level !== 2) {
       return;
     }
 
@@ -101,20 +218,64 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     try {
       console.log('💰 [AdminHeader] OroPlay 보유금 수동 동기화 시작');
 
+      // Lv1의 토큰 조회 (Lv2도 Lv1의 API 설정 사용)
+      let partnerId = user.id;
+      if (user.level === 2) {
+        // Lv2는 Lv1의 partner_id 찾기
+        const { data: lv1Partner } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('level', 1)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single();
+        
+        if (!lv1Partner) {
+          throw new Error('Lv1 파트너를 찾을 수 없습니다');
+        }
+        partnerId = lv1Partner.id;
+      }
+
+      // ✅ OroPlay API 활성화 체크
+      const { checkApiActiveByPartnerId } = await import('../../lib/apiStatusChecker');
+      const isOroPlayActive = await checkApiActiveByPartnerId(partnerId, 'oroplay');
+      if (!isOroPlayActive) {
+        toast.info('OroPlay API가 비활성화되어 있습니다.');
+        return;
+      }
+
       // 토큰 조회 (자동 갱신 포함)
-      const token = await getOroPlayToken(user.id);
+      const token = await getOroPlayToken(partnerId);
 
       // GET /agent/balance 호출
       const balance = await getAgentBalance(token);
 
       console.log('✅ [AdminHeader] OroPlay API 응답:', { balance });
 
-      // 잔액 업데이트 (헬퍼 함수 사용)
-      const success = await updateOroplayBalance(user.id, balance);
+      // DB 업데이트
+      if (user.level === 1) {
+        // Lv1: 헬퍼 함수 사용 (api_configs + 모든 Lv2 동기화)
+        const success = await updateOroplayBalance(user.id, balance);
+        if (!success) {
+          throw new Error('DB 업데이트 실패');
+        }
+      } else if (user.level === 2) {
+        // Lv2: partners.oroplay_balance 업데이트 (자기 자신만)
+        const { error: updateError } = await supabase
+          .from('partners')
+          .update({
+            oroplay_balance: balance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
 
-      if (!success) {
-        throw new Error('DB 업데이트 실패');
+        if (updateError) {
+          throw new Error('DB 업데이트 실패');
+        }
       }
+
+      // ✅ BalanceContext 상태 갱신
+      await syncBalance();
 
       toast.success(`OroPlay 보유금 동기화 완료: ${formatCurrency(balance)}`);
     } catch (error: any) {
@@ -122,6 +283,74 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       toast.error(`OroPlay 보유금 동기화 실패: ${error.message}`);
     } finally {
       setIsSyncingOroplay(false);
+    }
+  };
+
+  // =====================================================
+  // FamilyAPI 보유금 수동 동기화 (카드 클릭 시)
+  // =====================================================
+  const handleSyncFamilyBalance = async () => {
+    if (user.level !== 1) {
+      return;
+    }
+
+    setIsSyncingFamily(true);
+    try {
+      console.log('💰 [AdminHeader] FamilyAPI 보유금 수동 동기화 시작');
+
+      // ✅ FamilyAPI 활성화 체크
+      const { checkApiActiveByPartnerId } = await import('../../lib/apiStatusChecker');
+      const isFamilyApiActive = await checkApiActiveByPartnerId(user.id, 'familyapi');
+      if (!isFamilyApiActive) {
+        toast.info('FamilyAPI가 비활성화되어 있습니다.');
+        return;
+      }
+
+      // Dynamic import
+      const familyApiModule = await import('../../lib/familyApi');
+      
+      // API Key와 Token 조회
+      const config = await familyApiModule.getFamilyApiConfig();
+      let token = await familyApiModule.getFamilyApiToken(config.partnerId);
+      
+      // Agent 잔고 조회 (실패 시 토큰 재발급 후 재시도)
+      let balanceData;
+      try {
+        balanceData = await familyApiModule.getAgentBalance(config.apiKey, token);
+      } catch (error: any) {
+        console.warn('⚠️ 토큰 오류 감지, 새 토큰으로 재시도:', error.message);
+        // 토큰 재발급 후 재시도
+        token = await familyApiModule.getFamilyApiToken(config.partnerId, true);
+        balanceData = await familyApiModule.getAgentBalance(config.apiKey, token);
+      }
+      
+      const balance = balanceData.credit || 0;
+
+      console.log('✅ [AdminHeader] FamilyAPI API 응답:', { balance });
+
+      // DB 업데이트
+      const { error: updateError } = await supabase
+        .from('api_configs')
+        .update({
+          balance: balance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'familyapi');
+
+      if (updateError) {
+        throw new Error('DB 업데이트 실패');
+      }
+
+      // ✅ BalanceContext 상태 갱신
+      await syncBalance();
+
+      toast.success(`FamilyAPI 보유금 동기화 완료: ${formatCurrency(balance)}`);
+    } catch (error: any) {
+      console.error('❌ [AdminHeader] FamilyAPI 보유금 동기화 실패:', error);
+      toast.error(`FamilyAPI 보유금 동기화 실패: ${error.message}`);
+    } finally {
+      setIsSyncingFamily(false);
     }
   };
 
@@ -633,13 +862,13 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         <div className="flex items-center justify-between">
           {/* 왼쪽: 통계 카드 */}
           <div className="flex items-center gap-3">
-            {/* 시스템관리자(1) + 대본사(2): Invest/Oro 표시 (✅ API 활성화 상태에 따라 동적 노출/비노출) */}
-            {(user.level === 1 || user.level === 2) && (
+            {/* 시스템관리자(1): Invest/Oro/Family 각각 표시 */}
+            {user.level === 1 && (
               <>
                 {/* Invest 보유금 - useInvestApi가 true일 때만 표시 */}
                 {useInvestApi && (
                   <div 
-                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}
+                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingInvest ? 'opacity-50' : ''}`}
                     onClick={handleSyncInvestBalance}
                   >
                     <div className="flex items-center gap-2">
@@ -657,7 +886,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 {/* OroPlay 보유금 - useOroplayApi가 true일 때만 표시 */}
                 {useOroplayApi && (
                   <div 
-                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}
+                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingOroplay ? 'opacity-50' : ''}`}
                     onClick={handleSyncOroplayBalance}
                   >
                     <div className="flex items-center gap-2">
@@ -671,7 +900,42 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     </div>
                   </div>
                 )}
+
+                {/* FamilyAPI 보유금 - useFamilyApi가 true일 때만 표시 */}
+                {useFamilyApi && (
+                  <div 
+                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingFamily ? 'opacity-50' : ''}`}
+                    onClick={handleSyncFamilyBalance}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Wallet className="h-4 w-4 text-purple-400" />
+                      <div>
+                        <div className="text-[9px] text-purple-300 font-medium">Family 보유금</div>
+                        <div className="text-sm font-bold text-white whitespace-nowrap">
+                          {typeof familyapiBalance === 'number' ? <AnimatedCurrency value={familyapiBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
+            )}
+
+            {/* 대본사(2): 총합만 표시 */}
+            {user.level === 2 && (
+              <div className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}>
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-green-400" />
+                  <div>
+                    <div className="text-[9px] text-green-300 font-medium">총 보유금</div>
+                    <div className="text-sm font-bold text-white whitespace-nowrap">
+                      {typeof investBalance === 'number' && typeof oroplayBalance === 'number' && typeof familyapiBalance === 'number' 
+                        ? <AnimatedCurrency value={investBalance + oroplayBalance + familyapiBalance} duration={800} currencySymbol={t.common.currency} /> 
+                        : `${t.common.currency}0`}
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* 나머지 레벨(3~6): GMS 보유금 1개만 표시 */}

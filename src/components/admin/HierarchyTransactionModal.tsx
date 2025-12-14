@@ -33,7 +33,7 @@ export function HierarchyTransactionModal({
   const [memo, setMemo] = useState('');
   const [loading, setLoading] = useState(false);
   const [parentPartner, setParentPartner] = useState<Partner | null>(null);
-  const [walletType, setWalletType] = useState<'invest' | 'oroplay'>('invest');
+  const [walletType, setWalletType] = useState<'invest' | 'oroplay' | 'familyapi'>('invest');
 
   useEffect(() => {
     if (open && targetPartner.parent_id) {
@@ -65,10 +65,11 @@ export function HierarchyTransactionModal({
         // Lv1: API별 잔고는 api_configs에서 조회 필요 (여기서는 간단히 0 반환)
         return 0;
       } else if (parentPartner.level === 2) {
-        // Lv2: invest_balance 또는 oroplay_balance
-        return walletType === 'invest' 
-          ? (parentPartner.invest_balance || 0)
-          : (parentPartner.oroplay_balance || 0);
+        // Lv2: invest_balance, oroplay_balance, familyapi_balance
+        if (walletType === 'invest') return parentPartner.invest_balance || 0;
+        if (walletType === 'oroplay') return parentPartner.oroplay_balance || 0;
+        if (walletType === 'familyapi') return parentPartner.familyapi_balance || 0;
+        return 0;
       } else {
         // Lv3~7: balance
         return parentPartner.balance || 0;
@@ -76,8 +77,8 @@ export function HierarchyTransactionModal({
     } else {
       // 출금: 대상 파트너의 잔고 확인
       if (targetPartner.level === 2) {
-        // Lv2: invest_balance + oroplay_balance
-        return (targetPartner.invest_balance || 0) + (targetPartner.oroplay_balance || 0);
+        // Lv2: invest_balance + oroplay_balance + familyapi_balance
+        return (targetPartner.invest_balance || 0) + (targetPartner.oroplay_balance || 0) + (targetPartner.familyapi_balance || 0);
       } else {
         // Lv3~7: balance
         return targetPartner.balance || 0;
@@ -123,8 +124,8 @@ export function HierarchyTransactionModal({
 
     // 1. 직속 상위 잔고 차감
     if (parentPartner.level === 2) {
-      // Lv2: invest_balance 또는 oroplay_balance 차감
-      const balanceField = walletType === 'invest' ? 'invest_balance' : 'oroplay_balance';
+      // Lv2: invest_balance, oroplay_balance, familyapi_balance 차감
+      const balanceField = walletType === 'invest' ? 'invest_balance' : walletType === 'oroplay' ? 'oroplay_balance' : 'familyapi_balance';
       const newBalance = (parentPartner[balanceField] || 0) - amountNum;
 
       const { error: parentError } = await supabase
@@ -147,8 +148,8 @@ export function HierarchyTransactionModal({
 
     // 2. 대상 파트너 잔고 증가
     if (targetPartner.level === 2) {
-      // Lv2: invest_balance 또는 oroplay_balance 증가
-      const balanceField = walletType === 'invest' ? 'invest_balance' : 'oroplay_balance';
+      // Lv2: invest_balance, oroplay_balance, familyapi_balance 증가
+      const balanceField = walletType === 'invest' ? 'invest_balance' : walletType === 'oroplay' ? 'oroplay_balance' : 'familyapi_balance';
       const newBalance = (targetPartner[balanceField] || 0) + amountNum;
 
       const { error: targetError } = await supabase
@@ -176,25 +177,38 @@ export function HierarchyTransactionModal({
   const handleWithdrawal = async (amountNum: number) => {
     // 1. 대상 파트너 잔고 차감
     if (targetPartner.level === 2) {
-      // Lv2: invest_balance + oroplay_balance 중에서 차감
+      // Lv2: invest_balance + oroplay_balance + familyapi_balance 중에서 차감
       // 간단히 invest_balance부터 차감
       let remaining = amountNum;
       let newInvestBalance = targetPartner.invest_balance || 0;
       let newOroplayBalance = targetPartner.oroplay_balance || 0;
+      let newFamilyapiBalance = targetPartner.familyapi_balance || 0;
 
       if (newInvestBalance >= remaining) {
         newInvestBalance -= remaining;
       } else {
         remaining -= newInvestBalance;
         newInvestBalance = 0;
-        newOroplayBalance -= remaining;
+        if (newOroplayBalance >= remaining) {
+          newOroplayBalance -= remaining;
+        } else {
+          remaining -= newOroplayBalance;
+          newOroplayBalance = 0;
+          if (newFamilyapiBalance >= remaining) {
+            newFamilyapiBalance -= remaining;
+          } else {
+            remaining -= newFamilyapiBalance;
+            newFamilyapiBalance = 0;
+          }
+        }
       }
 
       const { error: targetError } = await supabase
         .from('partners')
         .update({ 
           invest_balance: newInvestBalance,
-          oroplay_balance: newOroplayBalance
+          oroplay_balance: newOroplayBalance,
+          familyapi_balance: newFamilyapiBalance
         })
         .eq('id', targetPartner.id);
 
@@ -214,7 +228,7 @@ export function HierarchyTransactionModal({
     // 2. 실행자(상위) 잔고 증가
     if (currentUser.level === 2) {
       // Lv2: invest_balance 또는 oroplay_balance 증가
-      const balanceField = walletType === 'invest' ? 'invest_balance' : 'oroplay_balance';
+      const balanceField = walletType === 'invest' ? 'invest_balance' : walletType === 'oroplay' ? 'oroplay_balance' : 'familyapi_balance';
       const newBalance = (currentUser[balanceField] || 0) + amountNum;
 
       const { error: executorError } = await supabase
@@ -253,17 +267,17 @@ export function HierarchyTransactionModal({
         amount: amountNum,
         balance_before: type === 'deposit' 
           ? (targetPartner.level === 2 
-              ? (targetPartner.invest_balance || 0) + (targetPartner.oroplay_balance || 0)
+              ? (targetPartner.invest_balance || 0) + (targetPartner.oroplay_balance || 0) + (targetPartner.familyapi_balance || 0)
               : targetPartner.balance || 0)
           : (targetPartner.level === 2 
-              ? (targetPartner.invest_balance || 0) + (targetPartner.oroplay_balance || 0)
+              ? (targetPartner.invest_balance || 0) + (targetPartner.oroplay_balance || 0) + (targetPartner.familyapi_balance || 0)
               : targetPartner.balance || 0),
         balance_after: type === 'deposit'
           ? (targetPartner.level === 2 
-              ? (targetPartner.invest_balance || 0) + (targetPartner.oroplay_balance || 0) + amountNum
+              ? (targetPartner.invest_balance || 0) + (targetPartner.oroplay_balance || 0) + (targetPartner.familyapi_balance || 0) + amountNum
               : (targetPartner.balance || 0) + amountNum)
           : (targetPartner.level === 2 
-              ? (targetPartner.invest_balance || 0) + (targetPartner.oroplay_balance || 0) - amountNum
+              ? (targetPartner.invest_balance || 0) + (targetPartner.oroplay_balance || 0) + (targetPartner.familyapi_balance || 0) - amountNum
               : (targetPartner.balance || 0) - amountNum),
         memo: memo || `${currentUser.nickname}이(가) ${type === 'deposit' ? '입금' : '출금'} 처리`,
         executed_by: currentUser.id,
@@ -278,8 +292,9 @@ export function HierarchyTransactionModal({
       // 입금: 직속 상위가 Lv2이거나, 대상이 Lv2인 경우
       return parentPartner?.level === 2 || targetPartner.level === 2;
     } else {
-      // 출금: 실행자(상위)가 Lv2인 경우
-      return currentUser.level === 2;
+      // 출금: 실행자(상위)가 Lv2이고, 대상도 Lv2인 경우만 표시
+      // Lv3~Lv7은 단일 지갑만 사용하므로 지갑 선택 불필요
+      return currentUser.level === 2 && targetPartner.level === 2;
     }
   };
 
@@ -328,13 +343,14 @@ export function HierarchyTransactionModal({
           {showWalletSelector() && (
             <div className="space-y-2">
               <Label>지갑 선택</Label>
-              <Select value={walletType} onValueChange={(v) => setWalletType(v as 'invest' | 'oroplay')}>
+              <Select value={walletType} onValueChange={(v) => setWalletType(v as 'invest' | 'oroplay' | 'familyapi')}>
                 <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="invest">Invest 지갑</SelectItem>
                   <SelectItem value="oroplay">OroPlay 지갑</SelectItem>
+                  <SelectItem value="familyapi">FamilyAPI 지갑</SelectItem>
                 </SelectContent>
               </Select>
             </div>

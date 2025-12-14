@@ -70,6 +70,7 @@ export function PartnerManagementV2() {
     currentUserBalance,
     currentUserInvestBalance,
     currentUserOroplayBalance,
+    currentUserFamilyapiBalance,
     
     // Methods
     fetchPartners,
@@ -1069,7 +1070,7 @@ export function PartnerManagementV2() {
           username: forceTransactionTarget.username,
           nickname: forceTransactionTarget.nickname,
           balance: forceTransactionTarget.level === 2
-            ? ((forceTransactionTarget.invest_balance || 0) + (forceTransactionTarget.oroplay_balance || 0))
+            ? ((forceTransactionTarget.invest_balance || 0) + (forceTransactionTarget.oroplay_balance || 0) + (forceTransactionTarget.familyapi_balance || 0))
             : (forceTransactionTarget.balance || 0),
           level: forceTransactionTarget.level,
           invest_balance: forceTransactionTarget.invest_balance || 0,
@@ -1081,6 +1082,7 @@ export function PartnerManagementV2() {
         currentUserBalance={currentUserBalance}
         currentUserInvestBalance={currentUserInvestBalance}
         currentUserOroplayBalance={currentUserOroplayBalance}
+        currentUserFamilyapiBalance={currentUserFamilyapiBalance}
         useGmsMoney={authState.user?.level === 2 && forceTransactionTarget?.partner_type === 'main_office'}
       />
 

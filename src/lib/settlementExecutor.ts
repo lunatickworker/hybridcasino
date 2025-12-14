@@ -149,7 +149,15 @@ export async function executePartnerCommissionSettlement(
  */
 export async function executeIntegratedSettlement(
   partnerId: string,
-  commissionRates: { rolling: number; losing: number; withdrawal: number },
+  commissionRates: { 
+    rolling: number; 
+    losing: number; 
+    casino_rolling: number;
+    casino_losing: number;
+    slot_rolling: number;
+    slot_losing: number;
+    withdrawal: number;
+  },
   startDate: string,
   endDate: string,
   settlementPeriod: string,
@@ -216,18 +224,30 @@ export async function executeIntegratedSettlement(
         executed_by: partnerId,
         settlement_details: {
           my_income: {
+            casino_rolling: settlement.myCasinoRollingIncome,
+            casino_losing: settlement.myCasinoLosingIncome,
+            slot_rolling: settlement.mySlotRollingIncome,
+            slot_losing: settlement.mySlotLosingIncome,
             rolling: settlement.myRollingIncome,
             losing: settlement.myLosingIncome,
             withdrawal: settlement.myWithdrawalIncome,
             total: settlement.myTotalIncome
           },
           partner_payments: {
+            casino_rolling: settlement.partnerCasinoRollingPayments,
+            casino_losing: settlement.partnerCasinoLosingPayments,
+            slot_rolling: settlement.partnerSlotRollingPayments,
+            slot_losing: settlement.partnerSlotLosingPayments,
             rolling: settlement.partnerRollingPayments,
             losing: settlement.partnerLosingPayments,
             withdrawal: settlement.partnerWithdrawalPayments,
             total: settlement.partnerTotalPayments
           },
           net_profit: {
+            casino_rolling: settlement.netCasinoRollingProfit,
+            casino_losing: settlement.netCasinoLosingProfit,
+            slot_rolling: settlement.netSlotRollingProfit,
+            slot_losing: settlement.netSlotLosingProfit,
             rolling: settlement.netRollingProfit,
             losing: settlement.netLosingProfit,
             withdrawal: settlement.netWithdrawalProfit,

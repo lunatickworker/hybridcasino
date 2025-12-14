@@ -115,6 +115,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
   // API 활성화 상태 (Lv1 전용)
   const [useInvestApi, setUseInvestApi] = useState(true);
   const [useOroplayApi, setUseOroplayApi] = useState(true);
+  const [useFamilyApi, setUseFamilyApi] = useState(true);
   const [apiSettingsLoading, setApiSettingsLoading] = useState(false);
 
   useEffect(() => {
@@ -467,7 +468,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
   // API 활성화 설정 로드 (Lv1 전용)
   const loadApiSettings = async () => {
     try {
-      // ✅ 새 구조: invest와 oroplay가 각각 별도의 행으로 존재
+      // ✅ 새 구조: invest, oroplay, familyapi가 각각 별도의 행으로 존재
       // is_active 컬럼으로 활성화 상태 판단
       const { data: investConfig } = await supabase
         .from('api_configs')
@@ -483,12 +484,21 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
         .eq('api_provider', 'oroplay')
         .maybeSingle();
 
+      const { data: familyConfig } = await supabase
+        .from('api_configs')
+        .select('is_active')
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'familyapi')
+        .maybeSingle();
+
       setUseInvestApi(investConfig?.is_active ?? false);
       setUseOroplayApi(oroplayConfig?.is_active ?? false);
+      setUseFamilyApi(familyConfig?.is_active ?? false);
       
       console.log('✅ API 설정 로드:', { 
         invest: investConfig?.is_active ?? false, 
-        oroplay: oroplayConfig?.is_active ?? false 
+        oroplay: oroplayConfig?.is_active ?? false,
+        familyapi: familyConfig?.is_active ?? false
       });
     } catch (error) {
       console.error('❌ API 설정 로드 실패:', error);
@@ -503,7 +513,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
     }
 
     // 최소 하나의 API는 활성화되어야 함
-    if (!useInvestApi && !useOroplayApi) {
+    if (!useInvestApi && !useOroplayApi && !useFamilyApi) {
       toast.error(t.systemSettings.apiSettingsMinimumOne);
       return;
     }
@@ -529,13 +539,22 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
         .eq('api_provider', 'oroplay');
       updates.push(oroplayUpdate);
 
+      // familyapi API 업데이트
+      const familyUpdate = supabase
+        .from('api_configs')
+        .update({ is_active: useFamilyApi })
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'familyapi');
+      updates.push(familyUpdate);
+
       await Promise.all(updates);
       
       toast.success(t.systemSettings.apiSettingsSaved);
       
       console.log('✅ API 설정 저장 완료:', {
         invest: useInvestApi,
-        oroplay: useOroplayApi
+        oroplay: useOroplayApi,
+        familyapi: useFamilyApi
       });
 
       // 설정 다시 로드
@@ -783,7 +802,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                     <Switch
                       checked={useInvestApi}
                       onCheckedChange={setUseInvestApi}
-                      disabled={apiSettingsLoading || (!useOroplayApi && useInvestApi)}
+                      disabled={apiSettingsLoading || (!useOroplayApi && !useFamilyApi && useInvestApi)}
                     />
                   </div>
 
@@ -797,7 +816,21 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                     <Switch
                       checked={useOroplayApi}
                       onCheckedChange={setUseOroplayApi}
-                      disabled={apiSettingsLoading || (!useInvestApi && useOroplayApi)}
+                      disabled={apiSettingsLoading || (!useInvestApi && !useFamilyApi && useOroplayApi)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-lg border border-slate-700 bg-slate-800/30">
+                    <div className="space-y-1">
+                      <Label className="text-base">{t.systemSettings.familyApi || 'FamilyAPI'}</Label>
+                      <p className="text-sm text-slate-400">
+                        {t.systemSettings.familyApiDescription || 'FamilyAPI 슬롯/카지노 게임 제공사'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={useFamilyApi}
+                      onCheckedChange={setUseFamilyApi}
+                      disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi && useFamilyApi)}
                     />
                   </div>
                 </div>
@@ -816,7 +849,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                 <div className="flex justify-end pt-4">
                   <Button 
                     onClick={saveApiSettings}
-                    disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi)}
+                    disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi && !useFamilyApi)}
                     className="flex items-center gap-2"
                   >
                     <Save className="h-4 w-4" />

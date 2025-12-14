@@ -346,6 +346,32 @@ export async function callInvestApi(
         if (result && typeof result === 'object') {
           if (result.RESULT === false || result.result === false) {
             const errorMessage = result.message || result.DATA?.message || '알 수 없는 오류가 발생했습니다.';
+            
+            // ✅ 특수 케이스: "조회된 회원 정보가 없습니다" (전체잔고 조회 시 정상 상황)
+            if (errorMessage.includes('조회된 회원 정보가 없습니다') && endpoint === '/api/account/balance' && method === 'PATCH') {
+              console.log('ℹ️ [Invest API] 아직 생성된 회원이 없습니다 (잔고 0 반환)');
+              
+              // ✅ api_sync_logs에 정상 로그 기록
+              try {
+                await supabase.from('api_sync_logs').insert({
+                  opcode: body?.opcode || 'N/A',
+                  api_endpoint: endpoint,
+                  sync_type: method,
+                  status: 'success',
+                  error_message: '생성된 회원 없음',
+                  response_data: { balance: 0, member_count: 0 }
+                });
+              } catch (logError) {
+                console.warn('⚠️ api_sync_logs 기록 실패:', logError);
+              }
+              
+              return {
+                data: { balance: 0, members: [] },
+                error: null,
+                status: response.status
+              };
+            }
+            
             console.error('❌ Proxy 응답 오류 (RESULT: false):', errorMessage);
             
             // ✅ api_sync_logs에 에러 로그 기록

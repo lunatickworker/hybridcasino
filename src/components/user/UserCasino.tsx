@@ -113,7 +113,7 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
     try {
       setLoading(true);
 
-      // ✅ 게임 status만 체크하도록 간단하게 변경
+      // ✅ status 필터 제거: 응답이 200이면 모든 게임 표시
       let query = supabase
         .from('games')
         .select(`
@@ -132,8 +132,7 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
             logo_url
           )
         `)
-        .eq('type', 'casino')
-        .eq('status', 'visible');
+        .eq('type', 'casino');
 
       // 제공사 필터링 (all이 아닐 때만)
       if (selectedProvider !== 'all') {

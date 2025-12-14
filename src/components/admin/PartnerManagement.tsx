@@ -140,6 +140,7 @@ export function PartnerManagement() {
   const [currentUserBalance, setCurrentUserBalance] = useState(0); // 현재 관리자의 보유금 (Lv3~7용)
   const [currentUserInvestBalance, setCurrentUserInvestBalance] = useState(0); // Lv1/Lv2의 invest_balance
   const [currentUserOroplayBalance, setCurrentUserOroplayBalance] = useState(0); // Lv1/Lv2의 oroplay_balance
+  const [currentUserFamilyapiBalance, setCurrentUserFamilyapiBalance] = useState(0); // Lv1/Lv2의 familyapi_balance
   const [parentCommission, setParentCommission] = useState<{
     rolling: number;
     losing: number;
@@ -342,6 +343,13 @@ export function PartnerManagement() {
           .eq('api_provider', 'oroplay')
           .maybeSingle();
         
+        const { data: familyapiData, error: familyapiError } = await supabase
+          .from('api_configs')
+          .select('balance')
+          .eq('partner_id', authState.user.id)
+          .eq('api_provider', 'familyapi')
+          .maybeSingle();
+        
         if (!investError && investData) {
           setCurrentUserInvestBalance(investData.balance || 0);
         } else {
@@ -356,20 +364,30 @@ export function PartnerManagement() {
           setCurrentUserOroplayBalance(0);
         }
         
+        if (!familyapiError && familyapiData) {
+          setCurrentUserFamilyapiBalance(familyapiData.balance || 0);
+        } else {
+          console.warn('⚠️ Lv1 familyapi api_configs 조회 실패:', familyapiError);
+          setCurrentUserFamilyapiBalance(0);
+        }
+        
         console.log('✅ Lv1 보유금 설정 (api_configs):', {
           invest: investData?.balance || 0,
-          oroplay: oroplayData?.balance || 0
+          oroplay: oroplayData?.balance || 0,
+          familyapi: familyapiData?.balance || 0
         });
       }
-      // Lv2의 경우: invest_balance + oroplay_balance 두 개 지갑 사용
+      // Lv2의 경우: invest_balance + oroplay_balance + familyapi_balance 세 개 지갑 사용
       else if (data?.level === 2) {
-        // ✅ Lv2는 두 개의 지갑을 관리 (partners.invest_balance, partners.oroplay_balance)
+        // ✅ Lv2는 세 개의 지갑을 관리 (partners.invest_balance, partners.oroplay_balance, partners.familyapi_balance)
         setCurrentUserInvestBalance(data?.invest_balance || 0);
         setCurrentUserOroplayBalance(data?.oroplay_balance || 0);
+        setCurrentUserFamilyapiBalance(data?.familyapi_balance || 0);
         
-        console.log('✅ Lv2 보유금 설정 (두 개 지갑):', {
+        console.log('✅ Lv2 보유금 설정 (세 개 지갑):', {
           invest_balance: data?.invest_balance || 0,
-          oroplay_balance: data?.oroplay_balance || 0
+          oroplay_balance: data?.oroplay_balance || 0,
+          familyapi_balance: data?.familyapi_balance || 0
         });
       }
       // Lv3~7의 경우 단일 balance 저장
@@ -4096,7 +4114,7 @@ export function PartnerManagement() {
           username: forceTransactionTarget.username,
           nickname: forceTransactionTarget.nickname,
           balance: forceTransactionTarget.level === 2
-            ? ((forceTransactionTarget.invest_balance || 0) + (forceTransactionTarget.oroplay_balance || 0))
+            ? ((forceTransactionTarget.invest_balance || 0) + (forceTransactionTarget.oroplay_balance || 0) + (forceTransactionTarget.familyapi_balance || 0))
             : (forceTransactionTarget.balance || 0),
           level: forceTransactionTarget.level,
           invest_balance: forceTransactionTarget.invest_balance || 0,
@@ -4108,6 +4126,7 @@ export function PartnerManagement() {
         currentUserBalance={currentUserBalance}
         currentUserInvestBalance={currentUserInvestBalance}
         currentUserOroplayBalance={currentUserOroplayBalance}
+        currentUserFamilyapiBalance={currentUserFamilyapiBalance}
       />
 
       {/* 보유금 입출금 다이얼로그 (GMS 머니 시스템) */}

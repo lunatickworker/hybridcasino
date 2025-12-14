@@ -225,7 +225,7 @@ export const fetchCurrentUserBalance = async (partnerId: string) => {
   try {
     const { data, error } = await supabase
       .from('partners')
-      .select('balance, level, invest_balance, oroplay_balance')
+      .select('balance, level, invest_balance, oroplay_balance, familyapi_balance')
       .eq('id', partnerId)
       .single();
     
@@ -235,6 +235,7 @@ export const fetchCurrentUserBalance = async (partnerId: string) => {
       balance?: number;
       investBalance?: number;
       oroplayBalance?: number;
+      familyapiBalance?: number;
     } = {};
     
     if (data?.level === 1) {
@@ -253,12 +254,21 @@ export const fetchCurrentUserBalance = async (partnerId: string) => {
         .eq('api_provider', 'oroplay')
         .maybeSingle();
       
+      const { data: familyapiData, error: familyapiError } = await supabase
+        .from('api_configs')
+        .select('balance')
+        .eq('partner_id', partnerId)
+        .eq('api_provider', 'familyapi')
+        .maybeSingle();
+      
       result.investBalance = investData?.balance || 0;
       result.oroplayBalance = oroplayData?.balance || 0;
+      result.familyapiBalance = familyapiData?.balance || 0;
     } else if (data?.level === 2) {
-      // Lv2: 두 개 지갑
+      // Lv2: 세 개 지갑
       result.investBalance = data?.invest_balance || 0;
       result.oroplayBalance = data?.oroplay_balance || 0;
+      result.familyapiBalance = data?.familyapi_balance || 0;
     } else {
       // Lv3~7: 단일 balance
       result.balance = data?.balance || 0;

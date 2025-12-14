@@ -35,17 +35,41 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   const [apiFilter, setApiFilter] = useState<'all' | 'invest' | 'oroplay'>('all');
   const [availableApis, setAvailableApis] = useState<string[]>([]);
   const [summary, setSummary] = useState<SettlementSummary>({
+    // 내 수입 - 카지노
+    myCasinoRollingIncome: 0,
+    myCasinoLosingIncome: 0,
+    // 내 수입 - 슬롯
+    mySlotRollingIncome: 0,
+    mySlotLosingIncome: 0,
+    // 내 수입 - 환전
+    myWithdrawalIncome: 0,
+    // 내 수입 - 합계 (하위 호환성)
     myRollingIncome: 0,
     myLosingIncome: 0,
-    myWithdrawalIncome: 0,
     myTotalIncome: 0,
+    // 하위 파트너 지급 - 카지노
+    partnerCasinoRollingPayments: 0,
+    partnerCasinoLosingPayments: 0,
+    // 하위 파트너 지급 - 슬롯
+    partnerSlotRollingPayments: 0,
+    partnerSlotLosingPayments: 0,
+    // 하위 파트너 지급 - 환전
+    partnerWithdrawalPayments: 0,
+    // 하위 파트너 지급 - 합계 (하위 호환성)
     partnerRollingPayments: 0,
     partnerLosingPayments: 0,
-    partnerWithdrawalPayments: 0,
     partnerTotalPayments: 0,
+    // 순수익 - 카지노
+    netCasinoRollingProfit: 0,
+    netCasinoLosingProfit: 0,
+    // 순수익 - 슬롯
+    netSlotRollingProfit: 0,
+    netSlotLosingProfit: 0,
+    // 순수익 - 환전
+    netWithdrawalProfit: 0,
+    // 순수익 - 합계 (하위 호환성)
     netRollingProfit: 0,
     netLosingProfit: 0,
-    netWithdrawalProfit: 0,
     netTotalProfit: 0
   });
   const [partnerPayments, setPartnerPayments] = useState<PartnerPaymentDetail[]>([]);
@@ -159,17 +183,39 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       }
       const { start, end } = getDateRange();
 
+      console.log('[IntegratedSettlement] 정산 계산 시작:', {
+        userId: user.id,
+        commissionRates: {
+          rolling: user.commission_rolling,
+          losing: user.commission_losing,
+          casino_rolling: user.casino_rolling_commission ?? 0,
+          casino_losing: user.casino_losing_commission ?? 0,
+          slot_rolling: user.slot_rolling_commission ?? 0,
+          slot_losing: user.slot_losing_commission ?? 0,
+          withdrawal: user.withdrawal_fee
+        },
+        startDate: start,
+        endDate: end,
+        apiFilter
+      });
+
       const settlement = await calculateIntegratedSettlement(
         user.id,
         {
           rolling: user.commission_rolling,
           losing: user.commission_losing,
+          casino_rolling: user.casino_rolling_commission ?? 0,
+          casino_losing: user.casino_losing_commission ?? 0,
+          slot_rolling: user.slot_rolling_commission ?? 0,
+          slot_losing: user.slot_losing_commission ?? 0,
           withdrawal: user.withdrawal_fee
         },
         start,
         end,
         apiFilter
       );
+
+      console.log('[IntegratedSettlement] 정산 결과:', settlement);
 
       setSummary(settlement);
       
@@ -217,6 +263,10 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         {
           rolling: user.commission_rolling,
           losing: user.commission_losing,
+          casino_rolling: user.casino_rolling_commission ?? 0,
+          casino_losing: user.casino_losing_commission ?? 0,
+          slot_rolling: user.slot_rolling_commission ?? 0,
+          slot_losing: user.slot_losing_commission ?? 0,
           withdrawal: user.withdrawal_fee
         },
         start,
@@ -286,9 +336,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         <MetricCard
           title={t.settlement.myTotalIncome}
           value={`₩${summary.myTotalIncome.toLocaleString()}`}
-          subtitle={t.settlement.myTotalIncomeSubtitle
-            .replace('{rolling}', summary.myRollingIncome.toLocaleString())
-            .replace('{losing}', summary.myLosingIncome.toLocaleString())}
+          subtitle={`카지노: ₩${summary.myCasinoRollingIncome.toLocaleString()} (롤링) + ₩${summary.myCasinoLosingIncome.toLocaleString()} (루징) | 슬롯: ₩${summary.mySlotRollingIncome.toLocaleString()} (롤링) + ₩${summary.mySlotLosingIncome.toLocaleString()} (루징)`}
           icon={ArrowUpCircle}
           color="emerald"
         />
@@ -297,9 +345,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         <MetricCard
           title={t.settlement.partnerTotalPayments}
           value={`₩${summary.partnerTotalPayments.toLocaleString()}`}
-          subtitle={t.settlement.partnerTotalPaymentsSubtitle
-            .replace('{rolling}', summary.partnerRollingPayments.toLocaleString())
-            .replace('{losing}', summary.partnerLosingPayments.toLocaleString())}
+          subtitle={`카지노: ₩${summary.partnerCasinoRollingPayments.toLocaleString()} (롤링) + ₩${summary.partnerCasinoLosingPayments.toLocaleString()} (루징) | 슬롯: ₩${summary.partnerSlotRollingPayments.toLocaleString()} (롤링) + ₩${summary.partnerSlotLosingPayments.toLocaleString()} (루징)`}
           icon={ArrowDownCircle}
           color="red"
         />
@@ -308,22 +354,20 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         <MetricCard
           title={t.settlement.netProfit}
           value={`₩${summary.netTotalProfit.toLocaleString()}`}
-          subtitle={t.settlement.netProfitSubtitle
-            .replace('{rolling}', summary.netRollingProfit.toLocaleString())
-            .replace('{losing}', summary.netLosingProfit.toLocaleString())}
+          subtitle={`카지노: ₩${summary.netCasinoRollingProfit.toLocaleString()} (롤링) + ₩${summary.netCasinoLosingProfit.toLocaleString()} (루징) | 슬롯: ₩${summary.netSlotRollingProfit.toLocaleString()} (롤링) + ₩${summary.netSlotLosingProfit.toLocaleString()} (루징)`}
           icon={DollarSign}
           color="blue"
         />
       </div>
 
-      {/* 하위 파트너 지급 상세 */}
+      {/* 기간 및 API 필터 */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <CardTitle>{t.settlement.partnerPaymentDetails}</CardTitle>
+              <CardTitle>조회 설정</CardTitle>
               <CardDescription>
-                {t.settlement.partnerPaymentDetailsDesc.replace('{count}', partnerPayments.length.toString())}
+                조회 기간 및 API를 선택하세요
               </CardDescription>
             </div>
             <div className="flex items-center gap-3">
@@ -393,88 +437,6 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          {partnerPayments.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
-              <Info className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>{t.settlement.noPartnersToPayDesc}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-700">
-                    <th className="text-left p-3 text-slate-400">{t.settlement.partner}</th>
-                    <th className="text-right p-3 text-slate-400">
-                      <div className="text-blue-400">카지노 롤링</div>
-                    </th>
-                    <th className="text-right p-3 text-slate-400">
-                      <div className="text-blue-400">카지노 루징</div>
-                    </th>
-                    <th className="text-right p-3 text-slate-400">
-                      <div className="text-purple-400">슬롯 롤링</div>
-                    </th>
-                    <th className="text-right p-3 text-slate-400">
-                      <div className="text-purple-400">슬롯 루징</div>
-                    </th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.withdrawalPayment}</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.totalPayment}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {partnerPayments.map((payment) => (
-                    <tr key={payment.partner_id} className="border-b border-slate-800 hover:bg-slate-800/30">
-                      <td className="p-3">
-                        <p className="text-white">{payment.partner_nickname}</p>
-                      </td>
-                      <td className="p-3 text-right text-blue-400 font-mono">
-                        ₩{payment.casino_rolling_payment.toLocaleString()}
-                      </td>
-                      <td className="p-3 text-right text-blue-300 font-mono">
-                        ₩{payment.casino_losing_payment.toLocaleString()}
-                      </td>
-                      <td className="p-3 text-right text-purple-400 font-mono">
-                        ₩{payment.slot_rolling_payment.toLocaleString()}
-                      </td>
-                      <td className="p-3 text-right text-purple-300 font-mono">
-                        ₩{payment.slot_losing_payment.toLocaleString()}
-                      </td>
-                      <td className="p-3 text-right text-green-400 font-mono">
-                        ₩{payment.withdrawal_payment.toLocaleString()}
-                      </td>
-                      <td className="p-3 text-right text-orange-400 font-mono">
-                        ₩{payment.total_payment.toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-slate-800/50 border-t-2 border-slate-600">
-                    <td className="p-3 text-white">{t.settlement.totalSum}</td>
-                    <td className="p-3 text-right text-blue-400 font-mono">
-                      ₩{summary.partnerCasinoRollingPayments.toLocaleString()}
-                    </td>
-                    <td className="p-3 text-right text-blue-300 font-mono">
-                      ₩{summary.partnerCasinoLosingPayments.toLocaleString()}
-                    </td>
-                    <td className="p-3 text-right text-purple-400 font-mono">
-                      ₩{summary.partnerSlotRollingPayments.toLocaleString()}
-                    </td>
-                    <td className="p-3 text-right text-purple-300 font-mono">
-                      ₩{summary.partnerSlotLosingPayments.toLocaleString()}
-                    </td>
-                    <td className="p-3 text-right text-green-400 font-mono">
-                      ₩{summary.partnerWithdrawalPayments.toLocaleString()}
-                    </td>
-                    <td className="p-3 text-right text-orange-400 font-mono">
-                      ₩{summary.partnerTotalPayments.toLocaleString()}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-        </CardContent>
       </Card>
     </div>
   );

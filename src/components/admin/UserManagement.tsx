@@ -13,7 +13,6 @@ import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { useAuth } from "../../hooks/useAuth";
 import { useWebSocketContext } from "../../contexts/WebSocketContext";
-import { useBalance } from "../../contexts/BalanceContext";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { getAdminOpcode, isMultipleOpcode } from "../../lib/opcodeHelper";
@@ -103,7 +102,6 @@ export function UserManagement() {
   const { lastMessage, connected, sendMessage } = useWebSocketContext();
   const { userLevel, isSystemAdmin, getLevelName } = useHierarchyAuth();
   const { t } = useLanguage();
-  const { syncBalance } = useBalance();
   
   // 사용자 데이터 (직접 조회)
   const [users, setUsers] = useState<any[]>([]);
@@ -130,6 +128,7 @@ export function UserManagement() {
   // ✅ Lv1 참고용 (UI 표시용, 실제 로직에는 사용하지 않음)
   const [targetPartnerInvestBalance, setTargetPartnerInvestBalance] = useState(0);
   const [targetPartnerOroplayBalance, setTargetPartnerOroplayBalance] = useState(0);
+  const [targetPartnerFamilyapiBalance, setTargetPartnerFamilyapiBalance] = useState(0);
   
   const [formData, setFormData] = useState({
     username: '',
@@ -330,6 +329,7 @@ export function UserManagement() {
         setTargetPartnerBalance(0);
         setTargetPartnerInvestBalance(0);
         setTargetPartnerOroplayBalance(0);
+        setTargetPartnerFamilyapiBalance(0);
         setTargetPartnerLevel(0);
         return;
       }
@@ -353,7 +353,7 @@ export function UserManagement() {
         // 2. 파트너 정보 조회
         const { data: partnerData, error: partnerError } = await supabase
           .from('partners')
-          .select('balance, level, username')
+          .select('balance, level, username, invest_balance, oroplay_balance, familyapi_balance')
           .eq('id', partnerId)
           .single();
 
@@ -393,13 +393,15 @@ export function UserManagement() {
             setTargetPartnerOroplayBalance(0);
           }
         }
-        // ✅ Lv2의 경우: partners.invest_balance + partners.oroplay_balance 사용
+        // ✅ Lv2의 경우: partners.invest_balance + partners.oroplay_balance + partners.familyapi_balance 사용
         else if (partnerData.level === 2) {
           setTargetPartnerInvestBalance(partnerData.invest_balance || 0);
           setTargetPartnerOroplayBalance(partnerData.oroplay_balance || 0);
-          console.log('✅ Lv2 소속 파트너 보유금 설정 (두 개 지갑):', {
+          setTargetPartnerFamilyapiBalance(partnerData.familyapi_balance || 0);
+          console.log('✅ Lv2 소속 파트너 보유금 설정 (세 개 지갑):', {
             invest_balance: partnerData.invest_balance || 0,
-            oroplay_balance: partnerData.oroplay_balance || 0
+            oroplay_balance: partnerData.oroplay_balance || 0,
+            familyapi_balance: partnerData.familyapi_balance || 0
           });
         }
         // ✅ Lv3~7의 경우: partners.balance 사용
@@ -2295,6 +2297,9 @@ export function UserManagement() {
         onTypeChange={setForceTransactionType}
         currentUserLevel={targetPartnerLevel}
         currentUserBalance={targetPartnerBalance}
+        currentUserInvestBalance={targetPartnerInvestBalance}
+        currentUserOroplayBalance={targetPartnerOroplayBalance}
+        currentUserFamilyapiBalance={targetPartnerFamilyapiBalance}
       />
 
       {/* 사용자 상세 분석 모달 */}

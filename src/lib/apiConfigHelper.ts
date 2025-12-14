@@ -26,6 +26,15 @@ export interface OroplayCredentials {
 }
 
 /**
+ * FamilyAPI Credentials 타입
+ */
+export interface FamilyApiCredentials {
+  api_key: string;
+  token: string;
+  token_expires_at: string | null;
+}
+
+/**
  * Invest API credentials 조회
  * @param partnerId - 파트너 ID
  * @returns Invest credentials
@@ -147,6 +156,68 @@ export async function getLv1OroplayCredentials(partnerId: string): Promise<Oropl
   } catch (err) {
     console.error('❌ [API Config] Lv1 OroPlay credentials 조회 예외:', err);
     return { client_id: '', client_secret: '', token: '', token_expires_at: null };
+  }
+}
+
+/**
+ * FamilyAPI credentials 조회
+ * @param partnerId - 파트너 ID
+ * @returns FamilyAPI credentials
+ */
+export async function getFamilyApiCredentials(partnerId: string): Promise<FamilyApiCredentials> {
+  try {
+    const { data, error } = await supabase
+      .from('api_configs')
+      .select('api_key, token, token_expires_at')
+      .eq('partner_id', partnerId)
+      .eq('api_provider', 'familyapi')
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ [API Config] FamilyAPI credentials 조회 실패:', error);
+      return { api_key: '', token: '', token_expires_at: null };
+    }
+
+    if (!data) {
+      console.warn('⚠️ [API Config] FamilyAPI 레코드 없음:', partnerId);
+      return { api_key: '', token: '', token_expires_at: null };
+    }
+
+    return {
+      api_key: data.api_key || '',
+      token: data.token || '',
+      token_expires_at: data.token_expires_at || null
+    };
+  } catch (err) {
+    console.error('❌ [API Config] FamilyAPI credentials 조회 예외:', err);
+    return { api_key: '', token: '', token_expires_at: null };
+  }
+}
+
+/**
+ * Lv1 시스템관리자의 FamilyAPI credentials 조회
+ * @param partnerId - 현재 파트너 ID (Lv1까지 자동으로 탐색)
+ * @returns Lv1의 FamilyAPI credentials
+ */
+export async function getLv1FamilyApiCredentials(partnerId: string): Promise<FamilyApiCredentials> {
+  try {
+    // Lv1 파트너 찾기
+    const { data: lv1Partner, error: lv1Error } = await supabase
+      .from('partners')
+      .select('id')
+      .eq('level', 1)
+      .limit(1)
+      .maybeSingle();
+
+    if (lv1Error || !lv1Partner) {
+      console.error('❌ [API Config] Lv1 파트너 조회 실패:', lv1Error);
+      return { api_key: '', token: '', token_expires_at: null };
+    }
+
+    return getFamilyApiCredentials(lv1Partner.id);
+  } catch (err) {
+    console.error('❌ [API Config] Lv1 FamilyAPI credentials 조회 예외:', err);
+    return { api_key: '', token: '', token_expires_at: null };
   }
 }
 
@@ -285,36 +356,38 @@ export async function getPartnerBalances(partnerId: string): Promise<{ investBal
 /**
  * API 사용 여부 조회
  * @param partnerId - 파트너 ID
- * @returns { useInvestApi, useOroplayApi }
+ * @returns { useInvestApi, useOroplayApi, useFamilyApi }
  */
-export async function getApiUsageSettings(partnerId: string): Promise<{ useInvestApi: boolean; useOroplayApi: boolean }> {
+export async function getApiUsageSettings(partnerId: string): Promise<{ useInvestApi: boolean; useOroplayApi: boolean; useFamilyApi: boolean }> {
   try {
     const { data, error } = await supabase
       .from('api_configs')
       .select('api_provider, is_active')
       .eq('partner_id', partnerId)
-      .in('api_provider', ['invest', 'oroplay']);
+      .in('api_provider', ['invest', 'oroplay', 'familyapi']);
 
     if (error) {
       console.error('❌ [API Config] API 사용 설정 조회 실패:', error);
-      return { useInvestApi: true, useOroplayApi: true };
+      return { useInvestApi: true, useOroplayApi: true, useFamilyApi: true };
     }
 
     if (!data || data.length === 0) {
       console.warn('⚠️ [API Config] API 설정 레코드 없음:', partnerId);
-      return { useInvestApi: true, useOroplayApi: true };
+      return { useInvestApi: true, useOroplayApi: true, useFamilyApi: true };
     }
 
     const investData = data.find((row: any) => row.api_provider === 'invest');
     const oroplayData = data.find((row: any) => row.api_provider === 'oroplay');
+    const familyData = data.find((row: any) => row.api_provider === 'familyapi');
 
     return {
       useInvestApi: investData?.is_active !== false,
-      useOroplayApi: oroplayData?.is_active !== false
+      useOroplayApi: oroplayData?.is_active !== false,
+      useFamilyApi: familyData?.is_active !== false
     };
   } catch (err) {
     console.error('❌ [API Config] API 사용 설정 조회 예외:', err);
-    return { useInvestApi: true, useOroplayApi: true };
+    return { useInvestApi: true, useOroplayApi: true, useFamilyApi: true };
   }
 }
 

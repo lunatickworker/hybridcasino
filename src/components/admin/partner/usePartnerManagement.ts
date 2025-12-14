@@ -42,6 +42,7 @@ export const usePartnerManagement = () => {
   const [currentUserBalance, setCurrentUserBalance] = useState(0);
   const [currentUserInvestBalance, setCurrentUserInvestBalance] = useState(0);
   const [currentUserOroplayBalance, setCurrentUserOroplayBalance] = useState(0);
+  const [currentUserFamilyapiBalance, setCurrentUserFamilyapiBalance] = useState(0);
   const [parentCommission, setParentCommission] = useState<{
     rolling: number;
     losing: number;
@@ -132,6 +133,9 @@ export const usePartnerManagement = () => {
     }
     if (result.balance !== undefined) {
       setCurrentUserBalance(result.balance);
+    }
+    if (result.familyapiBalance !== undefined) {
+      setCurrentUserFamilyapiBalance(result.familyapiBalance);
     }
   }, [authState.user?.id]);
 
@@ -345,6 +349,8 @@ export const usePartnerManagement = () => {
     setCurrentUserInvestBalance,
     currentUserOroplayBalance,
     setCurrentUserOroplayBalance,
+    currentUserFamilyapiBalance,
+    setCurrentUserFamilyapiBalance,
     parentCommission,
     setParentCommission,
     formData,

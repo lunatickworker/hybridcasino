@@ -9,14 +9,58 @@ interface Lv2AutoSyncProps {
 
 /**
  * Lv2 관리자 전용 자동 동기화 컴포넌트
- * - 페이지 오픈 시 4초마다 자동으로 Edge Function 호출
- * - OroPlay 베팅 동기화
- * - Lv2 보유금 동기화
+ * - Invest 베팅 동기화: 30초마다 실행 (활성화된 경우만)
+ * - OroPlay, FamilyAPI 베팅 동기화: 4초마다 실행 (활성화된 경우만)
+ * - 보유금 동기화: 4초마다 실행 (Lv2 잔액)
  */
 export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const syncCountRef = useRef(0);
-  const intervalRef = useRef<number | null>(null);
+  const investSyncCountRef = useRef(0);
+  const balanceIntervalRef = useRef<number | null>(null);
+  const investIntervalRef = useRef<number | null>(null);
+  const [activeApis, setActiveApis] = useState({
+    invest: false,
+    oroplay: false,
+    familyapi: false
+  });
+
+  // API 활성화 상태 조회
+  useEffect(() => {
+    const checkActiveApis = async () => {
+      try {
+        // Lv1 파트너의 API 설정 확인
+        const { data: apiConfigs } = await supabase
+          .from('api_configs')
+          .select('api_provider, is_active')
+          .eq('partner_id', user.parent_id)
+          .eq('is_active', true);
+
+        if (apiConfigs) {
+          const activeApiMap = {
+            invest: false,
+            oroplay: false,
+            familyapi: false
+          };
+
+          apiConfigs.forEach((config: any) => {
+            if (config.api_provider === 'invest') activeApiMap.invest = true;
+            if (config.api_provider === 'oroplay') activeApiMap.oroplay = true;
+            if (config.api_provider === 'familyapi') activeApiMap.familyapi = true;
+          });
+
+          setActiveApis(activeApiMap);
+          console.log('✅ [Lv2AutoSync] 활성화된 API:', activeApiMap);
+        }
+      } catch (error) {
+        console.error('❌ [Lv2AutoSync] API 활성화 상태 조회 실패:', error);
+      }
+    };
+
+    if (user.level === 2 && user.parent_id) {
+      checkActiveApis();
+    }
+  }, [user.level, user.parent_id]);
 
   useEffect(() => {
     // Lv2가 아니면 실행하지 않음
@@ -27,28 +71,81 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
     // ✅ Edge Function URL 하드코딩
     const EDGE_FUNCTION_URL = 'https://hduofjzsitoaujyjvuix.supabase.co/functions/v1/server';
 
-    // 동기화 실행 함수
-    const runSync = async () => {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${publicAnonKey}`,
+    };
+
+    // Invest 베팅 동기화 실행 함수 (30초마다)
+    const runInvestBettingSync = async () => {
+      if (!activeApis.invest) {
+        return;
+      }
+
       try {
-        syncCountRef.current += 1;
+        investSyncCountRef.current += 1;
+        console.log(`🎰 [Lv2AutoSync #${investSyncCountRef.current}] Invest 베팅 동기화 시작...`);
 
-        const headers = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-        };
-
-        // 1. OroPlay 베팅 동기화
-        const betsResponse = await fetch(`${EDGE_FUNCTION_URL}/sync/oroplay-bets`, {
+        const investBetsResponse = await fetch(`${EDGE_FUNCTION_URL}/sync/invest-bets`, {
           method: 'POST',
           headers,
         });
 
-        if (!betsResponse.ok) {
-          const errorText = await betsResponse.text();
-          console.error('❌ [Lv2AutoSync] 베팅 동기화 실패:', betsResponse.status, errorText);
+        if (!investBetsResponse.ok) {
+          const errorText = await investBetsResponse.text();
+          console.error('❌ [Lv2AutoSync] Invest 베팅 동기화 실패:', investBetsResponse.status, errorText);
+        } else {
+          const investBetsData = await investBetsResponse.json();
+          console.log('✅ [Lv2AutoSync] Invest 베팅 동기화 성공:', investBetsData);
         }
 
-        // 2. Lv2 보유금 동기화
+      } catch (error: any) {
+        console.error('❌ [Lv2AutoSync] Invest 베팅 동기화 오류:', error);
+      }
+    };
+
+    // OroPlay, FamilyAPI 베팅 동기화 + 보유금 동기화 실행 함수 (4초마다)
+    const runFastSync = async () => {
+      try {
+        syncCountRef.current += 1;
+        console.log(`🔄 [Lv2AutoSync #${syncCountRef.current}] 동기화 시작...`);
+
+        // 1. OroPlay 베팅 동기화
+        if (activeApis.oroplay) {
+          console.log('📞 [Lv2AutoSync] OroPlay 베팅 동기화 호출...');
+          const betsResponse = await fetch(`${EDGE_FUNCTION_URL}/sync/oroplay-bets`, {
+            method: 'POST',
+            headers,
+          });
+
+          if (!betsResponse.ok) {
+            const errorText = await betsResponse.text();
+            console.error('❌ [Lv2AutoSync] OroPlay 베팅 동기화 실패:', betsResponse.status, errorText);
+          } else {
+            const betsData = await betsResponse.json();
+            console.log('✅ [Lv2AutoSync] OroPlay 베팅 동기화 성공:', betsData);
+          }
+        }
+
+        // 2. FamilyAPI 베팅 동기화
+        if (activeApis.familyapi) {
+          console.log('📞 [Lv2AutoSync] FamilyAPI 베팅 동기화 호출...');
+          const familyBetsResponse = await fetch(`${EDGE_FUNCTION_URL}/sync/familyapi-bets`, {
+            method: 'POST',
+            headers,
+          });
+
+          if (!familyBetsResponse.ok) {
+            const errorText = await familyBetsResponse.text();
+            console.error('❌ [Lv2AutoSync] FamilyAPI 베팅 동기화 실패:', familyBetsResponse.status, errorText);
+          } else {
+            const familyBetsData = await familyBetsResponse.json();
+            console.log('✅ [Lv2AutoSync] FamilyAPI 베팅 동기화 성공:', familyBetsData);
+          }
+        }
+
+        // 3. Lv2 보유금 동기화
+        console.log('📞 [Lv2AutoSync] Lv2 보유금 동기화 호출...');
         const balanceResponse = await fetch(`${EDGE_FUNCTION_URL}/sync/lv2-balances`, {
           method: 'POST',
           headers,
@@ -57,10 +154,14 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
         if (!balanceResponse.ok) {
           const errorText = await balanceResponse.text();
           console.error('❌ [Lv2AutoSync] 보유금 동기화 실패:', balanceResponse.status, errorText);
+        } else {
+          const balanceData = await balanceResponse.json();
+          console.log('✅ [Lv2AutoSync] 보유금 동기화 성공:', balanceData);
         }
 
         // 동기화 성공 시 시간 업데이트
         setLastSyncTime(new Date());
+        console.log(`✅ [Lv2AutoSync #${syncCountRef.current}] 동기화 완료`);
 
       } catch (error: any) {
         console.error('❌ [Lv2AutoSync] 동기화 오류:', error);
@@ -68,21 +169,35 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
     };
 
     // 즉시 첫 동기화 실행
-    runSync();
+    if (activeApis.invest) {
+      runInvestBettingSync();
+    }
+    runFastSync();
 
-    // 4초마다 동기화 실행
-    intervalRef.current = window.setInterval(() => {
-      runSync();
+    // Invest 베팅 동기화: 30초마다 실행
+    if (activeApis.invest) {
+      investIntervalRef.current = window.setInterval(() => {
+        runInvestBettingSync();
+      }, 30000);
+    }
+
+    // OroPlay, FamilyAPI 베팅 + 보유금 동기화: 4초마다 실행
+    balanceIntervalRef.current = window.setInterval(() => {
+      runFastSync();
     }, 4000);
 
     // 클린업
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (balanceIntervalRef.current) {
+        clearInterval(balanceIntervalRef.current);
+        balanceIntervalRef.current = null;
+      }
+      if (investIntervalRef.current) {
+        clearInterval(investIntervalRef.current);
+        investIntervalRef.current = null;
       }
     };
-  }, [user.level, user.id, user.parent_id]);
+  }, [user.level, user.id, user.parent_id, activeApis]);
 
   // UI는 렌더링하지 않음 (백그라운드 동작)
   return null;

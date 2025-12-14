@@ -41,8 +41,9 @@ interface ForceTransactionModalProps {
   onTypeChange: (type: 'deposit' | 'withdrawal') => void;
   currentUserLevel?: number; // Lv1인지 확인용
   currentUserBalance?: number; // 현재 관리자의 보유금 (입금 시 검증용) - Lv3~7용
-  currentUserInvestBalance?: number; // Lv1의 invest API balance
-  currentUserOroplayBalance?: number; // Lv1의 oroplay API balance
+  currentUserInvestBalance?: number; // Lv1/Lv2의 invest API balance
+  currentUserOroplayBalance?: number; // Lv1/Lv2의 oroplay API balance
+  currentUserFamilyapiBalance?: number; // Lv1/Lv2의 familyapi API balance
   useGmsMoney?: boolean; // ✅ GMS 머니 모드 (API 선택 없이 GMS로만 처리)
 }
 
@@ -59,6 +60,7 @@ export function ForceTransactionModal({
   currentUserBalance = 0,
   currentUserInvestBalance = 0,
   currentUserOroplayBalance = 0,
+  currentUserFamilyapiBalance = 0,
   useGmsMoney = false
 }: ForceTransactionModalProps) {
   const { t } = useLanguage();
@@ -368,22 +370,6 @@ export function ForceTransactionModal({
                   {currentBalance.toLocaleString()}원
                 </span>
               </div>
-              {/* ✅ Lv2 파트너: 두 개 지갑 표시 */}
-              {selectedTarget.level === 2 && (
-                <div className="mt-2 pt-2 border-t border-slate-700">
-                  <p className="text-[10px] text-slate-500">
-                    ※ Lv2는 두 개의 지갑(invest_balance, oroplay_balance)을 사용합니다.
-                  </p>
-                </div>
-              )}
-              {/* ✅ Lv3~Lv7 파트너: 전체 지갑(balance) 표시 */}
-              {selectedTarget.level && selectedTarget.level >= 3 && selectedTarget.level <= 7 && (
-                <div className="mt-2 pt-2 border-t border-slate-700">
-                  <p className="text-[10px] text-slate-500">
-                    ※ Lv{selectedTarget.level}은 전체 지갑(balance)을 사용합니다.
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
@@ -446,37 +432,13 @@ export function ForceTransactionModal({
                 </div>
               ) : currentUserLevel === 2 ? (
                 <div className="space-y-1.5">
-                  {/* ✅ Lv2: 노출된 게임사의 보유금 표시 */}
-                  {useInvestApi && currentUserInvestBalance > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400">Invest API:</span>
-                      <span className="font-mono text-sm text-emerald-400">
-                        {currentUserInvestBalance.toLocaleString()}원
-                      </span>
-                    </div>
-                  )}
-                  {useOroplayApi && currentUserOroplayBalance > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400">OroPlay API:</span>
-                      <span className="font-mono text-sm text-emerald-400">
-                        {currentUserOroplayBalance.toLocaleString()}원
-                      </span>
-                    </div>
-                  )}
-                  <div className="pt-1.5 mt-1.5 border-t border-emerald-700/30 flex items-center justify-between">
-                    <span className="text-sm text-emerald-400">입금 가능:</span>
+                  {/* ✅ Lv2: 총 보유금만 표시 */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-emerald-400">총 보유금:</span>
                     <span className="font-mono text-emerald-400 font-bold">
-                      {(() => {
-                        const balances = [];
-                        if (useInvestApi && currentUserInvestBalance > 0) balances.push(currentUserInvestBalance);
-                        if (useOroplayApi && currentUserOroplayBalance > 0) balances.push(currentUserOroplayBalance);
-                        return balances.length > 0 ? Math.min(...balances).toLocaleString() : '계산 없음';
-                      })()}원
+                      {(currentUserInvestBalance + currentUserOroplayBalance + currentUserFamilyapiBalance).toLocaleString()}원
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">
-                    ※ Lv2 입금 시 Lv2 불용금을 활용합니다.
-                  </p>
                 </div>
               ) : (
                 <div className="flex items-center justify-between">

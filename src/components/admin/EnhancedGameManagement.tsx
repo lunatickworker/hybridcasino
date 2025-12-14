@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Switch } from "../ui/switch";
 import { Checkbox } from "../ui/checkbox";
 import {
@@ -24,24 +23,22 @@ import {
   Gamepad2,
   AlertTriangle,
   Settings,
+  ChevronDown,
+  ChevronRight,
+  Building2,
 } from "lucide-react";
 import { Partner } from "../../types";
 import { gameApi, Game, GameProvider } from "../../lib/gameApi";
 import { MetricCard } from "./MetricCard";
 import { useBalance } from "../../contexts/BalanceContext";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { supabase } from "../../lib/supabase";
 
 interface EnhancedGameManagementProps {
   user: Partner;
 }
 
-type GameTab =
-  | "invest_casino"
-  | "invest_slot"
-  | "oroplay_casino"
-  | "oroplay_slot"
-  | "oroplay_minigame";
+type ApiType = "invest" | "oroplay" | "familyapi";
+type GameType = "all" | "casino" | "slot" | "minigame";
 
 // 검색어 debounce를 위한 custom hook
 function useDebounce<T>(value: T, delay: number): T {
@@ -78,140 +75,115 @@ function GameCard({
 }: GameCardProps) {
   const { t } = useLanguage();
   
-  // 상태별 색상
-  const getStatusBadge = () => {
+  const getStatusIcon = () => {
     if (game.status === "maintenance") {
-      return (
-        <Badge className="bg-orange-600/90 text-white border-0 text-xs">
-          <AlertTriangle className="w-3 h-3 mr-1" />
-          {t.gameManagement.maintenance}
-        </Badge>
-      );
+      return <AlertTriangle className="w-3 h-3 text-orange-400" />;
     } else if (!game.is_visible || game.status === "hidden") {
-      return (
-        <Badge className="bg-slate-600/90 text-white border-0 text-xs">
-          <EyeOff className="w-3 h-3 mr-1" />
-          {t.gameManagement.hidden}
-        </Badge>
-      );
+      return <EyeOff className="w-3 h-3 text-slate-400" />;
     } else {
-      return (
-        <Badge className="bg-green-600/90 text-white border-0 text-xs">
-          <Eye className="w-3 h-3 mr-1" />
-          {t.gameManagement.visible}
-        </Badge>
-      );
+      return <Eye className="w-3 h-3 text-green-400" />;
     }
   };
 
   return (
     <div
-      className={`group relative bg-slate-900/50 border rounded-lg overflow-hidden transition-all hover:shadow-lg hover:shadow-blue-500/20 ${
+      className={`group relative bg-slate-900/50 border rounded-md overflow-hidden transition-all hover:shadow-md hover:shadow-blue-500/20 ${
         isSelected
-          ? "border-blue-500 ring-2 ring-blue-500/50"
+          ? "border-blue-500 ring-1 ring-blue-500/50"
           : "border-slate-700 hover:border-slate-600"
       }`}
     >
-      {/* 선택 체크박스 */}
-      <div className="absolute top-2 left-2 z-10">
+      <div className="absolute top-1 left-1 z-10">
         <Checkbox
           checked={isSelected}
           onCheckedChange={onToggleSelection}
-          className="bg-slate-900/90 border-slate-600"
+          className="bg-slate-900/90 border-slate-600 h-4 w-4"
         />
       </div>
 
-      {/* 게임 이미지 */}
-      <div className="aspect-[4/3] bg-slate-800 relative overflow-hidden">
+      <div className="aspect-[3/2] bg-slate-800 relative overflow-hidden">
         {game.image_url ? (
           <img
             src={game.image_url}
             alt={game.name}
-            className="w-full h-full object-contain bg-slate-900 group-hover:scale-105 transition-transform p-2"
+            loading="lazy"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
             onError={(e) => {
               (e.target as HTMLImageElement).src =
-                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="150"%3E%3Crect fill="%23334155" width="200" height="150"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="48" fill="%23475569"%3E🎮%3C/text%3E%3C/svg%3E';
+                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="67"%3E%3Crect fill="%23334155" width="100" height="67"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="24" fill="%23475569"%3E🎮%3C/text%3E%3C/svg%3E';
             }}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-6xl opacity-30">
+          <div className="w-full h-full flex items-center justify-center text-3xl opacity-30">
             🎮
           </div>
         )}
 
-        {/* 추천 배지 */}
         {game.is_featured && (
-          <div className="absolute top-2 right-2">
-            <Star className="w-6 h-6 text-yellow-400 fill-yellow-400 drop-shadow-lg" />
+          <div className="absolute top-1 right-1">
+            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-lg" />
           </div>
         )}
 
-        {/* 상태 배지 */}
-        <div className="absolute bottom-2 left-2">{getStatusBadge()}</div>
-
-        {/* 호버 액션 */}
-        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
           <Button
             size="sm"
             variant="outline"
             onClick={onToggleFeatured}
-            className={`border-0 text-white ${
+            className={`h-7 px-2 border-0 text-white text-xs ${
               game.is_featured
                 ? "bg-amber-600 hover:bg-amber-700"
                 : "bg-slate-700 hover:bg-slate-600"
             }`}
             title={game.is_featured ? t.gameManagement.removeFeatured : t.gameManagement.setFeatured}
           >
-            <Star className={`w-4 h-4 ${game.is_featured ? "fill-white" : ""}`} />
+            <Star className={`w-3 h-3 ${game.is_featured ? "fill-white" : ""}`} />
           </Button>
         </div>
       </div>
 
-      {/* 게임 정보 */}
-      <div className="p-3 space-y-3">
-        {/* 게임명 */}
-        <div className="min-h-[40px] flex items-center">
+      <div className="p-2 space-y-1">
+        <div className="min-h-[32px] flex items-center">
           <div
-            className="text-sm text-slate-200 line-clamp-2 leading-tight"
+            className="text-xs text-slate-200 line-clamp-2 leading-tight"
             title={game.name}
           >
             {game.name}
           </div>
         </div>
 
-        {/* 하단 정보 */}
-        <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between pt-1 border-t border-slate-700/50">
+          <div className="flex items-center gap-1">
+            {getStatusIcon()}
             {game.rtp && (
-              <span className="text-xs text-slate-400">RTP {game.rtp}%</span>
+              <span className="text-[10px] text-slate-400">RTP {game.rtp}%</span>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            {/* 상태 선택 드롭다운 */}
+          <div className="flex items-center gap-1">
             <Select
               value={game.status}
               onValueChange={(value: "visible" | "maintenance" | "hidden") =>
                 onChangeStatus(value)
               }
             >
-              <SelectTrigger className="h-7 w-24 text-xs bg-slate-800 border-slate-600">
+              <SelectTrigger className="h-6 w-20 text-[10px] bg-slate-800 border-slate-600">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="visible">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 text-xs">
                     <Eye className="w-3 h-3" />
                     {t.gameManagement.visible}
                   </div>
                 </SelectItem>
                 <SelectItem value="maintenance">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 text-xs">
                     <AlertTriangle className="w-3 h-3" />
                     {t.gameManagement.maintenance}
                   </div>
                 </SelectItem>
                 <SelectItem value="hidden">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 text-xs">
                     <EyeOff className="w-3 h-3" />
                     {t.gameManagement.hidden}
                   </div>
@@ -225,262 +197,305 @@ function GameCard({
   );
 }
 
-export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
+// 제공사 섹션 컴포넌트
+interface ProviderSectionProps {
+  provider: GameProvider;
+  games: Game[];
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onToggleProviderStatus: (status: "visible" | "maintenance" | "hidden") => void;
+  selectedGameIds: Set<number>;
+  onToggleGameSelection: (gameId: number) => void;
+  onToggleGameFeatured: (gameId: number) => void;
+  onChangeGameStatus: (gameId: number, status: "visible" | "maintenance" | "hidden") => void;
+}
+
+function ProviderSection({
+  provider,
+  games,
+  isExpanded,
+  onToggleExpand,
+  onToggleProviderStatus,
+  selectedGameIds,
+  onToggleGameSelection,
+  onToggleGameFeatured,
+  onChangeGameStatus,
+}: ProviderSectionProps) {
   const { t } = useLanguage();
-  // ✅ API 활성화 상태 가져오기
-  const { useInvestApi, useOroplayApi } = useBalance();
 
-  const [activeTab, setActiveTab] = useState<GameTab>("invest_casino");
-  const [games, setGames] = useState<Game[]>([]);
-  const [providers, setProviders] = useState<GameProvider[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedProvider, setSelectedProvider] = useState<number | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [selectedGames, setSelectedGames] = useState<Set<number>>(new Set());
-  const [syncing, setSyncing] = useState(false);
-  
-  // ✅ Lv2~Lv6: API 설정에 따른 게임사 숨김 처리
-  const [hiddenApis, setHiddenApis] = useState<{
-    invest: boolean;
-    oroplay: boolean;
-  }>({ invest: false, oroplay: false });
-
-  // ✅ Lv2~Lv6: API 설정 로드
-  useEffect(() => {
-    const loadApiHiddenSettings = async () => {
-      if (user.level === 1) {
-        // Lv1은 모든 API 표시
-        setHiddenApis({ invest: false, oroplay: false });
-        return;
-      }
-
-      try {
-        // Lv1 파트너 찾기
-        let lv1PartnerId = user.id;
-        let currentPartnerId = user.parent_id;
-
-        while (currentPartnerId) {
-          const { data: parentData } = await supabase
-            .from('partners')
-            .select('id, level, parent_id')
-            .eq('id', currentPartnerId)
-            .single();
-
-          if (parentData) {
-            if (parentData.level === 1) {
-              lv1PartnerId = parentData.id;
-              break;
-            }
-            currentPartnerId = parentData.parent_id;
-          } else {
-            break;
-          }
-        }
-
-        // Lv1의 api_configs 조회 (새 구조: 각 api_provider별로 조회)
-        const { data: investConfig } = await supabase
-          .from('api_configs')
-          .select('partner_id, is_active')
-          .eq('partner_id', lv1PartnerId)
-          .eq('api_provider', 'invest')
-          .maybeSingle();
-
-        const { data: oroplayConfig } = await supabase
-          .from('api_configs')
-          .select('partner_id, is_active')
-          .eq('partner_id', lv1PartnerId)
-          .eq('api_provider', 'oroplay')
-          .maybeSingle();
-
-        setHiddenApis({
-          invest: !investConfig || investConfig.is_active === false,
-          oroplay: !oroplayConfig || oroplayConfig.is_active === false
-        });
-        
-        console.log('✅ API 숨김 설정 로드:', {
-          invest_hidden: !investConfig || investConfig.is_active === false,
-          oroplay_hidden: !oroplayConfig || oroplayConfig.is_active === false
-        });
-      } catch (error) {
-        console.error('API 숨김 설정 로드 실패:', error);
-      }
-    };
-
-    loadApiHiddenSettings();
-  }, [user.id, user.level, user.parent_id]);
-
-  // 검색어 debounce 적용 (300ms)
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
-
-  // 탭에서 API 타입과 게임 타입 추출
-  const getApiAndGameType = (
-    tab: GameTab
-  ): { apiType: "invest" | "oroplay"; gameType: "slot" | "casino" | "minigame" } => {
-    const [api, type] = tab.split("_");
+  const stats = useMemo(() => {
     return {
-      apiType: api as "invest" | "oroplay",
-      gameType: type as "slot" | "casino" | "minigame",
+      total: games.length,
+      visible: games.filter(g => g.status === "visible").length,
+      maintenance: games.filter(g => g.status === "maintenance").length,
+      hidden: games.filter(g => g.status === "hidden").length,
     };
+  }, [games]);
+
+  const getProviderStatusIcon = () => {
+    if (provider.status === "maintenance") {
+      return <AlertTriangle className="w-4 h-4 text-orange-400" />;
+    } else if (!provider.is_visible || provider.status === "hidden") {
+      return <EyeOff className="w-4 h-4 text-slate-400" />;
+    } else {
+      return <Eye className="w-4 h-4 text-green-400" />;
+    }
   };
 
-  // 현재 탭의 제공사 목록 (API 활성화 상태 체크)
+  return (
+    <div className="border border-slate-700 rounded-lg overflow-hidden bg-slate-900/30">
+      {/* 제공사 헤더 */}
+      <div className="p-4 bg-slate-800/50 flex items-center justify-between hover:bg-slate-800/70 transition-colors">
+        <div className="flex items-center gap-3 flex-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggleExpand}
+            className="p-1 h-auto hover:bg-slate-700"
+          >
+            {isExpanded ? (
+              <ChevronDown className="w-5 h-5" />
+            ) : (
+              <ChevronRight className="w-5 h-5" />
+            )}
+          </Button>
+
+          <Building2 className="w-5 h-5 text-slate-400" />
+          
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-medium">{provider.name}</span>
+              {getProviderStatusIcon()}
+              <Badge variant="outline" className="text-xs">
+                {provider.api_type.toUpperCase()}
+              </Badge>
+            </div>
+            <div className="text-xs text-slate-400 mt-0.5">
+              총 {stats.total}개 게임 · 노출 {stats.visible}개 · 점검 {stats.maintenance}개 · 숨김 {stats.hidden}개
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Select
+            value={provider.status}
+            onValueChange={(value: "visible" | "maintenance" | "hidden") =>
+              onToggleProviderStatus(value)
+            }
+          >
+            <SelectTrigger className="h-8 w-28 text-xs bg-slate-900 border-slate-600">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="visible">
+                <div className="flex items-center gap-1 text-xs">
+                  <Eye className="w-3 h-3" />
+                  {t.gameManagement.visible}
+                </div>
+              </SelectItem>
+              <SelectItem value="maintenance">
+                <div className="flex items-center gap-1 text-xs">
+                  <AlertTriangle className="w-3 h-3" />
+                  {t.gameManagement.maintenance}
+                </div>
+              </SelectItem>
+              <SelectItem value="hidden">
+                <div className="flex items-center gap-1 text-xs">
+                  <EyeOff className="w-3 h-3" />
+                  {t.gameManagement.hidden}
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* 게임 그리드 */}
+      {isExpanded && (
+        <div className="p-4">
+          {games.length === 0 ? (
+            <div className="text-center py-8 text-slate-400">
+              게임이 없습니다.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+              {games.map((game) => (
+                <GameCard
+                  key={game.id}
+                  game={game}
+                  isSelected={selectedGameIds.has(game.id)}
+                  onToggleSelection={() => onToggleGameSelection(game.id)}
+                  onToggleFeatured={() => onToggleGameFeatured(game.id)}
+                  onChangeStatus={(status) => onChangeGameStatus(game.id, status)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
+  const { t } = useLanguage();
+  const { fetchBalances } = useBalance();
+
+  const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  
+  const [providers, setProviders] = useState<GameProvider[]>([]);
+  const [games, setGames] = useState<Game[]>([]);
+  
+  const [selectedApi, setSelectedApi] = useState<ApiType | null>(null);
+  const [selectedGameType, setSelectedGameType] = useState<GameType>("casino");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedGameIds, setSelectedGameIds] = useState<Set<number>>(new Set());
+  const [expandedProviderIds, setExpandedProviderIds] = useState<Set<number>>(new Set());
+
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+  // API 메타데이터
+  const apiMetadata = {
+    invest: { label: "Invest API", color: "from-purple-600 to-pink-600" },
+    oroplay: { label: "OroPlay API", color: "from-green-600 to-teal-600" },
+    familyapi: { label: "Family API", color: "from-blue-600 to-cyan-600" },
+  };
+
+  // providers에서 실제 활성화된 API만 추출
+  const availableApis = useMemo(() => {
+    const uniqueApiTypes = [...new Set(providers.map(p => p.api_type))];
+    return uniqueApiTypes.map(apiType => ({
+      value: apiType,
+      label: apiMetadata[apiType]?.label || apiType.toUpperCase(),
+      color: apiMetadata[apiType]?.color || "from-blue-600 to-cyan-600",
+    }));
+  }, [providers]);
+
+  // API별 사용 가능한 게임 타입
+  const getAvailableGameTypes = (api: ApiType) => {
+    const allTypes = [
+      { value: "casino" as GameType, label: "카지노", icon: Gamepad2 },
+      { value: "slot" as GameType, label: "슬롯", icon: Gamepad2 },
+      { value: "minigame" as GameType, label: "미니게임", icon: Gamepad2 },
+    ];
+    
+    // Invest API와 FamilyAPI는 미니게임 제외 (OroPlay만 미니게임 지원)
+    if (api === "invest" || api === "familyapi") {
+      return allTypes.filter(type => type.value !== "minigame");
+    }
+    
+    return allTypes;
+  };
+
+  const availableGameTypes = getAvailableGameTypes(selectedApi as ApiType);
+
+  // API 변경 시 게임 타입 초기화
+  useEffect(() => {
+    const types = getAvailableGameTypes(selectedApi as ApiType);
+    // 현재 선택된 타입이 사용 불가능하면 첫 번째 타입으로 변경
+    if (!types.find(t => t.value === selectedGameType)) {
+      setSelectedGameType(types[0].value);
+    }
+  }, [selectedApi]);
+
+  // 초기 API 선택 (providers 로드 후)
+  useEffect(() => {
+    if (availableApis.length > 0 && !selectedApi) {
+      const firstApi = availableApis[0].value;
+      setSelectedApi(firstApi);
+    }
+  }, [availableApis]);
+
+  // 현재 API의 제공사 필터링 - 선택한 게임 타입의 게임이 있는 제공사만 표시
   const currentProviders = useMemo(() => {
-    if (!providers || providers.length === 0) return [];
-
-    const { apiType, gameType } = getApiAndGameType(activeTab);
-
-    // ✅ API 비활성화 시 해당 제공사 숨김
-    if (apiType === "invest" && !useInvestApi) return [];
-    if (apiType === "oroplay" && !useOroplayApi) return [];
-
-    const filtered = providers.filter(
-      (p) => p.api_type === apiType && p.type === gameType
-    );
+    // 1. 선택한 API의 모든 제공사
+    const apiProviders = providers.filter(p => p.api_type === selectedApi);
     
-    // 🔍 디버깅: 현재 탭의 제공사 목록 출력
-    console.log('🎯 현재 제공사 목록:', {
-      tab: activeTab,
-      apiType,
-      gameType,
-      total: filtered.length,
-      providers: filtered.map(p => ({
-        id: p.id,
-        name: p.name,
-        vendor_code: p.vendor_code,
-        type: p.type,
-        api_type: p.api_type
-      }))
+    // 2. 선택한 게임 타입의 게임을 보유한 제공사만 필터링
+    const filteredProviders = apiProviders.filter(provider => {
+      const hasGamesOfType = games.some(game => 
+        game.provider_id === provider.id &&
+        game.api_type === selectedApi &&
+        game.type === selectedGameType
+      );
+      
+      return hasGamesOfType;
     });
     
-    return filtered;
-  }, [providers, activeTab, useInvestApi, useOroplayApi]);
-
-  // 필터링된 게임 목록
-  const filteredGames = useMemo(() => {
-    if (!games || games.length === 0) return [];
-
-    const { apiType, gameType } = getApiAndGameType(activeTab);
-
-    // ✅ API 비활성화 시 해당 게임 숨김
-    if (apiType === "invest" && !useInvestApi) return [];
-    if (apiType === "oroplay" && !useOroplayApi) return [];
-
-    const filtered = games.filter((game) => {
-      // API 타입과 게임 타입 필터
-      if (game.api_type !== apiType || game.type !== gameType) return false;
-
-      // 검색어 필터 (debounced)
-      if (
-        debouncedSearchTerm &&
-        !game.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) &&
-        !game.provider_name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
-      ) {
-        return false;
-      }
-
-      // 제공사 필터
-      if (selectedProvider !== null && game.provider_id !== selectedProvider) {
-        return false;
-      }
-
-      // 상태 필터
-      if (statusFilter === "visible" && game.status !== "visible") return false;
-      if (statusFilter === "maintenance" && game.status !== "maintenance")
-        return false;
-      if (statusFilter === "hidden" && game.status !== "hidden") return false;
-
-      return true;
-    });
-    
-    // 🔍 디버깅: 필터링된 게임 통계
-    const gamesByProvider = games
-      .filter(g => g.api_type === apiType && g.type === gameType)
-      .reduce((acc, game) => {
-        const pid = game.provider_id;
-        if (!acc[pid]) acc[pid] = { count: 0, name: game.provider_name };
-        acc[pid].count++;
-        return acc;
-      }, {} as Record<number, { count: number; name?: string }>);
-    
-    console.log('🎮 게임 필터링 결과:', {
-      tab: activeTab,
-      apiType,
-      gameType,
-      selectedProvider,
-      selectedProviderName: currentProviders.find(p => p.id === selectedProvider)?.name,
-      totalGames: games.filter(g => g.api_type === apiType && g.type === gameType).length,
-      filteredGames: filtered.length,
-      gamesByProvider: Object.entries(gamesByProvider).map(([pid, info]) => ({
-        provider_id: Number(pid),
-        provider_name: info.name,
-        game_count: info.count,
-        vendor_code: currentProviders.find(p => p.id === Number(pid))?.vendor_code
-      }))
-    });
-    
-    return filtered;
-  }, [games, activeTab, debouncedSearchTerm, selectedProvider, statusFilter, useInvestApi, useOroplayApi, currentProviders]);
+    return filteredProviders;
+  }, [providers, selectedApi, selectedGameType, games]);
 
   // 제공사별 게임 그룹화
-  const groupedGames = useMemo(() => {
-    const groups: Record<string, Game[]> = {};
-
-    filteredGames.forEach((game) => {
-      const provider = game.provider_name || t.gameManagement.other;
-      if (!groups[provider]) {
-        groups[provider] = [];
+  const providerGamesMap = useMemo(() => {
+    const map = new Map<number, Game[]>();
+    
+    currentProviders.forEach(provider => {
+      const providerGames = games.filter(game => {
+        const matchesProvider = game.provider_id === provider.id;
+        const matchesApi = game.api_type === selectedApi;
+        const matchesType = game.type === selectedGameType;
+        const matchesSearch = debouncedSearchTerm === "" || 
+          game.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+        
+        return matchesProvider && matchesApi && matchesType && matchesSearch;
+      });
+      
+      // 게임이 있는 제공사만 맵에 추가
+      if (providerGames.length > 0) {
+        map.set(provider.id, providerGames);
       }
-      groups[provider].push(game);
     });
+    
+    return map;
+  }, [games, currentProviders, selectedApi, selectedGameType, debouncedSearchTerm]);
 
-    return groups;
-  }, [filteredGames]);
+  // 통계 계산
+  const stats = useMemo(() => {
+    const currentGames = games.filter(g => 
+      g.api_type === selectedApi &&
+      g.type === selectedGameType
+    );
+
+    return {
+      total: currentGames.length,
+      visible: currentGames.filter(g => g.status === "visible").length,
+      maintenance: currentGames.filter(g => g.status === "maintenance").length,
+      hidden: currentGames.filter(g => g.status === "hidden").length,
+      featured: currentGames.filter(g => g.is_featured).length,
+    };
+  }, [games, selectedApi, selectedGameType]);
 
   // 초기 데이터 로드
   useEffect(() => {
     initializeData();
   }, []);
 
-  // 탭 변경 시 필터 초기화 및 게임 재로드
+  // API 변경 시 게임 재로드
   useEffect(() => {
-    setStatusFilter("all");
-    setSearchTerm("");
-    setSelectedGames(new Set());
-
-    if (providers.length > 0) {
-      // 첫 번째 제공사 자동 선택 (모든 상태 포함)
-      const { apiType, gameType } = getApiAndGameType(activeTab);
-      const firstProvider = providers.find(
-        (p) => p.api_type === apiType && p.type === gameType
-      );
-      
-      if (firstProvider) {
-        setSelectedProvider(firstProvider.id);
-      } else {
-        setSelectedProvider(null);
-      }
-      
+    if (selectedApi && providers.length > 0) {
       loadGames();
     }
-  }, [activeTab, providers]);
+  }, [selectedApi, providers.length]);
 
-  // 초기 데이터 로드
   const initializeData = async () => {
     try {
       setLoading(true);
 
-      console.log("🚀 초기 데이터 로드 시작...");
-
-      // 제공사 목록 로드
-      const providersData = await gameApi.getProviders();
-      console.log("📊 제공사 로드 완료:", providersData.length);
+      const providersData = await gameApi.getProviders({ partner_id: user.id });
       setProviders(providersData);
 
-      // 첫 번째 탭의 게임 로드
-      await loadGames("invest_casino");
-
-      console.log("✅ 초기 데이터 로드 완료");
+      // 첫 번째 API 선택
+      const uniqueApiTypes = [...new Set(providersData.map(p => p.api_type))];
+      if (uniqueApiTypes.length > 0 && !selectedApi) {
+        const firstApi = uniqueApiTypes[0];
+        setSelectedApi(firstApi);
+        
+        // API 선택 후 게임 로드
+        setTimeout(async () => {
+          await loadGamesForApi(firstApi);
+        }, 100);
+      }
     } catch (error) {
       console.error("❌ 초기 데이터 로드 실패:", error);
       toast.error(t.transactionManagement.loadDataFailed);
@@ -489,209 +504,172 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     }
   };
 
-  // 게임 목록 로드
-  const loadGames = async (tab?: GameTab) => {
+  const loadGamesForApi = async (apiType: string) => {
     try {
-      setLoading(true);
-
-      const currentTab = tab || activeTab;
-      const { apiType, gameType } = getApiAndGameType(currentTab);
-
-      console.log("🎮 게임 로드 시작:", { tab: currentTab, apiType, gameType });
-
       const data = await gameApi.getGames({
         api_type: apiType,
-        type: gameType,
       });
 
-      console.log("✅ 게임 로드 완료:", data.length);
       setGames(data);
     } catch (error) {
-      console.error("❌ 게임 데이터 로드 실패:", error);
+      console.error(`❌ ${apiType} 게임 데이터 로드 실패:`, error);
       toast.error(t.gameManagement.loadGamesFailed);
-    } finally {
-      setLoading(false);
     }
   };
 
-  // 제공사 초기화
+  const loadGames = async () => {
+    if (!selectedApi) {
+      setGames([]);
+      return;
+    }
+
+    setLoading(true);
+    await loadGamesForApi(selectedApi);
+    setLoading(false);
+  };
+
   const handleInitializeProviders = async () => {
     try {
       setSyncing(true);
       toast.info(t.gameManagement.initializingProviders);
 
-      await gameApi.initializeInvestProviders();
-      await gameApi.syncOroPlayProviders();
+      await gameApi.syncAllProviders();
 
       toast.success(t.gameManagement.providerInitialized);
 
-      // 제공사 목록 새로고침
-      const providersData = await gameApi.getProviders();
+      const providersData = await gameApi.getProviders({ partner_id: user.id });
       setProviders(providersData);
     } catch (error) {
-      console.error("❌ 제공사 초기화 실패:", error);
+      console.error("❌ 공사 초기화 실패:", error);
       toast.error(t.gameManagement.providerInitializeFailed);
     } finally {
       setSyncing(false);
     }
   };
 
-  // Invest 게임 동기화
-  const handleSyncInvestGames = async () => {
+  const handleSyncGames = async () => {
     if (syncing) {
       toast.warning(t.gameManagement.syncAlreadyInProgress);
+      return;
+    }
+
+    if (!selectedApi) {
+      toast.warning("API를 선택해주세요.");
       return;
     }
 
     setSyncing(true);
 
     try {
-      console.log("🔄 Invest 게임 동기화 시작...");
-      toast.info(t.gameManagement.investSyncStarting);
+      toast.info(`${selectedApi.toUpperCase()} 동기화 중...`);
 
-      const result = await gameApi.syncAllInvestGames();
+      let result;
+      
+      if (selectedApi === "invest") {
+        result = await gameApi.syncAllInvestGames();
+        const totalAdded = result.results.reduce((sum: number, r: any) => sum + r.newGames, 0);
+        const totalUpdated = result.results.reduce((sum: number, r: any) => sum + r.updatedGames, 0);
+        toast.success(`Invest 동기화 완료: 신규 ${totalAdded}개, 업데이트 ${totalUpdated}개`);
+      } else if (selectedApi === "oroplay") {
+        result = await gameApi.syncOroPlayGames();
+        toast.success(`OroPlay 동기화 완료: 신규 ${result.newGames}개, 업데이트 ${result.updatedGames}개`);
+        
+        await gameApi.syncOroPlayProviders();
+        const providersData = await gameApi.getProviders({ partner_id: user.id });
+        setProviders(providersData);
+      } else if (selectedApi === "familyapi") {
+        result = await gameApi.syncFamilyApiGames();
+        toast.success(`FamilyAPI 동기화 완료: 신규 ${result.newGames}개, 업데이트 ${result.updatedGames}개`);
+      }
 
-      const totalAdded = result.results.reduce((sum, r) => sum + r.newGames, 0);
-      const totalUpdated = result.results.reduce((sum, r) => sum + r.updatedGames, 0);
-
-      console.log("✅ Invest 동기화 완료:", { totalAdded, totalUpdated });
-      toast.success(`Invest API 동기화 완료: 신규 ${totalAdded}개, 업데이트 ${totalUpdated}개`);
-
-      // 게임 목록 새로고침
       await loadGames();
     } catch (error) {
-      console.error("❌ Invest 동기화 실패:", error);
-      toast.error(t.gameManagement.investSyncFailed);
+      console.error(`❌ ${selectedApi} 동기화 실패:`, error);
+      toast.error(`${selectedApi.toUpperCase()} 동기화 실패`);
     } finally {
       setSyncing(false);
     }
   };
 
-  // OroPlay 게임 동기화
-  const handleSyncOroPlayGames = async () => {
-    if (syncing) {
-      toast.warning(t.gameManagement.syncAlreadyInProgress);
-      return;
-    }
-
-    setSyncing(true);
-
+  const handleToggleGameFeatured = async (gameId: number) => {
     try {
-      console.log("🔄 OroPlay 게임 동기화 시작...");
-      toast.info(t.gameManagement.oroplaySyncStarting);
-
-      const result = await gameApi.syncOroPlayGames();
-
-      console.log("✅ OroPlay 동기화 완료:", result);
-      toast.success(`OroPlay API 동기화 완료: 신규 ${result.newGames}개, 업데이트 ${result.updatedGames}개`);
-
-      // 제공사 목록 새로고침 (새 제공사가 추가될 수 있음)
-      await gameApi.syncOroPlayProviders();
-      const providersData = await gameApi.getProviders();
-      setProviders(providersData);
-
-      // 게임 목록 새로고침
-      await loadGames();
-    } catch (error) {
-      console.error("❌ OroPlay 동기화 실패:", error);
-      toast.error(t.gameManagement.oroplaySyncFailed);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  // 게임 추천 토글
-  const handleToggleFeatured = async (gameId: number) => {
-    try {
-      const game = games.find((g) => g.id === gameId);
+      const game = games.find(g => g.id === gameId);
       if (!game) return;
 
       await gameApi.updateGameFeatured(gameId, !game.is_featured);
+      
+      setGames(prev =>
+        prev.map(g => g.id === gameId ? { ...g, is_featured: !g.is_featured } : g)
+      );
 
       toast.success(
-        game.is_featured ? t.gameManagement.featuredRemoved : t.gameManagement.featuredSet
+        game.is_featured
+          ? t.gameManagement.featuredRemoved
+          : t.gameManagement.featuredSet
       );
-      await loadGames();
     } catch (error) {
-      console.error("추천 설정 실패:", error);
-      toast.error(t.gameManagement.setFeatured);
+      console.error("❌ 추천 설정 실패:", error);
+      toast.error(t.gameManagement.updateFailed);
     }
   };
 
-  // 게임 상태 변경
-  const handleChangeStatus = async (
+  const handleChangeGameStatus = async (
     gameId: number,
     status: "visible" | "maintenance" | "hidden"
   ) => {
     try {
       await gameApi.updateGameStatus(gameId, status);
-
-      const statusText = {
-        visible: t.gameManagement.visible,
-        maintenance: t.gameManagement.maintenance,
-        hidden: t.gameManagement.hidden,
-      }[status];
-
-      toast.success(`게임 상태가 "${statusText}"로 변경되었습니다`);
       
-      // ✅ Optimistic Update: 로컬 상태만 업데이트 (전체 로딩 X)
-      setGames(prevGames => 
-        prevGames.map(game => 
-          game.id === gameId 
-            ? { ...game, status, is_visible: status === "visible" }
-            : game
-        )
+      setGames(prev =>
+        prev.map(g => g.id === gameId ? { ...g, status } : g)
       );
+
+      toast.success(t.gameManagement.statusUpdated);
     } catch (error) {
-      console.error("상태 변경 실패:", error);
-      toast.error(t.gameManagement.updateStatus);
+      console.error("❌ 상태 업데이트 실패:", error);
+      toast.error(t.gameManagement.updateFailed);
     }
   };
 
-  // 제공사 상태 변경
-  const handleChangeProviderStatus = async (
+  const handleToggleProviderStatus = async (
     providerId: number,
     status: "visible" | "maintenance" | "hidden"
   ) => {
     try {
+      // updateProviderStatus 함수가 제공사와 하위 게임을 모두 일괄 업데이트하므로
+      // 개별 게임 업데이트 호출 불필요 (중복 호출 방지)
       await gameApi.updateProviderStatus(providerId, status);
-
-      const statusText = {
-        visible: t.gameManagement.visible,
-        maintenance: t.gameManagement.maintenance,
-        hidden: t.gameManagement.hidden,
-      }[status];
-
-      toast.success(`제공사 상태가 "${statusText}"로 변경되었습니다`);
       
-      // ✅ Optimistic Update: 제공사 로컬 상태만 업데이트
-      setProviders(prevProviders =>
-        prevProviders.map(provider =>
-          provider.id === providerId
-            ? { ...provider, status, is_visible: status === "visible" }
-            : provider
-        )
+      setProviders(prev =>
+        prev.map(p => p.id === providerId ? { ...p, status } : p)
       );
-      
-      // ✅ 해당 제공사의 모든 게임도 상태 업데이트
-      setGames(prevGames =>
-        prevGames.map(game =>
-          game.provider_id === providerId
-            ? { ...game, status, is_visible: status === "visible" }
-            : game
-        )
+
+      // 로컬 상태만 업데이트 (DB는 이미 updateProviderStatus에서 일괄 처리됨)
+      setGames(prev =>
+        prev.map(g => g.provider_id === providerId ? { ...g, status } : g)
       );
-      
-      // ✅ 현재 선택된 제공사는 유지 (selectedProvider 변경하지 않음)
+
+      toast.success(`제공사 및 하위 게임 상태가 변경되었습니다.`);
     } catch (error) {
-      console.error("제공사 상태 변경 실패:", error);
-      toast.error(t.gameManagement.updateStatus);
+      console.error("❌ 제공사 상태 업데이트 실패:", error);
+      toast.error(t.gameManagement.updateFailed);
     }
   };
 
-  // 게임 선택 토글
-  const toggleGameSelection = (gameId: number) => {
-    setSelectedGames((prev) => {
+  const handleToggleExpand = (providerId: number) => {
+    setExpandedProviderIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(providerId)) {
+        newSet.delete(providerId);
+      } else {
+        newSet.add(providerId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleToggleGameSelection = (gameId: number) => {
+    setSelectedGameIds(prev => {
       const newSet = new Set(prev);
       if (newSet.has(gameId)) {
         newSet.delete(gameId);
@@ -702,55 +680,34 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     });
   };
 
-  // 전체 선택/해제
-  const toggleSelectAll = () => {
-    if (selectedGames.size === filteredGames.length) {
-      setSelectedGames(new Set());
-    } else {
-      setSelectedGames(new Set(filteredGames.map((g) => g.id)));
-    }
-  };
-
-  // 선택된 게임 일괄 상태 변경
-  const handleBulkChangeStatus = async (status: "visible" | "maintenance" | "hidden") => {
-    if (selectedGames.size === 0) {
-      toast.warning(t.gameManagement.selectGames);
+  const handleBulkStatusChange = async (status: "visible" | "maintenance" | "hidden") => {
+    if (selectedGameIds.size === 0) {
+      toast.warning("게임을 선택해주세요.");
       return;
     }
 
     try {
-      await gameApi.bulkUpdateStatus(Array.from(selectedGames), status);
+      await gameApi.bulkUpdateStatus(Array.from(selectedGameIds), status);
+      
+      setGames(prev =>
+        prev.map(g => selectedGameIds.has(g.id) ? { ...g, status } : g)
+      );
 
-      const statusText = {
-        visible: t.gameManagement.visible,
-        maintenance: t.gameManagement.maintenance,
-        hidden: t.gameManagement.hidden,
-      }[status];
-
-      toast.success(`${selectedGames.size}개 게임 상태가 "${statusText}"로 변경되었습니다`);
-      setSelectedGames(new Set());
-      await loadGames();
+      toast.success(`${selectedGameIds.size}개 게임 상태가 변경되었습니다.`);
+      setSelectedGameIds(new Set());
     } catch (error) {
-      console.error("일괄 상태 변경 실패:", error);
-      toast.error(t.gameManagement.updateStatus);
+      console.error("❌ 일괄 상태 업데이트 실패:", error);
+      toast.error(t.gameManagement.updateFailed);
     }
   };
 
-  // 통계
-  const stats = useMemo(() => {
-    const { apiType, gameType } = getApiAndGameType(activeTab);
-    const currentGames = games.filter(
-      (g) => g.type === gameType && g.api_type === apiType
-    );
+  const handleExpandAll = () => {
+    setExpandedProviderIds(new Set(currentProviders.map(p => p.id)));
+  };
 
-    return {
-      total: currentGames.length,
-      visible: currentGames.filter((g) => g.status === "visible").length,
-      maintenance: currentGames.filter((g) => g.status === "maintenance").length,
-      hidden: currentGames.filter((g) => g.status === "hidden").length,
-      featured: currentGames.filter((g) => g.is_featured).length,
-    };
-  }, [games, activeTab]);
+  const handleCollapseAll = () => {
+    setExpandedProviderIds(new Set());
+  };
 
   return (
     <div className="space-y-6">
@@ -763,7 +720,6 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          {/* Lv1 전용 버튼들 */}
           {user.level === 1 && (
             <>
               <Button
@@ -776,9 +732,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                 {t.gameManagement.initializeProviders}
               </Button>
               <Button
-                onClick={handleSyncOroPlayGames}
-                disabled={syncing || loading}
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
+                onClick={handleSyncGames}
+                disabled={syncing || loading || !selectedApi}
+                className={`bg-gradient-to-r ${availableApis.find(a => a.value === selectedApi)?.color || 'from-blue-600 to-cyan-600'} hover:opacity-90 text-white`}
               >
                 {syncing ? (
                   <>
@@ -788,24 +744,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                 ) : (
                   <>
                     <Zap className="w-4 h-4 mr-2" />
-                    OroPlay {t.gameManagement.syncGames}
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={handleSyncInvestGames}
-                disabled={syncing || loading}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
-              >
-                {syncing ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    {t.gameManagement.syncInProgress}
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-4 h-4 mr-2" />
-                    Invest {t.gameManagement.syncGames}
+                    {selectedApi ? selectedApi.toUpperCase() : 'API'} {t.gameManagement.syncGames}
                   </>
                 )}
               </Button>
@@ -868,315 +807,161 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       {/* 메인 컨텐츠 */}
       <Card className="bg-slate-800/30 border-slate-700">
         <CardContent className="p-6">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as GameTab)}>
-            {/* 탭 리스트 - ✅ Lv2~Lv6: 숨겨진 API 탭 제거 */}
-            <TabsList className={`grid w-full ${
-              user.level === 1 
-                ? 'grid-cols-5' 
-                : (hiddenApis.invest && hiddenApis.oroplay) 
-                  ? 'grid-cols-1'
-                  : hiddenApis.invest 
-                    ? 'grid-cols-3'
-                    : hiddenApis.oroplay 
-                      ? 'grid-cols-2'
-                      : 'grid-cols-5'
-            } bg-slate-900/50 p-1 rounded-xl mb-6 border border-slate-700/50`}>
-              {/* Invest API 탭 */}
-              {(user.level === 1 || !hiddenApis.invest) && (
-                <>
-                  <TabsTrigger
-                    value="invest_casino"
-                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white rounded-lg"
-                  >
-                    {t.gameManagement.investCasino}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="invest_slot"
-                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white rounded-lg"
-                  >
-                    {t.gameManagement.investSlot}
-                  </TabsTrigger>
-                </>
-              )}
-              {/* OroPlay API 탭 */}
-              {(user.level === 1 || !hiddenApis.oroplay) && (
-                <>
-                  <TabsTrigger
-                    value="oroplay_casino"
-                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white rounded-lg"
-                  >
-                    {t.gameManagement.oroplayCasino}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="oroplay_slot"
-                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-cyan-600 data-[state=active]:text-white rounded-lg"
-                  >
-                    {t.gameManagement.oroplaysSlot}
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="oroplay_minigame"
-                    className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-600 data-[state=active]:to-emerald-600 data-[state=active]:text-white rounded-lg"
-                  >
-                    {t.gameManagement.oroplaysMinigame}
-                  </TabsTrigger>
-                </>
-              )}
-            </TabsList>
-
-            {/* 필터 및 검색 */}
-            <div className="space-y-4 mb-6">
-              {/* 제공사 선택 */}
-              {currentProviders.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-slate-300">{t.gameManagement.selectProvider}</div>
-                  </div>
-                  <div className="flex gap-3 overflow-x-auto pb-3 custom-scrollbar">
-                    {/* 제공사 버튼들 */}
-                    {currentProviders.map((provider) => {
-                      const providerGameCount = games.filter(
-                        (g) => g.provider_id === provider.id && 
-                               g.api_type === getApiAndGameType(activeTab).apiType && 
-                               g.type === getApiAndGameType(activeTab).gameType
-                      ).length;
-
-                      // 제공사 상태별 스타일
-                      const getProviderStatusBadge = () => {
-                        if (provider.status === 'maintenance') {
-                          return (
-                            <Badge className="absolute top-1 right-1 bg-orange-600/90 text-white border-0 text-[10px] px-1.5 py-0.5">
-                              {t.gameManagement.maintenanceStatus}
-                            </Badge>
-                          );
-                        } else if (provider.status === 'hidden' || !provider.is_visible) {
-                          return (
-                            <Badge className="absolute top-1 right-1 bg-slate-600/90 text-white border-0 text-[10px] px-1.5 py-0.5">
-                              {t.gameManagement.hiddenStatus}
-                            </Badge>
-                          );
-                        }
-                        return null;
-                      };
-
-                      const getProviderBgClass = () => {
-                        if (selectedProvider === provider.id) {
-                          return "bg-gradient-to-br from-blue-600 to-cyan-600";
-                        }
-                        if (provider.status === 'maintenance') {
-                          return "bg-gradient-to-br from-orange-700/60 to-orange-800/60 hover:from-orange-600/60 hover:to-orange-700/60";
-                        }
-                        if (provider.status === 'hidden' || !provider.is_visible) {
-                          return "bg-gradient-to-br from-slate-700/40 to-slate-800/40 hover:from-slate-600/40 hover:to-slate-700/40";
-                        }
-                        return "bg-gradient-to-br from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700";
-                      };
-
-                      return (
-                        <div
-                          key={provider.id}
-                          className="flex-shrink-0 group"
-                        >
-                          <button
-                            onClick={() => setSelectedProvider(provider.id)}
-                            className={`relative rounded-xl transition-all duration-300 ${
-                              selectedProvider === provider.id
-                                ? "ring-2 ring-blue-500 shadow-lg shadow-blue-500/30 scale-105"
-                                : "hover:scale-105 hover:shadow-lg"
-                            }`}
-                          >
-                            {getProviderStatusBadge()}
-                            <div className={`w-32 h-32 p-4 flex flex-col items-center justify-center gap-2 rounded-xl ${getProviderBgClass()}`}>
-                              {provider.logo_url ? (
-                                <img
-                                  src={provider.logo_url}
-                                  alt={provider.name}
-                                  className="w-12 h-12 object-contain"
-                                />
-                              ) : (
-                                <Gamepad2 className="w-10 h-10 text-white" />
-                              )}
-                              <div className="text-center">
-                                <div className="text-white text-xs line-clamp-1">
-                                  {provider.name}
-                                </div>
-                                <div className="text-white/80 text-xs mt-1">
-                                  {providerGameCount}개
-                                </div>
-                              </div>
-                            </div>
-                          </button>
-                          {/* ✅ 제공사 상태 변경 드롭다운 - 항상 렌더링하여 깜박임 방지 */}
-                          <div 
-                            className={`mt-2 transition-opacity duration-200 ${
-                              selectedProvider === provider.id 
-                                ? 'opacity-100 visible' 
-                                : 'opacity-0 invisible h-0 overflow-hidden'
-                            }`}
-                          >
-                            <Select
-                              value={provider.status}
-                              onValueChange={(value: 'visible' | 'maintenance' | 'hidden') =>
-                                handleChangeProviderStatus(provider.id, value)
-                              }
-                            >
-                              <SelectTrigger className="h-7 text-xs bg-slate-800 border-slate-600">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="visible">
-                                  <div className="flex items-center gap-1">
-                                    <Eye className="w-3 h-3" />
-                                    {t.gameManagement.visible}
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="maintenance">
-                                  <div className="flex items-center gap-1">
-                                    <AlertTriangle className="w-3 h-3" />
-                                    {t.gameManagement.maintenanceStatus}
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="hidden">
-                                  <div className="flex items-center gap-1">
-                                    <EyeOff className="w-3 h-3" />
-                                    {t.gameManagement.hiddenStatus}
-                                  </div>
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+          {/* 필터 영역 */}
+          <div className="mb-6 bg-slate-900/30 border border-slate-700/50 rounded-lg p-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* API 제공사 선택 */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-1 h-4 bg-gradient-to-b from-purple-500 to-pink-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-slate-300">API 제공사</span>
                 </div>
-              )}
-
-              {/* 검색 및 필터 */}
-              <div className="flex gap-3">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    placeholder={t.gameManagement.searchPlaceholder}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-slate-900/50 border-slate-600"
-                  />
+                <div className="flex flex-wrap gap-2">
+                  {availableApis.map(api => (
+                    <button
+                      key={api.value}
+                      onClick={() => setSelectedApi(api.value)}
+                      className={`
+                        px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                        ${selectedApi === api.value
+                          ? `bg-gradient-to-r ${api.color} text-white shadow-lg shadow-purple-500/30 scale-105`
+                          : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700/50 hover:text-slate-300 border border-slate-700/50'
+                        }
+                      `}
+                    >
+                      {api.label}
+                    </button>
+                  ))}
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-40 bg-slate-900/50 border-slate-600">
-                    <SelectValue placeholder={t.gameManagement.statusFilter} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t.gameManagement.allStatus}</SelectItem>
-                    <SelectItem value="visible">{t.gameManagement.visible}</SelectItem>
-                    <SelectItem value="maintenance">{t.gameManagement.maintenanceStatus}</SelectItem>
-                    <SelectItem value="hidden">{t.gameManagement.hiddenStatus}</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
 
-              {/* 일괄 작업 */}
-              {selectedGames.size > 0 && (
-                <div className="flex items-center justify-between p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg">
-                  <div className="text-sm text-blue-300">
-                    {t.gameManagement.selectedCount.replace('{{count}}', selectedGames.size.toString())}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleBulkChangeStatus("visible")}
-                      className="border-green-700 text-green-400 hover:bg-green-900/20"
-                    >
-                      <Eye className="w-4 h-4 mr-1" />
-                      {t.gameManagement.visible}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleBulkChangeStatus("maintenance")}
-                      className="border-orange-700 text-orange-400 hover:bg-orange-900/20"
-                    >
-                      <AlertTriangle className="w-4 h-4 mr-1" />
-                      {t.gameManagement.maintenanceStatus}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleBulkChangeStatus("hidden")}
-                      className="border-slate-700 text-slate-400 hover:bg-slate-900/20"
-                    >
-                      <EyeOff className="w-4 h-4 mr-1" />
-                      {t.gameManagement.hiddenStatus}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setSelectedGames(new Set())}
-                      className="text-slate-400 hover:text-slate-200"
-                    >
-                      {t.common.deselectAll}
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {/* 구분선 */}
+              <div className="hidden lg:flex items-center justify-center">
+                <div className="w-px h-full bg-gradient-to-b from-transparent via-slate-600 to-transparent"></div>
+              </div>
 
-              {/* 전체 선택/해제 */}
-              {filteredGames.length > 0 && (
+              {/* 게임 타입 선택 */}
+              <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={selectedGames.size === filteredGames.length}
-                    onCheckedChange={toggleSelectAll}
-                    className="border-slate-600"
-                  />
-                  <span className="text-sm text-slate-400">
-                    {t.common.selectAll} ({filteredGames.length})
-                  </span>
+                  <div className="w-1 h-4 bg-gradient-to-b from-blue-500 to-cyan-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-slate-300">게임 타입</span>
                 </div>
-              )}
+                <div className="flex flex-wrap gap-2">
+                  {availableGameTypes.map(type => (
+                    <button
+                      key={type.value}
+                      onClick={() => setSelectedGameType(type.value)}
+                      className={`
+                        px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                        ${selectedGameType === type.value
+                          ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg shadow-blue-500/30 scale-105'
+                          : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700/50 hover:text-slate-300 border border-slate-700/50'
+                        }
+                      `}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            {/* 게임 목록 */}
-            <div className="space-y-6">
-              {loading ? (
-                <div className="text-center py-12">
-                  <RefreshCw className="w-8 h-8 animate-spin mx-auto text-blue-500" />
-                  <p className="text-slate-400 mt-4">{t.common.loading}</p>
-                </div>
-              ) : filteredGames.length === 0 ? (
-                <div className="text-center py-12">
-                  <Gamepad2 className="w-16 h-16 mx-auto text-slate-600 mb-4" />
-                  <p className="text-slate-400">{t.gameManagement.noGamesFound}</p>
-                  <p className="text-sm text-slate-500 mt-2">
-                    {t.gameManagement.syncGames}
-                  </p>
-                </div>
-              ) : (
-                Object.entries(groupedGames).map(([providerName, providerGames]) => (
-                  <div key={providerName} className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg text-slate-200">{providerName}</h3>
-                      <Badge variant="outline" className="text-slate-400">
-                        {providerGames.length}개
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                      {providerGames.map((game) => (
-                        <GameCard
-                          key={game.id}
-                          game={game}
-                          isSelected={selectedGames.has(game.id)}
-                          onToggleSelection={() => toggleGameSelection(game.id)}
-                          onToggleFeatured={() => handleToggleFeatured(game.id)}
-                          onChangeStatus={(status) => handleChangeStatus(game.id, status)}
-                        />
-                      ))}
-                    </div>
+            {/* 구분선 */}
+            <div className="my-4 h-px bg-gradient-to-r from-transparent via-slate-600 to-transparent"></div>
+
+            {/* 검색 및 액션 영역 */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative flex-1 min-w-[250px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Input
+                  type="text"
+                  placeholder={t.gameManagement.searchGames}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 bg-slate-800/50 border-slate-700/50 focus:border-blue-500/50 focus:ring-blue-500/20"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleExpandAll}
+                  className="bg-slate-800/50 border-slate-700/50 hover:bg-slate-700/50 hover:border-slate-600 text-slate-300"
+                >
+                  <ChevronDown className="w-3 h-3 mr-1" />
+                  전체 펼치기
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCollapseAll}
+                  className="bg-slate-800/50 border-slate-700/50 hover:bg-slate-700/50 hover:border-slate-600 text-slate-300"
+                >
+                  <ChevronRight className="w-3 h-3 mr-1" />
+                  전체 접기
+                </Button>
+              </div>
+
+              {selectedGameIds.size > 0 && (
+                <>
+                  <div className="w-px h-6 bg-slate-700/50"></div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-400 font-medium">
+                      {selectedGameIds.size}개 선택됨
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleBulkStatusChange("visible")}
+                      className="bg-emerald-900/20 border-emerald-600/50 text-emerald-400 hover:bg-emerald-900/40 hover:border-emerald-500"
+                    >
+                      <Eye className="w-3 h-3 mr-1" />
+                      일괄 노출
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleBulkStatusChange("hidden")}
+                      className="bg-slate-800/50 border-slate-700/50 text-slate-400 hover:bg-slate-700/50 hover:border-slate-600"
+                    >
+                      <EyeOff className="w-3 h-3 mr-1" />
+                      일괄 숨김
+                    </Button>
                   </div>
-                ))
+                </>
               )}
             </div>
-          </Tabs>
+          </div>
+
+          {/* 제공사별 게임 목록 */}
+          <div className="space-y-3">
+            {loading ? (
+              <div className="text-center py-12 text-slate-400">
+                <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2" />
+                로딩 중...
+              </div>
+            ) : currentProviders.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                제공사가 없습니다.
+              </div>
+            ) : (
+              currentProviders.map(provider => (
+                <ProviderSection
+                  key={provider.id}
+                  provider={provider}
+                  games={providerGamesMap.get(provider.id) || []}
+                  isExpanded={expandedProviderIds.has(provider.id)}
+                  onToggleExpand={() => handleToggleExpand(provider.id)}
+                  onToggleProviderStatus={(status) => handleToggleProviderStatus(provider.id, status)}
+                  selectedGameIds={selectedGameIds}
+                  onToggleGameSelection={handleToggleGameSelection}
+                  onToggleGameFeatured={handleToggleGameFeatured}
+                  onChangeGameStatus={handleChangeGameStatus}
+                />
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

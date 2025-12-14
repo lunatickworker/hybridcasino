@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { investApi } from './investApi';
 import { oroplayApi } from './oroplayApi';
+import * as familyApi from './familyApi';
 
 // ============================================
 // 타입 정의
@@ -10,10 +11,10 @@ export interface GameProvider {
   id: number;
   name: string;
   type: 'slot' | 'casino' | 'minigame';
-  api_type: 'invest' | 'oroplay';
+  api_type: 'invest' | 'oroplay' | 'familyapi';
   status: 'visible' | 'maintenance' | 'hidden'; // 노출/점검중/비노출
   is_visible: boolean; // 사용자 페이지 노출 여부
-  vendor_code?: string; // OroPlay 전용
+  vendor_code?: string; // OroPlay, FamilyAPI 전용
   logo_url?: string;
   created_at?: string;
   updated_at?: string;
@@ -24,7 +25,7 @@ export interface Game {
   provider_id: number;
   name: string;
   type: 'slot' | 'casino' | 'minigame';
-  api_type: 'invest' | 'oroplay';
+  api_type: 'invest' | 'oroplay' | 'familyapi';
   status: 'visible' | 'maintenance' | 'hidden';
   is_visible: boolean; // 사용자 페이지 노출 여부
   image_url?: string;
@@ -33,8 +34,8 @@ export interface Game {
   priority?: number;
   rtp?: number;
   play_count?: number;
-  vendor_code?: string; // OroPlay 전용
-  game_code?: string; // OroPlay 전용
+  vendor_code?: string; // OroPlay, FamilyAPI 전용
+  game_code?: string; // OroPlay, FamilyAPI 전용
   created_at?: string;
   updated_at?: string;
   provider_name?: string; // JOIN 시 추가
@@ -107,76 +108,18 @@ const INVEST_CASINO_PROVIDERS: Array<{ id: number; name: string; game_id: number
 // ============================================
 
 /**
- * Invest 제공사 초기화 (Guidelines.md 기준)
+ * Invest 제공사 초기화 (래퍼 함수)
+ * @deprecated syncAllProviders(['invest']) 사용 권장
  */
 export async function initializeInvestProviders(): Promise<void> {
-  console.log('🔧 Invest 제공사 초기화 시작...');
-
-  try {
-    // 슬롯 제공사
-    const slotProviders = INVEST_SLOT_PROVIDERS.map(p => ({
-      id: p.id,
-      name: p.name,
-      type: 'slot' as const,
-      api_type: 'invest' as const,
-      status: 'visible' as const,
-      is_visible: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
-
-    // 카지노 제공사
-    const casinoProviders = INVEST_CASINO_PROVIDERS.map(p => ({
-      id: p.id,
-      name: p.name,
-      type: 'casino' as const,
-      api_type: 'invest' as const,
-      status: 'visible' as const,
-      is_visible: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
-
-    const allProviders = [...slotProviders, ...casinoProviders];
-
-    // 배치로 upsert
-    const batchSize = 20;
-    let insertedCount = 0;
-
-    for (let i = 0; i < allProviders.length; i += batchSize) {
-      const batch = allProviders.slice(i, i + batchSize);
-
-      const { error } = await supabase
-        .from('game_providers')
-        .upsert(batch, {
-          onConflict: 'id',
-          ignoreDuplicates: false,
-        });
-
-      if (error) {
-        console.error(`❌ Invest 제공사 배치 ${Math.floor(i / batchSize) + 1} 삽입 오류:`, error);
-      } else {
-        insertedCount += batch.length;
-      }
-    }
-
-    console.log(`✅ Invest 제공사 초기화 완료: ${insertedCount}개 (슬롯 ${slotProviders.length}, 카지노 ${casinoProviders.length})`);
-
-    // 카지노 로비 게임 자동 생성
-    await initializeCasinoLobbyGames();
-
-  } catch (error) {
-    console.error('❌ Invest 제공사 초기화 실패:', error);
-    throw error;
-  }
+  return syncAllProviders(['invest']);
 }
 
 /**
  * 카지노 로비 게임 초기화
  */
 async function initializeCasinoLobbyGames(): Promise<void> {
-  console.log('🎰 카지노 로비 게임 초기화 시작...');
-
+  const timestamp = new Date().toISOString();
   const lobbyGames = INVEST_CASINO_PROVIDERS.map(p => ({
     id: p.game_id,
     provider_id: p.id,
@@ -186,111 +129,71 @@ async function initializeCasinoLobbyGames(): Promise<void> {
     status: 'visible' as const,
     is_visible: true,
     demo_available: false,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: timestamp,
+    updated_at: timestamp,
   }));
 
-  const { error } = await supabase
+  // 기존 로비 게임 ID 조회
+  const lobbyGameIds = lobbyGames.map(g => g.id);
+  const { data: existingGames } = await supabase
     .from('games')
-    .upsert(lobbyGames, {
-      onConflict: 'id',
-      ignoreDuplicates: false,
-    });
+    .select('id')
+    .eq('api_type', 'invest')
+    .in('id', lobbyGameIds);
 
-  if (error) {
-    console.error('❌ 카지노 로비 게임 생성 오류:', error);
-  } else {
-    console.log(`✅ 카지노 로비 게임 생성 완료: ${lobbyGames.length}개`);
+  const existingIds = new Set(existingGames?.map(g => g.id) || []);
+
+  const newGames = lobbyGames.filter(g => !existingIds.has(g.id));
+  const existingToUpdate = lobbyGames.filter(g => existingIds.has(g.id));
+
+  let insertedCount = 0;
+  let updatedCount = 0;
+
+  // 신규 로비 게임 추가
+  if (newGames.length > 0) {
+    const { error: insertError } = await supabase
+      .from('games')
+      .insert(newGames);
+
+    if (!insertError) {
+      insertedCount = newGames.length;
+    } else {
+      console.error('❌ 카지노 로비 게임 추가 오류:', insertError);
+    }
+  }
+
+  // 기존 로비 게임 업데이트 (메타데이터만)
+  if (existingToUpdate.length > 0) {
+    for (const game of existingToUpdate) {
+      const { error: updateError } = await supabase
+        .from('games')
+        .update({
+          name: game.name,
+          updated_at: game.updated_at,
+        })
+        .eq('id', game.id);
+
+      if (!updateError) {
+        updatedCount++;
+      }
+    }
   }
 }
 
 /**
- * OroPlay 제공사 동기화
+ * OroPlay 제공사 동기화 (래퍼 함수)
+ * @deprecated syncAllProviders(['oroplay']) 사용 권장
  */
 export async function syncOroPlayProviders(): Promise<void> {
-  console.log('🔄 OroPlay 제공사 동기화 시작...');
+  return syncAllProviders(['oroplay']);
+}
 
-  try {
-    // 1. 시스템 관리자 조회
-    const { data: systemAdmin } = await supabase
-      .from('partners')
-      .select('id')
-      .eq('level', 1)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (!systemAdmin) {
-      throw new Error('시스템 관리자를 찾을 수 없습니다.');
-    }
-
-    // 2. OroPlay 토큰 조회
-    const token = await oroplayApi.getToken(systemAdmin.id);
-
-    // 3. OroPlay API에서 제공사 목록 조회
-    const vendors = await oroplayApi.getVendors(token);
-
-    if (!vendors || vendors.length === 0) {
-      console.log('⚠️ OroPlay 제공사가 없습니다.');
-      return;
-    }
-
-    console.log(`📊 OroPlay 제공사 ${vendors.length}개 발견`);
-
-    // 🔍 디버깅: 제공사 목록 상세 출력
-    console.log('📋 OroPlay 제공사 목록:', vendors.map(v => ({
-      name: v.name,
-      vendorCode: v.vendorCode,
-      type: v.type
-    })));
-
-    // 타입 매핑 (OroPlay type → GMS type)
-    const typeMap: Record<number, 'casino' | 'slot' | 'minigame'> = {
-      1: 'casino',
-      2: 'slot',
-      3: 'minigame',
-    };
-
-    const providers = vendors.map(vendor => ({
-      // OroPlay는 ID가 없으므로 vendorCode 해시로 생성
-      id: hashVendorCode(vendor.vendorCode),
-      name: vendor.name,
-      type: typeMap[vendor.type] || 'slot',
-      api_type: 'oroplay' as const,
-      vendor_code: vendor.vendorCode,
-      status: 'visible' as const,
-      is_visible: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
-
-    // 배치로 upsert
-    const batchSize = 20;
-    let insertedCount = 0;
-
-    for (let i = 0; i < providers.length; i += batchSize) {
-      const batch = providers.slice(i, i + batchSize);
-
-      const { error } = await supabase
-        .from('game_providers')
-        .upsert(batch, {
-          onConflict: 'id',
-          ignoreDuplicates: false,
-        });
-
-      if (error) {
-        console.error(`❌ OroPlay 제공사 배치 ${Math.floor(i / batchSize) + 1} 삽입 오류:`, error);
-      } else {
-        insertedCount += batch.length;
-      }
-    }
-
-    console.log(`✅ OroPlay 제공사 동기화 완료: ${insertedCount}개`);
-
-  } catch (error) {
-    console.error('❌ OroPlay 제공사 동기화 실패:', error);
-    throw error;
-  }
+/**
+ * FamilyAPI 제공사 동기화 (래퍼 함수)
+ * @deprecated syncAllProviders(['familyapi']) 사용 권장
+ */
+export async function syncFamilyApiProviders(): Promise<void> {
+  return syncAllProviders(['familyapi']);
 }
 
 /**
@@ -308,13 +211,310 @@ function hashVendorCode(vendorCode: string): number {
 }
 
 /**
+ * 누락된 제공사 자동 생성
+ * - 게임은 DB에 있지만 제공사가 없는 경우 자동으로 생성
+ */
+async function ensureMissingProviders(): Promise<void> {
+  try {
+    // 1. 모든 게임의 vendor_code와 provider_id 조회
+    const { data: games } = await supabase
+      .from('games')
+      .select('id, vendor_code, provider_id, type, api_type, name')
+      .not('vendor_code', 'is', null);
+
+    if (!games || games.length === 0) {
+      return;
+    }
+
+    // 2. 고유한 vendor_code 목록 추출
+    const gameVendorCodes = [...new Set(games.map(g => g.vendor_code).filter(Boolean))];
+
+    // 3. 기존 제공사 조회
+    const { data: existingProviders } = await supabase
+      .from('game_providers')
+      .select('id, vendor_code')
+      .not('vendor_code', 'is', null);
+
+    const providerMap = new Map((existingProviders || []).map(p => [p.vendor_code, p.id]));
+
+    // 4. 누락된 vendor_code 찾기
+    const missingVendorCodes = gameVendorCodes.filter(vc => !providerMap.has(vc));
+
+    if (missingVendorCodes.length === 0) {
+      return;
+    }
+
+    console.warn(`⚠️ 누락된 제공사 ID: ${missingVendorCodes.join(', ')} - 이 제공사들의 게임이 화면에 표시되지 않습니다.`);
+    console.log('🔨 누락된 제공사 자동 생성 중...');
+
+    // 5. 누락된 제공사 생성
+    const ts = new Date().toISOString();
+    const newProvidersToCreate = missingVendorCodes.map(vendorCode => {
+      const gameWithThisVendor = games.find(g => g.vendor_code === vendorCode);
+      const isCasino = vendorCode.startsWith('C');
+
+      return {
+        id: hashVendorCode(vendorCode),
+        name: gameWithThisVendor?.name?.split(' ')[0] || vendorCode,
+        type: gameWithThisVendor?.type || (isCasino ? 'casino' : 'slot'),
+        api_type: gameWithThisVendor?.api_type || 'familyapi',
+        vendor_code: vendorCode,
+        status: 'visible' as const,
+        is_visible: true,
+        created_at: ts,
+        updated_at: ts,
+      };
+    });
+
+    const { error: insertError } = await supabase
+      .from('game_providers')
+      .insert(newProvidersToCreate);
+
+    if (insertError) {
+      console.error('❌ 누락된 제공사 생성 실패:', insertError);
+    } else {
+      console.log(`✅ ${newProvidersToCreate.length}개 제공사 생성 완료:`, newProvidersToCreate.map(p => `${p.vendor_code}[${p.id}]`));
+
+      // 6. 게임의 provider_id 수정
+      let fixedCount = 0;
+      for (const provider of newProvidersToCreate) {
+        const gamesToFix = games.filter(g => g.vendor_code === provider.vendor_code);
+        
+        for (const game of gamesToFix) {
+          const { error } = await supabase
+            .from('games')
+            .update({ provider_id: provider.id })
+            .eq('id', game.id);
+
+          if (!error) {
+            fixedCount++;
+          }
+        }
+      }
+
+      if (fixedCount > 0) {
+        console.log(`✅ ${fixedCount}개 게임의 provider_id 수정 완료`);
+      }
+    }
+  } catch (error) {
+    console.error('❌ ensureMissingProviders 오류:', error);
+  }
+}
+
+// ============================================
+// 제공사 동기화 - 통합 함수
+// ============================================
+
+/**
+ * API별 제공사 데이터 가져오기
+ */
+async function fetchProvidersByApi(apiType: 'invest' | 'oroplay' | 'familyapi'): Promise<Array<{
+  id: number;
+  name: string;
+  type: 'slot' | 'casino' | 'minigame';
+  api_type: 'invest' | 'oroplay' | 'familyapi';
+  vendor_code?: string;
+  status: 'visible' | 'maintenance' | 'hidden';
+  is_visible: boolean;
+  created_at: string;
+  updated_at: string;
+}>> {
+  const timestamp = new Date().toISOString();
+
+  switch (apiType) {
+    case 'invest': {
+      const slotProviders = INVEST_SLOT_PROVIDERS.map(p => ({
+        id: p.id,
+        name: p.name,
+        type: 'slot' as const,
+        api_type: 'invest' as const,
+        status: 'visible' as const,
+        is_visible: true,
+        created_at: timestamp,
+        updated_at: timestamp,
+      }));
+
+      const casinoProviders = INVEST_CASINO_PROVIDERS.map(p => ({
+        id: p.id,
+        name: p.name,
+        type: 'casino' as const,
+        api_type: 'invest' as const,
+        status: 'visible' as const,
+        is_visible: true,
+        created_at: timestamp,
+        updated_at: timestamp,
+      }));
+
+      return [...slotProviders, ...casinoProviders];
+    }
+
+    case 'oroplay': {
+      const { data: systemAdmin } = await supabase
+        .from('partners')
+        .select('id')
+        .eq('level', 1)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (!systemAdmin) {
+        throw new Error('시스템 관리자를 찾을 수 없습니다.');
+      }
+
+      const token = await oroplayApi.getToken(systemAdmin.id);
+      const vendors = await oroplayApi.getVendors(token);
+
+      const typeMap: Record<number, 'casino' | 'slot' | 'minigame'> = {
+        1: 'casino',
+        2: 'slot',
+        3: 'minigame',
+      };
+
+      return vendors.map(vendor => ({
+        id: hashVendorCode(vendor.vendorCode),
+        name: vendor.name,
+        type: typeMap[vendor.type] || 'slot',
+        api_type: 'oroplay' as const,
+        vendor_code: vendor.vendorCode,
+        status: 'visible' as const,
+        is_visible: true,
+        created_at: timestamp,
+        updated_at: timestamp,
+      }));
+    }
+
+    case 'familyapi': {
+      const config = await familyApi.getFamilyApiConfig();
+      
+      let token = await familyApi.getFamilyApiToken(config.partnerId);
+      
+      let vendors;
+      try {
+        vendors = await familyApi.getVendorList(config.apiKey, token);
+      } catch (error: any) {
+        console.warn('⚠️ 토큰 오류 감지, 새 토큰으로 재시도:', error.message);
+        token = await familyApi.getFamilyApiToken(config.partnerId, true);
+        vendors = await familyApi.getVendorList(config.apiKey, token);
+      }
+
+      return vendors.map(vendor => {
+        const isCasino = vendor.vendorKey.startsWith('C');
+        return {
+          id: hashVendorCode(vendor.vendorKey),
+          name: vendor.vendorName,
+          type: (isCasino ? 'casino' : 'slot') as 'casino' | 'slot',
+          api_type: 'familyapi' as const,
+          vendor_code: vendor.vendorKey,
+          status: 'visible' as const,
+          is_visible: true,
+          created_at: timestamp,
+          updated_at: timestamp,
+        };
+      });
+    }
+
+    default:
+      throw new Error(`지원하지 않는 API 타입: ${apiType}`);
+  }
+}
+
+/**
+ * 모든 API 제공사 동기화 (Invest, OroPlay, FamilyAPI)
+ * @param apiTypes - 동기화할 API 타입 배열 (기본값: 모두)
+ */
+export async function syncAllProviders(
+  apiTypes: Array<'invest' | 'oroplay' | 'familyapi'> = ['invest', 'oroplay', 'familyapi']
+): Promise<void> {
+  console.log('🔄 제공사 통합 동기화 시작:', apiTypes.join(', '));
+
+  for (const apiType of apiTypes) {
+    try {
+      console.log(`\n🔧 ${apiType.toUpperCase()} 제공사 동기화 중...`);
+      
+      const providers = await fetchProvidersByApi(apiType);
+      
+      if (!providers || providers.length === 0) {
+        console.log(`⚠️ ${apiType.toUpperCase()} 제공사가 없습니다.`);
+        continue;
+      }
+
+      const providerIds = providers.map(p => p.id);
+      const { data: existingProviders } = await supabase
+        .from('game_providers')
+        .select('id')
+        .eq('api_type', apiType)
+        .in('id', providerIds);
+
+      const existingIds = new Set(existingProviders?.map(p => p.id) || []);
+
+      const newProviders = providers.filter(p => !existingIds.has(p.id));
+      const existingToUpdate = providers.filter(p => existingIds.has(p.id));
+
+      const batchSize = 20;
+      let insertedCount = 0;
+      let updatedCount = 0;
+
+      if (newProviders.length > 0) {
+        for (let i = 0; i < newProviders.length; i += batchSize) {
+          const batch = newProviders.slice(i, i + batchSize);
+
+          const { error } = await supabase
+            .from('game_providers')
+            .insert(batch);
+
+          if (error) {
+            console.error(`❌ ${apiType.toUpperCase()} 제공사 배치 ${Math.floor(i / batchSize) + 1} 추가 오류:`, error);
+          } else {
+            insertedCount += batch.length;
+          }
+        }
+      }
+
+      if (existingToUpdate.length > 0) {
+        for (const provider of existingToUpdate) {
+          const updateData: any = {
+            name: provider.name,
+            updated_at: provider.updated_at,
+          };
+
+          if (provider.vendor_code) {
+            updateData.vendor_code = provider.vendor_code;
+          }
+
+          const { error } = await supabase
+            .from('game_providers')
+            .update(updateData)
+            .eq('id', provider.id);
+
+          if (!error) {
+            updatedCount++;
+          }
+        }
+      }
+
+      console.log(`✅ ${apiType.toUpperCase()} 제공사 동기화 완료: 신규 ${insertedCount}개, 업데이트 ${updatedCount}개`);
+
+      // Invest의 경우 카지노 로비 게임 자동 생성
+      if (apiType === 'invest' && insertedCount > 0) {
+        await initializeCasinoLobbyGames();
+      }
+
+    } catch (error: any) {
+      console.error(`❌ ${apiType.toUpperCase()} 제공사 동기화 실패:`, error);
+      throw error;
+    }
+  }
+}
+
+/**
  * 제공사 목록 조회
  */
 export async function getProviders(filters?: {
-  api_type?: 'invest' | 'oroplay';
+  api_type?: 'invest' | 'oroplay' | 'familyapi';
   type?: 'slot' | 'casino' | 'minigame';
   status?: 'visible' | 'maintenance' | 'hidden';
   is_visible?: boolean;
+  partner_id?: string; // 파트너 ID로 API 활성화 필터링
 }): Promise<GameProvider[]> {
   let query = supabase
     .from('game_providers')
@@ -346,8 +546,68 @@ export async function getProviders(filters?: {
     throw error;
   }
 
-  console.log(`📊 제공사 조회: ${data?.length || 0}개`, filters);
-  return data || [];
+  let providers = data || [];
+
+  // partner_id가 제공된 경우, 해당 파트너의 Lv1 상위자의 활성화된 API만 필터링
+  if (filters?.partner_id) {
+    try {
+      // 1. 파트너 정보 조회하여 Lv1 찾기
+      const { data: partner } = await supabase
+        .from('partners')
+        .select('id, level, parent_id')
+        .eq('id', filters.partner_id)
+        .single();
+
+      if (partner) {
+        let lv1PartnerId = partner.id;
+
+        // Lv1이 아니면 Lv1 찾기
+        if (partner.level !== 1) {
+          let currentId = partner.parent_id;
+          let iterations = 0;
+          const maxIterations = 10;
+
+          while (currentId && iterations < maxIterations) {
+            const { data: currentPartner } = await supabase
+              .from('partners')
+              .select('id, level, parent_id')
+              .eq('id', currentId)
+              .single();
+
+            if (currentPartner?.level === 1) {
+              lv1PartnerId = currentPartner.id;
+              break;
+            }
+
+            currentId = currentPartner?.parent_id || null;
+            iterations++;
+          }
+        }
+
+        // 2. Lv1의 활성화된 API 조회
+        const { data: apiConfigs } = await supabase
+          .from('api_configs')
+          .select('api_provider, is_active')
+          .eq('partner_id', lv1PartnerId)
+          .eq('is_active', true);
+
+        const activeApis = new Set(apiConfigs?.map(c => c.api_provider) || []);
+
+        console.log(`🔍 [파트너 ${filters.partner_id}] 활성화된 API:`, Array.from(activeApis));
+
+        // 3. 활성화된 API의 제공사만 필터링
+        providers = providers.filter(p => activeApis.has(p.api_type));
+
+        console.log(`📊 제공사 조회 (활성 API만): ${providers.length}개`, filters);
+        return providers;
+      }
+    } catch (partnerError) {
+      console.error('❌ 파트너 API 활성화 필터링 오류:', partnerError);
+    }
+  }
+
+  console.log(`📊 제공사 조회: ${providers.length}개`, filters);
+  return providers;
 }
 
 // ============================================
@@ -677,22 +937,40 @@ export async function syncOroPlayGames(): Promise<SyncResult> {
         const newGames = processedGames.filter(g => !existingIds.has(g.id));
         const existingToUpdate = processedGames.filter(g => existingIds.has(g.id));
 
-        // ✅ upsert를 사용하여 신규 게임 추가 및 기존 게임 업데이트 (중복 키 오류 방지)
-        if (processedGames.length > 0) {
-          const { error: upsertError } = await supabase
+        // 신규 게임 추가
+        if (newGames.length > 0) {
+          const { error: insertError } = await supabase
             .from('games')
-            .upsert(processedGames, {
-              onConflict: 'id',
-              ignoreDuplicates: false
-            });
+            .insert(newGames);
 
-          if (!upsertError) {
+          if (!insertError) {
             totalNew += newGames.length;
-            totalUpdated += existingToUpdate.length;
-            console.log(`✅ ${provider.name}: 신규 ${newGames.length}개, 업데이트 ${existingToUpdate.length}개`);
+            console.log(`✅ ${provider.name}: 신규 ${newGames.length}개 추가`);
           } else {
-            console.error(`❌ ${provider.name}: 게임 upsert 오류:`, upsertError);
+            console.error(`❌ ${provider.name}: 신규 게임 추가 오류:`, insertError);
           }
+        }
+
+        // 기존 게임 업데이트 (메타데이터만 업데이트, status/is_visible/priority/is_featured 보존)
+        if (existingToUpdate.length > 0) {
+          for (const game of existingToUpdate) {
+            const { error: updateError } = await supabase
+              .from('games')
+              .update({
+                name: game.name,
+                image_url: game.image_url,
+                vendor_code: game.vendor_code,
+                game_code: game.game_code,
+                updated_at: game.updated_at,
+              })
+              .eq('id', game.id)
+              .eq('provider_id', provider.id);
+
+            if (!updateError) {
+              totalUpdated++;
+            }
+          }
+          console.log(`✅ ${provider.name}: 기존 ${totalUpdated}개 업데이트`);
         }
 
         totalGames += processedGames.length;
@@ -727,6 +1005,337 @@ export async function syncOroPlayGames(): Promise<SyncResult> {
 }
 
 /**
+ * FamilyAPI 게임 동기화 (전체)
+ */
+export async function syncFamilyApiGames(): Promise<SyncResult> {
+  console.log('🔄 FamilyAPI 게임 동기화 시작...');
+
+  try {
+    // 0-1. 제공사 먼저 동기화 (제공사가 없거나 오래된 경우 대비)
+    console.log('📋 FamilyAPI 제공사 동기화 확인 중...');
+    await syncAllProviders(['familyapi']);
+    
+    // 0-2. 잘못된 데이터 정리 (game_code가 NULL인 FamilyAPI 게임 삭제)
+    console.log('🧹 잘못된 FamilyAPI 게임 데이터 정리 중...');
+    const { data: invalidGames } = await supabase
+      .from('games')
+      .select('id, name, vendor_code, game_code')
+      .eq('api_type', 'familyapi')
+      .is('game_code', null);
+
+    if (invalidGames && invalidGames.length > 0) {
+      console.log(`⚠️ 잘못된 게임 데이터 ${invalidGames.length}개 발견 (game_code가 NULL):`, 
+        invalidGames.map(g => `${g.name} (${g.vendor_code})`));
+      
+      // 카지노 로비가 아닌 잘못된 데이터만 삭제
+      const idsToDelete = invalidGames
+        .filter(g => !g.name?.includes('로비'))
+        .map(g => g.id);
+      
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('games')
+          .delete()
+          .in('id', idsToDelete);
+
+        if (deleteError) {
+          console.error('❌ 잘못된 데이터 삭제 오류:', deleteError);
+        } else {
+          console.log(`✅ 잘못된 게임 데이터 ${idsToDelete.length}개 삭제 완료`);
+        }
+      }
+    }
+
+    // 1. 시스템 관리자 조회 (게임 목록 API는 token 불필요)
+    const config = await familyApi.getFamilyApiConfig();
+    
+    // 2. FamilyAPI 제공사 목록 조회 (DB에서 최신 데이터 가져오기)
+    const providers = await getProviders({ api_type: 'familyapi', status: 'visible' });
+    
+    console.log(`📋 FamilyAPI 제공사 ${providers.length}개 로드:`, 
+      providers.map(p => `${p.vendor_code}(${p.type}): ${p.name} [ID:${p.id}]`));
+
+    if (providers.length === 0) {
+      console.log('⚠️ FamilyAPI 제공사가 없습니다. 먼저 제공사를 동기화하세요.');
+      return { newGames: 0, updatedGames: 0, totalGames: 0 };
+    }
+
+    // 2-1. 기존 게임의 provider_id 수정 (vendor_code 기반으로 정확한 provider_id 매칭)
+    console.log('🔧 기존 게임의 provider_id 검증 및 수정 중...');
+    const { data: existingGames } = await supabase
+      .from('games')
+      .select('id, vendor_code, provider_id, type, name')
+      .eq('api_type', 'familyapi');
+
+    if (existingGames && existingGames.length > 0) {
+      // 게임에 있는 고유한 vendor_code 목록 추출
+      const gameVendorCodes = [...new Set(existingGames.map(g => g.vendor_code).filter(Boolean))];
+      console.log(`🎮 게임에서 발견된 vendor_code: ${gameVendorCodes.join(', ')}`);
+
+      // 제공사 맵 생성
+      const providerMap = new Map(providers.map(p => [p.vendor_code, p.id]));
+      
+      // 누락된 vendor_code 찾기 및 제공사 생성
+      const missingVendorCodes = gameVendorCodes.filter(vc => !providerMap.has(vc));
+      
+      if (missingVendorCodes.length > 0) {
+        console.warn(`⚠️ 제공사가 없는 vendor_code 발견: ${missingVendorCodes.join(', ')}`);
+        console.log('🔨 누락된 제공사 생성 중...');
+        
+        const ts = new Date().toISOString();
+        const newProvidersToCreate = missingVendorCodes.map(vendorCode => {
+          const isCasino = vendorCode.startsWith('C');
+          const gameWithThisVendor = existingGames.find(g => g.vendor_code === vendorCode);
+          
+          return {
+            id: hashVendorCode(vendorCode),
+            name: vendorCode,
+            type: gameWithThisVendor?.type || (isCasino ? 'casino' : 'slot'),
+            api_type: 'familyapi' as const,
+            vendor_code: vendorCode,
+            status: 'visible' as const,
+            is_visible: true,
+            created_at: ts,
+            updated_at: ts,
+          };
+        });
+
+        const { error: insertError } = await supabase
+          .from('game_providers')
+          .insert(newProvidersToCreate);
+
+        if (insertError) {
+          console.error('❌ 누락된 제공사 생성 실패:', insertError);
+        } else {
+          console.log(`✅ ${newProvidersToCreate.length}개 제공사 생성 완료:`, newProvidersToCreate.map(p => `${p.vendor_code}[${p.id}]`));
+          
+          newProvidersToCreate.forEach(p => {
+            providerMap.set(p.vendor_code, p.id);
+          });
+        }
+      }
+
+      // 게임의 provider_id 수정
+      let fixedCount = 0;
+      for (const game of existingGames) {
+        if (!game.vendor_code) continue;
+        
+        const correctProviderId = providerMap.get(game.vendor_code);
+        if (correctProviderId && correctProviderId !== game.provider_id) {
+          const { error } = await supabase
+            .from('games')
+            .update({ provider_id: correctProviderId })
+            .eq('id', game.id);
+
+          if (!error) {
+            fixedCount++;
+            console.log(`✅ 게임 "${game.name}": provider_id ${game.provider_id} → ${correctProviderId} (${game.vendor_code})`);
+          }
+        }
+      }
+
+      if (fixedCount > 0) {
+        console.log(`✅ ${fixedCount}개 게임의 provider_id 수정 완료`);
+      } else {
+        console.log(`✅ 모든 게임의 provider_id가 정확합니다`);
+      }
+    }
+
+    let totalNew = 0;
+    let totalUpdated = 0;
+    let totalGames = 0;
+
+    const timestamp = new Date().toISOString();
+
+    // 3. 각 제공사별 게임 동기화
+    for (const provider of providers) {
+      if (!provider.vendor_code) {
+        console.warn(`⚠️ 제공사 ${provider.name}: vendorCode 없음`, provider);
+        continue;
+      }
+
+      try {
+        // 카지노, 슬롯 모두 게임 목록 API 호출
+        console.log(`🎰 [FamilyAPI] ${provider.type} 제공사 ${provider.name} (${provider.vendor_code}): 게임 목록 조회 시작`);
+        const games = await familyApi.getGameList(config.apiKey, provider.vendor_code);
+
+        if (!games || games.length === 0) {
+          console.log(`ℹ️ 제공사 ${provider.name} (${provider.vendor_code}): 게임 목록 없음`);
+          
+          // 카지노이고 게임이 없으면 로비 게임 생성
+          if (provider.type === 'casino') {
+            console.log(`🎰 ${provider.name}: 로비 방식 카지노로 처리`);
+            const lobbyGameId = hashFamilyApiLobbyId(provider.vendor_code);
+            
+            const { data: existingLobby } = await supabase
+              .from('games')
+              .select('id')
+              .eq('id', lobbyGameId)
+              .maybeSingle();
+
+            if (existingLobby) {
+              const { error: updateError } = await supabase
+                .from('games')
+                .update({
+                  name: `${provider.name} 로비`,
+                  updated_at: timestamp,
+                })
+                .eq('id', lobbyGameId);
+
+              if (!updateError) {
+                console.log(`✅ 카지노 로비 게임 업데이트: ${provider.name}`);
+                totalUpdated += 1;
+              }
+            } else {
+              const lobbyGame = {
+                id: lobbyGameId,
+                provider_id: provider.id,
+                name: `${provider.name} 로비`,
+                type: 'casino' as const,
+                api_type: 'familyapi' as const,
+                vendor_code: provider.vendor_code,
+                game_code: provider.vendor_code,
+                status: 'visible' as const,
+                is_visible: true,
+                demo_available: false,
+                created_at: timestamp,
+                updated_at: timestamp,
+              };
+
+              const { error: insertError } = await supabase
+                .from('games')
+                .insert([lobbyGame]);
+
+              if (!insertError) {
+                console.log(`✅ 카지노 로비 게임 추가: ${lobbyGame.name} (${lobbyGame.game_code})`);
+                totalNew += 1;
+              }
+            }
+            
+            totalGames += 1;
+          }
+          
+          continue;
+        }
+
+        console.log(`✅ 제공사 ${provider.name} (${provider.vendor_code}): ${games.length}개 게임 발견`);
+
+        // 게임 데이터 변환 - provider.type을 그대로 사용
+        const processedGames = games.map(game => ({
+          id: hashFamilyApiGameCode(provider.vendor_code, game.gameKey),
+          provider_id: provider.id,
+          name: game.gameName || game.gameNameEn,
+          type: provider.type, // 제공사의 type을 사용 (casino 또는 slot)
+          api_type: 'familyapi' as const,
+          vendor_code: provider.vendor_code,
+          game_code: game.gameKey,
+          status: 'visible' as const,
+          is_visible: true,
+          image_url: game.gameImg || null,
+          demo_available: false,
+          priority: 0,
+          created_at: timestamp,
+          updated_at: timestamp,
+        }));
+
+        // 전체 FamilyAPI 게임 중 현재 처리할 게임들의 ID 목록 조회 (중복 방지)
+        const gameIds = processedGames.map(g => g.id);
+        const { data: existingGames } = await supabase
+          .from('games')
+          .select('id')
+          .eq('api_type', 'familyapi')
+          .in('id', gameIds);
+
+        const existingIds = new Set(existingGames?.map(g => g.id) || []);
+
+        const newGames = processedGames.filter(g => !existingIds.has(g.id));
+        const existingToUpdate = processedGames.filter(g => existingIds.has(g.id));
+
+        // 신규 게임 추가
+        if (newGames.length > 0) {
+          console.log(`📥 신규 게임 ${newGames.length}개 추가 시도 중...`);
+          console.log(`   샘플 게임 5개:`, newGames.slice(0, 5).map(g => `${g.name} (ID:${g.id}, provider:${g.provider_id}, type:${g.type})`));
+          
+          const { error: insertError, data: insertedData } = await supabase
+            .from('games')
+            .insert(newGames)
+            .select('id');
+
+          if (insertError) {
+            console.error('❌ 신규 게임 추가 오류:', insertError);
+            console.error('   에러 상세:', {
+              message: insertError.message,
+              details: insertError.details,
+              hint: insertError.hint,
+              code: insertError.code
+            });
+          } else {
+            const actualInserted = insertedData?.length || 0;
+            console.log(`✅ 신규 게임 ${actualInserted}개 추가 완료 (시도: ${newGames.length}개)`);
+            if (actualInserted < newGames.length) {
+              console.warn(`⚠️ 일부 게임이 추가되지 않음: ${newGames.length - actualInserted}개 누락`);
+            }
+            totalNew += actualInserted;
+          }
+        }
+
+        // 기존 게임 업데이트
+        if (existingToUpdate.length > 0) {
+          for (const game of existingToUpdate) {
+            const { error: updateError } = await supabase
+              .from('games')
+              .update({
+                name: game.name,
+                image_url: game.image_url,
+                updated_at: timestamp,
+              })
+              .eq('id', game.id);
+
+            if (!updateError) {
+              totalUpdated += 1;
+            }
+          }
+          console.log(`✅ 기존 게임 ${existingToUpdate.length}개 업데이트 완료`);
+        }
+
+        totalGames += processedGames.length;
+
+        // API Rate Limit 고려
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+      } catch (error: any) {
+        console.warn(`⚠️ ${provider.name}: ${error.message || error}`);
+        continue;
+      }
+    }
+
+    console.log(`🎯 FamilyAPI 전체 동기화 완료: 신규 ${totalNew}, 업데이트 ${totalUpdated}, 총 ${totalGames}`);
+    
+    // ⚠️ 실제 DB에 저장된 FamilyAPI 게임 수 확인
+    const { data: dbGames, error: dbError } = await supabase
+      .from('games')
+      .select('id, type, provider_id', { count: 'exact' })
+      .eq('api_type', 'familyapi');
+    
+    if (!dbError && dbGames) {
+      const casinoCount = dbGames.filter(g => g.type === 'casino').length;
+      const slotCount = dbGames.filter(g => g.type === 'slot').length;
+      console.log(`📊 [DB 확인] FamilyAPI 게임 총 ${dbGames.length}개 저장됨 (카지노: ${casinoCount}, 슬롯: ${slotCount})`);
+    }
+
+    return {
+      newGames: totalNew,
+      updatedGames: totalUpdated,
+      totalGames: totalGames,
+    };
+
+  } catch (error) {
+    console.error('❌ FamilyAPI 게임 동기화 실패:', error);
+    throw error;
+  }
+}
+
+/**
  * gameCode를 해시하여 고유한 숫자 ID 생성
  */
 function hashGameCode(vendorCode: string, gameCode: string): number {
@@ -741,6 +1350,37 @@ function hashGameCode(vendorCode: string, gameCode: string): number {
   return Math.abs(hash % 900000) + 2000000;
 }
 
+/**
+ * FamilyAPI gameCode를 해시하여 고유한 숫자 ID 생성
+ * ⚠️ vendorCode + gameCode를 조합하여 제공사별로 고유한 ID 생성
+ */
+function hashFamilyApiGameCode(vendorCode: string, gameCode: string): number {
+  // vendorCode + gameCode를 조합하여 해시 생성 (제공사별로 고유 ID)
+  const combined = `${vendorCode}_${gameCode}`;
+  let hash = 0;
+  for (let i = 0; i < combined.length; i++) {
+    const char = combined.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  // FamilyAPI 게임 ID는 3000000 이상으로 설정 (OroPlay와 겹치지 않도록)
+  return Math.abs(hash % 900000) + 3000000;
+}
+
+/**
+ * FamilyAPI 카지노 로비 게임 ID 생성
+ */
+function hashFamilyApiLobbyId(vendorCode: string): number {
+  let hash = 0;
+  for (let i = 0; i < vendorCode.length; i++) {
+    const char = vendorCode.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  // FamilyAPI 카지노 로비 ID는 3900000 이상으로 설정
+  return Math.abs(hash % 100000) + 3900000;
+}
+
 // ============================================
 // 3. 게임 조회
 // ============================================
@@ -749,29 +1389,38 @@ function hashGameCode(vendorCode: string, gameCode: string): number {
  * 게임 목록 조회
  */
 export async function getGames(filters?: {
-  api_type?: 'invest' | 'oroplay';
+  api_type?: 'invest' | 'oroplay' | 'familyapi';
   type?: 'slot' | 'casino' | 'minigame';
   provider_id?: number;
   status?: 'visible' | 'maintenance' | 'hidden';
   is_visible?: boolean;
   search?: string;
 }): Promise<Game[]> {
-  let query = supabase
-    .from('games')
-    .select(`
-      *,
-      game_providers!inner(
-        id,
-        name,
-        type,
-        api_type
-      )
-    `)
-    .order('priority', { ascending: false })
-    .order('name', { ascending: true });
+  // ⚠️ Supabase는 limit(10000)을 설정해도 실제로는 1000개까지만 반환
+  // 페이지네이션으로 전체 데이터 가져오기
+  const PAGE_SIZE = 1000;
+  let allGames: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from('games')
+      .select(`
+        *,
+        game_providers(
+          id,
+          name,
+          type,
+          api_type
+        )
+      `)
+      .order('priority', { ascending: false })
+      .order('name', { ascending: true })
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
 
   if (filters?.api_type) {
-    query = query.eq('game_providers.api_type', filters.api_type);
+    query = query.eq('api_type', filters.api_type);
   }
 
   if (filters?.type) {
@@ -794,19 +1443,28 @@ export async function getGames(filters?: {
     query = query.ilike('name', `%${filters.search}%`);
   }
 
-  const { data, error } = await query;
+    const { data, error } = await query;
 
-  if (error) {
-    console.error('❌ 게임 조회 오류:', error);
-    throw error;
+    if (error) {
+      console.error('❌ 게임 조회 오류:', error);
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      hasMore = false;
+    } else {
+      allGames = allGames.concat(data);
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    }
   }
 
-  const mappedData = (data || []).map(game => ({
+  const mappedData = allGames.map(game => ({
     ...game,
     provider_name: game.game_providers?.name || '알 수 없음',
   }));
 
-  console.log(`📊 게임 조회: ${mappedData.length}개`, filters);
+  console.log(`📊 게임 조회: ${mappedData.length}개 (${page}페이지)`, filters);
 
   return mappedData;
 }
@@ -1010,19 +1668,65 @@ export async function getUserVisibleGames(filters?: {
   });
 }
 
+// getUserVisibleProviders 함수 패치
+// 이 내용을 lib/gameApi.ts의 1244-1256번 라인에 덮어쓰세요
+
 /**
- * 사용자에게 노출할 제공���만 조회
+ * 사용자에게 노출할 제공사만 조회
+ * ✅ Lv1의 api_configs.is_active도 함께 체크
+ * ✅ 누락된 제공사 자동 생성
  */
 export async function getUserVisibleProviders(filters?: {
-  api_type?: 'invest' | 'oroplay';
+  api_type?: 'invest' | 'oroplay' | 'familyapi';
   type?: 'slot' | 'casino' | 'minigame';
 }): Promise<GameProvider[]> {
-  return getProviders({
-    ...filters,
-    is_visible: true,
-    status: 'visible',
-  });
+  try {
+    // 0. 누락된 제공사 자동 생성 (게임은 있지만 제공사가 없는 경우)
+    await ensureMissingProviders();
+
+    // 1. Lv1 파트너 ID 조회
+    const { data: lv1Partner } = await supabase
+      .from('partners')
+      .select('id')
+      .eq('level', 1)
+      .limit(1)
+      .maybeSingle();
+
+    if (!lv1Partner) {
+      console.warn('⚠️ Lv1 파트너를 찾을 수 없습니다');
+      return [];
+    }
+
+    // 2. 활성화된 API 조회
+    const { data: apiConfigs } = await supabase
+      .from('api_configs')
+      .select('api_provider, is_active')
+      .eq('partner_id', lv1Partner.id)
+      .eq('is_active', true);
+
+    const activeApis = new Set(apiConfigs?.map(c => c.api_provider) || []);
+    
+    console.log('✅ 활성화된 API:', Array.from(activeApis));
+
+    // 3. 제공사 조회 (status='visible' AND is_visible=true)
+    const providers = await getProviders({
+      ...filters,
+      is_visible: true,
+      status: 'visible',
+    });
+
+    // 4. 활성화된 API의 제공사만 필터링
+    const filteredProviders = providers.filter(p => activeApis.has(p.api_type));
+    
+    console.log(`📊 [사용자 제공사] 전체: ${providers.length}개 → 활성화된 API: ${filteredProviders.length}개`);
+    
+    return filteredProviders;
+  } catch (error) {
+    console.error('❌ 사용자 제공사 조회 오류:', error);
+    return [];
+  }
 }
+
 
 // ============================================
 // 7. 게임 실행
@@ -1144,11 +1848,29 @@ export async function launchGame(
 
     console.log('✅ 최상위 파트너 ID:', topLevelPartnerId);
 
-    // 4. API 타입별로 분기
+    // 4. API 활성화 상태 체크
+    const { data: apiConfig } = await supabase
+      .from('api_configs')
+      .select('is_active')
+      .eq('partner_id', topLevelPartnerId)
+      .eq('api_provider', game.api_type)
+      .maybeSingle();
+
+    if (!apiConfig || apiConfig.is_active === false) {
+      console.error('❌ API가 비활성화되어 있습니다:', game.api_type);
+      return {
+        success: false,
+        error: '현재 이 게임 제공사는 사용할 수 없습니다. 관리자에게 문의하세요.'
+      };
+    }
+
+    // 5. API 타입별로 분기
     if (game.api_type === 'invest') {
       return await launchInvestGame(topLevelPartnerId, userUsername, gameId);
     } else if (game.api_type === 'oroplay') {
       return await launchOroPlayGame(topLevelPartnerId, userUsername, game);
+    } else if (game.api_type === 'familyapi') {
+      return await launchFamilyApiGame(topLevelPartnerId, userUsername, game);
     } else {
       console.error('❌ 알 수 없는 API 타입:', game.api_type);
       return {
@@ -1182,6 +1904,18 @@ async function launchInvestGame(
   console.log('🎮 Invest API 게임 실행:', { partnerId, username, gameId });
 
   try {
+    // ✅ Invest API 활성화 체크
+    const { checkApiActiveByPartnerId } = await import('./apiStatusChecker');
+    const isInvestActive = await checkApiActiveByPartnerId(partnerId, 'invest');
+    
+    if (!isInvestActive) {
+      console.error('❌ Invest API가 비활성화되어 있습니다');
+      return {
+        success: false,
+        error: 'Invest API가 현재 비활성화되어 있습니다. 관리자에게 문의하세요.'
+      };
+    }
+    
     // API 설정 조회
     const { data: apiConfig, error: configError } = await supabase
       .from('api_configs')
@@ -1281,7 +2015,30 @@ async function launchInvestGame(
     
     console.log(`✅ [Optimistic Update] api_configs 차감 완료: ${currentBalance} → ${currentBalance - userBalance}`);
 
-    // ⭐ 3. 외부 API에 입금 (POST /api/account/balance)
+    // ⭐ 3. 회원 생성 API 먼저 호출 (이미 존재하면 성공 처리)
+    console.log(`👤 [회원 생성] Invest API 회원 생성 시작: ${username}`);
+    try {
+      const createResult = await investApi.createAccount(
+        apiConfig.opcode,
+        username,
+        apiConfig.secret_key
+      );
+      
+      if (createResult.success) {
+        console.log(`✅ [회원 생성] 회원 생성 완료 (또는 이미 존재):`, createResult.data);
+        // token이 반환되면 업데이트
+        if (createResult.data?.token) {
+          apiConfig.token = createResult.data.token;
+        }
+      } else {
+        // 회원 생성 실패는 치명적이지 않음 (이미 존재할 수 있음)
+        console.warn(`⚠️ [회원 생성] 응답:`, createResult.error);
+      }
+    } catch (createError) {
+      console.warn(`⚠️ [회원 생성] 오류 (계속 진행):`, createError);
+    }
+
+    // ⭐ 4. 외부 API에 입금 (POST /api/account/balance)
     // ✅ GMS 보유금은 그대로 유지! (0으로 만들지 않음)
     // ✅ 베팅 기록 동기화(PATCH)를 통해서만 GMS 증감
     let apiBalance = 0;
@@ -1343,7 +2100,7 @@ async function launchInvestGame(
       };
     }
 
-    // ⭐ 4. 게임 실행 URL 조회
+    // ⭐ 5. 게임 실행 URL 조회
     const result = await investApi.launchGame(
       apiConfig.opcode,
       username,
@@ -1455,6 +2212,18 @@ async function launchOroPlayGame(
   });
 
   try {
+    // ✅ OroPlay API 활성화 체크
+    const { checkApiActiveByPartnerId } = await import('./apiStatusChecker');
+    const isOroPlayActive = await checkApiActiveByPartnerId(partnerId, 'oroplay');
+    
+    if (!isOroPlayActive) {
+      console.error('❌ OroPlay API가 비활성화되어 있습니다');
+      return {
+        success: false,
+        error: 'OroPlay API가 현재 비활성화되어 있습니다. 관리자에게 문의하세요.'
+      };
+    }
+    
     // ⭐ 1. 사용자 DB 보유금 조회
     const { data: userData, error: userError } = await supabase
       .from('users')
@@ -1554,7 +2323,23 @@ async function launchOroPlayGame(
       };
     }
 
-    // ⭐ 4. 외부 API에 입금 (POST /user/deposit)
+    // ⭐ 4. 회원 생성 API 먼저 호출 (이미 존재하면 성공 처리)
+    console.log(`👤 [회원 생성] OroPlay API 회원 생성 시작: ${username}`);
+    try {
+      const createResult = await oroplayApi.createUser(token, username);
+      
+      if (createResult.success || createResult.errorCode === 1) {
+        // errorCode 1 = 이미 존재하는 회원 (정상 처리)
+        console.log(`✅ [회원 생성] 회원 생성 완료 (또는 이미 존재)`);
+      } else {
+        // 회원 생성 실패는 치명적이지 않음
+        console.warn(`⚠️ [회원 생성] 응답:`, createResult);
+      }
+    } catch (createError) {
+      console.warn(`⚠️ [회원 생성] 오류 (계속 진행):`, createError);
+    }
+
+    // ⭐ 5. 외부 API에 입금 (POST /user/deposit)
     // ✅ GMS 보유금은 그대로 유지! (0으로 만들지 않음)
     // ✅ 베팅 기록 동기화(PATCH)를 통해서만 GMS 증감
     try {
@@ -1611,7 +2396,7 @@ async function launchOroPlayGame(
       };
     }
 
-    // ⭐ 5. 게임 실행 URL 조회
+    // ⭐ 6. 게임 실행 URL 조회
     const launchUrl = await oroplayApi.getLaunchUrl(
       token,
       game.vendor_code,
@@ -1700,6 +2485,189 @@ async function launchOroPlayGame(
   }
 }
 
+/**
+ * FamilyAPI 게임 실행
+ */
+async function launchFamilyApiGame(
+  partnerId: string,
+  username: string,
+  game: any
+): Promise<{
+  success: boolean;
+  launch_url?: string;
+  game_url?: string;
+  error?: string;
+}> {
+  console.log('🎮 FamilyAPI 게임 실행:', {
+    partnerId,
+    username,
+    vendorCode: game.vendor_code,
+    gameCode: game.game_code
+  });
+
+  try {
+    // ✅ FamilyAPI 활성화 체크
+    const { checkApiActiveByPartnerId } = await import('./apiStatusChecker');
+    const isFamilyApiActive = await checkApiActiveByPartnerId(partnerId, 'familyapi');
+    
+    if (!isFamilyApiActive) {
+      console.error('❌ FamilyAPI가 비활성화되어 있습니다');
+      return {
+        success: false,
+        error: 'FamilyAPI가 현재 비활성화되어 있습니다. 관리자에게 문의하세요.'
+      };
+    }
+    
+    // ⭐ 1. 사용자 DB 보유금 조회
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, balance, referrer_id')
+      .eq('username', username)
+      .single();
+
+    if (userError || !userData) {
+      console.error('❌ 사용자 정보 조회 실패:', userError);
+      return {
+        success: false,
+        error: '사용자 정보를 찾을 수 없습니다.'
+      };
+    }
+
+    const userBalance = userData.balance || 0;
+    
+    if (userBalance <= 0) {
+      console.error('❌ 보유금 부족:', userBalance);
+      return {
+        success: false,
+        error: '보유금이 부족합니다. 입금 후 이용해주세요.'
+      };
+    }
+
+    console.log(`💰 [게임 시작] 사용자 GMS 보유금: ${userBalance}원`);
+
+    // ⭐ 2. FamilyAPI 설정 조회 (Lv1 partner_id 필요)
+    const topLevelPartnerId = await getTopLevelPartnerId(userData.referrer_id);
+    
+    const { data: apiConfig, error: configError } = await supabase
+      .from('api_configs')
+      .select('partner_id, api_key, balance')
+      .eq('partner_id', topLevelPartnerId)
+      .eq('api_provider', 'familyapi')
+      .single();
+
+    if (configError || !apiConfig?.api_key) {
+      console.error('❌ FamilyAPI 설정 없음:', configError);
+      return {
+        success: false,
+        error: 'FamilyAPI 설정을 찾을 수 없습니다.'
+      };
+    }
+
+    // ⭐ 3. Lv2 파트너의 familyapi_balance 조회 (직접 부모 조회)
+    const { data: directParent } = await supabase
+      .from('partners')
+      .select('id, level, familyapi_balance')
+      .eq('id', userData.referrer_id)
+      .single();
+
+    const currentBalance = apiConfig.balance || 0;
+    console.log(`📊 [FamilyAPI] 현재 API 보유금: ${currentBalance}원`);
+
+    // ⭐ Lv2 파트너의 familyapi_balance 검증
+    if (directParent?.level === 2) {
+      const lv2Balance = directParent.familyapi_balance || 0;
+      console.log(`📊 [Lv2] FamilyAPI 잔고: ${lv2Balance}원`);
+      
+      if (lv2Balance < userBalance) {
+        console.error(`❌ Lv2 FamilyAPI 잔고 부족: ${lv2Balance} < ${userBalance}`);
+        return {
+          success: false,
+          error: 'FamilyAPI 보유금이 부족합니다.'
+        };
+      }
+    }
+
+    // ✅ Seamless 방식: 잔고 검증만 수행 (차감하지 않음)
+    console.log(`ℹ️ [Seamless Wallet] FamilyAPI는 callback으로 잔고를 실시간 관리합니다.`);
+    console.log(`ℹ️ [Seamless] deposit API 생략 - 게임 진입 시 callback 자동 호출됨`);
+
+    // ⭐ 4. FamilyAPI 게임 접속 인증 먼저 호출 (계정 생성 + 토큰 발급)
+    let gameAuthResult;
+    try {
+      gameAuthResult = await familyApi.authGame(apiConfig.api_key, {
+        userId: username,
+        nickName: username,
+        userIp: '1.2.3.4',
+        balance: userBalance // ✅ Seamless: 실제 GMS 잔고 전달
+      });
+
+      if (!gameAuthResult.token) {
+        throw new Error('게임 인증 토큰을 받지 못했습니다.');
+      }
+
+      console.log('✅ [게임 인증] api/auth 호출 성공, 계정 생성 및 토큰 발급 완료');
+    } catch (authError) {
+      console.error('❌ FamilyAPI 게임 인증 실패:', authError);
+      return {
+        success: false,
+        error: `게임 인증 실패: ${authError instanceof Error ? authError.message : '알 수 없는 오류'}`
+      };
+    }
+
+    // ✅ Seamless 방식: deposit API 호출 생략
+    // callback이 호출되면 그때 잔고 증감 처리
+
+    // ⭐ 5. 게임 실행 URL 조회 (api/play 호출 - 게임 인증 토큰 사용)
+    const launchResult = await familyApi.playGame(apiConfig.api_key, gameAuthResult.token, {
+      userId: username,
+      vendorKey: game.vendor_code,
+      gameKey: game.game_code,
+      balance: userBalance,
+      isMobile: 'N',
+      userIp: '1.2.3.4' // 모든 API 호출에 고정 IP 사용
+      // ⭐ callbackUrl 제거 - FamilyAPI는 사전 등록된 URL 사용
+    });
+
+    if (launchResult.gameurl) {
+      console.log(`✅ [게임 실행] URL 생성 완료`);
+      console.log(`ℹ️ [Seamless] 게임 진입 시 /balance callback이 자동 호출됩니다.`);
+      
+      // ⭐ 6. launch_url을 세션에 저장
+      await supabase
+        .from('game_launch_sessions')
+        .insert({
+          user_id: userData.id,
+          api_type: 'familyapi',
+          game_id: game.id,
+          status: 'pending',
+          launch_url: launchResult.gameurl,
+          initial_balance: userBalance,
+          opcode: null  // ⭐ FamilyAPI는 opcode 불필요
+        });
+      
+      return {
+        success: true,
+        launch_url: launchResult.gameurl,
+        game_url: launchResult.gameurl
+      };
+    }
+
+    // ✅ Seamless 방식: 게임 URL 실패 시 원복 불필요 (deposit 안했으므로)
+    console.error('❌ 게임 실행 실패: 게임 URL을 받지 못했습니다');
+    return {
+      success: false,
+      error: '게임 URL을 가져올 수 없습니다.'
+    };
+
+  } catch (error) {
+    console.error('❌ FamilyAPI 게임 실행 오류:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '게임 실행 중 오류가 발생했습니다.'
+    };
+  }
+}
+
 // ============================================
 // 8. 게임 세션 관리
 // ============================================
@@ -1709,7 +2677,7 @@ async function launchOroPlayGame(
  */
 export async function checkActiveSession(userId: string): Promise<{
   isActive: boolean;
-  api_type?: 'invest' | 'oroplay';
+  api_type?: 'invest' | 'oroplay' | 'familyapi';
   game_name?: string;
   session_id?: number;
   game_id?: number;
@@ -1760,7 +2728,7 @@ export async function checkActiveSession(userId: string): Promise<{
 
     return {
       isActive: true,
-      api_type: data.api_type as 'invest' | 'oroplay',
+      api_type: data.api_type as 'invest' | 'oroplay' | 'familyapi',
       game_name: gameName,
       session_id: data.id,
       game_id: data.game_id,
@@ -1838,11 +2806,12 @@ export async function generateGameLaunchUrl(
     }
 
     // 4. ⭐ Lv1 파트너의 API 설정 조회 (api_provider 필터 추가)
+    const apiProvider = game.api_type === 'invest' ? 'invest' : game.api_type === 'oroplay' ? 'oroplay' : 'familyapi';
     const { data: apiConfig, error: configError } = await supabase
       .from('api_configs')
-      .select('opcode, client_id, client_secret')
+      .select('opcode, client_id, client_secret, api_key')
       .eq('partner_id', topLevelPartnerId)
-      .eq('api_provider', game.api_type === 'invest' ? 'invest' : 'oroplay')
+      .eq('api_provider', apiProvider)
       .single();
 
     if (configError || !apiConfig) {
@@ -1875,31 +2844,48 @@ export async function generateGameLaunchUrl(
           error: 'OroPlay API 설정이 완료되지 않았습니다.'
         };
       }
+    } else if (game.api_type === 'familyapi') {
+      // ⭐ FamilyAPI는 opcode를 사용하지 않음! API Key만 필요
+      if (!apiConfig.api_key) {
+        console.error('❌ FamilyAPI API Key가 설정되지 않았습니다.');
+        return {
+          success: false,
+          error: 'FamilyAPI 설정이 완료되지 않았습니다.'
+        };
+      }
+      // opcode는 null로 설정 (FamilyAPI는 사용하지 않음)
+      opcode = null;
     }
 
     // 5. 세션 ID 생성 (16자리 랜덤)
     const sessionId = Math.random().toString(36).substring(2, 18).padEnd(16, '0');
 
     // 6. 게임 세션 생성 (⭐ FINAL_FLOW: status='ready'로 시작)
+    const sessionData: any = {
+      user_id: userId,
+      game_id: gameId,
+      partner_id: topLevelPartnerId,
+      session_id: sessionId,
+      api_type: game.api_type,
+      status: 'ready',  // ⭐ 첫 베팅 전까지는 ready 상태
+      ready_at: new Date().toISOString(),  // ⭐ ready 타임아웃 시작
+      launched_at: new Date().toISOString(),
+      last_activity_at: new Date().toISOString()
+    };
+
+    // ⭐ FamilyAPI는 opcode를 사용하지 않으므로 opcode가 있을 때만 추가
+    if (opcode) {
+      sessionData.opcode = opcode;
+    }
+
     const { data: session, error: sessionError } = await supabase
       .from('game_launch_sessions')
-      .insert({
-        user_id: userId,
-        game_id: gameId,
-        opcode: opcode,
-        partner_id: topLevelPartnerId,
-        session_id: sessionId,
-        api_type: game.api_type,
-        status: 'ready',  // ⭐ 첫 베팅 전까지는 ready 상태
-        ready_at: new Date().toISOString(),  // ⭐ ready 타임아웃 시작
-        launched_at: new Date().toISOString(),
-        last_activity_at: new Date().toISOString()
-      })
+      .insert(sessionData)
       .select()
       .single();
 
     if (sessionError || !session) {
-      console.error('❌ 세션 생성 실패:', sessionError);
+      console.error('❌ ❌ 세션 생성 실패:', sessionError);
       return {
         success: false,
         error: '게임 세션 생성에 실패했습니다.'
@@ -1954,8 +2940,10 @@ export async function generateGameLaunchUrl(
 // Export all functions
 export const gameApi = {
   // 제공사 관리
+  syncAllProviders, // ✅ 통합 함수
   initializeInvestProviders,
   syncOroPlayProviders,
+  syncFamilyApiProviders,
   getProviders,
   getUserVisibleProviders,
 
@@ -1963,6 +2951,7 @@ export const gameApi = {
   syncInvestGames,
   syncAllInvestGames,
   syncOroPlayGames,
+  syncFamilyApiGames,
 
   // 게임 조회
   getGames,
@@ -1995,7 +2984,7 @@ export const gameApi = {
  */
 export async function syncBalanceOnSessionEnd(
   userId: string,
-  apiType: 'invest' | 'oroplay'
+  apiType: 'invest' | 'oroplay' | 'familyapi'
 ): Promise<void> {
   try {
     // 1. 사용자 정보 조회
@@ -2016,11 +3005,12 @@ export async function syncBalanceOnSessionEnd(
     }
 
     // ⭐ api_provider 필터 추가
+    const apiProvider = apiType === 'invest' ? 'invest' : apiType === 'oroplay' ? 'oroplay' : 'familyapi';
     const { data: apiConfig, error: configError } = await supabase
       .from('api_configs')
       .select('*')
       .eq('partner_id', topLevelPartnerId)
-      .eq('api_provider', apiType === 'invest' ? 'invest' : 'oroplay')
+      .eq('api_provider', apiProvider)
       .single();
 
     if (configError || !apiConfig) {
@@ -2041,13 +3031,23 @@ export async function syncBalanceOnSessionEnd(
       if (balanceResult.success && balanceResult.balance !== undefined) {
         currentBalance = balanceResult.balance;
       }
-    } else {
+    } else if (apiType === 'oroplay') {
       // ⭐ OroPlay API 보유금 조회
       const token = await oroplayApi.getToken(topLevelPartnerId);
       if (token) {
         // ⭐ getUserBalance는 숫자를 직접 반환함 (객체 아님)
         currentBalance = await oroplayApi.getUserBalance(token, user.username);
       }
+    } else if (apiType === 'familyapi') {
+      // ⭐ FamilyAPI는 개별 유저 잔고 조회를 지원하지 않음
+      // 게임 세션 종료 시 사용자의 GMS 잔고를 그대로 사용
+      const { data: userData } = await supabase
+        .from('users')
+        .select('balance')
+        .eq('id', userId)
+        .single();
+      
+      currentBalance = userData?.balance || 0;
     }
 
     console.log(`💰 [세션 종료] API 보유금 조회 완료: ${currentBalance}원`);
@@ -2099,7 +3099,7 @@ export async function syncBalanceOnSessionEnd(
             console.log(`✅ [세션 종료] api_configs.balance 업데이트 완료`);
           }
         }
-      } else {
+      } else if (apiType === 'oroplay') {
         // ⭐ OroPlay API 출금
         const token = await oroplayApi.getToken(topLevelPartnerId);
         if (token) {
@@ -2135,6 +3135,11 @@ export async function syncBalanceOnSessionEnd(
             }
           }
         }
+      } else if (apiType === 'familyapi') {
+        // ✅ Seamless 방식: withdrawal API 호출 생략
+        // callback을 통해 실시간으로 잔고가 관리되므로, 게임 종료 시 별도 처리 불필요
+        console.log('ℹ️ [FamilyAPI Seamless] 게임 종료 - withdrawal 호출 생략');
+        console.log('ℹ️ [FamilyAPI Seamless] 잔고는 callback을 통해 실시간으로 관리되었습니다.');
       }
     }
 
@@ -2165,7 +3170,7 @@ export async function syncBalanceOnSessionEnd(
  */
 export async function syncUserBalance(
   userId: string,
-  apiType: 'invest' | 'oroplay'
+  apiType: 'invest' | 'oroplay' | 'familyapi'
 ): Promise<number> {
   try {
     // 1. 사용자 정보 조회
@@ -2186,11 +3191,12 @@ export async function syncUserBalance(
     }
 
     // ⭐ api_provider 필터 추가
+    const apiProvider = apiType === 'invest' ? 'invest' : apiType === 'oroplay' ? 'oroplay' : 'familyapi';
     const { data: apiConfig, error: configError } = await supabase
       .from('api_configs')
       .select('*')
       .eq('partner_id', topLevelPartnerId)
-      .eq('api_provider', apiType === 'invest' ? 'invest' : 'oroplay')
+      .eq('api_provider', apiProvider)
       .single();
 
     if (configError || !apiConfig) {
@@ -2211,13 +3217,23 @@ export async function syncUserBalance(
       if (balanceResult.success && balanceResult.balance !== undefined) {
         currentBalance = balanceResult.balance;
       }
-    } else {
+    } else if (apiType === 'oroplay') {
       // ⭐ OroPlay API 보유금 조회
       const token = await oroplayApi.getToken(topLevelPartnerId);
       if (token) {
         // ⭐ getUserBalance는 숫자를 직접 반환함 (객체 아님)
         currentBalance = await oroplayApi.getUserBalance(token, user.username);
       }
+    } else if (apiType === 'familyapi') {
+      // ⭐ FamilyAPI는 개별 유저 잔고 조회를 지원하지 않음
+      // 현재 사용자의 GMS 잔고를 그대로 사용
+      const { data: userData } = await supabase
+        .from('users')
+        .select('balance')
+        .eq('id', userId)
+        .single();
+      
+      currentBalance = userData?.balance || 0;
     }
 
     console.log(`💰 [출금 페이지] API 보유금 조회 완료: ${currentBalance}원`);
