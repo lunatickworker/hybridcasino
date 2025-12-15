@@ -19,6 +19,7 @@ import { calculateChildPartnersCommission, PartnerCommissionInfo } from "../../l
 import { executePartnerCommissionSettlement } from "../../lib/settlementExecutor";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { getTodayStartUTC, getTomorrowStartUTC } from "../../utils/timezone";
+import { motion, AnimatePresence } from "motion/react";
 
 interface CommissionSettlementProps {
   user: Partner;
@@ -285,7 +286,22 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
       </div>
 
       {/* 통계 카드 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-5 relative">
+        {/* Smooth overlay loading */}
+        <AnimatePresence>
+          {refreshing && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm rounded-lg z-10 flex items-center justify-center"
+            >
+              <LoadingSpinner />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
         <MetricCard
           title={t.settlement.rollingCommission}
           value={`₩${stats.totalRollingCommission.toLocaleString()}`}
@@ -317,7 +333,22 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
       </div>
 
       {/* 수수료 테이블 */}
-      <Card>
+      <Card className="relative">
+        {/* Smooth overlay loading */}
+        <AnimatePresence>
+          {refreshing && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm rounded-lg z-10 flex items-center justify-center"
+            >
+              <LoadingSpinner />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex-1">
@@ -411,58 +442,67 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {commissions.map((comm) => (
-                    <tr key={comm.partner_id} className="border-b border-slate-800 hover:bg-slate-800/30">
-                      <td className="p-3">
-                        <div>
-                          <p className="text-white">{comm.partner_nickname}</p>
-                          <p className="text-xs text-slate-400">{comm.partner_username}</p>
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <Badge variant="outline">{getLevelText(comm.partner_level)}</Badge>
-                      </td>
-                      {/* 카지노 롤링 */}
-                      <td className="p-3 text-right">
-                        <div>
-                          <p className="text-blue-400">₩{comm.casino_rolling_commission_amount.toLocaleString()}</p>
-                          <p className="text-xs text-slate-500">{comm.casino_rolling_commission}% · ₩{comm.casino_bet_amount.toLocaleString()}</p>
-                        </div>
-                      </td>
-                      {/* 카지노 루징 */}
-                      <td className="p-3 text-right">
-                        <div>
-                          <p className="text-blue-400">₩{comm.casino_losing_commission_amount.toLocaleString()}</p>
-                          <p className="text-xs text-slate-500">{comm.casino_losing_commission}% · ₩{comm.casino_loss_amount.toLocaleString()}</p>
-                        </div>
-                      </td>
-                      {/* 슬롯 롤링 */}
-                      <td className="p-3 text-right">
-                        <div>
-                          <p className="text-purple-400">₩{comm.slot_rolling_commission_amount.toLocaleString()}</p>
-                          <p className="text-xs text-slate-500">{comm.slot_rolling_commission}% · ₩{comm.slot_bet_amount.toLocaleString()}</p>
-                        </div>
-                      </td>
-                      {/* 슬롯 루징 */}
-                      <td className="p-3 text-right">
-                        <div>
-                          <p className="text-purple-400">₩{comm.slot_losing_commission_amount.toLocaleString()}</p>
-                          <p className="text-xs text-slate-500">{comm.slot_losing_commission}% · ₩{comm.slot_loss_amount.toLocaleString()}</p>
-                        </div>
-                      </td>
-                      {/* 환전 수수료 */}
-                      <td className="p-3 text-right">
-                        <div>
-                          <p className="text-emerald-400">₩{comm.withdrawal_commission.toLocaleString()}</p>
-                          <p className="text-xs text-slate-500">{comm.withdrawal_fee}%</p>
-                        </div>
-                      </td>
-                      {/* 전체 커미션 */}
-                      <td className="p-3 text-right">
-                        <p className="text-orange-400 font-mono">₩{comm.total_commission.toLocaleString()}</p>
-                      </td>
-                    </tr>
-                  ))}
+                  <AnimatePresence mode="popLayout">
+                    {commissions.map((comm) => (
+                      <motion.tr
+                        key={comm.partner_id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="border-b border-slate-800 hover:bg-slate-800/30"
+                      >
+                        <td className="p-3">
+                          <div>
+                            <p className="text-white">{comm.partner_nickname}</p>
+                            <p className="text-xs text-slate-400">{comm.partner_username}</p>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <Badge variant="outline">{getLevelText(comm.partner_level)}</Badge>
+                        </td>
+                        {/* 카지노 롤링 */}
+                        <td className="p-3 text-right">
+                          <div>
+                            <p className="text-blue-400">₩{comm.casino_rolling_commission_amount.toLocaleString()}</p>
+                            <p className="text-xs text-slate-500">{comm.casino_rolling_commission}% · ₩{comm.casino_bet_amount.toLocaleString()}</p>
+                          </div>
+                        </td>
+                        {/* 카지노 루징 */}
+                        <td className="p-3 text-right">
+                          <div>
+                            <p className="text-blue-400">₩{comm.casino_losing_commission_amount.toLocaleString()}</p>
+                            <p className="text-xs text-slate-500">{comm.casino_losing_commission}% · ₩{comm.casino_loss_amount.toLocaleString()}</p>
+                          </div>
+                        </td>
+                        {/* 슬롯 롤링 */}
+                        <td className="p-3 text-right">
+                          <div>
+                            <p className="text-purple-400">₩{comm.slot_rolling_commission_amount.toLocaleString()}</p>
+                            <p className="text-xs text-slate-500">{comm.slot_rolling_commission}% · ₩{comm.slot_bet_amount.toLocaleString()}</p>
+                          </div>
+                        </td>
+                        {/* 슬롯 루징 */}
+                        <td className="p-3 text-right">
+                          <div>
+                            <p className="text-purple-400">₩{comm.slot_losing_commission_amount.toLocaleString()}</p>
+                            <p className="text-xs text-slate-500">{comm.slot_losing_commission}% · ₩{comm.slot_loss_amount.toLocaleString()}</p>
+                          </div>
+                        </td>
+                        {/* 환전 수수료 */}
+                        <td className="p-3 text-right">
+                          <div>
+                            <p className="text-emerald-400">₩{comm.withdrawal_commission.toLocaleString()}</p>
+                            <p className="text-xs text-slate-500">{comm.withdrawal_fee}%</p>
+                          </div>
+                        </td>
+                        {/* 전체 커미션 */}
+                        <td className="p-3 text-right">
+                          <p className="text-orange-400 font-mono">₩{comm.total_commission.toLocaleString()}</p>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-800/50 border-t-2 border-slate-600">

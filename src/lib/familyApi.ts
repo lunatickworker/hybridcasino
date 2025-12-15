@@ -23,7 +23,7 @@ interface ProxyConfig {
 async function proxyCall<T = any>(config: ProxyConfig): Promise<T> {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
     
     const response = await fetch(PROXY_URL, {
       method: 'POST',
@@ -74,7 +74,7 @@ async function proxyCall<T = any>(config: ProxyConfig): Promise<T> {
     
   } catch (error: any) {
     if (error.name === 'AbortError') {
-      throw new Error('API 호출 시간 초과 (30초)');
+      throw new Error('API 호출 시간 초과 (60초)');
     }
     throw error;
   }

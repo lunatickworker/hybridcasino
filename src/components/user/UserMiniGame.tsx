@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -41,7 +41,7 @@ interface UserMiniGameProps {
 }
 
 export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
-  const [selectedProvider, setSelectedProvider] = useState("all");
+  const [selectedProvider, setSelectedProvider] = useState("all"); // ✅ 이미 "all"로 설정되어 있음
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [games, setGames] = useState<Game[]>([]);
@@ -50,6 +50,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   const [launchingGameId, setLaunchingGameId] = useState<number | null>(null);
   const [showLoadingPopup, setShowLoadingPopup] = useState(false);
   const [loadingStage, setLoadingStage] = useState<'deposit' | 'launch' | 'withdraw' | 'switch_deposit'>('launch');
+  const [isInitialLoad, setIsInitialLoad] = useState(true); // ✅ 초기 로드 여부
   const isMountedRef = useRef(true);
   const { t } = useLanguage();
 
@@ -69,9 +70,8 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   }, []);
 
   useEffect(() => {
-    if (isMountedRef.current) {
-      loadMiniGames();
-    }
+    // selectedProvider 변경 시 게임 다시 로드하지 않음 (이미 모든 게임 로드됨)
+    // 제공사 필터링은 filteredGames에서 처리
   }, [selectedProvider, selectedCategory]);
 
   const initializeData = async () => {
@@ -80,13 +80,16 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     try {
       setLoading(true);
       
+      // 먼저 모든 게임 로드
+      await loadMiniGames();
+      
+      // 제공사 로드 후 게임이 있는 제공사만 필터링
       const providersData = await gameApi.getUserVisibleProviders({ type: 'minigame' });
       
       if (isMountedRef.current) {
         setProviders(providersData);
+        // ✅ 기본 선택 제거 - "all"이 기본값으로 유지됨
       }
-      
-      await loadMiniGames();
       
     } catch (error) {
       if (isMountedRef.current) {
@@ -96,6 +99,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
+        setIsInitialLoad(false); // ✅ 초기 로드 완료
       }
     }
   };
@@ -106,7 +110,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     try {
       setLoading(true);
 
-      // ✅ 게임 status만 체크하도록 간단하게 변경
+      // ✅ 모든 미니게임을 로드 (inner join 제거 - 제공사가 없어도 표시)
       let query = supabase
         .from('games')
         .select(`
@@ -119,19 +123,13 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
           is_featured,
           priority,
           api_type,
-          game_providers!inner(
+          game_providers(
             id,
             name,
             logo_url
           )
         `)
-        .eq('type', 'minigame')
-        .eq('status', 'visible');
-
-      // 제공사 필터링 (all이 아닐 때만)
-      if (selectedProvider !== 'all') {
-        query = query.eq('provider_id', parseInt(selectedProvider));
-      }
+        .eq('type', 'minigame');
 
       const { data: gamesData, error } = await query.order('priority', { ascending: false });
 
@@ -173,6 +171,14 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
       }
     }
   };
+
+  // 게임이 있는 제공사만 필터링
+  const filteredProviders = useMemo(() => {
+    return providers.filter(provider => {
+      const hasGames = games.some(game => game.provider_id === provider.id);
+      return hasGames;
+    });
+  }, [providers, games]);
 
   const handleGameClick = async (game: Game) => {
     if (launchingGameId === game.game_id) return;
@@ -423,31 +429,24 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   };
 
   const filteredGames = games.filter(game => {
-    const matchesSearch = searchTerm === '' || 
-                         game.game_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         game.provider_name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    let matchesCategory = true;
-    if (selectedCategory !== 'all') {
-      switch (selectedCategory) {
-        case 'featured':
-          matchesCategory = game.is_featured;
-          break;
-        case 'new':
-          matchesCategory = true;
-          break;
-        case 'quick':
-          matchesCategory = true;
-          break;
+    // 1️⃣ 제공사 필터링 (선택된 제공사만 표시)
+    if (selectedProvider && selectedProvider !== "all") {
+      if (game.provider_id.toString() !== selectedProvider) {
+        return false;
       }
     }
-    
-    let matchesProvider = true;
-    if (selectedProvider !== 'all') {
-      matchesProvider = game.provider_id === parseInt(selectedProvider);
+
+    // 2️⃣ 검색어 필터링
+    if (searchTerm.trim()) {
+      const search = searchTerm.toLowerCase();
+      const matchesName = game.game_name.toLowerCase().includes(search);
+      const matchesProvider = game.provider_name.toLowerCase().includes(search);
+      if (!matchesName && !matchesProvider) {
+        return false;
+      }
     }
-    
-    return matchesSearch && matchesCategory && matchesProvider;
+
+    return true;
   });
 
   return (
@@ -520,17 +519,17 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
         </div>
 
         {/* 제공사 선택 */}
-        {providers.length > 0 && (
+        {filteredProviders.length > 0 && (
           <GameProviderSelector
             selectedProvider={selectedProvider}
             onProviderChange={setSelectedProvider}
             gameType="minigame"
-            providers={providers}
+            providers={filteredProviders}
           />
         )}
 
         {/* 미니게임 목록 */}
-        {loading ? (
+        {isInitialLoad && loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {Array.from({ length: 10 }).map((_, i) => (
               <Card key={i} className="luxury-card animate-pulse border-green-600/20">

@@ -35,9 +35,10 @@ export async function getBettingStatsByGameType(
   userIds: string[],
   startDate: string,
   endDate: string,
-  apiFilter: 'all' | 'invest' | 'oroplay' = 'all'
+  apiFilter: 'all' | 'invest' | 'oroplay' | 'familyapi' = 'all'
 ): Promise<GameTypeBettingStats> {
   if (userIds.length === 0) {
+    console.log('[getBettingStatsByGameType] userIds가 비어있음');
     return {
       casino: { betAmount: 0, lossAmount: 0 },
       slot: { betAmount: 0, lossAmount: 0 },
@@ -45,19 +46,33 @@ export async function getBettingStatsByGameType(
     };
   }
 
+  console.log('[getBettingStatsByGameType] 조회 시작:', {
+    userCount: userIds.length,
+    startDate,
+    endDate,
+    apiFilter
+  });
+
   try {
     const CHUNK_SIZE = 100;
     let casinoBetAmount = 0;
     let casinoLossAmount = 0;
     let slotBetAmount = 0;
     let slotLossAmount = 0;
+    let totalRecords = 0;
 
     for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
       const chunk = userIds.slice(i, i + CHUNK_SIZE);
 
+      // ✅ games 테이블과 JOIN하여 game_type을 직접 가져옴
       let query = supabase
         .from('game_records')
-        .select('bet_amount, win_amount, game_type')
+        .select(`
+          bet_amount, 
+          win_amount, 
+          game_type,
+          games!inner(game_type)
+        `)
         .in('user_id', chunk)
         .gte('played_at', startDate)
         .lte('played_at', endDate);
@@ -74,11 +89,16 @@ export async function getBettingStatsByGameType(
       }
 
       if (bettingData && bettingData.length > 0) {
+        totalRecords += bettingData.length;
+
+        // 베팅 데이터 집계
         for (const record of bettingData) {
           const bet = record.bet_amount || 0;
           const win = record.win_amount || 0;
           const loss = bet - win;
-          const gameType = record.game_type || 'casino'; // 기본값: casino
+          
+          // ✅ game_records의 game_type이 있으면 사용, 없으면 games 테이블에서 가져온 값 사용
+          const gameType = record.game_type || (record.games as any)?.game_type || 'casino';
 
           if (gameType === 'slot') {
             slotBetAmount += bet;
@@ -90,6 +110,14 @@ export async function getBettingStatsByGameType(
         }
       }
     }
+
+    console.log('[getBettingStatsByGameType] 조회 완료:', {
+      totalRecords,
+      casinoBetAmount,
+      casinoLossAmount,
+      slotBetAmount,
+      slotLossAmount
+    });
 
     return {
       casino: {
@@ -112,88 +140,5 @@ export async function getBettingStatsByGameType(
       slot: { betAmount: 0, lossAmount: 0 },
       total: { betAmount: 0, lossAmount: 0 }
     };
-  }
-}
-
-/**
- * 모든 하위 사용자 ID를 일괄 조회 (재귀 제거)
- */
-export async function getDescendantUserIds(partnerId: string): Promise<string[]> {
-  const allUserIds: string[] = [];
-  const allPartnerIds: string[] = [partnerId];
-  
-  let currentLevelIds = [partnerId];
-  
-  for (let level = 0; level < 5; level++) {
-    if (currentLevelIds.length === 0) break;
-    
-    const { data: nextLevelPartners } = await supabase
-      .from('partners')
-      .select('id')
-      .in('parent_id', currentLevelIds);
-    
-    if (nextLevelPartners && nextLevelPartners.length > 0) {
-      const nextIds = nextLevelPartners.map(p => p.id);
-      allPartnerIds.push(...nextIds);
-      currentLevelIds = nextIds;
-    } else {
-      break;
-    }
-  }
-  
-  if (allPartnerIds.length > 0) {
-    const { data: users } = await supabase
-      .from('users')
-      .select('id')
-      .in('referrer_id', allPartnerIds);
-    
-    if (users) {
-      allUserIds.push(...users.map(u => u.id));
-    }
-  }
-
-  return allUserIds;
-}
-
-/**
- * 출금 총액 조회
- */
-export async function getWithdrawalAmount(
-  userIds: string[],
-  startDate: string,
-  endDate: string
-): Promise<number> {
-  if (userIds.length === 0) return 0;
-
-  try {
-    const CHUNK_SIZE = 100;
-    let totalWithdrawalAmount = 0;
-
-    for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
-      const chunk = userIds.slice(i, i + CHUNK_SIZE);
-
-      const { data: withdrawalData, error } = await supabase
-        .from('transactions')
-        .select('amount')
-        .in('user_id', chunk)
-        .eq('transaction_type', 'withdrawal')
-        .eq('status', 'approved')
-        .gte('created_at', startDate)
-        .lte('created_at', endDate);
-
-      if (error) {
-        console.error('출금 데이터 조회 오류 (chunk):', error);
-        continue;
-      }
-
-      if (withdrawalData && withdrawalData.length > 0) {
-        totalWithdrawalAmount += withdrawalData.reduce((sum, tx) => sum + (tx.amount || 0), 0);
-      }
-    }
-
-    return totalWithdrawalAmount;
-  } catch (error) {
-    console.error('출금 총액 계산 실패:', error);
-    return 0;
   }
 }

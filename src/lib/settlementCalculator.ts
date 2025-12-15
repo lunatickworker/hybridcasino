@@ -6,6 +6,7 @@
  */
 
 import { supabase } from './supabase';
+import { getBettingStatsByGameType } from './settlementCalculatorV2';
 
 /**
  * 파트너 커미션 정보
@@ -112,6 +113,8 @@ export interface PartnerPaymentDetail {
  * @returns 모든 하위 사용자 ID 배열
  */
 export async function getDescendantUserIds(partnerId: string): Promise<string[]> {
+  console.log('[settlementCalculator.getDescendantUserIds] 조회 시작:', { partnerId });
+  
   const allUserIds: string[] = [];
   const allPartnerIds: string[] = [partnerId];
   
@@ -128,6 +131,7 @@ export async function getDescendantUserIds(partnerId: string): Promise<string[]>
     
     if (nextLevelPartners && nextLevelPartners.length > 0) {
       const nextIds = nextLevelPartners.map(p => p.id);
+      console.log(`[settlementCalculator.getDescendantUserIds] Level ${level + 1}: ${nextIds.length}개 하위 파트너 발견`);
       allPartnerIds.push(...nextIds);
       currentLevelIds = nextIds;
     } else {
@@ -135,18 +139,25 @@ export async function getDescendantUserIds(partnerId: string): Promise<string[]>
     }
   }
   
+  console.log('[settlementCalculator.getDescendantUserIds] 모든 파트너 ID:', allPartnerIds.length);
+  
   // 모든 파트너의 직속 사용자를 한 번에 조회
   if (allPartnerIds.length > 0) {
     const { data: users } = await supabase
       .from('users')
-      .select('id')
+      .select('id, username')
       .in('referrer_id', allPartnerIds);
     
     if (users) {
       allUserIds.push(...users.map(u => u.id));
+      console.log('[settlementCalculator.getDescendantUserIds] 사용자 조회 완료:', {
+        userCount: users.length,
+        usernames: users.map(u => u.username).slice(0, 10) // 첫 10개만 출력
+      });
     }
   }
 
+  console.log('[settlementCalculator.getDescendantUserIds] 최종 사용자 수:', allUserIds.length);
   return allUserIds;
 }
 
@@ -269,6 +280,55 @@ export async function getWithdrawalAmount(
 }
 
 /**
+ * 특정 기간의 만충금 조회
+ * @param userIds 사용자 ID 배열
+ * @param startDate 시작 날짜
+ * @param endDate 종료 날짜
+ * @returns 총 만충금
+ */
+export async function calculatePendingDeposits(
+  userIds: string[],
+  startDate: string,
+  endDate: string
+): Promise<number> {
+  if (userIds.length === 0) {
+    return 0;
+  }
+
+  try {
+    const CHUNK_SIZE = 100;
+    let totalPendingDeposits = 0;
+
+    for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
+      const chunk = userIds.slice(i, i + CHUNK_SIZE);
+
+      const { data: depositData, error } = await supabase
+        .from('transactions')
+        .select('amount')
+        .in('user_id', chunk)
+        .eq('transaction_type', 'deposit')
+        .eq('status', 'pending')
+        .gte('created_at', startDate)
+        .lte('created_at', endDate);
+
+      if (error) {
+        console.error('만충금 데이터 조회 오류 (chunk):', error);
+        continue;
+      }
+
+      if (depositData && depositData.length > 0) {
+        totalPendingDeposits += depositData.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+      }
+    }
+
+    return totalPendingDeposits;
+  } catch (error) {
+    console.error('만충금 계산 실패:', error);
+    return 0;
+  }
+}
+
+/**
  * 파트너의 커미션 계산 (직속 하위 정산 방식)
  * @param partnerId 파트너 ID
  * @param partner 파트너 정보 (commission_rolling, commission_losing, withdrawal_fee 포함)
@@ -331,7 +391,6 @@ export async function calculatePartnerCommission(
     }
 
     // ✅ 카지노/슬롯 구분 베팅 통계 조회
-    const { getBettingStatsByGameType } = await import('./settlementCalculatorV2');
     const stats = await getBettingStatsByGameType(
       descendantUserIds,
       startDate,
@@ -362,6 +421,32 @@ export async function calculatePartnerCommission(
     const rollingCommission = casinoRollingCommission + slotRollingCommission;
     const losingCommission = casinoLosingCommission + slotLosingCommission;
     const totalCommission = rollingCommission + losingCommission + withdrawalCommission;
+
+    // ✅ 디버깅용 상세 로그
+    console.log(`[calculatePartnerCommission] ${partner.nickname} (${partner.username})`, {
+      rates: {
+        casinoRolling: casinoRollingRate,
+        casinoLosing: casinoLosingRate,
+        slotRolling: slotRollingRate,
+        slotLosing: slotLosingRate,
+        withdrawal: partner.withdrawal_fee
+      },
+      stats: {
+        casinoBet: stats.casino.betAmount,
+        casinoLoss: stats.casino.lossAmount,
+        slotBet: stats.slot.betAmount,
+        slotLoss: stats.slot.lossAmount,
+        withdrawal: totalWithdrawalAmount
+      },
+      commissions: {
+        casinoRolling: casinoRollingCommission,
+        casinoLosing: casinoLosingCommission,
+        slotRolling: slotRollingCommission,
+        slotLosing: slotLosingCommission,
+        withdrawal: withdrawalCommission,
+        total: totalCommission
+      }
+    });
 
     return {
       partner_id: partnerId,
@@ -539,7 +624,6 @@ export async function calculateMyIncome(
     }
 
     // 카지노/슬롯 구분 베팅 통계 조회 (API 필터 적용)
-    const { getBettingStatsByGameType } = await import('./settlementCalculatorV2');
     const gameTypeStats = await getBettingStatsByGameType(
       descendantUserIds,
       startDate,
@@ -742,7 +826,6 @@ async function calculatePartnerPayment(
     }
 
     // 카지노/슬롯 베팅 통계 조회 (API 필터 적용)
-    const { getBettingStatsByGameType } = await import('./settlementCalculatorV2');
     const gameTypeStats = await getBettingStatsByGameType(
       descendantUserIds,
       startDate,
@@ -883,55 +966,5 @@ export async function calculateIntegratedSettlement(
       netLosingProfit: 0,
       netTotalProfit: 0
     };
-  }
-}
-
-/**
- * 만충금 계산 (pending deposits)
- * @param userIds 사용자 ID 배열
- * @param startDate 시작 날짜
- * @param endDate 종료 날짜
- * @returns 대기 중인 입금 총액
- */
-export async function calculatePendingDeposits(
-  userIds: string[],
-  startDate: string,
-  endDate: string
-): Promise<number> {
-  if (userIds.length === 0) {
-    return 0;
-  }
-
-  try {
-    // ⚡ 최적화: userIds가 너무 많으면 청크로 나누어 처리 (URL 길이 제한 방지)
-    const CHUNK_SIZE = 100;
-    let totalPendingAmount = 0;
-
-    for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
-      const chunk = userIds.slice(i, i + CHUNK_SIZE);
-
-      const { data: pendingData, error } = await supabase
-        .from('transactions')
-        .select('amount')
-        .eq('transaction_type', 'deposit')
-        .eq('status', 'pending')
-        .in('user_id', chunk)
-        .gte('created_at', startDate)
-        .lte('created_at', endDate);
-
-      if (error) {
-        console.error('만충금 조회 오류 (chunk):', error);
-        continue; // 에러 발생 시 해당 청크는 건너뛰고 계속 진행
-      }
-
-      if (pendingData && pendingData.length > 0) {
-        totalPendingAmount += pendingData.reduce((sum, tx) => sum + (tx.amount || 0), 0);
-      }
-    }
-
-    return totalPendingAmount;
-  } catch (error) {
-    console.error('만충금 계산 실패:', error);
-    return 0;
   }
 }

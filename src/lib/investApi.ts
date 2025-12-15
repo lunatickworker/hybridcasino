@@ -250,9 +250,9 @@ export async function callInvestApi(
         body
       };
       
-      // Timeout 설정 (30초)
+      // Timeout 설정 (60초) - 일부 제공사는 응답이 느릴 수 있음
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       
       const response = await fetch(PROXY_URL, {
         method: 'POST',
@@ -454,7 +454,7 @@ export async function callInvestApi(
           }
           return {
             data: null,
-            error: 'API 호출 타임아웃 (30초). Proxy 서버가 응답하지 않습니다.',
+            error: 'API 호출 타임아웃 (60초). Proxy 서버가 응답하지 않습니다.',
             status: 408
           };
         }

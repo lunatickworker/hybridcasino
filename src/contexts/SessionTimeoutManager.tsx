@@ -61,6 +61,8 @@ async function handleReadyTimeout() {
     
     for (const session of readySessions) {
       try {
+        console.log(`⏰ [세션 자동 종료 시작] user_id=${session.user_id}, api_type=${session.api_type}`);
+        
         // 보유금 동기화 + API 출금 + ended 상태 전환
         await syncBalanceOnSessionEnd(session.user_id, session.api_type);
         console.log(`✅ 세션 자동 종료 완료: user_id=${session.user_id}`);

@@ -5,6 +5,7 @@ import { AdminHeader } from "./AdminHeader";
 import { BettingHistorySync } from "./BettingHistorySync";
 import { BalanceSyncManager } from "./BalanceSyncManager";
 import { Lv2AutoSync } from "./Lv2AutoSync";
+import { AdminGameRecordsSync } from "./AdminGameRecordsSync";
 import { useAuth } from "../../contexts/AuthContext";
 import { useWebSocketContext } from "../../contexts/WebSocketContext";
 import { Partner } from "../../types";
@@ -51,6 +52,9 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
       {user.level === 2 && (
         <Lv2AutoSync user={user} />
       )}
+
+      {/* ✅ 관리자 페이지 열려있을 때 자동 게임 기록 동기화 (모든 레벨) */}
+      <AdminGameRecordsSync user={user} />
       
       <div className="h-screen flex w-full overflow-hidden bg-[#0a0e1a]">
         <div className={cn(

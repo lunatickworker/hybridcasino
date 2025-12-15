@@ -155,6 +155,7 @@ export const ko = {
     slotTotalBetting: '슬롯 총 배팅',
     marvelThemeDescription: '마블 테마의 새로운 사용자 페이지를 체험해보세요',
     experience: '체험하기',
+    openUserPage: '사용자 페이지 열기',
   },
 
   // 사용자 관리

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, DollarSign, RefreshCw, Calendar as CalendarIcon, Info, ArrowDownCircle, ArrowUpCircle, FileCheck } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, RefreshCw, Calendar as CalendarIcon, Info, ArrowDownCircle, ArrowUpCircle, FileCheck, Wallet, CreditCard, TrendingUpDown } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -14,24 +14,46 @@ import { cn } from "../../lib/utils";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { MetricCard } from "./MetricCard";
-import { calculateIntegratedSettlement, calculatePartnerPayments, SettlementSummary, PartnerPaymentDetail } from "../../lib/settlementCalculator";
+import { calculateIntegratedSettlement, calculatePartnerPayments, SettlementSummary, PartnerPaymentDetail, getDescendantUserIds, getWithdrawalAmount } from "../../lib/settlementCalculator";
+import { getBettingStatsByGameType } from "../../lib/settlementCalculatorV2";
 import { executeIntegratedSettlement } from "../../lib/settlementExecutor";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { getTodayStartUTC, getTomorrowStartUTC } from "../../utils/timezone";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 
 interface IntegratedSettlementProps {
   user: Partner;
 }
 
+interface DetailedStats {
+  // 입출금 현황
+  totalDeposit: number;
+  totalWithdrawal: number;
+  depositWithdrawalDiff: number;
+  
+  // 베팅 현황 (카지노/슬롯 분리)
+  casinoBetAmount: number;
+  casinoWinAmount: number;
+  casinoLossAmount: number;
+  slotBetAmount: number;
+  slotWinAmount: number;
+  slotLossAmount: number;
+  
+  // 게임 손익 (하우스 손익)
+  casinoHouseProfit: number;
+  slotHouseProfit: number;
+  totalHouseProfit: number;
+}
+
 export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   const { t } = useLanguage();
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [settlementMethod, setSettlementMethod] = useState<'differential' | 'direct_subordinate'>('direct_subordinate');
   const [periodFilter, setPeriodFilter] = useState("today");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  // Lv3~Lv6은 통합 GMS 머니만 사용하므로 API 필터 불필요
   const [apiFilter, setApiFilter] = useState<'all' | 'invest' | 'oroplay'>('all');
   const [availableApis, setAvailableApis] = useState<string[]>([]);
   const [summary, setSummary] = useState<SettlementSummary>({
@@ -72,7 +94,20 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     netLosingProfit: 0,
     netTotalProfit: 0
   });
-  const [partnerPayments, setPartnerPayments] = useState<PartnerPaymentDetail[]>([]);
+  const [detailedStats, setDetailedStats] = useState<DetailedStats>({
+    totalDeposit: 0,
+    totalWithdrawal: 0,
+    depositWithdrawalDiff: 0,
+    casinoBetAmount: 0,
+    casinoWinAmount: 0,
+    casinoLossAmount: 0,
+    slotBetAmount: 0,
+    slotWinAmount: 0,
+    slotLossAmount: 0,
+    casinoHouseProfit: 0,
+    slotHouseProfit: 0,
+    totalHouseProfit: 0
+  });
 
   useEffect(() => {
     loadSettlementMethod();
@@ -86,7 +121,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       const { data, error } = await supabase
         .from('api_configs')
         .select('api_provider, is_active')
-        .eq('partner_id', user.level === 1 ? user.id : user.parent_id) // Lv1 찾기
+        .eq('partner_id', user.level === 1 ? user.id : user.parent_id)
         .eq('is_active', true);
 
       if (error) throw error;
@@ -94,7 +129,6 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       const apis = data?.map(config => config.api_provider) || [];
       setAvailableApis(apis);
       
-      // 현재 선택된 API가 비활성화된 경우 'all'로 변경
       if (apiFilter !== 'all' && !apis.includes(apiFilter)) {
         setApiFilter('all');
       }
@@ -121,7 +155,6 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   };
 
   const getDateRange = () => {
-    // 시스템 타임존 기준 오늘/내일 0시
     const todayStart = getTodayStartUTC();
     const tomorrowStart = getTomorrowStartUTC();
     
@@ -144,7 +177,6 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
           end: tomorrowStart
         };
       case "month":
-        // 시스템 타임존 기준 이번 달 1일 0시
         const todayDate = new Date(todayStart);
         const monthStart = new Date(Date.UTC(
           todayDate.getUTCFullYear(),
@@ -176,28 +208,57 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     }
   };
 
+  const loadDetailedStats = async (userIds: string[], startDate: string, endDate: string) => {
+    try {
+      // 입출금 현황 조회
+      const { data: depositData } = await supabase
+        .from('transactions')
+        .select('amount')
+        .in('user_id', userIds)
+        .eq('transaction_type', 'deposit')
+        .eq('status', 'approved')
+        .gte('created_at', startDate)
+        .lte('created_at', endDate);
+
+      const totalDeposit = depositData?.reduce((sum, tx) => sum + (tx.amount || 0), 0) || 0;
+      const totalWithdrawal = await getWithdrawalAmount(userIds, startDate, endDate);
+
+      // 베팅 현황 조회 (카지노/슬롯 분리)
+      const gameTypeStats = await getBettingStatsByGameType(userIds, startDate, endDate, apiFilter);
+
+      // 승리액은 별도 계산 필요 (bet_amount - loss_amount)
+      const casinoWinAmount = gameTypeStats.casino.betAmount - gameTypeStats.casino.lossAmount;
+      const slotWinAmount = gameTypeStats.slot.betAmount - gameTypeStats.slot.lossAmount;
+
+      // 하우스 손익 = 베팅액 - 승리액
+      const casinoHouseProfit = gameTypeStats.casino.betAmount - casinoWinAmount;
+      const slotHouseProfit = gameTypeStats.slot.betAmount - slotWinAmount;
+
+      setDetailedStats({
+        totalDeposit,
+        totalWithdrawal,
+        depositWithdrawalDiff: totalDeposit - totalWithdrawal,
+        casinoBetAmount: gameTypeStats.casino.betAmount,
+        casinoWinAmount,
+        casinoLossAmount: gameTypeStats.casino.lossAmount,
+        slotBetAmount: gameTypeStats.slot.betAmount,
+        slotWinAmount,
+        slotLossAmount: gameTypeStats.slot.lossAmount,
+        casinoHouseProfit,
+        slotHouseProfit,
+        totalHouseProfit: casinoHouseProfit + slotHouseProfit
+      });
+    } catch (error) {
+      console.error('상세 통계 조회 실패:', error);
+    }
+  };
+
   const loadIntegratedSettlement = async () => {
     try {
       if (!refreshing) {
         setLoading(true);
       }
       const { start, end } = getDateRange();
-
-      console.log('[IntegratedSettlement] 정산 계산 시작:', {
-        userId: user.id,
-        commissionRates: {
-          rolling: user.commission_rolling,
-          losing: user.commission_losing,
-          casino_rolling: user.casino_rolling_commission ?? 0,
-          casino_losing: user.casino_losing_commission ?? 0,
-          slot_rolling: user.slot_rolling_commission ?? 0,
-          slot_losing: user.slot_losing_commission ?? 0,
-          withdrawal: user.withdrawal_fee
-        },
-        startDate: start,
-        endDate: end,
-        apiFilter
-      });
 
       const settlement = await calculateIntegratedSettlement(
         user.id,
@@ -215,18 +276,20 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         apiFilter
       );
 
-      console.log('[IntegratedSettlement] 정산 결과:', settlement);
-
       setSummary(settlement);
-      
-      const payments = await calculatePartnerPayments(user.id, start, end, apiFilter);
-      setPartnerPayments(payments.details);
+
+      // 상세 통계 조회
+      const descendantUserIds = await getDescendantUserIds(user.id);
+      if (descendantUserIds.length > 0) {
+        await loadDetailedStats(descendantUserIds, start, end);
+      }
     } catch (error) {
       console.error('통합 정산 계산 실패:', error);
       toast.error(t.settlement.commissionLoadFailed);
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setInitialLoading(false);
     }
   };
 
@@ -289,7 +352,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     }
   };
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <LoadingSpinner />
@@ -298,7 +361,17 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 relative">
+      {/* 로딩 오버레이 */}
+      {(loading || refreshing) && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-slate-800 p-6 rounded-lg shadow-xl flex items-center gap-3">
+            <RefreshCw className="h-5 w-5 animate-spin text-purple-400" />
+            <span className="text-white">데이터를 불러오는 중...</span>
+          </div>
+        </div>
+      )}
+
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
@@ -330,36 +403,6 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         </div>
       </div>
 
-      {/* 메인 정산 요약 */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* 내 총 수입 */}
-        <MetricCard
-          title={t.settlement.myTotalIncome}
-          value={`₩${summary.myTotalIncome.toLocaleString()}`}
-          subtitle={`카지노: ₩${summary.myCasinoRollingIncome.toLocaleString()} (롤링) + ₩${summary.myCasinoLosingIncome.toLocaleString()} (루징) | 슬롯: ₩${summary.mySlotRollingIncome.toLocaleString()} (롤링) + ₩${summary.mySlotLosingIncome.toLocaleString()} (루징)`}
-          icon={ArrowUpCircle}
-          color="emerald"
-        />
-
-        {/* 하위 파트너 지급 */}
-        <MetricCard
-          title={t.settlement.partnerTotalPayments}
-          value={`₩${summary.partnerTotalPayments.toLocaleString()}`}
-          subtitle={`카지노: ₩${summary.partnerCasinoRollingPayments.toLocaleString()} (롤링) + ₩${summary.partnerCasinoLosingPayments.toLocaleString()} (루징) | 슬롯: ₩${summary.partnerSlotRollingPayments.toLocaleString()} (롤링) + ₩${summary.partnerSlotLosingPayments.toLocaleString()} (루징)`}
-          icon={ArrowDownCircle}
-          color="red"
-        />
-
-        {/* 순수익 */}
-        <MetricCard
-          title={t.settlement.netProfit}
-          value={`₩${summary.netTotalProfit.toLocaleString()}`}
-          subtitle={`카지노: ₩${summary.netCasinoRollingProfit.toLocaleString()} (롤링) + ₩${summary.netCasinoLosingProfit.toLocaleString()} (루징) | 슬롯: ₩${summary.netSlotRollingProfit.toLocaleString()} (롤링) + ₩${summary.netSlotLosingProfit.toLocaleString()} (루징)`}
-          icon={DollarSign}
-          color="blue"
-        />
-      </div>
-
       {/* 기간 및 API 필터 */}
       <Card>
         <CardHeader>
@@ -371,7 +414,6 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
               </CardDescription>
             </div>
             <div className="flex items-center gap-3">
-              {/* API 필터 - Lv3~Lv6은 통합 GMS 머니만 사용하므로 숨김 */}
               {user.level <= 2 && (
                 <Select value={apiFilter} onValueChange={(value) => setApiFilter(value as 'all' | 'invest' | 'oroplay')}>
                   <SelectTrigger className="w-[140px]">
@@ -437,6 +479,261 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
             </div>
           </div>
         </CardHeader>
+      </Card>
+
+      {/* 1. 입출금 현황 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-blue-400" />
+            입출금 현황
+          </CardTitle>
+          <CardDescription>
+            하위 조직의 실제 충전/환전 내역입니다
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 bg-slate-800/50 rounded-lg">
+              <div className="text-slate-400 text-sm mb-1">총 충전액</div>
+              <div className="text-2xl text-emerald-400">
+                ₩{detailedStats.totalDeposit.toLocaleString()}
+              </div>
+            </div>
+            <div className="p-4 bg-slate-800/50 rounded-lg">
+              <div className="text-slate-400 text-sm mb-1">총 환전액</div>
+              <div className="text-2xl text-red-400">
+                ₩{detailedStats.totalWithdrawal.toLocaleString()}
+              </div>
+            </div>
+            <div className="p-4 bg-slate-800/50 rounded-lg">
+              <div className="text-slate-400 text-sm mb-1">입출금 차액</div>
+              <div className={cn(
+                "text-2xl",
+                detailedStats.depositWithdrawalDiff > 0 ? "text-emerald-400" : "text-red-400"
+              )}>
+                ₩{detailedStats.depositWithdrawalDiff.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 2. 베팅 현황 (카지노/슬롯 분리) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5 text-purple-400" />
+            베팅 현황
+          </CardTitle>
+          <CardDescription>
+            카지노와 슬롯 게임의 베팅 통계입니다
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* 카지노 */}
+            <div>
+              <h3 className="text-sm mb-3 text-slate-300">🎰 카지노</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-1">총 베팅액</div>
+                  <div className="text-xl">
+                    ₩{detailedStats.casinoBetAmount.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-1">총 승리액</div>
+                  <div className="text-xl text-emerald-400">
+                    ₩{detailedStats.casinoWinAmount.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-1">손실액</div>
+                  <div className="text-xl text-red-400">
+                    ₩{detailedStats.casinoLossAmount.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 슬롯 */}
+            <div>
+              <h3 className="text-sm mb-3 text-slate-300">🎲 슬롯</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-1">총 베팅액</div>
+                  <div className="text-xl">
+                    ₩{detailedStats.slotBetAmount.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-1">총 승리액</div>
+                  <div className="text-xl text-emerald-400">
+                    ₩{detailedStats.slotWinAmount.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-1">손실액</div>
+                  <div className="text-xl text-red-400">
+                    ₩{detailedStats.slotLossAmount.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. 통합 정산 (최종 손익) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUpDown className="h-5 w-5 text-yellow-400" />
+            통합 정산
+          </CardTitle>
+          <CardDescription>
+            입출금 + 게임 손익 + 커미션을 종합한 최종 정산 내역입니다
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* 게임 하우스 손익 */}
+            <div>
+              <h3 className="text-sm mb-3 text-slate-300">게임 하우스 손익</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-1">카지노 손익</div>
+                  <div className={cn(
+                    "text-xl",
+                    detailedStats.casinoHouseProfit > 0 ? "text-emerald-400" : "text-red-400"
+                  )}>
+                    ₩{detailedStats.casinoHouseProfit.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-1">슬롯 손익</div>
+                  <div className={cn(
+                    "text-xl",
+                    detailedStats.slotHouseProfit > 0 ? "text-emerald-400" : "text-red-400"
+                  )}>
+                    ₩{detailedStats.slotHouseProfit.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-1">총 게임 손익</div>
+                  <div className={cn(
+                    "text-xl",
+                    detailedStats.totalHouseProfit > 0 ? "text-emerald-400" : "text-red-400"
+                  )}>
+                    ₩{detailedStats.totalHouseProfit.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 커미션 수입 */}
+            <div>
+              <h3 className="text-sm mb-3 text-slate-300">내 커미션 수입</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-2">카지노</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">롤링:</span>
+                      <span className="text-emerald-400">₩{summary.myCasinoRollingIncome.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">루징:</span>
+                      <span className="text-emerald-400">₩{summary.myCasinoLosingIncome.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-2">슬롯</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">롤링:</span>
+                      <span className="text-emerald-400">₩{summary.mySlotRollingIncome.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">루징:</span>
+                      <span className="text-emerald-400">₩{summary.mySlotLosingIncome.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-2">환전 수수료</div>
+                  <div className="text-xl text-emerald-400">
+                    ₩{summary.myWithdrawalIncome.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">총 수입: ₩{summary.myTotalIncome.toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* 하위 파트너 지급 (요약만) */}
+            <div>
+              <h3 className="text-sm mb-3 text-slate-300">하위 파트너 지급</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-2">카지노</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">롤링:</span>
+                      <span className="text-red-400">₩{summary.partnerCasinoRollingPayments.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">루징:</span>
+                      <span className="text-red-400">₩{summary.partnerCasinoLosingPayments.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-2">슬롯</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">롤링:</span>
+                      <span className="text-red-400">₩{summary.partnerSlotRollingPayments.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">루징:</span>
+                      <span className="text-red-400">₩{summary.partnerSlotLosingPayments.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="text-slate-400 text-sm mb-2">환전 수수료</div>
+                  <div className="text-xl text-red-400">
+                    ₩{summary.partnerWithdrawalPayments.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">총 지급: ₩{summary.partnerTotalPayments.toLocaleString()}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* 최종 순수익 */}
+            <div className="mt-6 p-6 bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg border border-purple-500/30">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-slate-400 text-sm mb-1">최종 순수익</div>
+                  <div className="text-xs text-slate-500">
+                    입출금 차액 (₩{detailedStats.depositWithdrawalDiff.toLocaleString()}) 
+                    + 게임 손익 (₩{detailedStats.totalHouseProfit.toLocaleString()})
+                    + 커미션 수입 (₩{summary.myTotalIncome.toLocaleString()})
+                    - 하위 지급 (₩{summary.partnerTotalPayments.toLocaleString()})
+                  </div>
+                </div>
+                <div className={cn(
+                  "text-3xl",
+                  summary.netTotalProfit > 0 ? "text-emerald-400" : "text-red-400"
+                )}>
+                  ₩{(detailedStats.depositWithdrawalDiff + detailedStats.totalHouseProfit + summary.myTotalIncome - summary.partnerTotalPayments).toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
       </Card>
     </div>
   );

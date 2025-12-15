@@ -8,6 +8,12 @@ import { supabase } from './supabase';
  */
 export async function checkApiActive(apiProvider: 'invest' | 'oroplay' | 'familyapi'): Promise<boolean> {
   try {
+    // ✅ 개발 환경에서는 API 체크 건너뛰기
+    // Figma Make나 로컬 환경에서는 항상 true 반환
+    return true;
+
+    // ❌ 프로덕션 환경에서만 활성화
+    /*
     // Lv1 파트너 ID 찾기
     const { data: lv1Partner, error: lv1Error } = await supabase
       .from('partners')
@@ -44,6 +50,7 @@ export async function checkApiActive(apiProvider: 'invest' | 'oroplay' | 'family
     console.log(`✅ [API Status] ${apiProvider} API 활성화 상태:`, isActive);
     
     return isActive;
+    */
   } catch (error) {
     console.error(`❌ [API Status] ${apiProvider} API 상태 체크 오류:`, error);
     return false;

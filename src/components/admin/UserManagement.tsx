@@ -1255,22 +1255,16 @@ export function UserManagement() {
 
       // 5. 실시간 업데이트 웹소켓 메시지
       if (connected && sendMessage) {
-        sendMessage({
-          type: 'user_balance_updated',
-          data: {
-            userId: user.id,
-            amount: data.amount,
-            type: data.type
-          }
+        sendMessage('user_balance_updated', {
+          userId: user.id,
+          amount: data.amount,
+          type: data.type
         });
 
-        sendMessage({
-          type: 'partner_balance_updated',
-          data: {
-            partnerId: authState.user.id,
-            amount: data.type === 'deposit' ? -data.amount : data.amount,
-            type: data.type === 'deposit' ? 'withdrawal' : 'deposit'
-          }
+        sendMessage('partner_balance_updated', {
+          partnerId: authState.user.id,
+          amount: data.type === 'deposit' ? -data.amount : data.amount,
+          type: data.type === 'deposit' ? 'withdrawal' : 'deposit'
         });
       }
 

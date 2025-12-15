@@ -389,7 +389,7 @@ async function syncOroplayBets(): Promise<any> {
           // 게임 정보 조회 (vendor_code와 game_code로 매칭)
           const { data: gameData } = await supabase
             .from('games')
-            .select('id, provider_id')
+            .select('id, provider_id, game_type') // ✅ game_type 추가
             .eq('vendor_code', bet.vendorCode)
             .eq('game_code', bet.gameCode)
             .eq('api_type', 'oroplay')
@@ -405,6 +405,7 @@ async function syncOroplayBets(): Promise<any> {
               user_id: userId,
               game_id: gameData?.id || null,
               provider_id: gameData?.provider_id || null,
+              game_type: gameData?.game_type || 'casino', // ✅ game_type 추가
               bet_amount: bet.betAmount,
               win_amount: bet.winAmount,
               balance_before: bet.beforeBalance,

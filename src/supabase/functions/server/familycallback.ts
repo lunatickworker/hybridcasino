@@ -170,7 +170,7 @@ export async function handleChangeBalanceCallback(
     // 게임 기록 저장
     const { data: gameData } = await supabase
       .from('games')
-      .select('id, provider_id')
+      .select('id, provider_id, game_type') // ✅ game_type 추가
       .eq('vendor_code', vendorKey)
       .maybeSingle();
 
@@ -184,7 +184,7 @@ export async function handleChangeBalanceCallback(
       bet_key: betKey,
       vendor_key: vendorKey,
       game_key: gameKey,
-      game_type: gameType || '',
+      game_type: gameData?.game_type || gameType || 'casino', // ✅ games 테이블에서 가져온 game_type 우선 사용
       tran_type: tranType,
       bet_amount: debit || 0,
       win_amount: credit || 0,
@@ -313,7 +313,7 @@ export async function handleChangeBalanceSlotCallback(
     // 게임 기록 저장 (game_code로 매칭)
     const { data: gameData } = await supabase
       .from('games')
-      .select('id, provider_id')
+      .select('id, provider_id, game_type') // ✅ game_type 추가
       .eq('game_code', gameKey)
       .eq('vendor_code', vendorKey)
       .maybeSingle();
@@ -328,7 +328,7 @@ export async function handleChangeBalanceSlotCallback(
       bet_key: betKey,
       vendor_key: vendorKey,
       game_key: gameKey,
-      game_type: gameType || 'slot',
+      game_type: gameData?.game_type || gameType || 'slot', // ✅ games 테이블에서 가져온 game_type 우선 사용
       tran_type: tranType,
       bet_amount: debit || 0,
       win_amount: credit || 0,

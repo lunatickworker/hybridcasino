@@ -1681,13 +1681,10 @@ export function PartnerManagement() {
 
       // 8. 실시간 업데이트
       if (connected && sendMessage) {
-        sendMessage({
-          type: 'partner_balance_updated',
-          data: {
-            partnerId: data.targetId,
-            amount: data.amount,
-            type: data.type
-          }
+        sendMessage('partner_balance_updated', {
+          partnerId: data.targetId,
+          amount: data.amount,
+          type: data.type
         });
       }
 

@@ -32,6 +32,12 @@ interface Settlement {
   total_bet_amount: number;
   total_win_amount: number;
   total_withdrawal_amount: number;
+  // ✅ 카지노/슬롯 구분 추가
+  casino_rolling_commission: number;
+  casino_losing_commission: number;
+  slot_rolling_commission: number;
+  slot_losing_commission: number;
+  // 하위 호환성
   rolling_commission: number;
   losing_commission: number;
   withdrawal_commission: number;
@@ -274,9 +280,11 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
                     <th className="text-left p-3 text-slate-400">{t.settlement.settlementPeriod}</th>
                     <th className="text-left p-3 text-slate-400">{t.settlement.periodRange}</th>
                     <th className="text-left p-3 text-slate-400">{t.settlement.api}</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.rolling}</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.losing}</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.withdrawal}</th>
+                    <th className="text-right p-3 text-blue-400">🎰 카지노 롤링</th>
+                    <th className="text-right p-3 text-blue-400">🎰 카지노 루징</th>
+                    <th className="text-right p-3 text-purple-400">🎮 슬롯 롤링</th>
+                    <th className="text-right p-3 text-purple-400">🎮 슬롯 루징</th>
+                    <th className="text-right p-3 text-green-400">{t.settlement.withdrawal}</th>
                     <th className="text-right p-3 text-slate-400">{t.settlement.totalAmount}</th>
                     <th className="text-left p-3 text-slate-400">{t.settlement.executor}</th>
                   </tr>
@@ -304,10 +312,16 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
                         </Badge>
                       </td>
                       <td className="p-3 text-right text-blue-400">
-                        ₩{settlement.rolling_commission.toLocaleString()}
+                        ₩{(settlement.casino_rolling_commission || 0).toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right text-blue-400">
+                        ₩{(settlement.casino_losing_commission || 0).toLocaleString()}
                       </td>
                       <td className="p-3 text-right text-purple-400">
-                        ₩{settlement.losing_commission.toLocaleString()}
+                        ₩{(settlement.slot_rolling_commission || 0).toLocaleString()}
+                      </td>
+                      <td className="p-3 text-right text-purple-400">
+                        ₩{(settlement.slot_losing_commission || 0).toLocaleString()}
                       </td>
                       <td className="p-3 text-right text-green-400">
                         ₩{settlement.withdrawal_commission.toLocaleString()}

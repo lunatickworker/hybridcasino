@@ -179,7 +179,7 @@ export async function handleForceTransaction(
       return;
     }
 
-    // ✅ 6. Lv1 → Lv2 출금도 외부 API ���출 없이 DB만 업데이트
+    // ✅ 6. Lv1 → Lv2 출금도 외부 API 호출 없이 DB만 업데이트
     if (isLv1ToLv2 && data.type === 'withdrawal' && data.apiType) {
       console.log('✅ [Lv1→Lv2 출금] Lv1 외부 지갑은 변경하지 않고 Lv2에서만 회수');
 
@@ -454,13 +454,10 @@ export async function handleForceTransaction(
 
     // 8. 실시간 업데이트
     if (connected && sendMessage) {
-      sendMessage({
-        type: 'partner_balance_updated',
-        data: {
-          partnerId: data.targetId,
-          amount: data.amount,
-          type: data.type
-        }
+      sendMessage('partner_balance_updated', {
+        partnerId: data.targetId,
+        amount: data.amount,
+        type: data.type
       });
     }
 

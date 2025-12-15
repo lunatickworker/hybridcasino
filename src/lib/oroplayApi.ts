@@ -24,7 +24,7 @@ interface ProxyConfig {
 async function proxyCall<T = any>(config: ProxyConfig): Promise<T> {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
     
     const response = await fetch(PROXY_URL, {
       method: 'POST',
@@ -70,7 +70,7 @@ async function proxyCall<T = any>(config: ProxyConfig): Promise<T> {
     
   } catch (error: any) {
     if (error.name === 'AbortError') {
-      throw new Error('API 호출 시간 초과 (30초)');
+      throw new Error('API 호출 시간 초과 (60초)');
     }
     throw error;
   }
@@ -385,7 +385,9 @@ export async function getUserBalance(token: string, userCode: string): Promise<n
     throw new Error(`Failed to get user balance: errorCode ${response.errorCode}`);
   }
   
-  return response.message || response;
+  // ⭐ response.message가 잔액 (숫자)
+  // response 전체 객체가 아니라 message 속성만 반환
+  return typeof response.message === 'number' ? response.message : 0;
 }
 
 export async function depositToUser(

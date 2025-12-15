@@ -155,6 +155,7 @@ export const en = {
     slotTotalBetting: 'Slot Total Betting',
     marvelThemeDescription: 'Experience the new Marvel-themed user page',
     experience: 'Experience',
+    openUserPage: 'Open User Page',
   },
 
   // User Management

@@ -71,8 +71,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     useFamilyApi = balanceContext.useFamilyApi;
     syncBalance = balanceContext.syncBalance;
   } catch (error) {
-    // BalanceProvider 외부에서 렌더링되는 경우 (예: React Refresh 중)
-    console.warn('AdminHeader rendered outside BalanceProvider');
+    // ✅ BalanceProvider 외부에서 렌더링되는 경우 (정상 동작 - 로그인 전)
+    // 경고 메시지 제거 (개발 환경에서만 필요시 주석 해제)
+    // console.warn('AdminHeader rendered outside BalanceProvider');
   }
 
   // 사용자 정보가 없으면 기본 헤더 표시

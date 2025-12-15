@@ -50,7 +50,10 @@ export function Dashboard({ user }: DashboardProps) {
     netDeposit: 0,
     casinoBetting: 0,
     slotBetting: 0,
-    totalBetting: 0
+    totalBetting: 0,
+    betAmount: 0, // 게임 베팅액
+    winAmount: 0, // 게임 당첨액
+    gameProfit: 0 // 게임 손익 (베팅 - 당첨)
   });
   
   // 하위 파트너 회원 통계
@@ -60,7 +63,10 @@ export function Dashboard({ user }: DashboardProps) {
     netDeposit: 0,
     casinoBetting: 0,
     slotBetting: 0,
-    totalBetting: 0
+    totalBetting: 0,
+    betAmount: 0, // 게임 베팅액
+    winAmount: 0, // 게임 당첨액
+    gameProfit: 0 // 게임 손익 (베팅 - 당첨)
   });
   const [pendingDeposits, setPendingDeposits] = useState(0); // 만충금 (pending deposits)
   const [isLoadingStats, setIsLoadingStats] = useState(true);
@@ -177,7 +183,7 @@ export function Dashboard({ user }: DashboardProps) {
       // 2. game_records 테이블 직접 조회
       const { data: gameData, error: gameError } = await supabase
         .from('game_records')
-        .select('provider_id, bet_amount, played_at')
+        .select('provider_id, bet_amount, win_amount, played_at')
         .gte('played_at', today.toISOString());
       
       if (gameData && gameData.length > 0) {
@@ -375,14 +381,16 @@ export function Dashboard({ user }: DashboardProps) {
         new Date().toISOString()
       );
       
-      // 6️⃣ 직속 회원 베팅 통계
+      // 6️⃣ 직속 회원 베팅 통계 + 게임 손익
       let directCasinoBetting = 0;
       let directSlotBetting = 0;
+      let directBetAmount = 0; // 총 베팅액 (파트너 수입)
+      let directWinAmount = 0; // 총 당첨액 (파트너 지출)
       
       if (directUserIds.length > 0) {
         const { data: bettingData } = await supabase
           .from('game_records')
-          .select('provider_id, bet_amount')
+          .select('provider_id, bet_amount, win_amount')
           .in('user_id', directUserIds)
           .gte('played_at', todayStartISO);
 
@@ -394,17 +402,23 @@ export function Dashboard({ user }: DashboardProps) {
           directSlotBetting = bettingData
             .filter(b => !casinoProviders.includes(Number(b.provider_id)))
             .reduce((sum, b) => sum + Number(b.bet_amount || 0), 0);
+          
+          // 게임 손익 계산
+          directBetAmount = bettingData.reduce((sum, b) => sum + Number(b.bet_amount || 0), 0);
+          directWinAmount = bettingData.reduce((sum, b) => sum + Number(b.win_amount || 0), 0);
         }
       }
 
-      // 7️⃣ 하위 파트너 회원 베팅 통계
+      // 7️⃣ 하위 파트너 회원 베팅 통계 + 게임 손익
       let subPartnerCasinoBetting = 0;
       let subPartnerSlotBetting = 0;
+      let subPartnerBetAmount = 0; // 총 베팅액 (파트너 수입)
+      let subPartnerWinAmount = 0; // 총 당첨액 (파트너 지출)
       
       if (subPartnerUserIds.length > 0) {
         const { data: bettingData } = await supabase
           .from('game_records')
-          .select('provider_id, bet_amount')
+          .select('provider_id, bet_amount, win_amount')
           .in('user_id', subPartnerUserIds)
           .gte('played_at', todayStartISO);
 
@@ -416,10 +430,16 @@ export function Dashboard({ user }: DashboardProps) {
           subPartnerSlotBetting = bettingData
             .filter(b => !casinoProviders.includes(Number(b.provider_id)))
             .reduce((sum, b) => sum + Number(b.bet_amount || 0), 0);
+          
+          // 게임 손익 계산
+          subPartnerBetAmount = bettingData.reduce((sum, b) => sum + Number(b.bet_amount || 0), 0);
+          subPartnerWinAmount = bettingData.reduce((sum, b) => sum + Number(b.win_amount || 0), 0);
         }
       }
       
-      // ✅ 상태 업데이트
+      // ✅ 통합 정산: 실제 입출금 + 게임 손익
+      // - 입금 = 실제 입금 + 베팅액 (사용자가 베팅 = 파트너가 받음)
+      // - 출금 = 실제 출금 + 당첨액 (사용자가 당첨 = 파트너가 지급)
       const totalDeposit = directDeposit + subPartnerDeposit;
       const totalWithdrawal = directWithdrawal + subPartnerWithdrawal;
       
@@ -440,21 +460,27 @@ export function Dashboard({ user }: DashboardProps) {
       }));
       
       setDirectStats({
-        deposit: directDeposit,
-        withdrawal: directWithdrawal,
-        netDeposit: directDeposit - directWithdrawal,
+        deposit: directDeposit, // ✅ 실제 입금만
+        withdrawal: directWithdrawal, // ✅ 실제 출금만
+        netDeposit: directDeposit - directWithdrawal, // ✅ 순입출금
         casinoBetting: directCasinoBetting,
         slotBetting: directSlotBetting,
-        totalBetting: directCasinoBetting + directSlotBetting
+        totalBetting: directCasinoBetting + directSlotBetting,
+        betAmount: directBetAmount, // 게임 베팅액
+        winAmount: directWinAmount, // 게임 당첨액
+        gameProfit: directBetAmount - directWinAmount // 게임 손익
       });
       
       setSubPartnerStats({
-        deposit: subPartnerDeposit,
-        withdrawal: subPartnerWithdrawal,
-        netDeposit: subPartnerDeposit - subPartnerWithdrawal,
+        deposit: subPartnerDeposit, // ✅ 실제 입금만
+        withdrawal: subPartnerWithdrawal, // ✅ 실제 출금만
+        netDeposit: subPartnerDeposit - subPartnerWithdrawal, // ✅ 순입출금
         casinoBetting: subPartnerCasinoBetting,
         slotBetting: subPartnerSlotBetting,
-        totalBetting: subPartnerCasinoBetting + subPartnerSlotBetting
+        totalBetting: subPartnerCasinoBetting + subPartnerSlotBetting,
+        betAmount: subPartnerBetAmount, // 게임 베팅액
+        winAmount: subPartnerWinAmount, // 게임 당첨액
+        gameProfit: subPartnerBetAmount - subPartnerWinAmount // 게임 손익
       });
       
       setPendingDeposits(pendingDepositAmount);
@@ -748,27 +774,106 @@ export function Dashboard({ user }: DashboardProps) {
         </PremiumSectionCard>
       </div>
 
+      {/* 통합 정산 섹션 */}
+      <div className="grid gap-5 md:grid-cols-2">
+        {/* 자신의 사용자 통합 정산 */}
+        <PremiumSectionCard
+          title="자신의 사용자 통합 정산"
+          icon={Activity}
+          iconColor="text-emerald-400"
+        >
+          <SectionRow
+            label="실제 입출금 순액"
+            value={formatCurrency(directStats.netDeposit)}
+            valueColor={directStats.netDeposit >= 0 ? "text-cyan-400" : "text-rose-400"}
+            icon={DollarSign}
+            iconColor="text-cyan-400"
+          />
+          <SectionRow
+            label="게임 손익 (베팅-당첨)"
+            value={formatCurrency(directStats.gameProfit)}
+            valueColor={directStats.gameProfit >= 0 ? "text-emerald-400" : "text-rose-400"}
+            icon={Target}
+            iconColor="text-emerald-400"
+          />
+          <div className="pt-2 border-t border-slate-700/50">
+            <SectionRow
+              label="최종 정산 금액"
+              value={formatCurrency(directStats.netDeposit + directStats.gameProfit)}
+              valueColor={
+                (directStats.netDeposit + directStats.gameProfit) >= 0 
+                  ? "text-emerald-400" 
+                  : "text-rose-400"
+              }
+              icon={Activity}
+              iconColor="text-emerald-400"
+            />
+          </div>
+        </PremiumSectionCard>
+
+        {/* 하위 파트너 사용자 통합 정산 */}
+        <PremiumSectionCard
+          title="하위 파트너 사용자 통합 정산"
+          icon={Activity}
+          iconColor="text-violet-400"
+        >
+          <SectionRow
+            label="실제 입출금 순액"
+            value={formatCurrency(subPartnerStats.netDeposit)}
+            valueColor={subPartnerStats.netDeposit >= 0 ? "text-cyan-400" : "text-rose-400"}
+            icon={DollarSign}
+            iconColor="text-cyan-400"
+          />
+          <SectionRow
+            label="게임 손익 (베팅-당첨)"
+            value={formatCurrency(subPartnerStats.gameProfit)}
+            valueColor={subPartnerStats.gameProfit >= 0 ? "text-emerald-400" : "text-rose-400"}
+            icon={Target}
+            iconColor="text-violet-400"
+          />
+          <div className="pt-2 border-t border-slate-700/50">
+            <SectionRow
+              label="최종 정산 금액"
+              value={formatCurrency(subPartnerStats.netDeposit + subPartnerStats.gameProfit)}
+              valueColor={
+                (subPartnerStats.netDeposit + subPartnerStats.gameProfit) >= 0 
+                  ? "text-emerald-400" 
+                  : "text-rose-400"
+              }
+              icon={Activity}
+              iconColor="text-violet-400"
+            />
+          </div>
+        </PremiumSectionCard>
+      </div>
+
       {/* 모든 Frontend 바로가기 (작은 버튼) */}
       {user.level === 1 && (
         <div className="mt-6 flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-gray-500 mr-2">Frontend:</span>
           <button
-            onClick={() => { window.location.hash = '#/user'; }}
-            className="px-2 py-1 text-xs bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 rounded border border-slate-600/50 transition-colors"
+            onClick={() => {
+              // Figma Make 환경에서는 같은 창에서 해시 변경
+              window.location.hash = '/user/casino';
+            }}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg text-sm transition-all duration-200 shadow-md hover:shadow-lg"
           >
-            User
+            🎰 User Page
           </button>
           <button
-            onClick={() => { window.location.hash = '#/indo'; }}
-            className="px-2 py-1 text-xs bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 rounded border border-slate-600/50 transition-colors"
+            onClick={() => {
+              window.location.hash = '/sample1/casino';
+            }}
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-lg text-sm transition-all duration-200 shadow-md hover:shadow-lg"
           >
-            Indo
+            🎮 Sample1 Page
           </button>
           <button
-            onClick={() => { window.location.hash = '#/sample1'; }}
-            className="px-2 py-1 text-xs bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 rounded border border-slate-600/50 transition-colors"
+            onClick={() => {
+              window.location.hash = '/indo/casino';
+            }}
+            className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg text-sm transition-all duration-200 shadow-md hover:shadow-lg"
           >
-            Sample1
+            🌏 Indo Page
           </button>
         </div>
       )}

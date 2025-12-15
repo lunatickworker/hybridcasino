@@ -32,10 +32,8 @@ export function GameProviderSelector({
   const { t } = useLanguage();
 
   useEffect(() => {
-    // 게임 타입에 맞는 제공사만 필터링
-    const filteredProviders = providers.filter(p => 
-      p.type === gameType && (p.status === 'visible' || p.status === 'active')
-    );
+    // ✅ 모든 제공사 표시 (status 필터 제거)
+    const filteredProviders = providers.filter(p => p.type === gameType);
     
     console.log('🎮 GameProviderSelector - 필터링된 제공사:', filteredProviders.length, '개');
     
@@ -63,23 +61,6 @@ export function GameProviderSelector({
     <div className="w-full bg-slate-900/40 backdrop-blur-sm rounded-xl p-4 md:p-6 border border-slate-700/30">
       {/* 데스크톱 레이아웃 */}
       <div className="hidden md:flex flex-wrap gap-3">
-        {/* 전체 선택 버튼 */}
-        <Button
-          variant="ghost"
-          onClick={() => onProviderChange("all")}
-          className={`
-            h-14 px-8 rounded-lg transition-all duration-300 text-xl font-bold whitespace-nowrap
-            ${selectedProvider === "all" 
-              ? 'bg-gradient-to-r from-yellow-500 to-amber-500 text-black shadow-lg shadow-yellow-500/50 hover:shadow-xl hover:shadow-yellow-500/60 scale-105 border-2 border-yellow-400' 
-              : 'bg-slate-800/60 text-yellow-100/80 border border-slate-600/50 hover:bg-slate-700/70 hover:text-yellow-100 hover:border-yellow-500/30 hover:scale-105'
-            }
-          `}
-        >
-          <span className={selectedProvider === "all" ? "drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]" : ""}>
-            {t.user.all}
-          </span>
-        </Button>
-
         {/* 개별 제공사 버튼들 */}
         {displayProviders.map((provider) => {
           const isSelected = selectedProvider === provider.id.toString();
@@ -108,26 +89,6 @@ export function GameProviderSelector({
       {/* 모바일 레이아웃 - 3열 그리드 */}
       <div className="md:hidden">
         <div className="grid grid-cols-3 gap-2">
-          {/* 전체 선택 버튼 */}
-          <Button
-            variant="ghost"
-            onClick={() => onProviderChange("all")}
-            className={`
-              h-auto py-3 px-2 rounded-lg transition-all duration-200 font-bold text-sm
-              ${selectedProvider === "all" 
-                ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-black shadow-md border-2 border-yellow-400' 
-                : 'bg-slate-800/80 text-yellow-100 border border-slate-600/50 active:bg-slate-700'
-              }
-            `}
-          >
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-base leading-tight">{t.user.all}</span>
-              {selectedProvider === "all" && (
-                <CheckCircle className="w-3 h-3" />
-              )}
-            </div>
-          </Button>
-
           {/* 개별 제공사 버튼들 */}
           {visibleProviders.map((provider) => {
             const isSelected = selectedProvider === provider.id.toString();

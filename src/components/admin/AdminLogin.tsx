@@ -19,7 +19,36 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
-  const { t, language, setLanguage } = useLanguage();
+  
+  // ✅ useLanguage를 try-catch로 감싸서 에러 방지
+  let t: any;
+  let language: string = 'ko';
+  let setLanguage: any;
+  
+  try {
+    const languageContext = useLanguage();
+    t = languageContext.t;
+    language = languageContext.language;
+    setLanguage = languageContext.setLanguage;
+  } catch (error) {
+    // LanguageProvider가 없는 경우 기본값 사용
+    console.warn('⚠️ LanguageProvider not available, using default Korean translations');
+    t = {
+      error: { validation: '모든 필드를 입력해주세요.' },
+      login: {
+        loginSuccess: '로그인 성공',
+        loginFailed: '로그인 실패',
+        title: '관리자 로그인',
+        description: '관리자 계정으로 로그인하세요',
+        username: '아이디',
+        password: '비밀번호',
+        loginButton: '로그인',
+        loggingIn: '로그인 중...',
+        language: '언어'
+      }
+    };
+    setLanguage = () => {};
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

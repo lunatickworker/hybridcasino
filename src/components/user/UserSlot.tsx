@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { Card, CardContent } from "../ui/card";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
@@ -10,12 +10,7 @@ import {
   Search, 
   Play, 
   Star, 
-  Loader, 
-  Crown,
-  Sparkles,
-  Trophy,
-  Target,
-  Gem,
+  Loader,
   Coins
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
@@ -45,26 +40,17 @@ interface UserSlotProps {
 }
 
 export function UserSlot({ user, onRouteChange }: UserSlotProps) {
-  const [selectedProvider, setSelectedProvider] = useState("all");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedProvider, setSelectedProvider] = useState("all"); // ✅ 기본값을 "all"로 설정
+  const [searchQuery, setSearchQuery] = useState("");
   const [games, setGames] = useState<Game[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [launchingGameId, setLaunchingGameId] = useState<number | null>(null);
   const [showLoadingPopup, setShowLoadingPopup] = useState(false);
   const [loadingStage, setLoadingStage] = useState<'deposit' | 'launch' | 'withdraw' | 'switch_deposit'>('launch');
+  const [isInitialLoad, setIsInitialLoad] = useState(true); // ✅ 초기 로드 여부
   const isMountedRef = useRef(true);
   const { t } = useLanguage();
-
-  const slotCategories = [
-    { id: 'all', name: t.user.all, icon: Crown, gradient: 'from-yellow-500 to-amber-600' },
-    { id: 'featured', name: t.user.featured, icon: Star, gradient: 'from-red-500 to-pink-600' },
-    { id: 'new', name: t.user.new, icon: Sparkles, gradient: 'from-blue-500 to-cyan-600' },
-    { id: 'jackpot', name: t.user.jackpot, icon: Trophy, gradient: 'from-purple-500 to-purple-600' },
-    { id: 'bonus', name: t.user.bonus, icon: Gem, gradient: 'from-green-500 to-emerald-600' },
-    { id: 'high-rtp', name: t.user.highRtp, icon: Target, gradient: 'from-orange-500 to-red-600' }
-  ];
 
   useEffect(() => {
     initializeData();
@@ -75,10 +61,9 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
   }, []);
 
   useEffect(() => {
-    if (isMountedRef.current) {
-      loadSlotGames();
-    }
-  }, [selectedProvider, selectedCategory]);
+    // selectedProvider 변경 시 게임 다시 로드하지 않음 (이미 모든 게임 로드됨)
+    // 제공사 필터링은 filteredGames에서 처리
+  }, [selectedProvider]);
 
   const initializeData = async () => {
     if (!isMountedRef.current) return;
@@ -86,13 +71,16 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     try {
       setLoading(true);
       
+      // 먼저 모든 게임 로드
+      await loadSlotGames();
+      
+      // 제공사 로드 후 게임이 있는 제공사만 필터링
       const providersData = await gameApi.getUserVisibleProviders({ type: 'slot' });
       
       if (isMountedRef.current) {
         setProviders(providersData);
+        // ✅ 기본 선택 제거 - "all"이 기본값으로 유지됨
       }
-      
-      await loadSlotGames();
       
     } catch (error) {
       if (isMountedRef.current) {
@@ -102,6 +90,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
+        setIsInitialLoad(false); // ✅ 초기 로드 완료
       }
     }
   };
@@ -112,7 +101,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     try {
       setLoading(true);
 
-      // ✅ 게임 status만 체크하도록 간단하게 변경
+      // ✅ 모든 슬롯 게임을 로드 (inner join 제거 - 제공사가 없어도 표시)
       let query = supabase
         .from('games')
         .select(`
@@ -126,23 +115,27 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
           priority,
           rtp,
           api_type,
-          game_providers!inner(
+          game_providers(
             id,
             name,
             logo_url
           )
         `)
-        .eq('type', 'slot')
-        .eq('status', 'visible');
-
-      // 제공사 필터링 (all이 아닐 때만)
-      if (selectedProvider !== 'all') {
-        query = query.eq('provider_id', parseInt(selectedProvider));
-      }
+        .eq('type', 'slot');
 
       const { data: gamesData, error } = await query.order('priority', { ascending: false });
 
       if (error) throw error;
+
+      console.log(`🎰 [슬롯 게임 로드] 총 ${gamesData?.length || 0}개 게임 로드됨`);
+      
+      const providerCount = new Map<string, number>();
+      gamesData?.forEach(game => {
+        const providerName = (game as any).game_providers?.name || 'Unknown';
+        providerCount.set(providerName, (providerCount.get(providerName) || 0) + 1);
+      });
+      
+      console.log('📊 [제공사별 게임 수]:', Array.from(providerCount.entries()).map(([name, count]) => `${name}: ${count}개`));
 
       // 게임 데이터 포맷팅
       const formattedGames = gamesData?.map(game => ({
@@ -182,6 +175,14 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     }
   };
 
+  // 게임이 있는 제공사만 필터링 (모든 games 기준으로)
+  const filteredProviders = useMemo(() => {
+    return providers.filter(provider => {
+      const hasGames = games.some(game => game.provider_id === provider.id);
+      return hasGames;
+    });
+  }, [providers, games]);
+
   const handleGameClick = async (game: Game) => {
     if (launchingGameId === game.game_id) return;
 
@@ -190,7 +191,6 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     try {
       const activeSession = await gameApi.checkActiveSession(user.id);
       
-      // ⭐ 1. 다른 API 게임이 실행 중인지 체크
       if (activeSession?.isActive && activeSession.api_type !== game.api_type) {
         const apiNames = {
           invest: 'Invest API',
@@ -208,7 +208,6 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
         return;
       }
 
-      // ⭐ 2. 같은 API 내에서 다른 게임으로 전환 시 기존 게임 출금
       if (activeSession?.isActive && 
           activeSession.api_type === game.api_type && 
           activeSession.game_id !== game.game_id) {
@@ -221,16 +220,12 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
         setLoadingStage('withdraw');
         setShowLoadingPopup(true);
         
-        // 기존 게임 출금 + 보유금 동기화
         const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
         await syncBalanceOnSessionEnd(user.id, activeSession.api_type);
         
         console.log('✅ [게임 전환] 기존 게임 출금 완료, 새 게임 실행 시작');
-        
-        // 이후 새 게임 실행 로직으로 진행 (break 없이 계속)
       }
 
-      // ⭐ 3. 같은 게임의 ready 세션이 있는지 체크 (입금 API 중복 호출 방지)
       if (activeSession?.isActive && 
           activeSession.game_id === game.game_id && 
           activeSession.status === 'ready' && 
@@ -238,7 +233,6 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
         
         console.log('🔄 [슬롯 실행] ready 세션 재사용 - 기존 URL 사용 (입금 API 호출 안함):', activeSession.session_id);
         
-        // 기존 launch_url로 게임창 오픈 (중복 입금 없음)
         const gameWindow = window.open(
           activeSession.launch_url,
           '_blank',
@@ -246,12 +240,10 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
         );
 
         if (!gameWindow) {
-          // ⭐ 팝업 차단 시나리오 (ready 세션 재사용 시)
           toast.error('차단되었습니다. 팝업 허용 후 다시 클릭해주세요.');
           
           const sessionId = activeSession.session_id!;
           
-          // ready_status를 'popup_blocked'로 업데이트 (세션은 유지)
           await supabase
             .from('game_launch_sessions')
             .update({ 
@@ -262,7 +254,6 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
             
           console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료 (ready 세션 재사용)');
         } else {
-          // ⭐ 팝업 오픈 성공: ready_status를 'popup_opened'로 업데이트
           toast.success(`${game.game_name} 게임을 시작합니다.`);
           
           const sessionId = activeSession.session_id!;
@@ -280,7 +271,6 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
           }
           (window as any).gameWindows.set(sessionId, gameWindow);
           
-          // 게임창 닫힘 감지 설정
           if (!(window as any).gameWindowCheckers) {
             (window as any).gameWindowCheckers = new Map();
           }
@@ -324,13 +314,11 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
         return;
       }
       
-      // ⭐ 4. 새로운 게임 실행 (API 입금 포함)
       setLoadingStage('launch');
       setShowLoadingPopup(true);
       
       const result = await gameApi.generateGameLaunchUrl(user.id, game.game_id);
       
-      // ⭐ 팝업 자동 닫힘
       setShowLoadingPopup(false);
       
       if (result.success && result.launchUrl) {
@@ -343,11 +331,9 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
         );
 
         if (!gameWindow) {
-          // ⭐ 팝업 차단 시나리오: 세션 종료하지 않고 ready_status만 업데이트
           toast.error('차단되었습니다. 팝업 허용 후 다시 클릭해주세요.');
           
           if (sessionId && typeof sessionId === 'number') {
-            // ready_status를 'popup_blocked'로 업데이트 (세션은 유지)
             await supabase
               .from('game_launch_sessions')
               .update({ 
@@ -359,7 +345,6 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
             console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료. 재클릭 시 기존 URL 재사용됩니다.');
           }
         } else {
-          // ⭐ 팝업 오픈 성공: ready_status를 'popup_opened'로 업데이트
           toast.success(`${game.game_name} 게임을 시작합니다.`);
           
           if (sessionId && typeof sessionId === 'number') {
@@ -387,7 +372,6 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
               if (isProcessing) return;
               isProcessing = true;
               
-              // ⭐ 게임 종료 팝업 표시
               setLoadingStage('withdraw');
               setShowLoadingPopup(true);
               
@@ -400,7 +384,6 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
               (window as any).gameWindows?.delete(sessionId);
               await (window as any).syncBalanceAfterGame?.(sessionId);
               
-              // ⭐ 종료 팝업 자동 닫힘 (0.5초 후)
               setTimeout(() => {
                 setShowLoadingPopup(false);
               }, 500);
@@ -432,238 +415,192 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
   };
 
   const filteredGames = games.filter(game => {
-    const matchesSearch = searchTerm === '' || 
-                         game.game_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         game.provider_name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    let matchesCategory = true;
-    if (selectedCategory !== 'all') {
-      const gameName = game.game_name.toLowerCase();
-      
-      switch (selectedCategory) {
-        case 'featured':
-          matchesCategory = game.is_featured;
-          break;
-        case 'new':
-          matchesCategory = true; // 신규 게임 로직 (created_at 기반 필터링 가능)
-          break;
-        case 'jackpot':
-          matchesCategory = gameName.includes('jackpot') || gameName.includes('잭팟');
-          break;
-        case 'bonus':
-          matchesCategory = gameName.includes('bonus') || gameName.includes('보너스');
-          break;
-        case 'high-rtp':
-          matchesCategory = (game.rtp || 0) >= 96;
-          break;
+    // 1️⃣ 제공사 필터링 (선택된 제공사만 표시)
+    if (selectedProvider && selectedProvider !== "all") {
+      if (game.provider_id.toString() !== selectedProvider) {
+        return false;
       }
     }
-    
-    let matchesProvider = true;
-    if (selectedProvider !== 'all') {
-      matchesProvider = game.provider_id === parseInt(selectedProvider);
+
+    // 2️⃣ 검색어 필터링
+    if (searchQuery.trim()) {
+      const search = searchQuery.toLowerCase();
+      const matchesName = game.game_name.toLowerCase().includes(search);
+      const matchesProvider = game.provider_name.toLowerCase().includes(search);
+      if (!matchesName && !matchesProvider) {
+        return false;
+      }
     }
-    
-    return matchesSearch && matchesCategory && matchesProvider;
+
+    return true;
   });
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
-      <div 
-        className="fixed inset-0 z-0 w-full h-full"
-        style={{
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.90)), url('https://images.unsplash.com/photo-1511882150382-421056c89033?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbG90JTIwbWFjaGluZSUyMGdhbWVzfGVufDF8fHx8MTc1OTcyMDM2M3ww&ixlib=rb-4.1.0&q80&w=1080&utm_source=figma&utm_medium=referral')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center center',
-          backgroundRepeat: 'no-repeat'
-        }}
-      />
+    <>
+      {/* ⭐ 게임 준비 다이얼로그 */}
+      <GamePreparingDialog show={showLoadingPopup} stage={loadingStage} />
       
-      <div className="relative z-10 space-y-8 p-4 sm:p-6 lg:p-8">
-        {/* 슬롯 헤더 */}
-        <div className="text-center space-y-6">
-          <div className="flex items-center justify-center gap-4 mb-6">
-            <Coins className="w-16 h-16 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]" />
-            <h1 className="text-6xl lg:text-7xl font-bold gold-text neon-glow">
-              {t.user.slotTitle}
-            </h1>
-            <Coins className="w-16 h-16 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]" />
-          </div>
-          <p className="text-3xl text-yellow-100 tracking-wide">
-            {t.user.slotSubtitle}
-          </p>
-        </div>
-
-        {/* 검색 및 필터 */}
-        <div className="flex flex-col lg:flex-row gap-5 items-center justify-between">
-          <div className="relative flex-1 max-w-xl">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-yellow-400" />
-            <Input
-              type="text"
-              placeholder={t.user.searchGame}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-12 h-14 text-lg bg-black/50 border-yellow-600/30 text-white placeholder:text-yellow-200/50 focus:border-yellow-500"
-            />
-          </div>
-          
-          {/* 카테고리 선택 */}
-          <div className="flex flex-wrap gap-3">
-            {slotCategories.map((category) => {
-              const Icon = category.icon;
-              const isActive = selectedCategory === category.id;
-              return (
-                <Button
-                  key={category.id}
-                  variant="ghost"
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={`
-                    relative px-6 py-4 text-lg font-bold transition-all duration-300
-                    ${isActive 
-                      ? `bg-gradient-to-r ${category.gradient} text-white shadow-lg shadow-yellow-500/50 scale-105` 
-                      : 'text-yellow-200/80 hover:text-yellow-100 hover:bg-yellow-900/20'
-                    }
-                  `}
-                >
-                  <Icon className="w-5 h-5 mr-2" />
-                  {category.name}
-                  {isActive && (
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-300 to-transparent" />
-                  )}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 제공사 선택 */}
-        <GameProviderSelector
-          selectedProvider={selectedProvider}
-          onProviderChange={setSelectedProvider}
-          gameType="slot"
-          providers={providers}
+      <div className="relative min-h-screen overflow-x-hidden">
+        <div 
+          className="fixed inset-0 z-0 w-full h-full"
+          style={{
+            backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.90)), url('https://images.unsplash.com/photo-1511882150382-421056c89033?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbG90JTIwbWFjaGluZSUyMGdhbWVzfGVufDF8fHx8MTc1OTcyMDM2M3ww&ixlib=rb-4.1.0&q80&w=1080&utm_source=figma&utm_medium=referral')`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center center',
+            backgroundRepeat: 'no-repeat'
+          }}
         />
-
-        {/* 슬롯 게임 목록 */}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <Card key={i} className="luxury-card animate-pulse border-yellow-600/20">
-                <div className="aspect-[4/3] bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl" />
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {filteredGames.map((game) => (
-              <Card 
-                key={game.game_id} 
-                className={`group cursor-pointer bg-slate-900/80 border border-slate-700/50 hover:border-yellow-500/50 transition-all duration-300 overflow-hidden rounded-xl hover:shadow-xl hover:shadow-yellow-500/20 ${
-                  launchingGameId === game.game_id ? 'opacity-50' : ''
-                }`}
-                onClick={() => handleGameClick(game)}
-              >
-                <div className="aspect-[4/3] relative overflow-hidden bg-slate-800">
-                  <ImageWithFallback
-                    src={game.image_url}
-                    alt={game.game_name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                  
-                  {/* 오버레이 */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
-                  
-                  {/* 배지 */}
-                  {game.is_featured && (
-                    <div className="absolute top-2 right-2">
-                      <Badge className="bg-yellow-500/90 text-black border-0 text-xs backdrop-blur-sm">
-                        <Star className="w-3 h-3 mr-1 fill-current" />
-                        인기
-                      </Badge>
-                    </div>
-                  )}
-
-                  {/* 호버 플레이 버튼 */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    {launchingGameId === game.game_id ? (
-                      <div className="flex flex-col items-center gap-2 text-white">
-                        <Loader className="w-10 h-10 animate-spin" />
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-16 h-16 rounded-full bg-yellow-500/20 backdrop-blur-md flex items-center justify-center border-2 border-yellow-500/50">
-                          <Play className="w-8 h-8 text-yellow-400 fill-current" />
-                        </div>
-                        <span className="text-white font-bold text-sm">플레이</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* 카드 정보 */}
-                <div className="p-3 bg-slate-900/90">
-                  <h3 className="font-bold text-white text-base mb-1 truncate">
-                    {game.game_name}
-                  </h3>
-                  <div className="flex items-center justify-between text-xs">
-                    <p className="text-yellow-400/80 truncate flex-1">
-                      {game.provider_name}
-                    </p>
-                    {game.rtp && (
-                      <div className="text-green-400 ml-2">
-                        RTP: {game.rtp}%
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-
-        {filteredGames.length === 0 && !loading && (
-          <div className="text-center py-16 luxury-card rounded-2xl border-2 border-yellow-600/20">
-            <div className="mx-auto w-24 h-24 bg-gradient-to-br from-yellow-500/20 to-amber-600/20 rounded-full flex items-center justify-center mb-6">
-              <Coins className="w-12 h-12 text-yellow-400" />
+        
+        <div className="relative z-10 space-y-8 p-4 sm:p-6 lg:p-8">
+          {/* 슬롯 헤더 */}
+          <div className="text-center space-y-6">
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <Coins className="w-16 h-16 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]" />
+              <h1 className="text-6xl lg:text-7xl font-bold gold-text neon-glow">
+                {t.user.slotTitle}
+              </h1>
+              <Coins className="w-16 h-16 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]" />
             </div>
-            <h3 className="text-2xl font-bold gold-text mb-2">
-              {t.user.noGamesFound}
-            </h3>
-            <p className="text-yellow-200/80 text-lg mb-4">
-              {searchTerm ? t.user.noGamesMessage.replace('{{query}}', searchTerm) : 
-               selectedCategory !== 'all' ? t.user.noGamesCategory : 
-               selectedProvider !== 'all' ? t.user.noGamesProvider :
-               t.user.noSlotGamesAvailable}
+            <p className="text-3xl text-yellow-100 tracking-wide">
+              {t.user.slotSubtitle}
             </p>
-            <div className="flex gap-2 justify-center">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearchTerm('');
-                  setSelectedCategory('all');
-                  setSelectedProvider('all');
-                }}
-                className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
-              >
-                {t.user.viewAllGames}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => loadSlotGames()}
-                className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
-              >
-                {t.user.refresh}
-              </Button>
+          </div>
+
+          {/* 검색 */}
+          <div className="flex flex-col lg:flex-row gap-5 items-center justify-between">
+            <div className="relative flex-1 max-w-xl">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-yellow-400" />
+              <Input
+                type="text"
+                placeholder={t.user.searchGame}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-12 h-14 text-lg bg-black/50 border-yellow-600/30 text-white placeholder:text-yellow-200/50 focus:border-yellow-500"
+              />
             </div>
           </div>
-        )}
+
+          {/* 제공사 선택 */}
+          <GameProviderSelector
+            selectedProvider={selectedProvider}
+            onProviderChange={setSelectedProvider}
+            gameType="slot"
+            providers={filteredProviders}
+          />
+
+          {/* 슬롯 게임 목록 */}
+          {isInitialLoad && loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <Card key={i} className="luxury-card animate-pulse border-yellow-600/20">
+                  <div className="aspect-[4/3] bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl" />
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {filteredGames.map((game) => (
+                <Card 
+                  key={game.game_id} 
+                  className={`group cursor-pointer bg-slate-900/80 border border-slate-700/50 hover:border-yellow-500/50 transition-all duration-300 overflow-hidden rounded-xl hover:shadow-xl hover:shadow-yellow-500/20 ${
+                    launchingGameId === game.game_id ? 'opacity-50' : ''
+                  }`}
+                  onClick={() => handleGameClick(game)}
+                >
+                  <div className="aspect-[4/3] relative overflow-hidden bg-slate-800">
+                    <ImageWithFallback
+                      src={game.image_url}
+                      alt={game.game_name}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                    
+                    {/* 오버레이 */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+                    
+                    {/* 배지 */}
+                    {game.is_featured && (
+                      <div className="absolute top-2 right-2">
+                        <Badge className="bg-yellow-500/90 text-black border-0 text-xs backdrop-blur-sm">
+                          <Star className="w-3 h-3 mr-1 fill-current" />
+                          인기
+                        </Badge>
+                      </div>
+                    )}
+
+                    {/* 호버 플레이 버튼 */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      {launchingGameId === game.game_id ? (
+                        <div className="flex flex-col items-center gap-2 text-white">
+                          <Loader className="w-10 h-10 animate-spin" />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-16 h-16 rounded-full bg-yellow-500/20 backdrop-blur-md flex items-center justify-center border-2 border-yellow-500/50">
+                            <Play className="w-8 h-8 text-yellow-400 fill-current" />
+                          </div>
+                          <span className="text-white font-bold text-sm">플레이</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* 카드 정보 */}
+                  <div className="p-3 bg-slate-900/90">
+                    <h3 className="font-bold text-white text-base mb-1 truncate">
+                      {game.game_name}
+                    </h3>
+                    <div className="flex items-center justify-between text-xs">
+                      <p className="text-yellow-400/80 truncate flex-1">
+                        {game.provider_name}
+                      </p>
+                      {game.rtp && (
+                        <div className="text-green-400 ml-2">
+                          RTP: {game.rtp}%
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {filteredGames.length === 0 && !loading && (
+            <div className="text-center py-16 luxury-card rounded-2xl border-2 border-yellow-600/20">
+              <div className="mx-auto w-24 h-24 bg-gradient-to-br from-yellow-500/20 to-amber-600/20 rounded-full flex items-center justify-center mb-6">
+                <Coins className="w-12 h-12 text-yellow-400" />
+              </div>
+              <h3 className="text-2xl font-bold gold-text mb-2">
+                {t.user.noGamesFound}
+              </h3>
+              <p className="text-yellow-200/80 text-lg mb-4">
+                {searchQuery ? t.user.noGamesMessage.replace('{{query}}', searchQuery) : 
+                 selectedProvider !== 'all' ? t.user.noGamesProvider :
+                 t.user.noSlotGamesAvailable}
+              </p>
+              <div className="flex gap-2 justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedProvider('all');
+                  }}
+                  className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
+                >
+                  {t.user.viewAllGames}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => loadSlotGames()}
+                  className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
+                >
+                  {t.user.refresh}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-      
-      {/* 게임 로딩 팝업 */}
-      <GamePreparingDialog
-        show={showLoadingPopup}
-        stage={loadingStage}
-      />
-    </div>
+    </>
   );
 }

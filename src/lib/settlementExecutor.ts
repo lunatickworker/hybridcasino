@@ -75,6 +75,16 @@ export async function executePartnerCommissionSettlement(
     const totalWithdrawal = commissions.reduce((sum, c) => sum + c.withdrawal_commission, 0);
     const totalCommission = totalRolling + totalLosing + totalWithdrawal;
 
+    // ✅ 카지노/슬롯 구분 총계 계산
+    const totalCasinoRolling = commissions.reduce((sum, c) => sum + c.casino_rolling_commission_amount, 0);
+    const totalCasinoLosing = commissions.reduce((sum, c) => sum + c.casino_losing_commission_amount, 0);
+    const totalSlotRolling = commissions.reduce((sum, c) => sum + c.slot_rolling_commission_amount, 0);
+    const totalSlotLosing = commissions.reduce((sum, c) => sum + c.slot_losing_commission_amount, 0);
+    const totalCasinoBet = commissions.reduce((sum, c) => sum + c.casino_bet_amount, 0);
+    const totalCasinoLoss = commissions.reduce((sum, c) => sum + c.casino_loss_amount, 0);
+    const totalSlotBet = commissions.reduce((sum, c) => sum + c.slot_bet_amount, 0);
+    const totalSlotLoss = commissions.reduce((sum, c) => sum + c.slot_loss_amount, 0);
+
     if (totalCommission <= 0) {
       return { success: false, message: '정산할 커미션이 0원입니다.' };
     }
@@ -84,6 +94,16 @@ export async function executePartnerCommissionSettlement(
       partner_id: c.partner_id,
       partner_nickname: c.partner_nickname,
       partner_level: c.partner_level,
+      // ✅ 카지노/슬롯 구분 추가
+      casino_rolling_commission: c.casino_rolling_commission_amount,
+      casino_losing_commission: c.casino_losing_commission_amount,
+      slot_rolling_commission: c.slot_rolling_commission_amount,
+      slot_losing_commission: c.slot_losing_commission_amount,
+      casino_bet_amount: c.casino_bet_amount,
+      casino_loss_amount: c.casino_loss_amount,
+      slot_bet_amount: c.slot_bet_amount,
+      slot_loss_amount: c.slot_loss_amount,
+      // 하위 호환성
       rolling_commission: c.rolling_commission,
       losing_commission: c.losing_commission,
       withdrawal_commission: c.withdrawal_commission,
@@ -103,6 +123,16 @@ export async function executePartnerCommissionSettlement(
         total_bet_amount: commissions.reduce((sum, c) => sum + c.total_bet_amount, 0),
         total_win_amount: 0,
         total_withdrawal_amount: commissions.reduce((sum, c) => sum + c.total_withdrawal_amount, 0),
+        // ✅ 카지노/슬롯 구분 컬럼 추가
+        casino_rolling_commission: totalCasinoRolling,
+        casino_losing_commission: totalCasinoLosing,
+        slot_rolling_commission: totalSlotRolling,
+        slot_losing_commission: totalSlotLosing,
+        casino_bet_amount: totalCasinoBet,
+        casino_loss_amount: totalCasinoLoss,
+        slot_bet_amount: totalSlotBet,
+        slot_loss_amount: totalSlotLoss,
+        // 하위 호환성
         rolling_commission: totalRolling,
         losing_commission: totalLosing,
         withdrawal_commission: totalWithdrawal,

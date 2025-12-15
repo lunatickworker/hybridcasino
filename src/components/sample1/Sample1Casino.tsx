@@ -10,23 +10,98 @@ interface Sample1CasinoProps {
   user: any;
 }
 
-// 카지노 로비 데이터 (이미지 기반)
-const CASINO_PROVIDERS = [
-  { id: 410000, name: '에볼루션 라이브카지노', provider_id: 410, label: 'EVOLUTION', color: 'from-red-600 to-red-800' },
-  { id: 77060, name: '마이크로게이밍 라이브카지노', provider_id: 77, label: 'MICROGAMING', color: 'from-blue-600 to-blue-800' },
-  { id: 86001, name: '섹시게이밍', provider_id: 86, label: 'SEXY GAMING', color: 'from-pink-600 to-pink-800' },
-  { id: 78001, name: '프라그마틱 라이브카지노', provider_id: 78, label: 'PRAGMATIC PLAY', color: 'from-purple-600 to-purple-800' },
-  { id: 30000, name: '아시아게이밍', provider_id: 30, label: 'ASIA GAMING', color: 'from-yellow-600 to-yellow-800' },
-  { id: 2029, name: 'Vivo 라이브카지노', provider_id: 2, label: 'VIVO GAMING', color: 'from-green-600 to-green-800' },
-  { id: 11000, name: '비비아이엔', provider_id: 11, label: 'BBIEN', color: 'from-indigo-600 to-indigo-800' },
-  { id: 28000, name: '드림게임', provider_id: 28, label: 'DREAM GAMING', color: 'from-orange-600 to-orange-800' },
-];
+interface CasinoGame {
+  game_id: number;
+  provider_id: number;
+  provider_name: string;
+  provider_logo?: string;
+  game_name: string;
+  game_type: string;
+  image_url?: string;
+  is_featured: boolean;
+  status: string;
+  priority: number;
+  api_type?: string;
+}
 
 export function Sample1Casino({ user }: Sample1CasinoProps) {
   const [loading, setLoading] = useState(false);
   const [launchingGameId, setLaunchingGameId] = useState<number | null>(null);
   const [showLoadingPopup, setShowLoadingPopup] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
+  const [loadingStage, setLoadingStage] = useState<'preparing' | 'launch' | 'withdraw'>('preparing');
+  const [casinoGames, setCasinoGames] = useState<CasinoGame[]>([]);
+  const [providers, setProviders] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadCasinoData();
+  }, []);
+
+  const loadCasinoData = async () => {
+    try {
+      setLoading(true);
+      
+      // 노출된 제공사 가져오기
+      const providersData = await gameApi.getUserVisibleProviders({ type: 'casino' });
+      setProviders(providersData);
+      
+      // 카지노 게임 로드 (카지노 로비 게임만)
+      let query = supabase
+        .from('games')
+        .select(`
+          id,
+          provider_id,
+          name,
+          type,
+          status,
+          image_url,
+          is_featured,
+          priority,
+          api_type,
+          game_providers!inner(
+            id,
+            name,
+            logo_url,
+            status
+          )
+        `)
+        .eq('type', 'casino')
+        .eq('status', 'visible') // 게임 status도 visible만
+        .eq('game_providers.status', 'visible'); // 제공사도 visible이어야 함
+        
+      const { data: gamesData, error } = await query.order('priority', { ascending: false });
+
+      if (error) throw error;
+
+      // 게임 데이터 포맷팅
+      const formattedGames = gamesData?.map(game => ({
+        game_id: game.id,
+        provider_id: game.provider_id,
+        provider_name: (game as any).game_providers?.name || 'Unknown',
+        provider_logo: (game as any).game_providers?.logo_url,
+        game_name: game.name,
+        game_type: game.type,
+        image_url: game.image_url,
+        is_featured: game.is_featured,
+        status: game.status,
+        priority: game.priority || 0,
+        api_type: game.api_type
+      })) || [];
+
+      // ✅ 노출된 제공사의 게임만 필터링
+      const visibleGames = formattedGames.filter(game => 
+        providersData.some((p: any) => p.id === game.provider_id)
+      );
+
+      setCasinoGames(visibleGames);
+      
+    } catch (error) {
+      console.error('카지노 데이터 로드 오류:', error);
+      toast.error('데이터를 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLaunchCasino = async (gameId: number, gameName: string) => {
     if (!user) {
@@ -56,6 +131,7 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
       }
 
       // ⭐ 게임 준비 팝업 표시
+      setLoadingStage('preparing');
       setLoadingMessage("게임을 준비중입니다");
       setShowLoadingPopup(true);
 
@@ -77,12 +153,52 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
         } else {
           toast.success(`${gameName} 실행 중...`);
 
-          // 게임 팝업 참조 저장
+          // 게임 팝업 참조 저장 및 종료 감지 설정
           if (result.sessionId) {
+            const sessionId = result.sessionId;
+            
             if (!(window as any).gameWindows) {
               (window as any).gameWindows = new Map();
             }
-            (window as any).gameWindows.set(result.sessionId, popup);
+            (window as any).gameWindows.set(sessionId, popup);
+            
+            if (!(window as any).gameWindowCheckers) {
+              (window as any).gameWindowCheckers = new Map();
+            }
+            
+            let isProcessing = false;
+            const handleGameWindowClose = async () => {
+              if (isProcessing) return;
+              isProcessing = true;
+              
+              setLoadingStage('withdraw');
+              setShowLoadingPopup(true);
+              
+              const checker = (window as any).gameWindowCheckers?.get(sessionId);
+              if (checker) {
+                clearInterval(checker);
+                (window as any).gameWindowCheckers?.delete(sessionId);
+              }
+              
+              (window as any).gameWindows?.delete(sessionId);
+              await (window as any).syncBalanceAfterGame?.(sessionId);
+              
+              setTimeout(() => {
+                setShowLoadingPopup(false);
+              }, 500);
+            };
+            
+            const checkGameWindow = setInterval(() => {
+              try {
+                if (popup.closed) {
+                  handleGameWindowClose();
+                }
+              } catch (error) {
+                // 무시
+              }
+            }, 1000);
+            
+            (window as any).gameWindowCheckers.set(sessionId, checkGameWindow);
           }
         }
       } else {
@@ -96,6 +212,30 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
       setLoading(false);
       setLaunchingGameId(null);
     }
+  };
+
+  // ✅ 카지노 로비 게임 추출 (중복 제거)
+  const uniqueProviderGames = casinoGames.reduce((acc: CasinoGame[], game) => {
+    const exists = acc.find(g => g.provider_id === game.provider_id);
+    if (!exists) {
+      acc.push(game);
+    }
+    return acc;
+  }, []);
+
+  // 제공사별 색상 매핑
+  const getProviderColor = (providerId: number) => {
+    const colors: { [key: number]: string } = {
+      410: 'from-red-600 to-red-800',
+      77: 'from-blue-600 to-blue-800',
+      86: 'from-pink-600 to-pink-800',
+      78: 'from-purple-600 to-purple-800',
+      30: 'from-yellow-600 to-yellow-800',
+      2: 'from-green-600 to-green-800',
+      11: 'from-indigo-600 to-indigo-800',
+      28: 'from-orange-600 to-orange-800',
+    };
+    return colors[providerId] || 'from-gray-600 to-gray-800';
   };
 
   return (
@@ -121,10 +261,10 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
 
       {/* 카지노 제공사 그리드 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {CASINO_PROVIDERS.map((provider) => (
+        {uniqueProviderGames.map((game) => (
           <button
-            key={provider.id}
-            onClick={() => handleLaunchCasino(provider.id, provider.name)}
+            key={game.game_id}
+            onClick={() => handleLaunchCasino(game.game_id, game.game_name)}
             disabled={loading}
             className="group relative overflow-hidden rounded-lg border-2 border-yellow-600/30 hover:border-yellow-500 transition-all duration-300"
             style={{
@@ -132,7 +272,7 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
             }}
           >
             {/* 배경 그라데이션 */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${provider.color} opacity-80 group-hover:opacity-100 transition-opacity`} />
+            <div className={`absolute inset-0 bg-gradient-to-br ${getProviderColor(game.provider_id)} opacity-80 group-hover:opacity-100 transition-opacity`} />
             
             {/* 빛나는 효과 */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
@@ -141,7 +281,7 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
             <div className="relative p-6 flex flex-col items-center justify-center gap-3 min-h-[160px]">
               {/* 아이콘 영역 */}
               <div className="w-16 h-16 rounded-full bg-black/30 flex items-center justify-center border-2 border-yellow-400/50 group-hover:border-yellow-400 transition-colors">
-                {launchingGameId === provider.id ? (
+                {launchingGameId === game.game_id ? (
                   <Loader2 className="w-8 h-8 text-yellow-400 animate-spin" />
                 ) : (
                   <Play className="w-8 h-8 text-yellow-400 group-hover:scale-110 transition-transform" />
@@ -155,10 +295,10 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
                   letterSpacing: '0.05em',
                   textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
                 }}>
-                  {provider.label}
+                  {game.provider_name.toUpperCase()}
                 </div>
                 <div className="text-yellow-400 text-xs">
-                  {provider.name}
+                  {game.game_name}
                 </div>
               </div>
 
@@ -168,6 +308,13 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
           </button>
         ))}
       </div>
+
+      {/* 게임이 없을 때 */}
+      {uniqueProviderGames.length === 0 && !loading && (
+        <div className="text-center py-12 text-gray-400">
+          <p>현재 이용 가능한 카지노가 없습니다.</p>
+        </div>
+      )}
 
       {/* 로딩 상태 */}
       {loading && (
@@ -185,7 +332,7 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
       {showLoadingPopup && (
         <Sample1GameLoadingPopup
           show={showLoadingPopup}
-          message={loadingMessage}
+          message={loadingStage === 'withdraw' ? '게임 종료 후 정산중입니다' : loadingMessage}
         />
       )}
     </div>
