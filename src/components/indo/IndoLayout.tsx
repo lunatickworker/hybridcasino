@@ -174,7 +174,7 @@ export function IndoLayout({ user, currentRoute, onRouteChange, onLogout, childr
           return;
         }
 
-        if (!['ready', 'active'].includes(session.status)) {
+        if (session.status !== 'active') {
           console.log(`⏭️ [Indo 게임창 닫힘] 이미 종료된 세션: status=${session.status}`);
           return;
         }
@@ -227,7 +227,7 @@ export function IndoLayout({ user, currentRoute, onRouteChange, onLogout, childr
         async (payload) => {
           const { new: newSession, old: oldSession } = payload as any;
 
-          if (['active', 'ready'].includes(oldSession?.status) && 
+          if (oldSession?.status === 'active' && 
               ['ended', 'force_ended'].includes(newSession.status)) {
             
             console.log('🛑 [Indo 세션 종료]', newSession.id, newSession.status);

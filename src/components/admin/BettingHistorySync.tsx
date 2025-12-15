@@ -13,50 +13,15 @@ interface BettingHistorySyncProps {
 
 /**
  * 세션 상태 전환 모니터링 (최종 플로우 with paused)
- * 1. ready → active (첫 베팅 발견)
- * 2. active → paused (4분 베팅 없음, 게임창 열려있음)
- * 3. paused → active (베팅 재개)
+ * 1. active → paused (4분 베팅 없음, 게임창 열려있음)
+ * 2. paused → active (베팅 재개)
  */
 const monitorSessionStates = async () => {
   try {
     const now = new Date();
     const fourMinutesAgo = new Date(now.getTime() - 4 * 60 * 1000);
 
-    // 1. ready → active (첫 베팅 발견 시)
-    const { data: readySessions } = await supabase
-      .from('game_launch_sessions')
-      .select('*, users!inner(username)')
-      .eq('status', 'ready');
-
-    if (readySessions && readySessions.length > 0) {
-      for (const session of readySessions) {
-        // 최근 30초 이내 베팅 기록 확인
-        const { data: recentBets } = await supabase
-          .from('game_records')
-          .select('played_at')
-          .eq('user_id', session.user_id)
-          .gte('played_at', new Date(now.getTime() - 30 * 1000).toISOString())
-          .limit(1);
-
-        if (recentBets && recentBets.length > 0) {
-          // ready → active 전환
-          await supabase
-            .from('game_launch_sessions')
-            .update({
-              status: 'active',
-              last_bet_at: recentBets[0].played_at,
-              last_bet_checked_at: now.toISOString(), // ✅ 추가
-              last_activity_at: now.toISOString(),
-              ready_status: null
-            })
-            .eq('id', session.id);
-
-          console.log(`✅ ready → active: user=${session.users?.username}`);
-        }
-      }
-    }
-
-    // 2. active → paused (4분 베팅 없음) ⭐ paused 상태로 변경
+    // 1. active → paused (4분 베팅 없음) ⭐ paused 상태로 변경
     const { data: activeSessions } = await supabase
       .from('game_launch_sessions')
       .select('*, users!inner(username)')
@@ -70,7 +35,7 @@ const monitorSessionStates = async () => {
         await supabase
           .from('game_launch_sessions')
           .update({
-            status: 'paused', // ⭐ ready → paused 변경
+            status: 'paused', // ⭐ paused 상태로 변경
             last_bet_checked_at: now.toISOString(), // ✅ 추가
             last_activity_at: now.toISOString()
           })
@@ -80,7 +45,7 @@ const monitorSessionStates = async () => {
       }
     }
 
-    // 3. paused → active (베팅 재개)
+    // 2. paused → active (베팅 재개)
     const { data: pausedSessions } = await supabase
       .from('game_launch_sessions')
       .select('*, users!inner(username)')

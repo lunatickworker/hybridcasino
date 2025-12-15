@@ -2457,11 +2457,11 @@ export async function checkActiveSession(userId: string): Promise<{
   session_id?: number;
   game_id?: number;
   launch_url?: string;
-  status?: 'active' | 'ready';
+  status?: 'active';
   ready_status?: 'waiting' | 'popup_opened' | 'popup_blocked';
 } | null> {
   try {
-    // ⭐ ready와 active 세션 모두 체크 (중복 클릭 방지)
+    // ⭐ active 세션만 체크 (ready 상태 제거)
     const { data, error } = await supabase
       .from('game_launch_sessions')
       .select(`
@@ -2473,7 +2473,7 @@ export async function checkActiveSession(userId: string): Promise<{
         ready_status
       `)
       .eq('user_id', userId)
-      .in('status', ['active', 'ready'])
+      .eq('status', 'active')
       .order('launched_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -2508,7 +2508,7 @@ export async function checkActiveSession(userId: string): Promise<{
       session_id: data.id,
       game_id: data.game_id,
       launch_url: data.launch_url,
-      status: data.status as 'active' | 'ready',
+      status: data.status as 'active',
       ready_status: data.ready_status as 'waiting' | 'popup_opened' | 'popup_blocked'
     };
   } catch (error) {
@@ -2635,15 +2635,14 @@ export async function generateGameLaunchUrl(
     // 5. 세션 ID 생성 (16자리 랜덤)
     const sessionId = Math.random().toString(36).substring(2, 18).padEnd(16, '0');
 
-    // 6. 게임 세션 생성 (⭐ FINAL_FLOW: status='ready'로 시작)
+    // 6. 게임 세션 생성 (⭐ FINAL_FLOW: status='active'로 바로 시작)
     const sessionData: any = {
       user_id: userId,
       game_id: gameId,
       partner_id: topLevelPartnerId,
       session_id: sessionId,
       api_type: game.api_type,
-      status: 'ready',  // ⭐ 첫 베팅 전까지는 ready 상태
-      ready_at: new Date().toISOString(),  // ⭐ ready 타임아웃 시작
+      status: 'active',  // ⭐ 바로 active 상태로 시작 (ready 상태 제거)
       launched_at: new Date().toISOString(),
       last_activity_at: new Date().toISOString()
     };
@@ -2968,7 +2967,7 @@ export async function syncBalanceOnSessionEnd(
         last_activity_at: new Date().toISOString()
       })
       .eq('user_id', userId)
-      .in('status', ['ready', 'active']);
+      .eq('status', 'active');
 
     if (sessionError) {
       console.error('❌ 세션 종료 처리 실패:', sessionError);

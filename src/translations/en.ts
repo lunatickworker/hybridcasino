@@ -2598,11 +2598,6 @@ export const en = {
     convert: 'Convert',
     pointsConverted: '{{points}}P has been converted to balance',
     pointsConvertError: 'Error occurred while converting points',
-    
-    // Common
-    close: 'Close',
-    confirm: 'Confirm',
-    cancel: 'Cancel',
   },
 
 };

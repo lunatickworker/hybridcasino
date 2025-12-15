@@ -40,7 +40,7 @@ interface UserSlotProps {
 }
 
 export function UserSlot({ user, onRouteChange }: UserSlotProps) {
-  const [selectedProvider, setSelectedProvider] = useState("all"); // ✅ 기본값을 "all"로 설정
+  const [selectedProvider, setSelectedProvider] = useState(""); // ✅ 빈 문자열로 시작
   const [searchQuery, setSearchQuery] = useState("");
   const [games, setGames] = useState<Game[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
@@ -48,7 +48,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
   const [launchingGameId, setLaunchingGameId] = useState<number | null>(null);
   const [showLoadingPopup, setShowLoadingPopup] = useState(false);
   const [loadingStage, setLoadingStage] = useState<'deposit' | 'launch' | 'withdraw' | 'switch_deposit'>('launch');
-  const [isInitialLoad, setIsInitialLoad] = useState(true); // ✅ 초기 로드 여부
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const isMountedRef = useRef(true);
   const { t } = useLanguage();
 
@@ -61,8 +61,12 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
   }, []);
 
   useEffect(() => {
-    // selectedProvider 변경 시 게임 다시 로드하지 않음 (이미 모든 게임 로드됨)
-    // 제공사 필터링은 filteredGames에서 처리
+    // ✅ selectedProvider 변경 시 해당 제공사 게임 로드
+    if (selectedProvider && selectedProvider !== "all") {
+      loadSlotGames(parseInt(selectedProvider));
+    } else if (selectedProvider === "all") {
+      loadAllSlotGames();
+    }
   }, [selectedProvider]);
 
   const initializeData = async () => {
@@ -71,15 +75,18 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     try {
       setLoading(true);
       
-      // 먼저 모든 게임 로드
-      await loadSlotGames();
-      
-      // 제공사 로드 후 게임이 있는 제공사만 필터링
+      // ✅ 1. 제공사만 먼저 빠르게 로드
       const providersData = await gameApi.getUserVisibleProviders({ type: 'slot' });
       
       if (isMountedRef.current) {
         setProviders(providersData);
-        // ✅ 기본 선택 제거 - "all"이 기본값으로 유지됨
+        
+        // ✅ 2. 첫 번째 제공사를 기본 선택
+        if (providersData.length > 0) {
+          setSelectedProvider(providersData[0].id.toString());
+          // ✅ 3. 첫 번째 제공사의 게임만 로드
+          await loadSlotGames(providersData[0].id);
+        }
       }
       
     } catch (error) {
@@ -90,18 +97,18 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
-        setIsInitialLoad(false); // ✅ 초기 로드 완료
+        setIsInitialLoad(false);
       }
     }
   };
 
-  const loadSlotGames = async () => {
+  const loadSlotGames = async (providerId: number) => {
     if (!isMountedRef.current) return;
     
     try {
       setLoading(true);
 
-      // ✅ 모든 슬롯 게임을 로드 (inner join 제거 - 제공사가 없어도 표시)
+      // ✅ 선택된 제공사의 게임만 로드
       let query = supabase
         .from('games')
         .select(`
@@ -115,29 +122,22 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
           priority,
           rtp,
           api_type,
-          game_providers(
+          game_providers!inner(
             id,
             name,
             logo_url
           )
         `)
-        .eq('type', 'slot');
+        .eq('type', 'slot')
+        .eq('status', 'visible')
+        .eq('provider_id', providerId);
 
       const { data: gamesData, error } = await query.order('priority', { ascending: false });
 
       if (error) throw error;
 
-      console.log(`🎰 [슬롯 게임 로드] 총 ${gamesData?.length || 0}개 게임 로드됨`);
-      
-      const providerCount = new Map<string, number>();
-      gamesData?.forEach(game => {
-        const providerName = (game as any).game_providers?.name || 'Unknown';
-        providerCount.set(providerName, (providerCount.get(providerName) || 0) + 1);
-      });
-      
-      console.log('📊 [제공사별 게임 수]:', Array.from(providerCount.entries()).map(([name, count]) => `${name}: ${count}개`));
+      console.log(`🎰 [슬롯 게임 로드] Provider ID ${providerId}: ${gamesData?.length || 0}개 게임`);
 
-      // 게임 데이터 포맷팅
       const formattedGames = gamesData?.map(game => ({
         game_id: game.id,
         provider_id: game.provider_id,
@@ -175,13 +175,77 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     }
   };
 
-  // 게임이 있는 제공사만 필터링 (모든 games 기준으로)
-  const filteredProviders = useMemo(() => {
-    return providers.filter(provider => {
-      const hasGames = games.some(game => game.provider_id === provider.id);
-      return hasGames;
-    });
-  }, [providers, games]);
+  const loadAllSlotGames = async () => {
+    if (!isMountedRef.current) return;
+    
+    try {
+      setLoading(true);
+
+      // ✅ 모든 슬롯 게임 로드 (전체 보기)
+      let query = supabase
+        .from('games')
+        .select(`
+          id,
+          provider_id,
+          name,
+          type,
+          status,
+          image_url,
+          is_featured,
+          priority,
+          rtp,
+          api_type,
+          game_providers(
+            id,
+            name,
+            logo_url
+          )
+        `)
+        .eq('type', 'slot')
+        .eq('status', 'visible');
+
+      const { data: gamesData, error } = await query.order('priority', { ascending: false });
+
+      if (error) throw error;
+
+      console.log(`🎰 [슬롯 게임 전체 로드] 총 ${gamesData?.length || 0}개 게임`);
+
+      const formattedGames = gamesData?.map(game => ({
+        game_id: game.id,
+        provider_id: game.provider_id,
+        provider_name: (game as any).game_providers?.name || 'Unknown',
+        provider_logo: (game as any).game_providers?.logo_url,
+        game_name: game.name,
+        game_type: game.type,
+        image_url: game.image_url,
+        is_featured: game.is_featured || false,
+        rtp: game.rtp,
+        status: game.status,
+        priority: game.priority || 0,
+        api_type: game.api_type
+      })) || [];
+
+      const sortedGames = formattedGames.sort((a, b) => {
+        if (a.is_featured && !b.is_featured) return -1;
+        if (!a.is_featured && b.is_featured) return 1;
+        return b.priority - a.priority;
+      });
+
+      if (isMountedRef.current) {
+        setGames(sortedGames);
+      }
+      
+    } catch (error) {
+      if (isMountedRef.current) {
+        console.error('게임 로드 실패:', error);
+        toast.error('슬롯 게임을 불러오는데 실패했습니다.');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
 
   const handleGameClick = async (game: Game) => {
     if (launchingGameId === game.game_id) return;
@@ -228,10 +292,10 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
 
       if (activeSession?.isActive && 
           activeSession.game_id === game.game_id && 
-          activeSession.status === 'ready' && 
+          activeSession.status === 'active' && 
           activeSession.launch_url) {
         
-        console.log('🔄 [슬롯 실행] ready 세션 재사용 - 기존 URL 사용 (입금 API 호출 안함):', activeSession.session_id);
+        console.log('🔄 [슬롯 실행] active 세션 재사용 - 기존 URL 사용:', activeSession.session_id);
         
         const gameWindow = window.open(
           activeSession.launch_url,
@@ -252,7 +316,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
             })
             .eq('id', sessionId);
             
-          console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료 (ready 세션 재사용)');
+          console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료 (active 세션 재사용)');
         } else {
           toast.success(`${game.game_name} 게임을 시작합니다.`);
           
@@ -415,14 +479,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
   };
 
   const filteredGames = games.filter(game => {
-    // 1️⃣ 제공사 필터링 (선택된 제공사만 표시)
-    if (selectedProvider && selectedProvider !== "all") {
-      if (game.provider_id.toString() !== selectedProvider) {
-        return false;
-      }
-    }
-
-    // 2️⃣ 검색어 필터링
+    // ✅ 검색어 필터링만 수행 (제공사 필터링은 loadSlotGames에서 처리)
     if (searchQuery.trim()) {
       const search = searchQuery.toLowerCase();
       const matchesName = game.game_name.toLowerCase().includes(search);
@@ -485,7 +542,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
             selectedProvider={selectedProvider}
             onProviderChange={setSelectedProvider}
             gameType="slot"
-            providers={filteredProviders}
+            providers={providers}
           />
 
           {/* 슬롯 게임 목록 */}
@@ -583,7 +640,9 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
                   variant="outline"
                   onClick={() => {
                     setSearchQuery('');
-                    setSelectedProvider('all');
+                    if (providers.length > 0) {
+                      setSelectedProvider(providers[0].id.toString());
+                    }
                   }}
                   className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
                 >
@@ -591,7 +650,13 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => loadSlotGames()}
+                  onClick={() => {
+                    if (selectedProvider && selectedProvider !== "all") {
+                      loadSlotGames(parseInt(selectedProvider));
+                    } else {
+                      loadAllSlotGames();
+                    }
+                  }}
                   className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
                 >
                   {t.user.refresh}

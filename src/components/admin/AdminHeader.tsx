@@ -447,11 +447,17 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         const dailyWithdrawal = withdrawalData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
 
         // 3️⃣ 게임중인 사용자 수 - game_launch_sessions 테이블에서 status='active'인 세션만
-        const { count: onlineCount } = await supabase
+        const { count: onlineCount, error: onlineError } = await supabase
           .from('game_launch_sessions')
           .select('id', { count: 'exact', head: true })
-          .eq('status', 'active')
+          .eq('status', 'active')  // ⭐ ready 상태 제거, active만 체크
           .in('user_id', allowedUserIds);
+
+        if (onlineError) {
+          console.error('❌ 온라인 사용자 조회 실패:', onlineError);
+        }
+        
+        console.log('🎮 [온라인 사용자] 카운트:', onlineCount, '| allowedUserIds:', allowedUserIds.length);
 
         // 4️⃣ 전체 회원 수 - 소속 사용자만
         const totalUserCount = allowedUserIds.length;

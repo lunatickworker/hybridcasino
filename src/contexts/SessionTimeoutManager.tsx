@@ -33,46 +33,12 @@ export function SessionTimeoutManager() {
 }
 
 /**
- * ready 상태 10분 타임아웃 처리
- * ready_at + 10분 경과 시 자동 출금 + ended 상태 전환
+ * ready 상태 타임아웃 처리 (비활성화)
+ * ⚠️ ready 상태가 제거되어 더 이상 사용하지 않음
  */
 async function handleReadyTimeout() {
-  try {
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-    
-    const { data: readySessions, error } = await supabase
-      .from('game_launch_sessions')
-      .select('*')
-      .eq('status', 'ready')
-      .lt('ready_at', tenMinutesAgo.toISOString());
-    
-    if (error) {
-      // Supabase 연결 안 됨 - 조용히 실패
-      if (error?.message?.includes('Failed to fetch')) return;
-      console.error('❌ ready 타임아웃 체크 실패:', error);
-      return;
-    }
-    
-    if (!readySessions || readySessions.length === 0) {
-      return;
-    }
-    
-    console.log(`⏰ ready 타임아웃 세션 ${readySessions.length}개 발견`);
-    
-    for (const session of readySessions) {
-      try {
-        console.log(`⏰ [세션 자동 종료 시작] user_id=${session.user_id}, api_type=${session.api_type}`);
-        
-        // 보유금 동기화 + API 출금 + ended 상태 전환
-        await syncBalanceOnSessionEnd(session.user_id, session.api_type);
-        console.log(`✅ 세션 자동 종료 완료: user_id=${session.user_id}`);
-      } catch (error) {
-        console.error(`❌ 세션 자동 종료 실패: user_id=${session.user_id}`, error);
-      }
-    }
-  } catch (error) {
-    console.error('❌ handleReadyTimeout 실패:', error);
-  }
+  // ready 상태가 제거되어 이 함수는 더 이상 사용되지 않습니다.
+  return;
 }
 
 /**

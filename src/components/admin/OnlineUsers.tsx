@@ -373,7 +373,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       }
       // ✅ 자동 갱신(30초 타이머)은 백그라운드에서 조용히 처리 (깜박임 없음)
 
-      // ⭐ game_launch_sessions에서 game_id가 있는 세션 조회 (active, ready만 - ended/force_ended 제외)
+      // ⭐ game_launch_sessions에서 game_id가 있는 세션 조회 (active만 - ended/force_ended 제외)
       let query = supabase
         .from('game_launch_sessions')
         .select(`
@@ -381,22 +381,16 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           session_id,
           user_id,
           game_id,
+          api_type,
           status,
-          balance_before,
           launched_at,
           last_activity_at,
-          users!inner(
-            id,
-            username,
-            nickname,
-            balance,
-            ip_address,
-            device_info,
-            referrer_id
-          )
+          last_bet_at,
+          initial_balance,
+          users!inner(username, nickname, balance)
         `)
         .not('game_id', 'is', null)
-        .in('status', ['active', 'ready'])
+        .eq('status', 'active')  // ⭐ ready 상태 제거, active만 조회
         .order('last_activity_at', { ascending: false });
 
       // 권한별 필터링

@@ -303,11 +303,17 @@ async function getFamilyApiAgentBalance(apiKey: string, token: string): Promise<
   
   console.log('📥 [FamilyAPI] Agent 잔고 응답:', {
     resultCode: response.resultCode,
+    resultMessage: response.resultMessage,
     credit: response.data?.credit
   });
   
   // resultCode는 문자열 "0" 또는 숫자 0일 수 있음
   if (response.resultCode !== '0' && response.resultCode !== 0) {
+    // ⚠️ FamilyAPI가 비활성화되어 있거나 토큰이 유효하지 않은 경우
+    if (response.resultCode === '9999') {
+      console.warn('⚠️ [FamilyAPI] Agent 잔고 조회 실패 - API 비활성화 또는 토큰 오류');
+      return 0; // 에러 대신 0 반환 (비활성화로 간주)
+    }
     throw new Error(`FamilyAPI Agent 잔고 조회 실패: ${response.resultMessage || response.resultCode}`);
   }
   

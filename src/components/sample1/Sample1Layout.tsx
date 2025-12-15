@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useState, useRef } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { LogOut, User, Wallet, Bell, MessageSquare, Gift } from "lucide-react";
@@ -29,6 +29,92 @@ export function Sample1Layout({
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const syncingSessionsRef = useRef<Set<number>>(new Set());
+
+  // ==========================================================================
+  // 게임 윈도우 관리 및 세션 종료 로직 (글로벌 함수)
+  // ==========================================================================
+  useEffect(() => {
+    // 게임 윈도우 강제 닫기 함수
+    (window as any).forceCloseGameWindow = (sessionId: number) => {
+      const gameWindows = (window as any).gameWindows;
+      if (!gameWindows) return false;
+      
+      const gameWindow = gameWindows?.get(sessionId);
+      
+      if (gameWindow && !gameWindow.closed) {
+        gameWindow.close();
+        gameWindows.delete(sessionId);
+        return true;
+      }
+      return false;
+    };
+
+    // 게임 종료 시 보유금 동기화 + API 출금 함수
+    (window as any).syncBalanceAfterGame = async (sessionId: number) => {
+      try {
+        console.log('🔄 [Sample1 게임창 닫힘] 세션 종료:', sessionId);
+        
+        // ⭐ 1. 세션 정보 조회 (user_id, api_type, status 확인)
+        const { data: session, error: sessionError } = await supabase
+          .from('game_launch_sessions')
+          .select('user_id, api_type, status')
+          .eq('id', sessionId)
+          .single();
+
+        if (sessionError || !session) {
+          console.error('❌ [Sample1 게임창 닫힘] 세션 조회 실패:', sessionError);
+          return;
+        }
+
+        // ⭐ active 상태만 처리 (이미 종료된 세션은 무시)
+        if (session.status !== 'active') {
+          console.log(`⏭️ [Sample1 게임창 닫힘] 이미 종료된 세션: status=${session.status}`);
+          return;
+        }
+
+        // ⭐ 중복 실행 방지
+        if (syncingSessionsRef.current.has(sessionId)) {
+          console.log(`⏭️ [Sample1 게임창 닫힘] 이미 처리 중인 세션: ${sessionId}`);
+          return;
+        }
+
+        syncingSessionsRef.current.add(sessionId);
+
+        try {
+          // ⭐ 2. lib/gameApi.ts의 syncBalanceOnSessionEnd 호출 (완전한 출금 로직)
+          const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
+          await syncBalanceOnSessionEnd(session.user_id, session.api_type);
+          
+          console.log('✅ [Sample1 게임창 닫힘] 처리 완료');
+        } finally {
+          syncingSessionsRef.current.delete(sessionId);
+        }
+      } catch (error) {
+        console.error('❌ [Sample1 게임창 닫힘 오류]:', error);
+        syncingSessionsRef.current.delete(sessionId);
+        
+        // 에러 발생 시에도 세션은 종료
+        try {
+          await supabase
+            .from('game_launch_sessions')
+            .update({ 
+              status: 'ended',
+              ended_at: new Date().toISOString()
+            })
+            .eq('id', sessionId);
+        } catch (e) {
+          console.error('❌ [Sample1 세션 종료 실패]:', e);
+        }
+      }
+    };
+
+    return () => {
+      delete (window as any).forceCloseGameWindow;
+      delete (window as any).syncBalanceAfterGame;
+      syncingSessionsRef.current.clear();
+    };
+  }, []);
 
   const handleLogin = async () => {
     if (!loginUsername || !loginPassword) {

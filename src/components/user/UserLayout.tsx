@@ -190,8 +190,8 @@ export function UserLayout({ user, currentRoute, onRouteChange, onLogout, childr
           return;
         }
 
-        // ⭐ FINAL_FLOW: ready 또는 active 상태만 처리 (이미 종료된 세션은 무시)
-        if (!['ready', 'active'].includes(session.status)) {
+        // ⭐ FINAL_FLOW: active 상태만 처리 (이미 종료된 세션은 무시)
+        if (session.status !== 'active') {
           console.log(`⏭️ [게임창 닫힘] 이미 종료된 세션: status=${session.status}`);
           return;
         }
@@ -246,8 +246,8 @@ export function UserLayout({ user, currentRoute, onRouteChange, onLogout, childr
         async (payload) => {
           const { new: newSession, old: oldSession } = payload as any;
 
-          // ⭐ FINAL_FLOW: active/ready → ended/force_ended 감지
-          if (['active', 'ready'].includes(oldSession?.status) && 
+          // ⭐ FINAL_FLOW: active → ended/force_ended 감지
+          if (oldSession?.status === 'active' && 
               ['ended', 'force_ended'].includes(newSession.status)) {
             
             console.log('🛑 [세션 종료]', newSession.id, newSession.status);

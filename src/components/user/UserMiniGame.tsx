@@ -41,7 +41,7 @@ interface UserMiniGameProps {
 }
 
 export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
-  const [selectedProvider, setSelectedProvider] = useState("all"); // ✅ 이미 "all"로 설정되어 있음
+  const [selectedProvider, setSelectedProvider] = useState(""); // ✅ 빈 문자열로 시작
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [games, setGames] = useState<Game[]>([]);
@@ -50,7 +50,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   const [launchingGameId, setLaunchingGameId] = useState<number | null>(null);
   const [showLoadingPopup, setShowLoadingPopup] = useState(false);
   const [loadingStage, setLoadingStage] = useState<'deposit' | 'launch' | 'withdraw' | 'switch_deposit'>('launch');
-  const [isInitialLoad, setIsInitialLoad] = useState(true); // ✅ 초기 로드 여부
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const isMountedRef = useRef(true);
   const { t } = useLanguage();
 
@@ -70,8 +70,12 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   }, []);
 
   useEffect(() => {
-    // selectedProvider 변경 시 게임 다시 로드하지 않음 (이미 모든 게임 로드됨)
-    // 제공사 필터링은 filteredGames에서 처리
+    // ✅ selectedProvider 변경 시 해당 제공사 게임 로드
+    if (selectedProvider && selectedProvider !== "all") {
+      loadMiniGames(parseInt(selectedProvider));
+    } else if (selectedProvider === "all") {
+      loadAllMiniGames();
+    }
   }, [selectedProvider, selectedCategory]);
 
   const initializeData = async () => {
@@ -80,15 +84,18 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     try {
       setLoading(true);
       
-      // 먼저 모든 게임 로드
-      await loadMiniGames();
-      
-      // 제공사 로드 후 게임이 있는 제공사만 필터링
+      // ✅ 1. 제공사만 먼저 빠르게 로드
       const providersData = await gameApi.getUserVisibleProviders({ type: 'minigame' });
       
       if (isMountedRef.current) {
         setProviders(providersData);
-        // ✅ 기본 선택 제거 - "all"이 기본값으로 유지됨
+        
+        // ✅ 2. 첫 번째 제공사를 기본 선택
+        if (providersData.length > 0) {
+          setSelectedProvider(providersData[0].id.toString());
+          // ✅ 3. 첫 번째 제공사의 게임만 로드
+          await loadMiniGames(providersData[0].id);
+        }
       }
       
     } catch (error) {
@@ -104,7 +111,79 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     }
   };
 
-  const loadMiniGames = async () => {
+  const loadMiniGames = async (providerId?: number) => {
+    if (!isMountedRef.current) return;
+    
+    try {
+      setLoading(true);
+
+      // ✅ 모든 미니게임을 로드 (inner join 제거 - 제공사가 없어도 표시)
+      let query = supabase
+        .from('games')
+        .select(`
+          id,
+          provider_id,
+          name,
+          type,
+          status,
+          image_url,
+          is_featured,
+          priority,
+          api_type,
+          game_providers(
+            id,
+            name,
+            logo_url
+          )
+        `)
+        .eq('type', 'minigame');
+
+      if (providerId) {
+        query = query.eq('provider_id', providerId);
+      }
+
+      const { data: gamesData, error } = await query.order('priority', { ascending: false });
+
+      if (error) throw error;
+
+      // 게임 데이터 포맷팅
+      const formattedGames = gamesData?.map(game => ({
+        game_id: game.id,
+        provider_id: game.provider_id,
+        provider_name: (game as any).game_providers?.name || 'Unknown',
+        provider_logo: (game as any).game_providers?.logo_url,
+        game_name: game.name,
+        game_type: game.type,
+        image_url: game.image_url,
+        is_featured: game.is_featured,
+        status: game.status,
+        priority: game.priority || 0,
+        api_type: game.api_type
+      })) || [];
+
+      const sortedGames = formattedGames.sort((a, b) => {
+        if (a.is_featured && !b.is_featured) return -1;
+        if (!a.is_featured && b.is_featured) return 1;
+        return b.priority - a.priority;
+      });
+
+      if (isMountedRef.current) {
+        setGames(sortedGames);
+      }
+      
+    } catch (error) {
+      if (isMountedRef.current) {
+        console.error('게임 로드 실패:', error);
+        toast.error('미니게임을 불러오는데 실패했습니다.');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const loadAllMiniGames = async () => {
     if (!isMountedRef.current) return;
     
     try {
@@ -228,15 +307,15 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
         // 이후 새 게임 실행 로직으로 진행 (break 없이 계속)
       }
 
-      // ⭐ 3. 같은 게임의 ready 세션이 있는지 체크 (입금 API 중복 호출 방지)
+      // ⭐ 3. 같은 게임의 active 세션이 있는지 체크 (중복 실행 방지)
       if (activeSession?.isActive && 
           activeSession.game_id === game.game_id && 
-          activeSession.status === 'ready' && 
+          activeSession.status === 'active' && 
           activeSession.launch_url) {
         
-        console.log('🔄 [미니게임 실행] ready 세션 재사용 - 기존 URL 사용 (입금 API 호출 안함):', activeSession.session_id);
+        console.log('🔄 [미니게임 실행] active 세션 재사용 - 기존 URL 사용:', activeSession.session_id);
         
-        // 기존 launch_url로 게임창 오픈 (중복 입금 없음)
+        // 기존 launch_url로 게임창 오픈
         const gameWindow = window.open(
           activeSession.launch_url,
           '_blank',
@@ -244,7 +323,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
         );
 
         if (!gameWindow) {
-          // ⭐ 팝업 차단 시나리오 (ready 세션 재사용 시)
+          // ⭐ 팝업 차단 시나리오
           toast.error('차단되었습니다. 팝업 허용 후 다시 클릭해주세요.');
           
           const sessionId = activeSession.session_id!;
@@ -258,7 +337,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
             })
             .eq('id', sessionId);
             
-          console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료 (ready 세션 재사용)');
+          console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료 (active 세션 재사용)');
         } else {
           // ⭐ 팝업 오픈 성공: ready_status를 'popup_opened'로 업데이트
           toast.success(`${game.game_name} 게임을 시작합니다.`);

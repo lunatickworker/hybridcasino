@@ -98,23 +98,41 @@ export function AdminGameRecordsSync({ user }: AdminGameRecordsSyncProps) {
     // API별 동기화 함수
     const syncGameRecords = async (apiType: 'invest' | 'oroplay' | 'familyapi') => {
       try {
-        // ✅ Edge Function은 프로덕션 Supabase 환경에서만 작동
-        // 개발/테스트 환경에서는 항상 건너뜀
-        // Lv1 파트너 조회도 필요 없으므로 바로 리턴
-        return;
-
-        // ❌ 아래 코드는 프로덕션 배포 시에만 활성화
-        /*
-        const lv1PartnerId = await getLv1Partner();
-        if (!lv1PartnerId) {
-          console.warn(`⚠️ [${apiType}] Lv1 파트너를 찾을 수 없습니다`);
-          return;
+        // ✅ 관리자 페이지가 열려있을 때 자동으로 베팅 동기화
+        // Lv2AutoSync와 중복 방지를 위해 Presence를 통해 하나의 세션만 동작
+        
+        // Lv1 파트너 ID 찾기
+        let topLevelPartnerId = user.id;
+        if (user.level !== 1) {
+          // Lv1까지 올라가기
+          let currentId = user.id;
+          let currentReferrerId = user.referrer_id;
+          
+          while (currentReferrerId) {
+            const { data: parentPartner } = await supabase
+              .from('partners')
+              .select('id, level, referrer_id')
+              .eq('id', currentReferrerId)
+              .single();
+            
+            if (!parentPartner) break;
+            
+            if (parentPartner.level === 1) {
+              topLevelPartnerId = parentPartner.id;
+              break;
+            }
+            
+            currentId = parentPartner.id;
+            currentReferrerId = parentPartner.referrer_id;
+          }
         }
+
+        console.log(`[${apiType}] 동기화 시작 (Lv1 Partner: ${topLevelPartnerId})`);
 
         const { data, error } = await supabase.functions.invoke('sync-game-records', {
           body: {
             api_type: apiType,
-            partner_id: lv1PartnerId,
+            partner_id: topLevelPartnerId,
           },
         });
 
@@ -123,7 +141,7 @@ export function AdminGameRecordsSync({ user }: AdminGameRecordsSyncProps) {
         } else {
           console.log(`✅ [${apiType}] 동기화 완료:`, data);
         }
-        */
+
       } catch (error) {
         console.error(`❌ [${apiType}] 동기화 오류:`, error);
       }
