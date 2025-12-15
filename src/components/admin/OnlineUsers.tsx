@@ -386,8 +386,8 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           launched_at,
           last_activity_at,
           last_bet_at,
-          initial_balance,
-          users!inner(username, nickname, balance)
+          balance_before,
+          users!inner(username, nickname, balance, ip_address, device_info)
         `)
         .not('game_id', 'is', null)
         .eq('status', 'active')  // ⭐ ready 상태 제거, active만 조회

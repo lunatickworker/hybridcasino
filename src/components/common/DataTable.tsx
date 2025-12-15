@@ -12,6 +12,7 @@ import { Input } from "../ui/input";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 export interface Column<T> {
   key?: keyof T | string;
@@ -34,6 +35,7 @@ interface DataTableProps<T> {
   enableSearch?: boolean; // 검색 기능 활성화/비활성화
   searchPlaceholder?: string;
   pageSize?: number;
+  pageSizeOptions?: number[]; // ⭐ 페이지 크기 옵션
   onRowClick?: (row: T, index: number) => void;
   className?: string;
   emptyMessage?: string;
@@ -50,6 +52,7 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
   enableSearch = true, // 기본값 true (하위 호환성)
   searchPlaceholder = "검색...",
   pageSize = 10,
+  pageSizeOptions = [10, 20, 30, 100], // ⭐ 기본 옵션
   onRowClick,
   className,
   emptyMessage = "데이터가 없습니다.",
@@ -57,6 +60,7 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
 }: DataTableProps<T>) {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPageSize, setCurrentPageSize] = useState(pageSize); // ⭐ 동적 페이지 크기
   const [sortConfig, setSortConfig] = useState<{
     key: string;
     direction: "asc" | "desc";
@@ -88,10 +92,10 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
     : filteredData;
 
   // 페이지네이션
-  const totalPages = Math.ceil(sortedData.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
+  const totalPages = Math.ceil(sortedData.length / currentPageSize); // ⭐ currentPageSize 사용
+  const startIndex = (currentPage - 1) * currentPageSize; // ⭐ currentPageSize 사용
   const paginatedData = pagination
-    ? sortedData.slice(startIndex, startIndex + pageSize)
+    ? sortedData.slice(startIndex, startIndex + currentPageSize) // ⭐ currentPageSize 사용
     : sortedData;
 
   const handleSort = (key: string) => {
@@ -107,6 +111,13 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
       }
       return { key, direction: "asc" };
     });
+  };
+
+  // ⭐ 페이지 크기 변경 핸들러
+  const handlePageSizeChange = (newSize: string) => {
+    const size = parseInt(newSize);
+    setCurrentPageSize(size);
+    setCurrentPage(1); // 페이지를 1로 리셋
   };
 
   const getCellValue = (row: T, column: Column<T>) => {
@@ -217,8 +228,27 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
       {/* 페이지네이션 */}
       {pagination && totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <div className="text-sm text-slate-400">
-            총 {sortedData.length}개 중 {startIndex + 1}-{Math.min(startIndex + pageSize, sortedData.length)}개 표시
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-slate-400">
+              총 {sortedData.length}개 중 {startIndex + 1}-{Math.min(startIndex + currentPageSize, sortedData.length)}개 표시
+            </div>
+            {/* 페이지 크기 선택 */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400">페이지당</span>
+              <Select
+                value={currentPageSize.toString()}
+                onValueChange={handlePageSizeChange}
+              >
+                <SelectTrigger className="w-20 h-8 border-slate-700 text-slate-300 bg-slate-800/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {pageSizeOptions.map(size => (
+                    <SelectItem key={size} value={size.toString()}>{size}개</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -244,6 +274,34 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
               다음
               <ChevronRight className="h-4 w-4" />
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 페이지네이션 없을 때도 페이지 크기 선택 표시 */}
+      {pagination && totalPages <= 1 && sortedData.length > 0 && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-slate-400">
+              총 {sortedData.length}개 표시
+            </div>
+            {/* 페이지 크기 선택 */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400">페이지당</span>
+              <Select
+                value={currentPageSize.toString()}
+                onValueChange={handlePageSizeChange}
+              >
+                <SelectTrigger className="w-20 h-8 border-slate-700 text-slate-300 bg-slate-800/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {pageSizeOptions.map(size => (
+                    <SelectItem key={size} value={size.toString()}>{size}개</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       )}

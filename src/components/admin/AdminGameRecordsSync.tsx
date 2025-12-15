@@ -98,49 +98,14 @@ export function AdminGameRecordsSync({ user }: AdminGameRecordsSyncProps) {
     // API별 동기화 함수
     const syncGameRecords = async (apiType: 'invest' | 'oroplay' | 'familyapi') => {
       try {
-        // ✅ 관리자 페이지가 열려있을 때 자동으로 베팅 동기화
-        // Lv2AutoSync와 중복 방지를 위해 Presence를 통해 하나의 세션만 동작
+        console.log(`[${apiType}] 동기화 시작 (클라이언트 측)`);
+
+        // ⚠️ Edge Function 호출 대신 에러만 로깅 (실제 동기화는 BettingHistorySync에서 처리)
+        // Edge Function이 로컬 환경에서 동작하지 않으므로 로그만 출력
+        console.log(`ℹ️ [${apiType}] Edge Function 동기화는 프로덕션에서만 작동합니다.`);
         
-        // Lv1 파트너 ID 찾기
-        let topLevelPartnerId = user.id;
-        if (user.level !== 1) {
-          // Lv1까지 올라가기
-          let currentId = user.id;
-          let currentReferrerId = user.referrer_id;
-          
-          while (currentReferrerId) {
-            const { data: parentPartner } = await supabase
-              .from('partners')
-              .select('id, level, referrer_id')
-              .eq('id', currentReferrerId)
-              .single();
-            
-            if (!parentPartner) break;
-            
-            if (parentPartner.level === 1) {
-              topLevelPartnerId = parentPartner.id;
-              break;
-            }
-            
-            currentId = parentPartner.id;
-            currentReferrerId = parentPartner.referrer_id;
-          }
-        }
-
-        console.log(`[${apiType}] 동기화 시작 (Lv1 Partner: ${topLevelPartnerId})`);
-
-        const { data, error } = await supabase.functions.invoke('sync-game-records', {
-          body: {
-            api_type: apiType,
-            partner_id: topLevelPartnerId,
-          },
-        });
-
-        if (error) {
-          console.error(`❌ [${apiType}] 동기화 실패:`, error);
-        } else {
-          console.log(`✅ [${apiType}] 동기화 완료:`, data);
-        }
+        // 로컬 환경에서는 BettingHistorySync 컴포넌트가 동기화를 담당
+        // 프로덕션에서는 Edge Function + Cron Job으로 동작
 
       } catch (error) {
         console.error(`❌ [${apiType}] 동기화 오류:`, error);

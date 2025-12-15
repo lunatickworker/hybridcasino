@@ -2416,7 +2416,7 @@ async function launchFamilyApiGame(
           game_id: game.id,
           status: 'pending',
           launch_url: launchResult.gameurl,
-          initial_balance: userBalance,
+          balance_before: userBalance,
           opcode: null  // ⭐ FamilyAPI는 opcode 불필요
         });
       
@@ -2557,7 +2557,7 @@ export async function generateGameLaunchUrl(
     // 2. 사용자 정보 조회
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('username, referrer_id')
+      .select('username, referrer_id, balance')
       .eq('id', userId)
       .single();
 
@@ -2643,6 +2643,7 @@ export async function generateGameLaunchUrl(
       session_id: sessionId,
       api_type: game.api_type,
       status: 'active',  // ⭐ 바로 active 상태로 시작 (ready 상태 제거)
+      balance_before: user.balance || 0,  // 게임 시작 시 잔고 기록
       launched_at: new Date().toISOString(),
       last_activity_at: new Date().toISOString()
     };

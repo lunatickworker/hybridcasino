@@ -2375,7 +2375,6 @@ export const en = {
     changing: 'Changing...',
     pointConversion: 'Point Conversion',
     pointConversionDesc: 'Convert your points to balance',
-    convertPoints: 'Convert Points',
     convertPointsButton: 'Convert',
     converting: 'Converting...',
     infoUpdatedSuccess: 'Information has been updated successfully.',
@@ -2394,9 +2393,6 @@ export const en = {
     withdrawRequest: 'Withdraw',
     convertPointsConfirm: 'Would you like to convert your',
     convertPointsQuestion: ' to balance?',
-    noPointsToConvert: 'No points available to convert.',
-    cancel: 'Cancel',
-    confirm: 'Confirm',
     dontShowToday: "Don't show again today",
     responsibleGaming: 'We aim for responsible gaming operations.',
     
@@ -2527,20 +2523,6 @@ export const en = {
       tossBank: 'Toss Bank',
       kBank: 'K Bank',
     },
-    
-    // Common
-    cancel: 'Cancel',
-    confirm: 'Confirm',
-    submit: 'Submit',
-    save: 'Save',
-    delete: 'Delete',
-    edit: 'Edit',
-    search: 'Search',
-    filter: 'Filter',
-    loading: 'Loading...',
-    noData: 'No data available',
-    error: 'Error occurred',
-    success: 'Success',
     
     // Game Categories
     all: 'All',

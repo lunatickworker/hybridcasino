@@ -1213,7 +1213,7 @@ export const ko = {
     evolutionSettingSaved: '의 매장 기본 배팅 제한이 저장되었습니다.',
     evolutionSettingSaveFailed: '설정 저장에 실패했습니다.',
     settingsSavedWithCategory: '설정이 성공적으로 저장되었습니다.',
-    ipWhitelistEnabled: 'IP 화이트리스트��� 활성화되었습니다.',
+    ipWhitelistEnabledMessage: 'IP 화이트리스트��� 활성화되었습니다.',
     ipWhitelistDisabled: 'IP 화이트리스트가 비활성화되었습니다.',
   },
 

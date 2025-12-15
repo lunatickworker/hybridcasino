@@ -48,19 +48,21 @@ async function syncInvestGameRecords(apiConfig: any) {
     const url = 'https://api.invest-ho.com/api/game/historyindex';
     const signature = await generateMd5(`${opcode}${year}${month}${lastIndex}${secret_key}`);
     
-    const response = await fetch(url, {
+    // ✅ GET 요청은 URL 파라미터로 전송
+    const params = new URLSearchParams({
+      opcode,
+      year,
+      month,
+      index: lastIndex.toString(),
+      limit: '4000',
+      signature
+    });
+    
+    const response = await fetch(`${url}?${params.toString()}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        opcode,
-        year,
-        month,
-        index: lastIndex,
-        limit: 4000,
-        signature
-      })
+      }
     });
 
     if (!response.ok) {
