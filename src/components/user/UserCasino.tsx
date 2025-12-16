@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -12,13 +12,9 @@ import {
   Loader, 
   Search, 
   Crown,
-  Zap,
   Star,
   Clock,
-  Trophy,
-  Sparkles,
-  Target,
-  Dice6
+  Trophy
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { User } from "../../types";
@@ -47,7 +43,6 @@ interface UserCasinoProps {
 
 export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
   const [selectedProvider, setSelectedProvider] = useState(""); // ✅ 빈 문자열로 시작
-  const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [games, setGames] = useState<CasinoGame[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
@@ -58,15 +53,6 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const isMountedRef = useRef(true);
   const { t } = useLanguage();
-
-  const gameCategories = [
-    { id: 'all', name: t.user.all, icon: Crown, gradient: 'from-yellow-500 to-amber-600' },
-    { id: 'evolution', name: t.user.evolution, icon: Target, gradient: 'from-red-500 to-red-600' },
-    { id: 'pragmatic', name: t.user.pragmatic, icon: Zap, gradient: 'from-blue-500 to-blue-600' },
-    { id: 'baccarat', name: t.user.baccarat, icon: Sparkles, gradient: 'from-purple-500 to-purple-600' },
-    { id: 'blackjack', name: t.user.blackjack, icon: Dice6, gradient: 'from-green-500 to-green-600' },
-    { id: 'roulette', name: t.user.roulette, icon: Trophy, gradient: 'from-orange-500 to-orange-600' }
-  ];
 
   useEffect(() => {
     initializeData();
@@ -83,7 +69,7 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
     } else if (selectedProvider === "all") {
       loadAllCasinoGames();
     }
-  }, [selectedProvider, selectedCategory]);
+  }, [selectedProvider]);
 
   const initializeData = async () => {
     if (!isMountedRef.current) return;
@@ -113,18 +99,18 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
     } finally {
       if (isMountedRef.current) {
         setLoading(false);
-        setIsInitialLoad(false); // ✅ 초기 로드 완료 표시
+        setIsInitialLoad(false);
       }
     }
   };
 
-  const loadCasinoGames = async (providerId?: number) => {
+  const loadCasinoGames = async (providerId: number) => {
     if (!isMountedRef.current) return;
     
     try {
       setLoading(true);
 
-      // ✅ 모든 카지노 게임을 로드 (inner join 제거 - 제공사가 없어도 표시)
+      // ✅ 선택된 제공사의 게임만 로드
       let query = supabase
         .from('games')
         .select(`
@@ -137,23 +123,22 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
           is_featured,
           priority,
           api_type,
-          game_providers(
+          game_providers!inner(
             id,
             name,
             logo_url
           )
         `)
-        .eq('type', 'casino');
-
-      if (providerId) {
-        query = query.eq('provider_id', providerId);
-      }
+        .eq('type', 'casino')
+        .eq('status', 'visible')
+        .eq('provider_id', providerId);
 
       const { data: gamesData, error } = await query.order('priority', { ascending: false });
 
       if (error) throw error;
 
-      // 게임 데이터 포맷팅
+      console.log(`🎰 [카지노 게임 로드] Provider ID ${providerId}: ${gamesData?.length || 0}개 게임`);
+
       const formattedGames = gamesData?.map(game => ({
         game_id: game.id,
         provider_id: game.provider_id,
@@ -162,7 +147,7 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
         game_name: game.name,
         game_type: game.type,
         image_url: game.image_url,
-        is_featured: game.is_featured,
+        is_featured: game.is_featured || false,
         status: game.status,
         priority: game.priority || 0,
         api_type: game.api_type
@@ -196,7 +181,7 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
     try {
       setLoading(true);
 
-      // ✅ 모든 카지노 게임을 로드 (inner join 제거 - 제공사가 없어도 표시)
+      // ✅ 모든 카지노 게임 로드 (전체 보기)
       let query = supabase
         .from('games')
         .select(`
@@ -215,13 +200,15 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
             logo_url
           )
         `)
-        .eq('type', 'casino');
+        .eq('type', 'casino')
+        .eq('status', 'visible');
 
       const { data: gamesData, error } = await query.order('priority', { ascending: false });
 
       if (error) throw error;
 
-      // 게임 데이터 포맷팅
+      console.log(`🎰 [카지노 게임 전체 로드] 총 ${gamesData?.length || 0}개 게임`);
+
       const formattedGames = gamesData?.map(game => ({
         game_id: game.id,
         provider_id: game.provider_id,
@@ -230,7 +217,7 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
         game_name: game.name,
         game_type: game.type,
         image_url: game.image_url,
-        is_featured: game.is_featured,
+        is_featured: game.is_featured || false,
         status: game.status,
         priority: game.priority || 0,
         api_type: game.api_type
@@ -257,14 +244,6 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
       }
     }
   };
-
-  // 게임이 있는 제공사만 필터링 (모든 games 기준으로)
-  const filteredProviders = useMemo(() => {
-    return providers.filter(provider => {
-      const hasGames = games.some(game => game.provider_id === provider.id);
-      return hasGames;
-    });
-  }, [providers, games]);
 
   const handleGameClick = async (game: CasinoGame) => {
     if (launchingGameId === game.game_id) return;
@@ -517,14 +496,7 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
   };
 
   const filteredGames = games.filter(game => {
-    // 1️⃣ 제공사 필터링 (선택된 제공사만 표시)
-    if (selectedProvider && selectedProvider !== "all") {
-      if (game.provider_id.toString() !== selectedProvider) {
-        return false;
-      }
-    }
-
-    // 2️⃣ 검색어 필터링
+    // ✅ 검색어 필터링만 수행 (제공사 필터링은 loadCasinoGames에서 처리)
     if (searchQuery.trim()) {
       const search = searchQuery.toLowerCase();
       const matchesName = game.game_name.toLowerCase().includes(search);
@@ -584,7 +556,7 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
             </div>
           </div>
 
-          {/* 검색 및 필터 */}
+          {/* 검색 */}
           <div className="flex flex-col lg:flex-row gap-5 items-center justify-between">
             <div className="relative flex-1 max-w-xl">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-yellow-400" />
@@ -596,34 +568,6 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
                 className="pl-12 h-14 text-lg bg-black/50 border-yellow-600/30 text-white placeholder:text-yellow-200/50 focus:border-yellow-500"
               />
             </div>
-            
-            {/* 카테고리 선택 */}
-            <div className="flex flex-wrap gap-3">
-              {gameCategories.map((category) => {
-                const Icon = category.icon;
-                const isActive = selectedCategory === category.id;
-                return (
-                  <Button
-                    key={category.id}
-                    variant="ghost"
-                    onClick={() => setSelectedCategory(category.id)}
-                    className={`
-                      relative px-6 py-4 text-lg font-bold transition-all duration-300
-                      ${isActive 
-                        ? `bg-gradient-to-r ${category.gradient} text-white shadow-lg shadow-yellow-500/50 scale-105` 
-                        : 'text-yellow-200/80 hover:text-yellow-100 hover:bg-yellow-900/20'
-                      }
-                    `}
-                  >
-                    <Icon className="w-5 h-5 mr-2" />
-                    {category.name}
-                    {isActive && (
-                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-yellow-300 to-transparent" />
-                    )}
-                  </Button>
-                );
-              })}
-            </div>
           </div>
 
           {/* 제공사 선택 */}
@@ -631,7 +575,7 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
             selectedProvider={selectedProvider}
             onProviderChange={setSelectedProvider}
             gameType="casino"
-            providers={filteredProviders}
+            providers={providers}
           />
 
           {/* 카지노 게임 목록 */}
@@ -728,7 +672,6 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
               </h3>
               <p className="text-yellow-200/80 text-lg mb-4">
                 {searchQuery ? t.user.noGamesMessage.replace('{{query}}', searchQuery) : 
-                 selectedCategory !== 'all' ? t.user.noGamesCategory : 
                  selectedProvider !== 'all' ? t.user.noGamesProvider :
                  t.user.noGamesAvailable}
               </p>
@@ -737,8 +680,9 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
                   variant="outline"
                   onClick={() => {
                     setSearchQuery('');
-                    setSelectedCategory('all');
-                    setSelectedProvider('all');
+                    if (providers.length > 0) {
+                      setSelectedProvider(providers[0].id.toString());
+                    }
                   }}
                   className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
                 >
@@ -746,7 +690,13 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => loadCasinoGames()}
+                  onClick={() => {
+                    if (selectedProvider && selectedProvider !== "all") {
+                      loadCasinoGames(parseInt(selectedProvider));
+                    } else {
+                      loadAllCasinoGames();
+                    }
+                  }}
                   className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
                 >
                   {t.user.refresh}

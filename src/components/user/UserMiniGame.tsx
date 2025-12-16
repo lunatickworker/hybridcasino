@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -11,9 +11,7 @@ import {
   Play, 
   Star, 
   Loader, 
-  Sparkles,
-  Gamepad2,
-  Zap
+  Gamepad2
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { User } from "../../types";
@@ -42,7 +40,6 @@ interface UserMiniGameProps {
 
 export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   const [selectedProvider, setSelectedProvider] = useState(""); // ✅ 빈 문자열로 시작
-  const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [games, setGames] = useState<Game[]>([]);
   const [providers, setProviders] = useState<any[]>([]);
@@ -53,13 +50,6 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const isMountedRef = useRef(true);
   const { t } = useLanguage();
-
-  const miniGameCategories = [
-    { id: 'all', name: t.user.all, icon: Gamepad2, gradient: 'from-green-500 to-emerald-600' },
-    { id: 'featured', name: t.user.featured, icon: Star, gradient: 'from-red-500 to-pink-600' },
-    { id: 'new', name: t.user.new, icon: Sparkles, gradient: 'from-blue-500 to-cyan-600' },
-    { id: 'quick', name: t.user.quickGame, icon: Zap, gradient: 'from-purple-500 to-purple-600' }
-  ];
 
   useEffect(() => {
     initializeData();
@@ -76,7 +66,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     } else if (selectedProvider === "all") {
       loadAllMiniGames();
     }
-  }, [selectedProvider, selectedCategory]);
+  }, [selectedProvider]);
 
   const initializeData = async () => {
     if (!isMountedRef.current) return;
@@ -111,13 +101,13 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     }
   };
 
-  const loadMiniGames = async (providerId?: number) => {
+  const loadMiniGames = async (providerId: number) => {
     if (!isMountedRef.current) return;
     
     try {
       setLoading(true);
 
-      // ✅ 모든 미니게임을 로드 (inner join 제거 - 제공사가 없어도 표시)
+      // ✅ 선택된 제공사의 게임만 로드
       let query = supabase
         .from('games')
         .select(`
@@ -129,24 +119,24 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
           image_url,
           is_featured,
           priority,
+          rtp,
           api_type,
-          game_providers(
+          game_providers!inner(
             id,
             name,
             logo_url
           )
         `)
-        .eq('type', 'minigame');
-
-      if (providerId) {
-        query = query.eq('provider_id', providerId);
-      }
+        .eq('type', 'minigame')
+        .eq('status', 'visible')
+        .eq('provider_id', providerId);
 
       const { data: gamesData, error } = await query.order('priority', { ascending: false });
 
       if (error) throw error;
 
-      // 게임 데이터 포맷팅
+      console.log(`🎮 [미니게임 로드] Provider ID ${providerId}: ${gamesData?.length || 0}개 게임`);
+
       const formattedGames = gamesData?.map(game => ({
         game_id: game.id,
         provider_id: game.provider_id,
@@ -155,7 +145,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
         game_name: game.name,
         game_type: game.type,
         image_url: game.image_url,
-        is_featured: game.is_featured,
+        is_featured: game.is_featured || false,
         status: game.status,
         priority: game.priority || 0,
         api_type: game.api_type
@@ -189,7 +179,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     try {
       setLoading(true);
 
-      // ✅ 모든 미니게임을 로드 (inner join 제거 - 제공사가 없어도 표시)
+      // ✅ 모든 미니게임 로드 (전체 보기)
       let query = supabase
         .from('games')
         .select(`
@@ -208,13 +198,15 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
             logo_url
           )
         `)
-        .eq('type', 'minigame');
+        .eq('type', 'minigame')
+        .eq('status', 'visible');
 
       const { data: gamesData, error } = await query.order('priority', { ascending: false });
 
       if (error) throw error;
 
-      // 게임 데이터 포맷팅
+      console.log(`🎮 [미니게임 전체 로드] 총 ${gamesData?.length || 0}개 게임`);
+
       const formattedGames = gamesData?.map(game => ({
         game_id: game.id,
         provider_id: game.provider_id,
@@ -223,7 +215,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
         game_name: game.name,
         game_type: game.type,
         image_url: game.image_url,
-        is_featured: game.is_featured,
+        is_featured: game.is_featured || false,
         status: game.status,
         priority: game.priority || 0,
         api_type: game.api_type
@@ -250,14 +242,6 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
       }
     }
   };
-
-  // 게임이 있는 제공사만 필터링
-  const filteredProviders = useMemo(() => {
-    return providers.filter(provider => {
-      const hasGames = games.some(game => game.provider_id === provider.id);
-      return hasGames;
-    });
-  }, [providers, games]);
 
   const handleGameClick = async (game: Game) => {
     if (launchingGameId === game.game_id) return;
@@ -508,14 +492,7 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   };
 
   const filteredGames = games.filter(game => {
-    // 1️⃣ 제공사 필터링 (선택된 제공사만 표시)
-    if (selectedProvider && selectedProvider !== "all") {
-      if (game.provider_id.toString() !== selectedProvider) {
-        return false;
-      }
-    }
-
-    // 2️⃣ 검색어 필터링
+    // ✅ 검색어 필터링만 수행 (제공사 필터링은 loadMiniGames에서 처리)
     if (searchTerm.trim()) {
       const search = searchTerm.toLowerCase();
       const matchesName = game.game_name.toLowerCase().includes(search);
@@ -529,197 +506,172 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
   });
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
-      <div 
-        className="fixed inset-0 z-0 w-full h-full"
-        style={{
-          backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.90)), url('https://images.unsplash.com/photo-1550745165-9bc0b252726f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnYW1pbmclMjBhcmNhZGV8ZW58MXx8fHwxNzU5NzIwMzYzfDA&ixlib=rb-4.1.0&q80&w=1080&utm_source=figma&utm_medium=referral')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center center',
-          backgroundRepeat: 'no-repeat'
-        }}
-      />
+    <>
+      {/* ⭐ 게임 준비 다이얼로그 */}
+      <GamePreparingDialog show={showLoadingPopup} stage={loadingStage} />
       
-      <div className="relative z-10 space-y-8 p-4 sm:p-6 lg:p-8">
-        {/* 미니게임 헤더 */}
-        <div className="text-center space-y-6">
-          <div className="flex items-center justify-center gap-4 mb-6">
-            <Gamepad2 className="w-16 h-16 text-green-400 drop-shadow-[0_0_20px_rgba(34,197,94,0.8)]" />
-            <h1 className="text-6xl lg:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500 drop-shadow-[0_0_20px_rgba(34,197,94,0.5)]">
-              {t.user.minigameTitle}
-            </h1>
-            <Gamepad2 className="w-16 h-16 text-green-400 drop-shadow-[0_0_20px_rgba(34,197,94,0.8)]" />
+      <div className="relative min-h-screen overflow-x-hidden">
+        <div 
+          className="fixed inset-0 z-0 w-full h-full"
+          style={{
+            backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.90)), url('https://images.unsplash.com/photo-1550745165-9bc0b252726f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnYW1pbmclMjBhcmNhZGV8ZW58MXx8fHwxNzU5NzIwMzYzfDA&ixlib=rb-4.1.0&q80&w=1080&utm_source=figma&utm_medium=referral')`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center center',
+            backgroundRepeat: 'no-repeat'
+          }}
+        />
+        
+        <div className="relative z-10 space-y-8 p-4 sm:p-6 lg:p-8">
+          {/* 미니게임 헤더 */}
+          <div className="text-center space-y-6">
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <Gamepad2 className="w-16 h-16 text-green-400 drop-shadow-[0_0_20px_rgba(34,197,94,0.8)]" />
+              <h1 className="text-6xl lg:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-500 drop-shadow-[0_0_20px_rgba(34,197,94,0.5)]">
+                {t.user.minigameTitle}
+              </h1>
+              <Gamepad2 className="w-16 h-16 text-green-400 drop-shadow-[0_0_20px_rgba(34,197,94,0.8)]" />
+            </div>
+            <p className="text-3xl text-green-100 tracking-wide">
+              {t.user.minigameSubtitle}
+            </p>
           </div>
-          <p className="text-3xl text-green-100 tracking-wide">
-            {t.user.minigameSubtitle}
-          </p>
-        </div>
 
-        {/* 검색 및 필터 */}
-        <div className="flex flex-col lg:flex-row gap-5 items-center justify-between">
-          <div className="relative flex-1 max-w-xl">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-green-400" />
-            <Input
-              type="text"
-              placeholder={t.user.searchGame}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-12 h-14 text-lg bg-black/50 border-green-600/30 text-white placeholder:text-green-200/50 focus:border-green-500"
-            />
+          {/* 검색 */}
+          <div className="flex flex-col lg:flex-row gap-5 items-center justify-between">
+            <div className="relative flex-1 max-w-xl">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-green-400" />
+              <Input
+                type="text"
+                placeholder={t.user.searchGame}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-12 h-14 text-lg bg-black/50 border-green-600/30 text-white placeholder:text-green-200/50 focus:border-green-500"
+              />
+            </div>
           </div>
-          
-          {/* 카테고리 선택 */}
-          <div className="flex flex-wrap gap-3">
-            {miniGameCategories.map((category) => {
-              const Icon = category.icon;
-              const isActive = selectedCategory === category.id;
-              return (
-                <Button
-                  key={category.id}
-                  variant="ghost"
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={`
-                    relative px-6 py-4 text-lg font-bold transition-all duration-300
-                    ${isActive 
-                      ? `bg-gradient-to-r ${category.gradient} text-white shadow-lg shadow-green-500/50 scale-105` 
-                      : 'text-green-200/80 hover:text-green-100 hover:bg-green-900/20'
-                    }
-                  `}
-                >
-                  <Icon className="w-5 h-5 mr-2" />
-                  {category.name}
-                  {isActive && (
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-green-300 to-transparent" />
-                  )}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
 
-        {/* 제공사 선택 */}
-        {filteredProviders.length > 0 && (
+          {/* 제공사 선택 */}
           <GameProviderSelector
             selectedProvider={selectedProvider}
             onProviderChange={setSelectedProvider}
             gameType="minigame"
-            providers={filteredProviders}
+            providers={providers}
           />
-        )}
 
-        {/* 미니게임 목록 */}
-        {isInitialLoad && loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <Card key={i} className="luxury-card animate-pulse border-green-600/20">
-                <div className="aspect-[4/3] bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl" />
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {filteredGames.map((game) => (
-              <Card 
-                key={game.game_id} 
-                className={`group cursor-pointer bg-slate-900/80 border border-slate-700/50 hover:border-green-500/50 transition-all duration-300 overflow-hidden rounded-xl hover:shadow-xl hover:shadow-green-500/20 ${
-                  launchingGameId === game.game_id ? 'opacity-50' : ''
-                }`}
-                onClick={() => handleGameClick(game)}
-              >
-                <div className="aspect-[4/3] relative overflow-hidden bg-slate-800">
-                  <ImageWithFallback
-                    src={game.image_url}
-                    alt={game.game_name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                  
-                  {/* 오버레이 */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
-                  
-                  {/* 배지 */}
-                  {game.is_featured && (
-                    <div className="absolute top-2 right-2">
-                      <Badge className="bg-green-500/90 text-white border-0 text-xs backdrop-blur-sm">
-                        <Star className="w-3 h-3 mr-1 fill-current" />
-                        인기
-                      </Badge>
-                    </div>
-                  )}
-
-                  {/* 호버 플레이 버튼 */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    {launchingGameId === game.game_id ? (
-                      <div className="flex flex-col items-center gap-2 text-white">
-                        <Loader className="w-10 h-10 animate-spin" />
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="w-16 h-16 rounded-full bg-green-500/20 backdrop-blur-md flex items-center justify-center border-2 border-green-500/50">
-                          <Play className="w-8 h-8 text-green-400 fill-current" />
-                        </div>
-                        <span className="text-white font-bold text-sm">플레이</span>
+          {/* 미니게임 목록 */}
+          {isInitialLoad && loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {Array.from({ length: 10 }).map((_, i) => (
+                <Card key={i} className="luxury-card animate-pulse border-green-600/20">
+                  <div className="aspect-[4/3] bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl" />
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {filteredGames.map((game) => (
+                <Card 
+                  key={game.game_id} 
+                  className={`group cursor-pointer bg-slate-900/80 border border-slate-700/50 hover:border-green-500/50 transition-all duration-300 overflow-hidden rounded-xl hover:shadow-xl hover:shadow-green-500/20 ${
+                    launchingGameId === game.game_id ? 'opacity-50' : ''
+                  }`}
+                  onClick={() => handleGameClick(game)}
+                >
+                  <div className="aspect-[4/3] relative overflow-hidden bg-slate-800">
+                    <ImageWithFallback
+                      src={game.image_url}
+                      alt={game.game_name}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                    
+                    {/* 오버레이 */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+                    
+                    {/* 배지 */}
+                    {game.is_featured && (
+                      <div className="absolute top-2 right-2">
+                        <Badge className="bg-green-500/90 text-white border-0 text-xs backdrop-blur-sm">
+                          <Star className="w-3 h-3 mr-1 fill-current" />
+                          인기
+                        </Badge>
                       </div>
                     )}
-                  </div>
-                </div>
-                
-                {/* 카드 정보 */}
-                <div className="p-3 bg-slate-900/90">
-                  <h3 className="font-bold text-white text-base mb-1 truncate">
-                    {game.game_name}
-                  </h3>
-                  <p className="text-xs text-green-400/80 truncate">
-                    {game.provider_name}
-                  </p>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
 
-        {filteredGames.length === 0 && !loading && (
-          <div className="text-center py-16 luxury-card rounded-2xl border-2 border-green-600/20">
-            <div className="mx-auto w-24 h-24 bg-gradient-to-br from-green-500/20 to-emerald-600/20 rounded-full flex items-center justify-center mb-6">
-              <Gamepad2 className="w-12 h-12 text-green-400" />
+                    {/* 호버 플레이 버튼 */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      {launchingGameId === game.game_id ? (
+                        <div className="flex flex-col items-center gap-2 text-white">
+                          <Loader className="w-10 h-10 animate-spin" />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-16 h-16 rounded-full bg-green-500/20 backdrop-blur-md flex items-center justify-center border-2 border-green-500/50">
+                            <Play className="w-8 h-8 text-green-400 fill-current" />
+                          </div>
+                          <span className="text-white font-bold text-sm">플레이</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* 카드 정보 */}
+                  <div className="p-3 bg-slate-900/90">
+                    <h3 className="font-bold text-white text-base mb-1 truncate">
+                      {game.game_name}
+                    </h3>
+                    <p className="text-xs text-green-400/80 truncate">
+                      {game.provider_name}
+                    </p>
+                  </div>
+                </Card>
+              ))}
             </div>
-            <h3 className="text-2xl font-bold text-green-400 mb-2">
-              {t.user.noGamesFound}
-            </h3>
-            <p className="text-green-200/80 text-lg mb-4">
-              {searchTerm ? t.user.noGamesMessage.replace('{{query}}', searchTerm) : 
-               selectedCategory !== 'all' ? t.user.noGamesCategory : 
-               selectedProvider !== 'all' ? t.user.noGamesProvider :
-               t.user.noMinigamesAvailable}
-            </p>
-            <div className="flex gap-2 justify-center">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearchTerm('');
-                  setSelectedCategory('all');
-                  setSelectedProvider('all');
-                }}
-                className="border-green-600/30 text-green-300 hover:bg-green-900/20"
-              >
-                {t.user.viewAllGames}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => loadMiniGames()}
-                className="border-green-600/30 text-green-300 hover:bg-green-900/20"
-              >
-                {t.user.refresh}
-              </Button>
+          )}
+
+          {filteredGames.length === 0 && !loading && (
+            <div className="text-center py-16 luxury-card rounded-2xl border-2 border-green-600/20">
+              <div className="mx-auto w-24 h-24 bg-gradient-to-br from-green-500/20 to-emerald-600/20 rounded-full flex items-center justify-center mb-6">
+                <Gamepad2 className="w-12 h-12 text-green-400" />
+              </div>
+              <h3 className="text-2xl font-bold text-green-400 mb-2">
+                {t.user.noGamesFound}
+              </h3>
+              <p className="text-green-200/80 text-lg mb-4">
+                {searchTerm ? t.user.noGamesMessage.replace('{{query}}', searchTerm) : 
+                 selectedProvider !== 'all' ? t.user.noGamesProvider :
+                 t.user.noMinigamesAvailable}
+              </p>
+              <div className="flex gap-2 justify-center">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchTerm('');
+                    if (providers.length > 0) {
+                      setSelectedProvider(providers[0].id.toString());
+                    }
+                  }}
+                  className="border-green-600/30 text-green-300 hover:bg-green-900/20"
+                >
+                  {t.user.viewAllGames}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (selectedProvider && selectedProvider !== "all") {
+                      loadMiniGames(parseInt(selectedProvider));
+                    } else {
+                      loadAllMiniGames();
+                    }
+                  }}
+                  className="border-green-600/30 text-green-300 hover:bg-green-900/20"
+                >
+                  {t.user.refresh}
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-      {showLoadingPopup && (
-        <GamePreparingDialog
-          show={showLoadingPopup}
-          stage={loadingStage}
-        />
-      )}
-    </div>
+    </>
   );
 }

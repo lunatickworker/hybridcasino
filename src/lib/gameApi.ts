@@ -1726,9 +1726,25 @@ export async function getUserVisibleProviders(filters?: {
     
     console.log('✅ 활성화된 API:', Array.from(activeApis));
 
-    // 3. 제공사 조회 (status='visible' AND is_visible=true)
+    // 3. ⭐ filters.type이 있으면 해당 타입의 게임이 있는 provider_id만 조회
+    let providerIdsWithGames: Set<number> | null = null;
+    
+    if (filters?.type) {
+      const { data: gamesData } = await supabase
+        .from('games')
+        .select('provider_id')
+        .eq('type', filters.type)
+        .eq('status', 'visible')
+        .eq('is_visible', true);
+      
+      providerIdsWithGames = new Set(gamesData?.map(g => g.provider_id) || []);
+      console.log(`📊 [${filters.type}] 게임이 있는 제공사 ID:`, Array.from(providerIdsWithGames));
+    }
+
+    // 4. 제공사 조회 (status='visible' AND is_visible=true)
+    // ⭐ type 필터 제거 - 게임 타입으로 필터링하지 않고 모든 제공사 조회
     const providers = await getProviders({
-      ...filters,
+      api_type: filters?.api_type,
       is_visible: true,
       status: 'visible',
     });
@@ -1743,8 +1759,14 @@ export async function getUserVisibleProviders(filters?: {
       is_visible: p.is_visible
     })));
 
-    // 4. 활성화된 API의 제공사만 필터링
-    const filteredProviders = providers.filter(p => activeApis.has(p.api_type));
+    // 5. 활성화된 API의 제공사만 필터링
+    let filteredProviders = providers.filter(p => activeApis.has(p.api_type));
+    
+    // 6. ⭐ filters.type이 있으면 해당 타입의 게임이 있는 제공사만 추가 필터링
+    if (providerIdsWithGames) {
+      filteredProviders = filteredProviders.filter(p => providerIdsWithGames!.has(p.id));
+      console.log(`📊 [${filters.type}] 게임이 있는 제공사로 필터링: ${filteredProviders.length}개`);
+    }
     
     console.log(`📊 [사용자 제공사] 전체: ${providers.length}개 → 활성화된 API: ${filteredProviders.length}개`);
     console.log('📋 필터링된 제공사:', filteredProviders.map(p => ({
