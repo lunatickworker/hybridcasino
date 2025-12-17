@@ -764,7 +764,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     {
       header: t.transactionManagement.transactionDate,
       cell: (row: Transaction) => (
-        <span className="text-sm text-slate-300">
+        <span className="text-lg text-slate-300">
           {new Date(row.created_at).toLocaleString('ko-KR')}
         </span>
       )
@@ -773,8 +773,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       header: t.transactionManagement.member,
       cell: (row: Transaction) => (
         <div>
-          <p className="font-medium text-slate-200">{row.user?.nickname}</p>
-          <p className="text-sm text-slate-500">{row.user?.username}</p>
+          <p className="font-medium text-slate-200 text-lg">{row.user?.nickname}</p>
+          <p className="text-base text-slate-500">{row.user?.username}</p>
         </div>
       )
     },
@@ -792,7 +792,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           }
         };
         const type = typeMap[row.transaction_type] || { text: row.transaction_type, color: 'bg-gray-500' };
-        return <Badge className={`${type.color} text-white`}>{type.text}</Badge>;
+        return <Badge className={`${type.color} text-white text-base px-4 py-2`}>{type.text}</Badge>;
       }
     },
     {
@@ -804,7 +804,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                              (row.transaction_type === 'admin_adjustment' && row.memo?.includes('강제 출금'));
         return (
           <span className={cn(
-            "font-mono font-semibold",
+            "font-mono font-semibold text-xl",
             isWithdrawal ? 'text-red-400' : 'text-green-400'
           )}>
             {isWithdrawal ? '-' : '+'}
@@ -816,7 +816,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     {
       header: t.transactionManagement.balanceAfter,
       cell: (row: Transaction) => (
-        <span className="font-mono text-cyan-400">
+        <span className="font-mono text-cyan-400 text-xl">
           {formatCurrency(parseFloat(row.balance_after?.toString() || '0'))}
         </span>
       )
@@ -830,14 +830,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           rejected: { text: t.transactionManagement.rejected, color: 'bg-red-500' }
         };
         const status = statusMap[row.status] || { text: row.status, color: 'bg-gray-500' };
-        return <Badge className={`${status.color} text-white`}>{status.text}</Badge>;
+        return <Badge className={`${status.color} text-white text-base px-4 py-2`}>{status.text}</Badge>;
       }
     },
     {
       header: t.transactionManagement.memo,
       cell: (row: Transaction) => (
         <div className="max-w-xs">
-          <span className="text-sm text-slate-400 block truncate" title={row.memo || ''}>
+          <span className="text-lg text-slate-400 block truncate" title={row.memo || ''}>
             {row.memo || '-'}
           </span>
         </div>
@@ -846,7 +846,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     {
       header: t.transactionManagement.processor,
       cell: (row: Transaction) => (
-        <span className="text-sm text-slate-400">
+        <span className="text-lg text-slate-400">
           {row.processed_partner?.nickname || '-'}
         </span>
       )
@@ -856,19 +856,19 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       cell: (row: Transaction) => (
         <div className="flex items-center gap-2">
           <Button
-            size="sm"
+            size="lg"
             onClick={() => openActionDialog(row, 'approve')}
             disabled={refreshing}
-            className="h-8 px-3 bg-green-600 hover:bg-green-700"
+            className="h-12 px-6 text-lg bg-green-600 hover:bg-green-700"
           >
             {t.transactionManagement.approve}
           </Button>
           <Button
-            size="sm"
+            size="lg"
             variant="outline"
             onClick={() => openActionDialog(row, 'reject')}
             disabled={refreshing}
-            className="h-8 px-3 border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
+            className="h-12 px-6 text-lg border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
           >
             {t.transactionManagement.reject}
           </Button>
@@ -882,11 +882,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-slate-100">{t.transactionManagement.title}</h1>
-          <p className="text-sm text-slate-400">{t.transactionManagement.subtitle}</p>
+          <h1 className="text-4xl font-bold text-slate-100">{t.transactionManagement.title}</h1>
+          <p className="text-xl text-slate-400">{t.transactionManagement.subtitle}</p>
         </div>
-        <Button onClick={() => setForceDialog({ ...forceDialog, open: true })} className="btn-premium-primary">
-          <Plus className="h-4 w-4 mr-2" />
+        <Button onClick={() => setForceDialog({ ...forceDialog, open: true })} className="btn-premium-primary h-14 px-8 text-xl">
+          <Plus className="h-7 w-7 mr-3" />
           {t.transactionManagement.forceTransaction}
         </Button>
       </div>
@@ -934,25 +934,25 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             <TabsList className="bg-transparent h-auto p-0 border-0 gap-2 w-full grid grid-cols-4">
               <TabsTrigger 
                 value="deposit-request"
-                className="bg-transparent text-slate-400 rounded-lg px-6 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
+                className="bg-transparent text-slate-400 text-xl rounded-lg px-8 py-5 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
               >
                 {t.transactionManagement.depositRequestTab}
               </TabsTrigger>
               <TabsTrigger 
                 value="withdrawal-request"
-                className="bg-transparent text-slate-400 rounded-lg px-6 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
+                className="bg-transparent text-slate-400 text-xl rounded-lg px-8 py-5 data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
               >
                 {t.transactionManagement.withdrawalRequestTab}
               </TabsTrigger>
               <TabsTrigger 
                 value="completed-history"
-                className="bg-transparent text-slate-400 rounded-lg px-6 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500/20 data-[state=active]:to-emerald-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20 data-[state=active]:border data-[state=active]:border-green-400/30 transition-all duration-200"
+                className="bg-transparent text-slate-400 text-xl rounded-lg px-8 py-5 data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500/20 data-[state=active]:to-emerald-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20 data-[state=active]:border data-[state=active]:border-green-400/30 transition-all duration-200"
               >
                 {t.transactionManagement.completedHistoryTab}
               </TabsTrigger>
               <TabsTrigger 
                 value="admin-history"
-                className="bg-transparent text-slate-400 rounded-lg px-6 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500/20 data-[state=active]:to-amber-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-orange-500/20 data-[state=active]:border data-[state=active]:border-orange-400/30 transition-all duration-200"
+                className="bg-transparent text-slate-400 text-xl rounded-lg px-8 py-5 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500/20 data-[state=active]:to-amber-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-orange-500/20 data-[state=active]:border data-[state=active]:border-orange-400/30 transition-all duration-200"
               >
                 {t.transactionManagement.adminHistoryTab}
               </TabsTrigger>
@@ -1062,10 +1062,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       <Dialog open={actionDialog.open} onOpenChange={(open) => setActionDialog({ ...actionDialog, open })}>
         <DialogContent className="bg-slate-900 border-slate-700">
           <DialogHeader>
-            <DialogTitle className="text-white">
+            <DialogTitle className="text-white text-2xl">
               {actionDialog.action === 'approve' ? t.transactionManagement.approveTransaction : t.transactionManagement.rejectTransaction}
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogDescription className="text-slate-400 text-lg">
               {actionDialog.action === 'approve' 
                 ? t.transactionManagement.confirmApproveMessage
                 : t.transactionManagement.enterRejectReason}
@@ -1074,20 +1074,20 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           
           {actionDialog.transaction && (
             <div className="space-y-4">
-              <div className="p-4 bg-slate-800/50 rounded-lg space-y-2">
+              <div className="p-6 bg-slate-800/50 rounded-lg space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">{t.transactionManagement.member}:</span>
-                  <span className="text-white">{actionDialog.transaction.user?.nickname}</span>
+                  <span className="text-slate-400 text-lg">{t.transactionManagement.member}:</span>
+                  <span className="text-white text-lg">{actionDialog.transaction.user?.nickname}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">{t.transactionManagement.transactionType}:</span>
-                  <span className="text-white">
+                  <span className="text-slate-400 text-lg">{t.transactionManagement.transactionType}:</span>
+                  <span className="text-white text-lg">
                     {actionDialog.transaction.transaction_type === 'deposit' ? t.transactionManagement.deposit : t.transactionManagement.withdrawal}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">{t.transactionManagement.amount}:</span>
-                  <span className="text-green-400 font-mono">
+                  <span className="text-slate-400 text-lg">{t.transactionManagement.amount}:</span>
+                  <span className="text-green-400 font-mono text-xl">
                     {formatCurrency(parseFloat(actionDialog.transaction.amount.toString()))}
                   </span>
                 </div>
@@ -1095,15 +1095,15 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
               {actionDialog.action === 'reject' && (
                 <div className="space-y-2">
-                  <Label htmlFor="transaction-reject-reason" className="text-slate-300">{t.transactionManagement.rejectReason}</Label>
+                  <Label htmlFor="transaction-reject-reason" className="text-slate-300 text-lg">{t.transactionManagement.rejectReason}</Label>
                   <Textarea
                     id="transaction-reject-reason"
                     name="reject_reason"
                     value={actionDialog.memo}
                     onChange={(e) => setActionDialog({ ...actionDialog, memo: e.target.value })}
                     placeholder={t.transactionManagement.rejectReasonPlaceholder}
-                    className="bg-slate-800 border-slate-700 text-white"
-                    rows={3}
+                    className="bg-slate-800 border-slate-700 text-white text-lg"
+                    rows={4}
                   />
                 </div>
               )}
@@ -1115,13 +1115,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               variant="outline" 
               onClick={() => setActionDialog({ ...actionDialog, open: false })}
               disabled={refreshing}
+              className="h-12 px-6 text-lg"
             >
               {t.transactionManagement.cancel}
             </Button>
             <Button 
               onClick={handleTransactionAction}
               disabled={refreshing || (actionDialog.action === 'reject' && !actionDialog.memo)}
-              className={actionDialog.action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+              className={`h-12 px-6 text-lg ${actionDialog.action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
             >
               {actionDialog.action === 'approve' ? t.transactionManagement.approve : t.transactionManagement.reject}
             </Button>
@@ -1131,42 +1132,42 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       {/* 강제 입출금 Dialog */}
       <Dialog open={forceDialog.open} onOpenChange={(open) => setForceDialog({ ...forceDialog, open })}>
-        <DialogContent className="sm:max-w-[550px]">
+        <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-3 text-2xl">
               {forceDialog.type === 'deposit' ? (
                 <>
-                  <Gift className="h-5 w-5 text-emerald-500" />
+                  <Gift className="h-8 w-8 text-emerald-500" />
                   {t.transactionManagement.forceDeposit}
                 </>
               ) : (
                 <>
-                  <MinusCircle className="h-5 w-5 text-rose-500" />
+                  <MinusCircle className="h-8 w-8 text-rose-500" />
                   {t.transactionManagement.forceWithdrawal}
                 </>
               )}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-lg">
               {t.transactionManagement.adjustMemberBalance}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="grid gap-5 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="force-dialog-type">{t.transactionManagement.transactionTypeLabel}</Label>
+          <div className="grid gap-6 py-4">
+            <div className="grid gap-3">
+              <Label htmlFor="force-dialog-type" className="text-lg">{t.transactionManagement.transactionTypeLabel}</Label>
               <Select value={forceDialog.type} onValueChange={(value: 'deposit' | 'withdrawal') => setForceDialog({ ...forceDialog, type: value })}>
-                <SelectTrigger id="force-dialog-type" className="input-premium h-10">
+                <SelectTrigger id="force-dialog-type" className="input-premium h-14 text-lg">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
-                  <SelectItem value="deposit">{t.transactionManagement.deposit}</SelectItem>
-                  <SelectItem value="withdrawal">{t.transactionManagement.withdrawal}</SelectItem>
+                  <SelectItem value="deposit" className="text-lg py-3">{t.transactionManagement.deposit}</SelectItem>
+                  <SelectItem value="withdrawal" className="text-lg py-3">{t.transactionManagement.withdrawal}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="force-dialog-user-search">{t.transactionManagement.selectMember}</Label>
+            <div className="grid gap-3">
+              <Label htmlFor="force-dialog-user-search" className="text-lg">{t.transactionManagement.selectMember}</Label>
               <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -1174,25 +1175,25 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                     variant="outline"
                     role="combobox"
                     aria-expanded={userSearchOpen}
-                    className="justify-between input-premium h-10"
+                    className="justify-between input-premium h-14 text-lg"
                   >
                     {forceDialog.userId
                       ? users.find(u => u.id === forceDialog.userId)?.username + 
                         ` (${users.find(u => u.id === forceDialog.userId)?.nickname})` +
                         ` - ${parseFloat(users.find(u => u.id === forceDialog.userId)?.balance?.toString() || '0').toLocaleString()}원`
                       : t.transactionManagement.selectMemberPlaceholder}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <ChevronsUpDown className="ml-2 h-6 w-6 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[480px] p-0 bg-slate-800 border-slate-700">
+                <PopoverContent className="w-[580px] p-0 bg-slate-800 border-slate-700">
                   <Command className="bg-slate-800">
                     <CommandInput 
                       placeholder={t.transactionManagement.selectMemberPlaceholder}
-                      className="h-9 text-slate-100 placeholder:text-slate-500"
+                      className="h-12 text-lg text-slate-100 placeholder:text-slate-500"
                     />
                     <CommandList>
-                      <CommandEmpty className="text-slate-400 py-6 text-center text-sm">{t.transactionManagement.memberNotFound}</CommandEmpty>
-                      <CommandGroup className="max-h-64 overflow-auto">
+                      <CommandEmpty className="text-slate-400 py-8 text-center text-lg">{t.transactionManagement.memberNotFound}</CommandEmpty>
+                      <CommandGroup className="max-h-80 overflow-auto">
                         {users.map(u => (
                           <CommandItem
                             key={u.id}
@@ -1201,20 +1202,20 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                               setForceDialog({ ...forceDialog, userId: u.id });
                               setUserSearchOpen(false);
                             }}
-                            className="flex items-center justify-between cursor-pointer hover:bg-slate-700/50 text-slate-300"
+                            className="flex items-center justify-between cursor-pointer hover:bg-slate-700/50 text-slate-300 py-3"
                           >
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-3">
                               <Check
-                                className={`mr-2 h-4 w-4 ${
+                                className={`mr-2 h-6 w-6 ${
                                   forceDialog.userId === u.id ? `opacity-100 ${forceDialog.type === 'deposit' ? 'text-emerald-500' : 'text-rose-500'}` : "opacity-0"
                                 }`}
                               />
                               <div>
-                                <div className="font-medium text-slate-100">{u.username}</div>
-                                <div className="text-xs text-slate-400">{u.nickname}</div>
+                                <div className="font-medium text-slate-100 text-lg">{u.username}</div>
+                                <div className="text-base text-slate-400">{u.nickname}</div>
                               </div>
                             </div>
-                            <div className="text-sm">
+                            <div className="text-lg">
                               <span className="text-cyan-400 font-mono">{parseFloat(u.balance?.toString() || '0').toLocaleString()}원</span>
                             </div>
                           </CommandItem>
@@ -1230,14 +1231,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             {forceDialog.userId && (() => {
               const selectedUser = users.find(u => u.id === forceDialog.userId);
               return selectedUser ? (
-                <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-slate-400">{t.transactionManagement.selectedMember}</span>
-                    <span className="text-cyan-400 font-medium">{selectedUser.nickname}</span>
+                <div className="p-5 bg-slate-800/50 rounded-lg border border-slate-700">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-lg text-slate-400">{t.transactionManagement.selectedMember}</span>
+                    <span className="text-cyan-400 font-medium text-xl">{selectedUser.nickname}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-400">{t.transactionManagement.currentBalance}</span>
-                    <span className="font-mono text-cyan-400">
+                    <span className="text-lg text-slate-400">{t.transactionManagement.currentBalance}</span>
+                    <span className="font-mono text-cyan-400 text-xl">
                       {parseFloat(selectedUser.balance?.toString() || '0').toLocaleString()}원
                     </span>
                   </div>
@@ -1245,15 +1246,15 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               ) : null;
             })()}
 
-            <div className="grid gap-2">
+            <div className="grid gap-3">
               <div className="flex items-center justify-between">
-                <Label htmlFor="force-dialog-amount">{t.transactionManagement.amountLabel}</Label>
+                <Label htmlFor="force-dialog-amount" className="text-lg">{t.transactionManagement.amountLabel}</Label>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setForceDialog({ ...forceDialog, amount: '0' })}
-                  className={`h-7 px-2 text-xs text-slate-400 ${
+                  className={`h-10 px-4 text-base text-slate-400 ${
                     forceDialog.type === 'deposit' 
                       ? 'hover:text-orange-400 hover:bg-orange-500/10' 
                       : 'hover:text-red-400 hover:bg-red-500/10'
@@ -1286,13 +1287,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   setForceDialog({ ...forceDialog, amount: e.target.value });
                 }}
                 placeholder={t.transactionManagement.enterAmountPlaceholder}
-                className="input-premium"
+                className="input-premium h-14 text-lg"
               />
             </div>
 
             {/* 금액 단축 버튼 */}
-            <div className="grid gap-2">
-              <Label className="text-slate-400 text-sm">{t.transactionManagement.quickInput}</Label>
+            <div className="grid gap-3">
+              <Label className="text-slate-400 text-lg">{t.transactionManagement.quickInput}</Label>
               <div className="grid grid-cols-4 gap-2">
                 {amountShortcuts.map((amt) => (
                   <Button
@@ -1321,7 +1322,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                         amount: newAmount.toString() 
                       });
                     }}
-                    className={`h-9 transition-all bg-slate-800/50 border-slate-700 text-slate-300 ${
+                    className={`h-12 text-base transition-all bg-slate-800/50 border-slate-700 text-slate-300 ${
                       forceDialog.type === 'deposit'
                         ? 'hover:bg-orange-500/20 hover:border-orange-500/60 hover:text-orange-400 hover:shadow-[0_0_15px_rgba(251,146,60,0.3)]'
                         : 'hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-400 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]'
@@ -1335,7 +1336,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
             {/* 전액출금 버튼 (출금 시에만) */}
             {forceDialog.type === 'withdrawal' && forceDialog.userId && (
-              <div className="grid gap-2">
+              <div className="grid gap-3">
                 <Button
                   type="button"
                   variant="outline"
@@ -1346,24 +1347,24 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                       setForceDialog({ ...forceDialog, amount: balance.toString() });
                     }
                   }}
-                  className="w-full h-9 bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40 hover:border-red-500"
+                  className="w-full h-12 text-lg bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40 hover:border-red-500"
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
+                  <Trash2 className="h-6 w-6 mr-3" />
                   {t.transactionManagement.fullWithdrawal}
                 </Button>
               </div>
             )}
 
             {/* 메모 */}
-            <div className="grid gap-2">
-              <Label htmlFor="force-dialog-memo">{t.transactionManagement.memoLabel}</Label>
+            <div className="grid gap-3">
+              <Label htmlFor="force-dialog-memo" className="text-lg">{t.transactionManagement.memoLabel}</Label>
               <Textarea
                 id="force-dialog-memo"
                 name="memo"
                 value={forceDialog.memo}
                 onChange={(e) => setForceDialog({ ...forceDialog, memo: e.target.value })}
                 placeholder={t.transactionManagement.memoPlaceholder}
-                className="input-premium min-h-[80px]"
+                className="input-premium min-h-[120px] text-lg"
               />
             </div>
           </div>
@@ -1373,7 +1374,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               type="button"
               onClick={handleForceTransaction}
               disabled={refreshing || !forceDialog.userId || !forceDialog.amount || parseFloat(forceDialog.amount) <= 0}
-              className={`w-full ${forceDialog.type === 'deposit' ? 'btn-premium-warning' : 'btn-premium-danger'}`}
+              className={`w-full h-14 text-xl ${forceDialog.type === 'deposit' ? 'btn-premium-warning' : 'btn-premium-danger'}`}
             >
               {refreshing ? t.transactionManagement.processing : forceDialog.type === 'deposit' ? t.transactionManagement.forceDeposit : t.transactionManagement.forceWithdrawal}
             </Button>

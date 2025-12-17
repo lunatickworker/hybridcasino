@@ -63,7 +63,7 @@ export function MetricCard({
           <div className="p-2.5 rounded-xl bg-white/15 backdrop-blur-md shadow-lg">
             <Icon className="h-6 w-6 text-white" />
           </div>
-          <h3 className="font-semibold text-white/95 tracking-wide">
+          <h3 className="text-2xl font-semibold text-white/95 tracking-wide">
             {title}
           </h3>
         </div>
@@ -77,7 +77,7 @@ export function MetricCard({
 
         {/* 하단: 서브타이틀 */}
         {subtitle && (
-          <p className="text-sm text-white/70 font-medium">
+          <p className="text-xl text-white/70 font-medium">
             {subtitle}
           </p>
         )}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -6,7 +6,7 @@ import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
-import { DataTable } from "../common/DataTable";
+import { DataTableLarge } from "../common/DataTableLarge";
 import { 
   UserPlus, Save, Eye, EyeOff, Building2, 
   Database, Shield, Trash2, Edit, RefreshCw, 
@@ -70,15 +70,27 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     bank_account: '',
     bank_holder: '',
     contact_info: '',
+    timezone_offset: 9, // 기본값 명시적으로 설정
   });
 
-  const partnerTypes = [
+  const partnerTypes = useMemo(() => [
     { value: 'head_office', label: t.partnerCreation.partnerTypes.head_office, level: 2 },
     { value: 'main_office', label: t.partnerCreation.partnerTypes.main_office, level: 3 },
     { value: 'sub_office', label: t.partnerCreation.partnerTypes.sub_office, level: 4 },
     { value: 'distributor', label: t.partnerCreation.partnerTypes.distributor, level: 5 },
     { value: 'store', label: t.partnerCreation.partnerTypes.store, level: 6 },
-  ];
+  ], [t]);
+
+  const timezoneOptions = useMemo(() => 
+    Array.from({ length: 27 }, (_, i) => {
+      const offset = i - 12;
+      return {
+        value: String(offset),
+        label: `UTC${offset >= 0 ? '+' : ''}${offset}${offset === 9 ? ' (KST)' : ''}`
+      };
+    }),
+    []
+  );
 
   useEffect(() => {
     loadPartners();
@@ -305,6 +317,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         bank_holder: '',
         contact_info: '',
         selected_parent_id: undefined,
+        timezone_offset: 9, // 기본값 명시적으로 설정
       });
       
       await loadPartners();
@@ -364,7 +377,15 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
   };
 
   const getPartnerLevelText = (level: number): string => {
-    return t.partnerCreation.levelText[level as keyof typeof t.partnerCreation.levelText] || t.partnerCreation.levelText.unknown;
+    const levelTexts: Record<string, string> = {
+      '1': t.partnerCreation.levelText['1'],
+      '2': t.partnerCreation.levelText['2'],
+      '3': t.partnerCreation.levelText['3'],
+      '4': t.partnerCreation.levelText['4'],
+      '5': t.partnerCreation.levelText['5'],
+      '6': t.partnerCreation.levelText['6'],
+    };
+    return levelTexts[String(level)] || t.partnerCreation.levelText.unknown;
   };
 
   const partnerColumns = [
@@ -382,7 +403,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       key: "level",
       title: t.partnerCreation.grade,
       cell: (partner: Partner) => (
-        <Badge variant={partner.level === 2 ? 'default' : 'secondary'}>
+        <Badge variant={partner.level === 2 ? 'default' : 'secondary'} className="text-base py-2 px-3">
           {getPartnerLevelText(partner.level)}
         </Badge>
       ),
@@ -391,7 +412,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       key: "status",
       title: t.partnerCreation.status,
       cell: (partner: Partner) => (
-        <Badge variant={partner.status === 'active' ? 'default' : 'secondary'}>
+        <Badge variant={partner.status === 'active' ? 'default' : 'secondary'} className="text-base py-2 px-3">
           {partner.status === 'active' ? t.partnerCreation.active : t.partnerCreation.inactive}
         </Badge>
       ),
@@ -423,10 +444,10 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
             size="sm"
             variant="outline"
             onClick={() => deletePartner(partner.id)}
-            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+            className="h-12 w-12 p-0 text-red-600 hover:text-red-700"
             disabled={partner.id === user.id}
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-6 w-6" />
           </Button>
         </div>
       ),
@@ -437,14 +458,14 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-slate-100">{t.partnerCreation.title}</h1>
-          <p className="text-sm text-slate-400">
+          <h1 className="text-3xl font-bold text-slate-100">{t.partnerCreation.title}</h1>
+          <p className="text-lg text-slate-400">
             {t.partnerCreation.description}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={loadPartners} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <Button onClick={loadPartners} variant="outline" className="text-lg px-6 py-3 h-auto">
+            <RefreshCw className="h-6 w-6 mr-2" />
             {t.common.refresh}
           </Button>
         </div>
@@ -453,38 +474,40 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-2xl">
+              <UserPlus className="h-8 w-8" />
               {t.partnerCreation.createPartner}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-lg">
               {t.partnerCreation.createDescription}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="username">{t.partnerCreation.username}</Label>
+                <Label htmlFor="username" className="text-lg">{t.partnerCreation.username}</Label>
                 <Input
                   id="username"
                   value={formData.username}
                   onChange={(e) => handleInputChange('username', e.target.value)}
                   placeholder={t.partnerCreation.usernamePlaceholder}
+                  className="text-lg py-6"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="nickname">{t.partnerCreation.nickname}</Label>
+                <Label htmlFor="nickname" className="text-lg">{t.partnerCreation.nickname}</Label>
                 <Input
                   id="nickname"
                   value={formData.nickname}
                   onChange={(e) => handleInputChange('nickname', e.target.value)}
                   placeholder={t.partnerCreation.nicknamePlaceholder}
+                  className="text-lg py-6"
                 />
               </div>
 
               <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="password">{t.partnerCreation.password}</Label>
+                <Label htmlFor="password" className="text-lg">{t.partnerCreation.password}</Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -492,6 +515,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                     value={formData.password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
                     placeholder={t.partnerCreation.passwordPlaceholder}
+                    className="text-lg py-6 pr-12"
                   />
                   <Button
                     type="button"
@@ -500,18 +524,18 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                     onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />}
                   </Button>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="partner_type">{t.partnerCreation.partnerGrade}</Label>
+                <Label htmlFor="partner_type" className="text-lg">{t.partnerCreation.partnerGrade}</Label>
                 <Select value={formData.partner_type} onValueChange={(value) => handleInputChange('partner_type', value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className="text-lg py-6">
                     <SelectValue placeholder={t.partnerCreation.selectGrade} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="text-lg">
                     {partnerTypes
                       .filter(type => {
                         // ✅ 시스템관리자(level 1)는 모든 파트너 등급 생성 가능
@@ -520,7 +544,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                         return type.level > user.level;
                       })
                       .map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
+                        <SelectItem key={type.value} value={type.value} className="text-lg py-3">
                           {type.label} ({t.partnerCreation.level} {type.level})
                         </SelectItem>
                       ))}
@@ -529,11 +553,11 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
               </div>
 
               <div className="space-y-2">
-                <Label>{t.partnerCreation.level}</Label>
+                <Label className="text-lg">{t.partnerCreation.level}</Label>
                 <Input
                   value={`${t.partnerCreation.level} ${formData.level}`}
                   readOnly
-                  className="bg-muted"
+                  className="bg-muted text-lg py-6"
                 />
               </div>
             </div>
@@ -541,23 +565,23 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
             {/* Lv1이 Lv3~Lv6 생성 시 소속 파트너 선택 */}
             {user.partner_type === 'system_admin' && formData.partner_type !== 'head_office' && availableParents.length > 0 && (
               <div className="space-y-2">
-                <Label htmlFor="selected_parent">{t.partnerCreation.selectParentLabel}</Label>
+                <Label htmlFor="selected_parent" className="text-lg">{t.partnerCreation.selectParentLabel}</Label>
                 <Select 
                   value={formData.selected_parent_id || ''} 
                   onValueChange={(value) => handleInputChange('selected_parent_id', value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="text-lg py-6">
                     <SelectValue placeholder={t.partnerCreation.selectParentPlaceholder} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="text-lg">
                     {availableParents.map((parent) => (
-                      <SelectItem key={parent.id} value={parent.id}>
+                      <SelectItem key={parent.id} value={parent.id} className="text-lg py-3">
                         {parent.nickname || parent.username} ({getPartnerLevelText(parent.level)})
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-base text-muted-foreground">
                   {t.partnerCreation.parentDescription}
                 </p>
               </div>
@@ -566,23 +590,45 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
             {/* LV2(대본사) 생성 시 타임존 설정 */}
             {formData.partner_type === 'head_office' && (
               <div className="space-y-2">
-                <Label htmlFor="timezone_offset">{t.partnerCreation.timezoneOffset || "타임존 설정"}</Label>
+                <Label htmlFor="timezone_offset" className="text-lg">{t.partnerCreation.timezoneOffset || "타임존 설정"}</Label>
                 <Select 
-                  value={String(formData.timezone_offset !== undefined ? formData.timezone_offset : 9)} 
-                  onValueChange={(value) => handleInputChange('timezone_offset', parseInt(value))}
+                  value={String(formData.timezone_offset ?? 9)} 
+                  onValueChange={(value) => handleInputChange('timezone_offset', parseInt(value, 10))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="text-lg py-6" id="timezone_offset">
                     <SelectValue placeholder={t.partnerCreation.selectTimezone || "타임존 선택"} />
                   </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 27 }, (_, i) => i - 12).map((offset) => (
-                      <SelectItem key={offset} value={String(offset)}>
-                        UTC{offset >= 0 ? '+' : ''}{offset} {offset === 9 ? '(KST)' : ''}
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="text-lg max-h-[300px]">
+                    <SelectItem value="9" className="text-lg py-3">UTC+9 (KST)</SelectItem>
+                    <SelectItem value="-12" className="text-lg py-3">UTC-12</SelectItem>
+                    <SelectItem value="-11" className="text-lg py-3">UTC-11</SelectItem>
+                    <SelectItem value="-10" className="text-lg py-3">UTC-10</SelectItem>
+                    <SelectItem value="-9" className="text-lg py-3">UTC-9</SelectItem>
+                    <SelectItem value="-8" className="text-lg py-3">UTC-8</SelectItem>
+                    <SelectItem value="-7" className="text-lg py-3">UTC-7</SelectItem>
+                    <SelectItem value="-6" className="text-lg py-3">UTC-6</SelectItem>
+                    <SelectItem value="-5" className="text-lg py-3">UTC-5</SelectItem>
+                    <SelectItem value="-4" className="text-lg py-3">UTC-4</SelectItem>
+                    <SelectItem value="-3" className="text-lg py-3">UTC-3</SelectItem>
+                    <SelectItem value="-2" className="text-lg py-3">UTC-2</SelectItem>
+                    <SelectItem value="-1" className="text-lg py-3">UTC-1</SelectItem>
+                    <SelectItem value="0" className="text-lg py-3">UTC+0</SelectItem>
+                    <SelectItem value="1" className="text-lg py-3">UTC+1</SelectItem>
+                    <SelectItem value="2" className="text-lg py-3">UTC+2</SelectItem>
+                    <SelectItem value="3" className="text-lg py-3">UTC+3</SelectItem>
+                    <SelectItem value="4" className="text-lg py-3">UTC+4</SelectItem>
+                    <SelectItem value="5" className="text-lg py-3">UTC+5</SelectItem>
+                    <SelectItem value="6" className="text-lg py-3">UTC+6</SelectItem>
+                    <SelectItem value="7" className="text-lg py-3">UTC+7</SelectItem>
+                    <SelectItem value="8" className="text-lg py-3">UTC+8</SelectItem>
+                    <SelectItem value="10" className="text-lg py-3">UTC+10</SelectItem>
+                    <SelectItem value="11" className="text-lg py-3">UTC+11</SelectItem>
+                    <SelectItem value="12" className="text-lg py-3">UTC+12</SelectItem>
+                    <SelectItem value="13" className="text-lg py-3">UTC+13</SelectItem>
+                    <SelectItem value="14" className="text-lg py-3">UTC+14</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-base text-muted-foreground">
                   {t.partnerCreation.timezoneDescription || "대본사의 기준 타임존을 설정합니다. 통계 및 시간 표시에 적용됩니다."}
                 </p>
               </div>
@@ -591,16 +637,16 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
             {/* Lv2(대본사) 생성 시 안내 메시지 */}
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                <span className="font-medium">{t.partnerCreation.commissionSettings}</span>
+                <Building2 className="h-6 w-6" />
+                <span className="text-lg font-medium">{t.partnerCreation.commissionSettings}</span>
               </div>
               
               {/* 카지노 커미션 */}
               <div className="space-y-3">
-                <Label className="text-sm text-blue-400">카지노 커미션</Label>
+                <Label className="text-lg text-blue-400">카지노 커미션</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="casino_rolling_commission">카지노 롤링 커미션 (%)</Label>
+                    <Label htmlFor="casino_rolling_commission" className="text-lg">카지노 롤링 커미션 (%)</Label>
                     <Input
                       id="casino_rolling_commission"
                       type="number"
@@ -611,11 +657,12 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                         handleInputChange('casino_rolling_commission', isNaN(value) ? 0 : value);
                       }}
                       placeholder="0.5"
+                      className="text-lg py-6"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="casino_losing_commission">카지노 루징 커미션 (%)</Label>
+                    <Label htmlFor="casino_losing_commission" className="text-lg">카지노 루징 커미션 (%)</Label>
                     <Input
                       id="casino_losing_commission"
                       type="number"
@@ -626,6 +673,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                         handleInputChange('casino_losing_commission', isNaN(value) ? 0 : value);
                       }}
                       placeholder="5.0"
+                      className="text-lg py-6"
                     />
                   </div>
                 </div>
@@ -633,10 +681,10 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
               {/* 슬롯 커미션 */}
               <div className="space-y-3">
-                <Label className="text-sm text-purple-400">슬롯 커미션</Label>
+                <Label className="text-lg text-purple-400">슬롯 커미션</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="slot_rolling_commission">슬롯 롤링 커미션 (%)</Label>
+                    <Label htmlFor="slot_rolling_commission" className="text-lg">슬롯 롤링 커미션 (%)</Label>
                     <Input
                       id="slot_rolling_commission"
                       type="number"
@@ -647,11 +695,12 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                         handleInputChange('slot_rolling_commission', isNaN(value) ? 0 : value);
                       }}
                       placeholder="0.5"
+                      className="text-lg py-6"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="slot_losing_commission">슬롯 루징 커미션 (%)</Label>
+                    <Label htmlFor="slot_losing_commission" className="text-lg">슬롯 루징 커미션 (%)</Label>
                     <Input
                       id="slot_losing_commission"
                       type="number"
@@ -662,6 +711,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                         handleInputChange('slot_losing_commission', isNaN(value) ? 0 : value);
                       }}
                       placeholder="5.0"
+                      className="text-lg py-6"
                     />
                   </div>
                 </div>
@@ -670,7 +720,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
               {/* 롤링 수수료 */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="withdrawal_fee">{t.partnerCreation.withdrawalFee}</Label>
+                  <Label htmlFor="withdrawal_fee" className="text-lg">{t.partnerCreation.withdrawalFee}</Label>
                   <Input
                     id="withdrawal_fee"
                     type="number"
@@ -681,6 +731,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                       handleInputChange('withdrawal_fee', isNaN(value) ? 0 : value);
                     }}
                     placeholder="1.0"
+                    className="text-lg py-6"
                   />
                 </div>
               </div>
@@ -688,51 +739,55 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                <span className="font-medium">{t.partnerCreation.bankInfo}</span>
+                <Shield className="h-6 w-6" />
+                <span className="text-lg font-medium">{t.partnerCreation.bankInfo}</span>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="bank_name">{t.partnerCreation.bankName}</Label>
+                  <Label htmlFor="bank_name" className="text-lg">{t.partnerCreation.bankName}</Label>
                   <Input
                     id="bank_name"
                     value={formData.bank_name}
                     onChange={(e) => handleInputChange('bank_name', e.target.value)}
                     placeholder={t.partnerCreation.bankNamePlaceholder}
+                    className="text-lg py-6"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="bank_account">{t.partnerCreation.bankAccount}</Label>
+                  <Label htmlFor="bank_account" className="text-lg">{t.partnerCreation.bankAccount}</Label>
                   <Input
                     id="bank_account"
                     value={formData.bank_account}
                     onChange={(e) => handleInputChange('bank_account', e.target.value)}
                     placeholder={t.partnerCreation.bankAccountPlaceholder}
+                    className="text-lg py-6"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="bank_holder">{t.partnerCreation.bankHolder}</Label>
+                  <Label htmlFor="bank_holder" className="text-lg">{t.partnerCreation.bankHolder}</Label>
                   <Input
                     id="bank_holder"
                     value={formData.bank_holder}
                     onChange={(e) => handleInputChange('bank_holder', e.target.value)}
                     placeholder={t.partnerCreation.bankHolderPlaceholder}
+                    className="text-lg py-6"
                   />
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="contact_info">{t.partnerCreation.contactInfo}</Label>
+              <Label htmlFor="contact_info" className="text-lg">{t.partnerCreation.contactInfo}</Label>
               <Textarea
                 id="contact_info"
                 value={formData.contact_info}
                 onChange={(e) => handleInputChange('contact_info', e.target.value)}
                 placeholder={t.partnerCreation.contactInfoPlaceholder}
                 rows={3}
+                className="text-lg"
               />
             </div>
 
@@ -740,9 +795,9 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
               <Button
                 onClick={savePartner}
                 disabled={saving}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 text-lg px-6 py-3 h-auto"
               >
-                <Save className="h-4 w-4" />
+                <Save className="h-6 w-6" />
                 {saving ? t.partnerCreation.creating : t.partnerCreation.createButton}
               </Button>
             </div>
@@ -751,17 +806,17 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-2xl">
+              <Users className="h-8 w-8" />
               {t.partnerCreation.partnerList}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-lg">
               {t.partnerCreation.listDescription}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">
-              <DataTable
+              <DataTableLarge
                 data={partners}
                 columns={partnerColumns}
                 loading={loading}

@@ -337,32 +337,27 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
     {
       header: t.partnerConnectionStatus.partnerInfo,
       cell: (partner: PartnerConnection) => (
-        <div className="flex flex-col gap-2 py-2">
-          <div className="flex items-center gap-2">
+        <div className="py-3 pl-10">
+          <div className="flex items-center gap-3 text-xl">
             <span className="font-medium">{partner.username}</span>
-            <Badge variant="outline" className="text-xs px-2 py-0.5">
+            <Badge variant="outline" className="text-lg px-3 py-1">
               {partner.nickname}
             </Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs px-2 py-0.5">
-              {t.partnerConnectionStatus.levelPrefix}{partner.level}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-lg text-muted-foreground">
               {getPartnerTypeText(partner.partner_type)}
             </span>
+            <span className="text-lg text-muted-foreground">
+              ({t.partnerConnectionStatus.parentLabel}: {partner.parent_nickname})
+            </span>
           </div>
-          <span className="text-xs text-muted-foreground">
-            {t.partnerConnectionStatus.parentLabel}: {partner.parent_nickname}
-          </span>
         </div>
       ),
     },
     {
       header: t.partnerConnectionStatus.partnerBalance,
       cell: (partner: PartnerConnection) => (
-        <div className="flex flex-col gap-1 py-2">
-          <span className={`font-medium ${partner.balance < 0 ? "text-red-400" : "text-emerald-400"}`}>
+        <div className="py-3">
+          <span className={`font-medium text-xl ${partner.balance < 0 ? "text-red-400" : "text-emerald-400"}`}>
             ₩{partner.balance.toLocaleString()}
           </span>
         </div>
@@ -371,8 +366,8 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
     {
       header: t.partnerConnectionStatus.userCount,
       cell: (partner: PartnerConnection) => (
-        <div className="flex flex-col gap-1 py-2">
-          <span className="font-medium text-cyan-400">
+        <div className="py-3">
+          <span className="font-medium text-cyan-400 text-xl">
             {t.partnerConnectionStatus.peopleCount.replace('{{count}}', partner.user_count.toLocaleString())}
           </span>
         </div>
@@ -381,8 +376,8 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
     {
       header: t.partnerConnectionStatus.userBalanceSum,
       cell: (partner: PartnerConnection) => (
-        <div className="flex flex-col gap-1 py-2">
-          <span className={`font-medium ${partner.users_balance < 0 ? "text-red-400" : "text-blue-400"}`}>
+        <div className="py-3">
+          <span className={`font-medium text-xl ${partner.users_balance < 0 ? "text-red-400" : "text-blue-400"}`}>
             ₩{partner.users_balance.toLocaleString()}
           </span>
         </div>
@@ -396,15 +391,15 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
           partner.status === 'active';
         
         return (
-          <div className="flex flex-col gap-2 py-2">
+          <div className="flex flex-col gap-2 py-3">
             <Badge 
               variant={isOnline ? "default" : "outline"}
-              className={isOnline ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50" : ""}
+              className={`text-lg px-3 py-1 ${isOnline ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50" : ""}`}
             >
               {isOnline ? t.partnerConnectionStatus.online : t.partnerConnectionStatus.offline}
             </Badge>
             {partner.status === 'suspended' && (
-              <Badge variant="destructive" className="text-xs">
+              <Badge variant="destructive" className="text-lg px-3 py-1">
                 {t.partnerConnectionStatus.suspended}
               </Badge>
             )}
@@ -415,8 +410,8 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
     {
       header: t.partnerConnectionStatus.lastLoginTime,
       cell: (partner: PartnerConnection) => (
-        <div className="flex flex-col gap-1 py-2">
-          <span className="text-sm">
+        <div className="flex flex-col gap-1 py-3">
+          <span className="text-xl">
             {partner.last_login_at 
               ? new Date(partner.last_login_at).toLocaleString('ko-KR', {
                   year: 'numeric',
@@ -429,7 +424,7 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
             }
           </span>
           {partner.last_login_at && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-lg text-muted-foreground">
               {t.partnerConnectionStatus.elapsedTime.replace('{{time}}', getSessionTime(partner.last_login_at))}
             </span>
           )}
@@ -443,20 +438,9 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
       <div className="flex flex-col gap-4">
         <div>
           <h2 className="text-3xl">{t.partnerConnectionStatus.title}</h2>
-          <p className="text-sm text-muted-foreground mt-2">
+          <p className="text-xl text-muted-foreground mt-2">
             {t.partnerConnectionStatus.subtitle}
           </p>
-        </div>
-        
-        {/* 검색 바 */}
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder={t.partnerConnectionStatus.searchPlaceholder}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-card/50 border-border/50"
-          />
         </div>
       </div>
 
@@ -500,12 +484,6 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-sm text-muted-foreground">
-              {t.partnerConnectionStatus.totalPartners.replace('{{count}}', filteredPartners.length.toString())}
-              {searchQuery && ` ${t.partnerConnectionStatus.searchResults.replace('{{total}}', partners.length.toString())}`}
-            </p>
-          </div>
           <DataTable
             data={filteredPartners}
             columns={columns}

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ko } from '../translations/ko';
 import { en } from '../translations/en';
 
+// v2.2 - Silent fallback for components rendered outside LanguageProvider
 type Language = 'ko' | 'en';
 type Translations = typeof ko;
 
@@ -40,10 +41,16 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useLanguage() {
+export function useLanguage(): LanguageContextType {
   const context = useContext(LanguageContext);
   if (context === undefined) {
-    throw new Error('useLanguage must be used within a LanguageProvider');
+    // Silent fallback when LanguageProvider is not available
+    return {
+      language: 'ko' as Language,
+      setLanguage: () => {},
+      t: ko,
+      formatCurrency: (amount: number) => `₩${amount.toLocaleString()}`
+    };
   }
   return context;
 }

@@ -233,19 +233,19 @@ export function PartnerManagementV2() {
   const renderTreeNode = (partner: any, depth: number): JSX.Element => {
     const isExpanded = expandedPartners.has(partner.id);
     const hasChildren = partner.children && partner.children.length > 0;
-    const indentWidth = depth * 24; // 24px씩 들여쓰기
+    const indentWidth = depth * 36; // 36px씩 들여쓰기 (50% 증가)
 
     return (
       <div key={partner.id}>
         {/* 파트너 행 */}
         <div 
-          className="flex items-center gap-1.5 p-2.5 rounded-lg hover:bg-slate-800/50 transition-colors border border-slate-700/30 bg-slate-800/20 min-w-[1200px]"
+          className="flex items-center gap-4 p-5 rounded-lg hover:bg-slate-800/50 transition-colors border border-slate-700/30 bg-slate-800/20 min-w-[1600px]"
         >
           {/* 토글 버튼 + 아이디 (동적 너비, 들여쓰기 적용) */}
-          <div className="flex items-center gap-2 min-w-[130px] flex-shrink-0" style={{ paddingLeft: `${indentWidth}px` }}>
+          <div className="flex items-center gap-3 min-w-[200px] flex-shrink-0" style={{ paddingLeft: `${indentWidth}px` }}>
             <button
               onClick={() => hasChildren && togglePartner(partner.id)}
-              className={`flex items-center justify-center w-5 h-5 rounded transition-colors flex-shrink-0 ${
+              className={`flex items-center justify-center w-8 h-8 rounded transition-colors flex-shrink-0 ${
                 hasChildren 
                   ? 'hover:bg-slate-700 text-slate-300 cursor-pointer' 
                   : 'invisible'
@@ -253,41 +253,58 @@ export function PartnerManagementV2() {
             >
               {hasChildren && (
                 isExpanded ? (
-                  <ChevronDown className="h-3 w-3" />
+                  <ChevronDown className="h-5 w-5" />
                 ) : (
-                  <ChevronRight className="h-3 w-3" />
+                  <ChevronRight className="h-5 w-5" />
                 )
               )}
             </button>
 
             {/* 아이디 */}
-            <span className="font-medium text-white text-sm truncate">{partner.username}</span>
+            <span className="font-medium text-white text-xl truncate">{partner.username}</span>
           </div>
 
           {/* 나머지 컬럼들 (고정 너비로 헤더와 정렬) */}
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
             {/* 닉네임 */}
-            <div className="min-w-[90px] flex-shrink-0">
-              <span className="text-slate-300 text-sm truncate">{partner.nickname}</span>
+            <div className="min-w-[150px] flex-shrink-0">
+              <span className="text-slate-300 text-xl truncate">{partner.nickname}</span>
             </div>
 
             {/* 파트너 등급 */}
-            <div className="min-w-[85px] flex-shrink-0">
-              <Badge className={`${partnerTypeColors[partner.partner_type]} text-white text-xs`}>
+            <div className="min-w-[130px] flex-shrink-0">
+              <Badge className={`px-4 py-2.5 text-white text-base border-0 ${
+                partner.partner_type === 'system_admin' ? 'bg-purple-500/80' :
+                partner.partner_type === 'head_office' ? 'bg-red-500/80' :
+                partner.partner_type === 'main_office' ? 'bg-orange-500/80' :
+                partner.partner_type === 'sub_office' ? 'bg-yellow-500/80' :
+                partner.partner_type === 'distributor' ? 'bg-blue-500/80' :
+                'bg-green-500/80'
+              }`}>
                 {partnerTypeTexts[partner.partner_type]}
               </Badge>
             </div>
 
             {/* 상태 */}
-            <div className="min-w-[60px] flex-shrink-0">
-              <Badge className={`${statusColors[partner.status]} text-white text-xs`}>
-                {statusTexts[partner.status]}
-              </Badge>
+            <div className="min-w-[65px] flex-shrink-0 -ml-1.5">
+              {partner.status === 'active' ? (
+                <Badge className="px-4 py-2.5 bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 text-base">
+                  {statusTexts[partner.status]}
+                </Badge>
+              ) : partner.status === 'inactive' ? (
+                <Badge className="px-4 py-2.5 bg-slate-500/30 text-slate-300 border border-slate-500/50 text-base">
+                  {statusTexts[partner.status]}
+                </Badge>
+              ) : (
+                <Badge className="px-4 py-2.5 bg-red-500/30 text-red-300 border border-red-500/50 text-base">
+                  {statusTexts[partner.status]}
+                </Badge>
+              )}
             </div>
 
             {/* 보유금 */}
-            <div className="min-w-[110px] text-right flex-shrink-0">
-              <span className="font-mono text-green-400 text-sm">
+            <div className="min-w-[80px] text-right flex-shrink-0">
+              <span className="font-mono text-cyan-400 text-xl">
                 {/* ✅ Lv1, Lv2: invest + oroplay 합산, Lv3~7: balance */}
                 {partner.level === 1 || partner.level === 2
                   ? ((partner.invest_balance || 0) + (partner.oroplay_balance || 0)).toLocaleString()
@@ -295,55 +312,55 @@ export function PartnerManagementV2() {
               </span>
               {/* Lv1, Lv2 API별 잔고 툴팁 표시 */}
               {(partner.level === 1 || partner.level === 2) && (
-                <div className="text-[10px] text-slate-400 mt-0.5">
+                <div className="text-sm text-slate-400 mt-1">
                   (I:{(partner.invest_balance || 0).toLocaleString()} + O:{(partner.oroplay_balance || 0).toLocaleString()})
                 </div>
               )}
             </div>
 
             {/* 커미션 정보 - Casino/Slot 분리 */}
-            <div className="min-w-[170px] flex-shrink-0">
-              <div className="flex flex-col gap-1 text-xs">
+            <div className="min-w-[320px] flex-shrink-0">
+              <div className="flex flex-col gap-2">
                 {/* Casino 커미션 */}
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-slate-500 w-8">C:</span>
-                  <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px] px-1 py-0">
-                    R:{partner.casino_rolling_commission || 0}%
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-400 w-14">카지노</span>
+                  <Badge variant="outline" className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40 text-sm px-3 py-1.5">
+                    롤링 {partner.casino_rolling_commission || 0}%
                   </Badge>
-                  <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30 text-[10px] px-1 py-0">
-                    L:{partner.casino_losing_commission || 0}%
+                  <Badge variant="outline" className="bg-orange-500/15 text-orange-300 border-orange-500/40 text-sm px-3 py-1.5">
+                    루징 {partner.casino_losing_commission || 0}%
                   </Badge>
                 </div>
                 {/* Slot 커미션 */}
-                <div className="flex items-center gap-1">
-                  <span className="text-[10px] text-slate-500 w-8">S:</span>
-                  <Badge variant="outline" className="bg-green-500/10 text-green-400 border-green-500/30 text-[10px] px-1 py-0">
-                    R:{partner.slot_rolling_commission || 0}%
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-400 w-14">슬롯</span>
+                  <Badge variant="outline" className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40 text-sm px-3 py-1.5">
+                    롤링 {partner.slot_rolling_commission || 0}%
                   </Badge>
-                  <Badge variant="outline" className="bg-orange-500/10 text-orange-400 border-orange-500/30 text-[10px] px-1 py-0">
-                    L:{partner.slot_losing_commission || 0}%
+                  <Badge variant="outline" className="bg-orange-500/15 text-orange-300 border-orange-500/40 text-sm px-3 py-1.5">
+                    루징 {partner.slot_losing_commission || 0}%
                   </Badge>
-                  <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30 text-[10px] px-1 py-0">
-                    F:{partner.withdrawal_fee || 0}%
+                  <Badge variant="outline" className="bg-blue-500/15 text-blue-300 border-blue-500/40 text-sm px-3 py-1.5">
+                    수수료 {partner.withdrawal_fee || 0}%
                   </Badge>
                 </div>
               </div>
             </div>
 
             {/* 하위/회원 수 */}
-            <div className="flex items-center gap-1.5 min-w-[110px] flex-shrink-0">
-              <div className="flex items-center gap-1">
-                <Building2 className="h-3 w-3 text-slate-400" />
-                <span className="text-xs text-slate-400">{partner.child_count || 0}</span>
+            <div className="flex items-center gap-4 min-w-[150px] flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-6 w-6 text-slate-400" />
+                <span className="text-base text-slate-300">{partner.child_count || 0}</span>
               </div>
-              <div className="flex items-center gap-1">
-                <Users className="h-3 w-3 text-slate-400" />
-                <span className="text-xs text-slate-400">{partner.user_count || 0}</span>
+              <div className="flex items-center gap-2">
+                <Users className="h-6 w-6 text-slate-400" />
+                <span className="text-base text-slate-300">{partner.user_count || 0}</span>
               </div>
             </div>
 
             {/* 최근 접속 */}
-            <div className="min-w-[120px] flex-shrink-0">
+            <div className="min-w-[180px] flex-shrink-0">
               {partner.last_login_at ? (() => {
                 const date = new Date(partner.last_login_at);
                 const year = date.getFullYear();
@@ -351,15 +368,15 @@ export function PartnerManagementV2() {
                 const day = String(date.getDate()).padStart(2, '0');
                 const hour = String(date.getHours()).padStart(2, '0');
                 const minute = String(date.getMinutes()).padStart(2, '0');
-                return <span className="text-xs text-slate-400">{`${year}/${month}/${day} ${hour}:${minute}`}</span>;
+                return <span className="text-base text-slate-300">{`${year}/${month}/${day} ${hour}:${minute}`}</span>;
               })() : (
-                <span className="text-xs text-slate-600">-</span>
+                <span className="text-base text-slate-500">-</span>
               )}
             </div>
           </div>
 
           {/* 액션 버튼 */}
-          <div className="flex items-center gap-1.5 w-[240px] flex-shrink-0">
+          <div className="flex items-center justify-center gap-2 w-[320px] flex-shrink-0">
             {/* 입출금 버튼 - 상위 권한자는 모든 하위 조직에 대해 입출금 가능 */}
             {authState.user && authState.user.level < partner.level && partner.id !== authState.user.id && (() => {
               // Lv1 -> Lv2 (head_office, API 호출)
@@ -374,10 +391,10 @@ export function PartnerManagementV2() {
                         setForceTransactionType('deposit');
                         setShowForceTransactionModal(true);
                       }}
-                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
+                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0 h-10 w-10 p-0"
                       title="입금 (API 호출)"
                     >
-                      <DollarSign className="h-4 w-4" />
+                      <DollarSign className="h-5 w-5" />
                     </Button>
                     <Button
                       variant="outline"
@@ -387,10 +404,10 @@ export function PartnerManagementV2() {
                         setForceTransactionType('withdrawal');
                         setShowForceTransactionModal(true);
                       }}
-                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
+                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0 h-10 w-10 p-0"
                       title="출금 (API 호출)"
                     >
-                      <ArrowDown className="h-4 w-4" />
+                      <ArrowDown className="h-5 w-5" />
                     </Button>
                   </>
                 );
@@ -407,10 +424,10 @@ export function PartnerManagementV2() {
                         setForceTransactionType('deposit');
                         setShowForceTransactionModal(true);
                       }}
-                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
+                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0 h-10 w-10 p-0"
                       title="입금 (API 호출)"
                     >
-                      <DollarSign className="h-4 w-4" />
+                      <DollarSign className="h-5 w-5" />
                     </Button>
                     <Button
                       variant="outline"
@@ -420,10 +437,10 @@ export function PartnerManagementV2() {
                         setForceTransactionType('withdrawal');
                         setShowForceTransactionModal(true);
                       }}
-                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
+                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0 h-10 w-10 p-0"
                       title="출금 (API 호출)"
                     >
-                      <ArrowDown className="h-4 w-4" />
+                      <ArrowDown className="h-5 w-5" />
                     </Button>
                   </>
                 );
@@ -440,10 +457,10 @@ export function PartnerManagementV2() {
                         setTransferMode('deposit');
                         setShowTransferDialog(true);
                       }}
-                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
+                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0 h-10 w-10 p-0"
                       title="보유금 지급 (GMS 머니)"
                     >
-                      <DollarSign className="h-4 w-4" />
+                      <DollarSign className="h-5 w-5" />
                     </Button>
                     <Button
                       variant="outline"
@@ -453,10 +470,10 @@ export function PartnerManagementV2() {
                         setTransferMode('withdrawal');
                         setShowTransferDialog(true);
                       }}
-                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
+                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0 h-10 w-10 p-0"
                       title="보유금 회수 (GMS 머니)"
                     >
-                      <ArrowDown className="h-4 w-4" />
+                      <ArrowDown className="h-5 w-5" />
                     </Button>
                   </>
                 );
@@ -473,10 +490,10 @@ export function PartnerManagementV2() {
                         setHierarchyTransactionType('deposit');
                         setShowHierarchyTransactionModal(true);
                       }}
-                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0"
+                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0 h-10 w-10 p-0"
                       title="하위 파트너 입금"
                     >
-                      <DollarSign className="h-4 w-4" />
+                      <DollarSign className="h-5 w-5" />
                     </Button>
                     <Button
                       variant="outline"
@@ -486,10 +503,10 @@ export function PartnerManagementV2() {
                         setHierarchyTransactionType('withdrawal');
                         setShowHierarchyTransactionModal(true);
                       }}
-                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0"
+                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0 h-10 w-10 p-0"
                       title="하위 파트너 출금"
                     >
-                      <ArrowDown className="h-4 w-4" />
+                      <ArrowDown className="h-5 w-5" />
                     </Button>
                   </>
                 );
@@ -503,9 +520,9 @@ export function PartnerManagementV2() {
                 setSelectedPartner(partner);
                 setShowEditDialog(true);
               }}
-              className="bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20 flex-shrink-0"
+              className="bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20 flex-shrink-0 h-10 w-10 p-0"
             >
-              <Edit className="h-3 w-3" />
+              <Edit className="h-5 w-5" />
             </Button>
             
             <Button
@@ -515,10 +532,10 @@ export function PartnerManagementV2() {
                 setDeleteTargetPartner(partner);
                 setShowDeleteDialog(true);
               }}
-              className="bg-red-500/10 border-red-500/50 text-red-400 hover:bg-red-500/20 flex-shrink-0"
+              className="bg-red-500/10 border-red-500/50 text-red-400 hover:bg-red-500/20 flex-shrink-0 h-10 w-10 p-0"
               title="파트너 삭제"
             >
-              <Trash2 className="h-3 w-3" />
+              <Trash2 className="h-5 w-5" />
             </Button>
           </div>
         </div>
@@ -649,15 +666,15 @@ export function PartnerManagementV2() {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-gray-100">{t.partnerManagement.title}</h2>
+          <h2 className="text-3xl font-bold text-gray-100">{t.partnerManagement.title}</h2>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
+        <div className="flex items-center gap-3">
+          <Button variant="outline" className="text-lg px-6 py-3 h-auto">
+            <Download className="h-6 w-6 mr-2" />
             {t.partnerManagement.export}
           </Button>
-          <Button onClick={() => setShowCreateDialog(true)}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button onClick={() => setShowCreateDialog(true)} className="text-lg px-6 py-3 h-auto">
+            <Plus className="h-6 w-6 mr-2" />
             {t.partnerManagement.createPartner}
           </Button>
         </div>
@@ -790,17 +807,17 @@ export function PartnerManagementV2() {
 
       {/* 탭 메뉴 - 부드럽고 편안한 디자인 */}
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
-        <div className="bg-slate-800/30 rounded-xl p-1.5 border border-slate-700/40">
-          <TabsList className="bg-transparent h-auto p-0 border-0 gap-2 w-full grid grid-cols-2">
+        <div className="bg-slate-800/30 rounded-xl p-2 border border-slate-700/40">
+          <TabsList className="bg-transparent h-auto p-0 border-0 gap-3 w-full grid grid-cols-2">
             <TabsTrigger 
               value="hierarchy"
-              className="bg-transparent text-slate-400 rounded-lg px-6 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
+              className="bg-transparent text-slate-400 rounded-lg px-9 py-4.5 text-xl data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
             >
               {t.partnerManagement.partnerHierarchyManagement}
             </TabsTrigger>
             <TabsTrigger 
               value="dashboard"
-              className="bg-transparent text-slate-400 rounded-lg px-6 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
+              className="bg-transparent text-slate-400 rounded-lg px-9 py-4.5 text-xl data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
             >
               {t.partnerManagement.partnerDashboard}
             </TabsTrigger>
@@ -811,16 +828,16 @@ export function PartnerManagementV2() {
         <TabsContent value="hierarchy" className="space-y-4">
           <Card className="bg-slate-900/40 border-slate-700/50 backdrop-blur">
             <CardHeader>
-              <CardTitle className="text-white">{t.partnerManagement.hierarchyManagementTitle}</CardTitle>
+              <CardTitle className="text-white text-2xl">{t.partnerManagement.hierarchyManagementTitle}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-4 mb-6">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+                    <Search className="absolute left-3 top-4 h-6 w-6 text-slate-400" />
                     <Input
                       placeholder={t.partnerManagement.searchIdOrNickname}
-                      className="pl-8 bg-slate-800/50 border-slate-700 text-white"
+                      className="pl-12 text-lg py-6 bg-slate-800/50 border-slate-700 text-white"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -829,168 +846,171 @@ export function PartnerManagementV2() {
                 <Button 
                   onClick={toggleAllPartners}
                   variant="outline"
-                  className="border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 hover:border-blue-400/50"
+                  className="border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 hover:border-blue-400/50 text-lg px-6 py-3 h-auto"
                 >
                   {allExpanded ? (
                     <>
-                      <ChevronDown className="h-4 w-4 mr-2" />
+                      <ChevronDown className="h-6 w-6 mr-2" />
                       {t.partnerManagement.collapseView}
                     </>
                   ) : (
                     <>
-                      <ChevronRight className="h-4 w-4 mr-2" />
+                      <ChevronRight className="h-6 w-6 mr-2" />
                       {t.partnerManagement.expandView}
                     </>
                   )}
                 </Button>
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-[180px] bg-slate-800/50 border-slate-700 text-white">
+                  <SelectTrigger className="w-[220px] text-lg py-6 bg-slate-800/50 border-slate-700 text-white">
                     <SelectValue placeholder={t.partnerManagement.partnerGradeFilter} />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t.partnerManagement.allGrades}</SelectItem>
-                    <SelectItem value="head_office">{t.partnerManagement.headOffice}</SelectItem>
-                    <SelectItem value="main_office">{t.partnerManagement.mainOffice}</SelectItem>
-                    <SelectItem value="sub_office">{t.partnerManagement.subOffice}</SelectItem>
-                    <SelectItem value="distributor">{t.partnerManagement.distributor}</SelectItem>
-                    <SelectItem value="store">{t.partnerManagement.store}</SelectItem>
+                  <SelectContent className="text-lg">
+                    <SelectItem value="all" className="text-lg py-3">{t.partnerManagement.allGrades}</SelectItem>
+                    <SelectItem value="head_office" className="text-lg py-3">{t.partnerManagement.headOffice}</SelectItem>
+                    <SelectItem value="main_office" className="text-lg py-3">{t.partnerManagement.mainOffice}</SelectItem>
+                    <SelectItem value="sub_office" className="text-lg py-3">{t.partnerManagement.subOffice}</SelectItem>
+                    <SelectItem value="distributor" className="text-lg py-3">{t.partnerManagement.distributor}</SelectItem>
+                    <SelectItem value="store" className="text-lg py-3">{t.partnerManagement.store}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[180px] bg-slate-800/50 border-slate-700 text-white">
+                  <SelectTrigger className="w-[220px] text-lg py-6 bg-slate-800/50 border-slate-700 text-white">
                     <SelectValue placeholder={t.partnerManagement.statusFilter} />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t.partnerManagement.allStatus}</SelectItem>
-                    <SelectItem value="active">{t.partnerManagement.active}</SelectItem>
-                    <SelectItem value="inactive">{t.partnerManagement.inactive}</SelectItem>
-                    <SelectItem value="blocked">{t.partnerManagement.blocked}</SelectItem>
+                  <SelectContent className="text-lg">
+                    <SelectItem value="all" className="text-lg py-3">{t.partnerManagement.allStatus}</SelectItem>
+                    <SelectItem value="active" className="text-lg py-3">{t.partnerManagement.active}</SelectItem>
+                    <SelectItem value="inactive" className="text-lg py-3">{t.partnerManagement.inactive}</SelectItem>
+                    <SelectItem value="blocked" className="text-lg py-3">{t.partnerManagement.blocked}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* 컬럼 헤더 */}
-              <div className="mb-3 px-3 py-2 bg-slate-800/50 rounded-lg border border-slate-700/30">
-                <div className="flex items-center gap-1.5">
-                  {/* 토글 + 아이디 영역 */}
-                  <div className="min-w-[130px] flex-shrink-0">
-                    <div className="text-xs font-medium text-slate-400">{t.partnerManagement.id}</div>
+              {/* 테이블 영역 - 헤더와 데이터 함께 스크롤 */}
+              <div className="overflow-x-auto">
+                {/* 컬럼 헤더 */}
+                <div className="mb-4 px-4 py-4 bg-slate-800/50 rounded-lg border border-slate-700/30 min-w-[1600px]">
+                  <div className="flex items-center gap-4">
+                    {/* 토글 + 아이디 영역 */}
+                    <div className="min-w-[200px] flex-shrink-0">
+                      <div className="font-bold text-slate-200">{t.partnerManagement.id}</div>
+                    </div>
+                    {/* 나머지 컬럼들 */}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="min-w-[150px] font-bold text-slate-200">{t.partnerManagement.nickname}</div>
+                      <div className="min-w-[130px] font-bold text-slate-200">{t.partnerManagement.gradeLabel}</div>
+                      <div className="min-w-[65px] font-bold text-slate-200">{t.partnerManagement.statusLabel}</div>
+                      <div className="min-w-[80px] font-bold text-slate-200 text-right">{t.partnerManagement.balanceLabel}</div>
+                      <div className="min-w-[320px] font-bold text-slate-200">{t.partnerManagement.commissionLabel}</div>
+                      <div className="min-w-[150px] font-bold text-slate-200">하위/회원</div>
+                      <div className="min-w-[180px] font-bold text-slate-200">{t.partnerManagement.recentAccess}</div>
+                    </div>
+                    <div className="w-[320px] font-bold text-slate-200 text-center flex-shrink-0">{t.partnerManagement.management}</div>
                   </div>
-                  {/* 나머지 컬럼들 */}
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className="min-w-[90px] text-xs font-medium text-slate-400">{t.partnerManagement.nickname}</div>
-                    <div className="min-w-[85px] text-xs font-medium text-slate-400">{t.partnerManagement.gradeLabel}</div>
-                    <div className="min-w-[60px] text-xs font-medium text-slate-400">{t.partnerManagement.statusLabel}</div>
-                    <div className="min-w-[110px] text-xs font-medium text-slate-400 text-right">{t.partnerManagement.balanceLabel}</div>
-                    <div className="min-w-[170px] text-xs font-medium text-slate-400">{t.partnerManagement.commissionLabel}</div>
-                    <div className="min-w-[110px] text-xs font-medium text-slate-400">{t.partnerManagement.subMembers}</div>
-                    <div className="min-w-[120px] text-xs font-medium text-slate-400">{t.partnerManagement.recentAccess}</div>
-                  </div>
-                  <div className="w-[240px] text-xs font-medium text-slate-400 text-center flex-shrink-0">{t.partnerManagement.management}</div>
                 </div>
-              </div>
 
-              {/* 트리 구조 렌더링 */}
-              {loading ? (
-                <LoadingSpinner />
-              ) : hierarchyData.length === 0 ? (
-                <div className="text-center py-12 text-slate-400">
-                  {t.partnerManagement.noPartners}
-                </div>
-              ) : (
-                <div className="space-y-1 overflow-x-auto">
-                  {hierarchyData.map((partner: any) => renderTreeNode(partner, 0))}
-                </div>
-              )}
+                {/* 트리 구조 렌더링 */}
+                {loading ? (
+                  <LoadingSpinner />
+                ) : hierarchyData.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    {t.partnerManagement.noPartners}
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {hierarchyData.map((partner: any) => renderTreeNode(partner, 0))}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* 파트너 대시보드 탭 */}
-        <TabsContent value="dashboard" className="space-y-4">
+        <TabsContent value="dashboard" className="space-y-6">
           <Card className="bg-slate-900/40 border-slate-700/50 backdrop-blur">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-white">
-                <TrendingUp className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-3 text-white text-2xl">
+                <TrendingUp className="h-8 w-8" />
                 파트너 대시보드
               </CardTitle>
-              <CardDescription className="text-slate-400">
+              <CardDescription className="text-slate-400 text-lg">
                 파트너별 성과 및 수익 현황을 확인합니다.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-3 mb-6">
+              <div className="grid gap-6 md:grid-cols-3 mb-9">
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">이번달 순수익</CardTitle>
-                    <DollarSign className="h-4 w-4 text-green-500" />
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                    <CardTitle className="text-lg font-medium">이번달 순수익</CardTitle>
+                    <DollarSign className="h-6 w-6 text-green-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-green-600">
+                    <div className="text-3xl font-bold text-green-600">
                       {(dashboardData.monthlyCommission || 0).toLocaleString()}원
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground mt-2">
                       내 수입 - 하위 파트너 지급
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">총 파트너 수</CardTitle>
-                    <Building2 className="h-4 w-4 text-blue-500" />
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                    <CardTitle className="text-lg font-medium">총 파트너 수</CardTitle>
+                    <Building2 className="h-6 w-6 text-blue-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-blue-600">
+                    <div className="text-3xl font-bold text-blue-600">
                       {partners.length.toLocaleString()}개
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground mt-2">
                       +2 new this month
                     </p>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">활성 회원 수</CardTitle>
-                    <Users className="h-4 w-4 text-purple-500" />
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                    <CardTitle className="text-lg font-medium">활성 회원 수</CardTitle>
+                    <Users className="h-6 w-6 text-purple-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-purple-600">
+                    <div className="text-3xl font-bold text-purple-600">
                       {partners.reduce((sum, p) => sum + (p.user_count || 0), 0).toLocaleString()}명
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground mt-2">
                       +5% from last month
                     </p>
                   </CardContent>
                 </Card>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-6 md:grid-cols-2">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">상위 성과 파트너</CardTitle>
+                    <CardTitle className="text-xl">상위 성과 파트너</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
+                    <div className="space-y-5">
                       {partners
                         .filter(p => p.partner_type !== 'system_admin')
                         .sort((a, b) => (b.user_count || 0) - (a.user_count || 0))
                         .slice(0, 5)
                         .map((partner, index) => (
                           <div key={partner.id} className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <Badge className={`${partnerTypeColors[partner.partner_type]} text-white`}>
+                            <div className="flex items-center gap-4">
+                              <Badge className={`${partnerTypeColors[partner.partner_type]} text-white text-base px-3 py-1.5`}>
                                 #{index + 1}
                               </Badge>
                               <div>
-                                <p className="font-medium">{partner.nickname}</p>
-                                <p className="text-sm text-muted-foreground">
+                                <p className="font-medium text-base">{partner.nickname}</p>
+                                <p className="text-base text-muted-foreground">
                                   {partnerTypeTexts[partner.partner_type]}
                                 </p>
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className="font-medium">{(partner.user_count || 0)}명</p>
-                              <p className="text-sm text-muted-foreground">관리 회원</p>
+                              <p className="font-medium text-base">{(partner.user_count || 0)}명</p>
+                              <p className="text-base text-muted-foreground">관리 회원</p>
                             </div>
                           </div>
                         ))}
@@ -1000,13 +1020,13 @@ export function PartnerManagementV2() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">파트너 레벨별 분포</CardTitle>
-                    <CardDescription className="text-xs">
+                    <CardTitle className="text-xl">파트너 레벨별 분포</CardTitle>
+                    <CardDescription className="text-sm">
                       각 레벨 파트너들이 보유한 사용자들의 총 보유금
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       {levelDistribution.length > 0 ? (
                         <>
                           {levelDistribution.map((item) => {
@@ -1014,40 +1034,40 @@ export function PartnerManagementV2() {
                             const percentage = Math.round((item.usersBalance / maxBalance) * 100);
                             
                             return (
-                              <div key={item.type} className="space-y-2">
+                              <div key={item.type} className="space-y-3">
                                 <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <Badge className={`${partnerTypeColors[item.type as keyof typeof partnerTypeColors]} text-white text-xs`}>
+                                  <div className="flex items-center gap-3">
+                                    <Badge className={`${partnerTypeColors[item.type as keyof typeof partnerTypeColors]} text-white text-sm px-3 py-1.5`}>
                                       LV.{item.level}
                                     </Badge>
-                                    <span className="text-sm font-medium">{item.typeName}</span>
-                                    <span className="text-xs text-muted-foreground">({item.partnerCount}개)</span>
+                                    <span className="text-base font-medium">{item.typeName}</span>
+                                    <span className="text-sm text-muted-foreground">({item.partnerCount}개)</span>
                                   </div>
-                                  <span className="text-sm font-medium text-blue-600">
+                                  <span className="text-base font-medium text-blue-600">
                                     ₩{item.usersBalance.toLocaleString()}
                                   </span>
                                 </div>
-                                <div className="w-full bg-slate-800/40 rounded-full h-3 overflow-hidden">
+                                <div className="w-full bg-slate-800/40 rounded-full h-4 overflow-hidden">
                                   <div 
-                                    className={`h-3 rounded-full transition-all duration-500 ${partnerTypeColors[item.type as keyof typeof partnerTypeColors]}`}
+                                    className={`h-4 rounded-full transition-all duration-500 ${partnerTypeColors[item.type as keyof typeof partnerTypeColors]}`}
                                     style={{ width: `${Math.max(percentage, 2)}%` }}
                                   />
                                 </div>
                               </div>
                             );
                           })}
-                          <div className="pt-3 border-t border-slate-700/50">
+                          <div className="pt-4 border-t border-slate-700/50">
                             <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-slate-300">총 사용자 보유금</span>
-                              <span className="text-sm font-bold text-emerald-400">
+                              <span className="text-base font-medium text-slate-300">총 사용자 보유금</span>
+                              <span className="text-base font-bold text-emerald-400">
                                 ₩{levelDistribution.reduce((sum, item) => sum + item.usersBalance, 0).toLocaleString()}
                               </span>
                             </div>
                           </div>
                         </>
                       ) : (
-                        <div className="text-center py-8 text-muted-foreground text-sm">
-                          하위 파트너가 없습니다
+                        <div className="text-center py-12 text-muted-foreground text-base">
+                          하위 파트너가 없습니
                         </div>
                       )}
                     </div>

@@ -566,83 +566,83 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="!max-w-[2400px] w-[98vw] max-h-[92vh] overflow-hidden glass-card border border-white/10 p-0">
-        <DialogHeader className="border-b border-white/10 pb-3 pt-4 px-6">
-          <DialogTitle className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-              <User className="h-5 w-5 text-white" />
+      <DialogContent className="!max-w-[1440px] w-[80vw] max-h-[85vh] overflow-hidden glass-card border border-white/10 p-0">
+        <DialogHeader className="border-b border-white/10 pb-4 pt-5 px-8">
+          <DialogTitle className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+              <User className="h-7 w-7 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{user.nickname}</span>
-                <span className="text-muted-foreground">({user.username})</span>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{user.nickname}</span>
+                <span className="text-muted-foreground text-xl">({user.username})</span>
                 {user.status === 'active' ? (
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">활성</Badge>
+                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-lg px-3 py-1">활성</Badge>
                 ) : user.status === 'suspended' ? (
-                  <Badge className="bg-red-500/20 text-red-400 border-red-500/30">정지</Badge>
+                  <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-lg px-3 py-1">정지</Badge>
                 ) : (
-                  <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">대기</Badge>
+                  <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-lg px-3 py-1">대기</Badge>
                 )}
                 {user.is_online && (
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">접속중</Badge>
+                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-lg px-3 py-1">접속중</Badge>
                 )}
               </div>
             </div>
           </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground mt-0.5 pl-12">
+          <DialogDescription className="text-lg text-muted-foreground mt-1 pl-16">
             회원의 상세 정보, 입출금 내역, 베팅 내역 및 AI 게임 패턴 분석을 확인할 수 있습니다.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full px-6">
-          <div className="bg-slate-800/30 rounded-xl p-1.5 border border-slate-700/40">
-            <TabsList className={`bg-transparent h-auto p-0 border-0 gap-2 w-full grid ${hasInvestApi ? 'grid-cols-5' : 'grid-cols-4'}`}>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full px-8">
+          <div className="bg-slate-800/30 rounded-xl p-2 border border-slate-700/40">
+            <TabsList className={`bg-transparent h-auto p-0 border-0 gap-3 w-full grid ${hasInvestApi ? 'grid-cols-5' : 'grid-cols-4'}`}>
               <TabsTrigger 
                 value="basic" 
                 className="bg-transparent text-slate-400 rounded-lg px-4 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
               >
-                <User className="h-4 w-4 mr-2" />
-                <span className="text-sm">기본정보</span>
+                <User className="h-6 w-6 mr-2" />
+                <span className="text-lg">기본정보</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="transactions" 
                 className="bg-transparent text-slate-400 rounded-lg px-4 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500/20 data-[state=active]:to-emerald-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20 data-[state=active]:border data-[state=active]:border-green-400/30 transition-all duration-200"
               >
-                <Wallet className="h-4 w-4 mr-2" />
-                <span className="text-sm">입출금내역</span>
+                <Wallet className="h-6 w-6 mr-2" />
+                <span className="text-lg">입출금내역</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="betting" 
                 className="bg-transparent text-slate-400 rounded-lg px-4 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
               >
-                <Gamepad2 className="h-4 w-4 mr-2" />
-                <span className="text-sm">베팅내역</span>
+                <Gamepad2 className="h-6 w-6 mr-2" />
+                <span className="text-lg">베팅내역</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="pattern" 
                 className="bg-transparent text-slate-400 rounded-lg px-4 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500/20 data-[state=active]:to-amber-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-orange-500/20 data-[state=active]:border data-[state=active]:border-orange-400/30 transition-all duration-200"
               >
-                <Brain className="h-4 w-4 mr-2" />
-                <span className="text-sm">AI 게임패턴</span>
+                <Brain className="h-6 w-6 mr-2" />
+                <span className="text-lg">AI 게임패턴</span>
               </TabsTrigger>
               {hasInvestApi && (
                 <TabsTrigger 
                   value="evolution" 
                   className="bg-transparent text-slate-400 rounded-lg px-4 py-3 data-[state=active]:bg-gradient-to-br data-[state=active]:from-red-500/20 data-[state=active]:to-rose-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-red-500/20 data-[state=active]:border data-[state=active]:border-red-400/30 transition-all duration-200"
                 >
-                  <Settings className="h-4 w-4 mr-2" />
-                  <span className="text-sm">에볼루션 설정</span>
+                  <Settings className="h-6 w-6 mr-2" />
+                  <span className="text-lg">에볼루션 설정</span>
                 </TabsTrigger>
               )}
             </TabsList>
           </div>
 
           {/* 기본정보 탭 */}
-          <TabsContent value="basic" className="max-h-[calc(92vh-140px)] overflow-y-auto pr-2 pt-3">
+          <TabsContent value="basic" className="max-h-[calc(85vh-180px)] overflow-y-auto pr-2 pt-3">
             {loading ? (
               <LoadingSpinner />
             ) : (
-              <div className="space-y-5 p-4">
+              <div className="space-y-5 p-4 pb-8">
                 {/* 기본 정보 */}
                 <div>
                   <h3 className="flex items-center gap-2 mb-4">
@@ -775,7 +775,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
           </TabsContent>
 
           {/* 입출금내역 탭 */}
-          <TabsContent value="transactions" className="max-h-[calc(92vh-140px)] overflow-y-auto pr-2 pt-3">
+          <TabsContent value="transactions" className="max-h-[calc(85vh-140px)] overflow-y-auto pr-2 pt-3">
             {loading ? (
               <LoadingSpinner />
             ) : transactions.length === 0 ? (
@@ -844,7 +844,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
           </TabsContent>
 
           {/* 베팅내역 탭 */}
-          <TabsContent value="betting" className="max-h-[calc(92vh-140px)] overflow-y-auto pr-2 pt-3">
+          <TabsContent value="betting" className="max-h-[calc(85vh-140px)] overflow-y-auto pr-2 pt-3">
             {loading ? (
               <LoadingSpinner />
             ) : bettingHistory.length === 0 ? (
@@ -917,7 +917,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
           </TabsContent>
 
           {/* AI 게임패턴 탭 */}
-          <TabsContent value="pattern" className="space-y-3 max-h-[calc(92vh-140px)] overflow-y-auto pr-2 pt-3">
+          <TabsContent value="pattern" className="space-y-3 max-h-[calc(85vh-140px)] overflow-y-auto pr-2 pt-3">
             {loading ? (
               <LoadingSpinner />
             ) : !aiAnalysis ? (
@@ -1050,7 +1050,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
           </TabsContent>
 
           {/* 에볼루션 설정 탭 */}
-          <TabsContent value="evolution" className="max-h-[calc(92vh-140px)] overflow-y-auto pr-2 pt-3">
+          <TabsContent value="evolution" className="max-h-[calc(85vh-140px)] overflow-y-auto pr-2 pt-3">
             {evolutionLoading ? (
               <LoadingSpinner />
             ) : (

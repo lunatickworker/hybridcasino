@@ -4,7 +4,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { DataTable } from "../common/DataTable";
+import { DataTableLarge } from "../common/DataTableLarge";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle, AdminDialogTrigger as DialogTrigger } from "./AdminDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -30,6 +30,8 @@ import {
   HierarchyLevel 
 } from "../common/HierarchyManager";
 import { useLanguage } from "../../contexts/LanguageContext";
+
+// 회원 관리 컴포넌트 - 모달 사이즈 50% 증가 적용
 
 // 게임 제공사 이름 매핑 헬퍼 함수
 const getProviderName = (providerId: number | string): string => {
@@ -1474,7 +1476,7 @@ export function UserManagement() {
       key: "referrer_info",
       header: t.userManagement.affiliation,
       cell: (row: any) => (
-        <span className="text-sm text-slate-300">
+        <span className="text-slate-300">
           {row.referrer ? row.referrer.username : t.userManagement.unassigned}
         </span>
       )
@@ -1485,19 +1487,19 @@ export function UserManagement() {
       cell: (row: any) => {
         if (row.status === 'active') {
           return (
-            <Badge className="px-3 py-1 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-400 border border-emerald-500/50 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]">
+            <Badge className="px-4 py-2 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-400 border border-emerald-500/50 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]">
               ● {t.userManagement.approved}
             </Badge>
           );
         } else if (row.status === 'pending') {
           return (
-            <Badge className="px-3 py-1 bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-400 border border-orange-500/50 rounded-full shadow-[0_0_10px_rgba(251,146,60,0.5)]">
+            <Badge className="px-4 py-2 bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-400 border border-orange-500/50 rounded-full shadow-[0_0_10px_rgba(251,146,60,0.5)]">
               ● {t.userManagement.waiting}
             </Badge>
           );
         } else if (row.status === 'suspended') {
           return (
-            <Badge className="px-3 py-1 bg-gradient-to-r from-slate-500/20 to-gray-500/20 text-slate-400 border border-slate-500/50 rounded-full shadow-[0_0_10px_rgba(100,116,139,0.5)]">
+            <Badge className="px-4 py-2 bg-gradient-to-r from-slate-500/20 to-gray-500/20 text-slate-400 border border-slate-500/50 rounded-full shadow-[0_0_10px_rgba(100,116,139,0.5)]">
               ● {t.userManagement.suspended}
             </Badge>
           );
@@ -1533,25 +1535,25 @@ export function UserManagement() {
         
         if (level === 0) {
           return (
-            <Badge className="px-3 py-1 bg-slate-700/50 text-slate-300 border border-slate-600/50 rounded-full">
+            <Badge className="px-4 py-2 bg-slate-700/50 text-slate-300 border border-slate-600/50 rounded-full">
               ○ Silver
             </Badge>
           );
         } else if (level === 1) {
           return (
-            <Badge className="px-3 py-1 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-400 border border-yellow-500/50 rounded-full shadow-[0_0_10px_rgba(234,179,8,0.5)]">
+            <Badge className="px-4 py-2 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-400 border border-yellow-500/50 rounded-full shadow-[0_0_10px_rgba(234,179,8,0.5)]">
               ⚡ Gold
             </Badge>
           );
         } else if (level === 2) {
           return (
-            <Badge className="px-3 py-1 bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-400 border border-orange-500/50 rounded-full shadow-[0_0_10px_rgba(251,146,60,0.5)]">
+            <Badge className="px-4 py-2 bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-400 border border-orange-500/50 rounded-full shadow-[0_0_10px_rgba(251,146,60,0.5)]">
               ⚡ Bronze
             </Badge>
           );
         } else {
           return (
-            <Badge className="px-3 py-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/50 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.5)]">
+            <Badge className="px-4 py-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/50 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.5)]">
               ⚡ VIP
             </Badge>
           );
@@ -1567,36 +1569,36 @@ export function UserManagement() {
         if (status === 'pending') {
           return (
             <div className="flex items-center gap-2">
-              <Badge className="px-2 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/50 rounded-full text-xs">
+              <Badge className="px-3 py-1.5 bg-amber-500/20 text-amber-400 border border-amber-500/50 rounded-full">
                 {t.userManagement.creating}
               </Badge>
-              <Clock className="h-3 w-3 text-amber-400 animate-pulse" />
+              <Clock className="h-5 w-5 text-amber-400 animate-pulse" />
             </div>
           );
         } else if (status === 'active') {
           return (
-            <Badge className="px-2 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 rounded-full text-xs">
+            <Badge className="px-3 py-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 rounded-full">
               {t.userManagement.normal}
             </Badge>
           );
         } else if (status === 'error') {
           return (
             <div className="flex items-center gap-2">
-              <Badge className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-full text-xs">
+              <Badge className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-full">
                 {t.common.error}
               </Badge>
-              <AlertCircle className="h-3 w-3 text-red-400" />
+              <AlertCircle className="h-5 w-5 text-red-400" />
             </div>
           );
         } else if (status === 'partial') {
           return (
-            <Badge className="px-2 py-1 bg-orange-500/20 text-orange-400 border border-orange-500/50 rounded-full text-xs">
+            <Badge className="px-3 py-1.5 bg-orange-500/20 text-orange-400 border border-orange-500/50 rounded-full">
               {t.userManagement.partialError}
             </Badge>
           );
         }
         
-        return <span className="text-slate-500 text-xs">{t.userManagement.unknown}</span>;
+        return <span className="text-slate-500">{t.userManagement.unknown}</span>;
       }
     },
     {
@@ -1608,7 +1610,7 @@ export function UserManagement() {
         const month = date.getMonth() + 1;
         const day = date.getDate();
         return (
-          <span className="text-slate-400 text-sm">
+          <span className="text-slate-400">
             {year}. {month}. {day}.
           </span>
         );
@@ -1619,14 +1621,14 @@ export function UserManagement() {
       header: t.userManagement.lastLogin,
       cell: (row: any) => {
         if (!row.last_login_at) {
-          return <span className="text-slate-500 text-sm">{t.userManagement.notLoggedIn}</span>;
+          return <span className="text-slate-500">{t.userManagement.notLoggedIn}</span>;
         }
         const date = new Date(row.last_login_at);
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
         const day = date.getDate();
         return (
-          <span className="text-slate-400 text-sm">
+          <span className="text-slate-400">
             {year}. {month}. {day}.
           </span>
         );
@@ -1638,13 +1640,13 @@ export function UserManagement() {
       cell: (row: any) => {
         if (row.is_online) {
           return (
-            <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 animate-pulse">
+            <Badge className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 animate-pulse">
               ● {t.userManagement.online}
             </Badge>
           );
         } else {
           return (
-            <Badge className="bg-slate-600 text-slate-300 border-0">
+            <Badge className="px-4 py-2 bg-slate-600 text-slate-300 border-0">
               ○ {t.userManagement.offline}
             </Badge>
           );
@@ -1663,18 +1665,18 @@ export function UserManagement() {
         // 승인 대기 중인 사용자: 승인/거절 버튼만 표시
         if (row.status === 'pending') {
           return (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <Button
                 size="sm"
                 onClick={() => approveUser(row.id, row.username)}
                 disabled={processingUserId === row.id}
-                className="btn-premium-success"
+                className="btn-premium-success h-10 px-4"
               >
                 {processingUserId === row.id ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
                 ) : (
                   <>
-                    <Check className="h-4 w-4 mr-1" />
+                    <Check className="h-6 w-6 mr-1" />
                     {t.userManagement.approve}
                   </>
                 )}
@@ -1683,13 +1685,13 @@ export function UserManagement() {
                 size="sm"
                 onClick={() => rejectUser(row.id, row.username)}
                 disabled={processingUserId === row.id}
-                className="btn-premium-danger"
+                className="btn-premium-danger h-10 px-4"
               >
                 {processingUserId === row.id ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
                 ) : (
                   <>
-                    <X className="h-4 w-4 mr-1" />
+                    <X className="h-6 w-6 mr-1" />
                     {t.userManagement.reject}
                   </>
                 )}
@@ -1700,7 +1702,7 @@ export function UserManagement() {
 
         // 승인된 사용자: 기존 관리 버튼들 표시
         return (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <Button 
               size="sm" 
               variant="outline" 
@@ -1709,8 +1711,9 @@ export function UserManagement() {
                 setShowDetailModal(true);
               }}
               title={t.userManagement.detailInfo}
+              className="h-10 w-10 p-0"
             >
-              <Eye className="h-4 w-4" />
+              <Eye className="h-6 w-6" />
             </Button>
             {/* API 계정 오류 시 재시도 버튼 */}
             {(row.api_account_status === 'error' || row.api_account_status === 'partial') && (
@@ -1731,13 +1734,13 @@ export function UserManagement() {
                   }
                 }}
                 disabled={processingUserId === row.id}
-                className="text-amber-600 hover:text-amber-700"
+                className="text-amber-600 hover:text-amber-700 h-10 w-10 p-0"
                 title="API 계정 재시도"
               >
                 {processingUserId === row.id ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-current"></div>
                 ) : (
-                  <RefreshCw className="h-4 w-4" />
+                  <RefreshCw className="h-6 w-6" />
                 )}
               </Button>
             )}
@@ -1745,34 +1748,34 @@ export function UserManagement() {
               size="sm" 
               variant="outline" 
               onClick={() => handleDepositClick(row)}
-              className="text-green-600 hover:text-green-700"
+              className="text-green-600 hover:text-green-700 h-10 w-10 p-0"
               title={t.userManagement.deposit}
             >
-              <DollarSign className="h-4 w-4" />
+              <DollarSign className="h-6 w-6" />
             </Button>
             <Button 
               size="sm" 
               variant="outline" 
               onClick={() => handleWithdrawClick(row)}
-              className="text-red-600 hover:text-red-700"
+              className="text-red-600 hover:text-red-700 h-10 w-10 p-0"
               title={t.userManagement.withdrawal}
             >
-              <DollarSign className="h-4 w-4" />
+              <DollarSign className="h-6 w-6" />
             </Button>
             <Button 
               size="sm" 
               variant="outline" 
               onClick={() => handleToggleSuspend(row)}
               disabled={processingUserId === row.id}
-              className={row.status === 'suspended' ? 'text-blue-600 hover:text-blue-700' : 'text-orange-600 hover:text-orange-700'}
+              className={`h-10 w-10 p-0 ${row.status === 'suspended' ? 'text-blue-600 hover:text-blue-700' : 'text-orange-600 hover:text-orange-700'}`}
               title={row.status === 'suspended' ? t.userManagement.unblock : t.userManagement.block}
             >
               {processingUserId === row.id ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-current"></div>
               ) : row.status === 'suspended' ? (
-                <UserCheck className="h-4 w-4" />
+                <UserCheck className="h-6 w-6" />
               ) : (
-                <UserX className="h-4 w-4" />
+                <UserX className="h-6 w-6" />
               )}
             </Button>
             <Button 
@@ -1780,13 +1783,13 @@ export function UserManagement() {
               variant="outline" 
               onClick={() => handleToggleBlacklist(row)}
               disabled={processingUserId === row.id}
-              className="text-red-800 hover:text-red-900"
+              className="text-red-800 hover:text-red-900 h-10 w-10 p-0"
               title={t.userManagement.addToBlacklist}
             >
               {processingUserId === row.id ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-current"></div>
               ) : (
-                <UserX className="h-4 w-4" />
+                <UserX className="h-6 w-6" />
               )}
             </Button>
             <Button 
@@ -1796,10 +1799,10 @@ export function UserManagement() {
                 setDeleteUser(row);
                 setShowDeleteDialog(true);
               }}
-              className="text-red-600 hover:text-red-700"
+              className="text-red-600 hover:text-red-700 h-10 w-10 p-0"
               title={t.userManagement.deleteUser}
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className="h-6 w-6" />
             </Button>
           </div>
         );
@@ -1817,12 +1820,12 @@ export function UserManagement() {
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-slate-100">{t.userManagement.title}</h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-lg text-slate-400">
             {t.userManagement.description}
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)} className="btn-premium-primary">
-          <Plus className="h-4 w-4 mr-2" />
+        <Button onClick={() => setShowCreateDialog(true)} className="btn-premium-primary text-lg px-6 py-3 h-auto">
+          <Plus className="h-6 w-6 mr-2" />
           {t.userManagement.newUser}
         </Button>
       </div>
@@ -1869,8 +1872,8 @@ export function UserManagement() {
         {/* 헤더 및 통합 필터 */}
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-700/50">
           <div>
-            <h3 className="font-semibold text-slate-100 mb-1">{t.userManagement.userList}</h3>
-            <p className="text-sm text-slate-400">
+            <h3 className="text-2xl font-semibold text-slate-100 mb-2">{t.userManagement.userList}</h3>
+            <p className="text-base text-slate-400">
               {t.common.total} {filteredUsers.length.toLocaleString()}{t.userManagement.managingMembers}
             </p>
           </div>
@@ -1922,7 +1925,7 @@ export function UserManagement() {
         </div>
         
         {/* 테이블 (내부 검색 비활성화) */}
-        <DataTable
+        <DataTableLarge
           columns={columns}
           data={filteredUsers}
           searchable={false}
@@ -1932,67 +1935,68 @@ export function UserManagement() {
 
       {/* 회원 생성 다이얼로그 - 유리모피즘 효과 적용 */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="sm:max-w-[500px] bg-slate-900/90 backdrop-blur-md border-slate-700/60 shadow-2xl shadow-blue-500/20">
+        <DialogContent className="sm:max-w-[700px] bg-slate-900/90 backdrop-blur-md border-slate-700/60 shadow-2xl shadow-blue-500/20">
           <DialogHeader>
-            <DialogTitle className="text-xl text-slate-100 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">{t.userManagement.newUser}</DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogTitle className="text-3xl text-slate-100 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">{t.userManagement.newUser}</DialogTitle>
+            <DialogDescription className="text-lg text-slate-400">
               {t.userManagement.createUserDescription}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6 py-4">
             {/* 벌크 생성 모드 토글 */}
-            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-lg border border-blue-500/30">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                  <Users className="h-5 w-5 text-blue-400" />
+            <div className="flex items-center justify-between p-5 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-lg border border-blue-500/30">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Users className="h-7 w-7 text-blue-400" />
                 </div>
                 <div>
-                  <Label htmlFor="bulk_mode" className="text-slate-100 cursor-pointer text-base">
+                  <Label htmlFor="bulk_mode" className="text-slate-100 cursor-pointer text-xl">
                     벌크 생성 모드
                   </Label>
-                  <p className="text-xs text-slate-400 mt-0.5">여러 회원을 한 번에 생성합니다 (예: dev1 ~ dev40)</p>
+                  <p className="text-base text-slate-400 mt-1">여러 회원을 한 번에 생성합니다 (예: dev1 ~ dev40)</p>
                 </div>
               </div>
               <Switch
                 id="bulk_mode"
                 checked={formData.bulk_mode}
                 onCheckedChange={(checked) => setFormData(prev => ({ ...prev, bulk_mode: checked }))}
+                className="scale-125"
               />
             </div>
 
             {/* 기본 정보 섹션 */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
-                <div className="w-1 h-4 bg-gradient-to-b from-blue-400 to-cyan-400 rounded-full"></div>
-                <h4 className="text-sm font-semibold text-slate-200">기본 정보</h4>
-                <span className="text-xs text-red-400">* 필수</span>
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
+                <div className="w-1.5 h-6 bg-gradient-to-b from-blue-400 to-cyan-400 rounded-full"></div>
+                <h4 className="text-lg font-semibold text-slate-200">기본 정보</h4>
+                <span className="text-base text-red-400">* 필수</span>
               </div>
 
               {/* 벌크 모드일 때 */}
               {formData.bulk_mode ? (
                 <>
-                  <div className="space-y-3 bg-slate-800/30 p-4 rounded-lg border border-slate-700/50">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="bulk_start" className="text-right text-slate-300">
+                  <div className="space-y-4 bg-slate-800/30 p-5 rounded-lg border border-slate-700/50">
+                    <div className="grid grid-cols-4 items-center gap-5">
+                      <Label htmlFor="bulk_start" className="text-right text-slate-300 text-lg">
                         시작 ID <span className="text-red-400">*</span>
                       </Label>
                       <Input
                         id="bulk_start"
                         value={formData.bulk_start}
                         onChange={(e) => setFormData(prev => ({ ...prev, bulk_start: e.target.value }))}
-                        className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                        className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
                         placeholder="예: dev1"
                       />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="bulk_end" className="text-right text-slate-300">
+                    <div className="grid grid-cols-4 items-center gap-5">
+                      <Label htmlFor="bulk_end" className="text-right text-slate-300 text-lg">
                         종료 ID <span className="text-red-400">*</span>
                       </Label>
                       <Input
                         id="bulk_end"
                         value={formData.bulk_end}
                         onChange={(e) => setFormData(prev => ({ ...prev, bulk_end: e.target.value }))}
-                        className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                        className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
                         placeholder="예: dev40"
                       />
                     </div>
@@ -2009,16 +2013,16 @@ export function UserManagement() {
                     if (start && end && start.prefix === end.prefix) {
                       const count = end.num - start.num + 1;
                       return (
-                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3.5">
-                          <div className="flex items-start gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <Bell className="h-4 w-4 text-blue-400" />
+                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-5">
+                          <div className="flex items-start gap-4">
+                            <div className="w-12 h-12 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <Bell className="h-6 w-6 text-blue-400" />
                             </div>
                             <div>
-                              <p className="text-sm text-blue-300 font-medium mb-1">
+                              <p className="text-lg text-blue-300 font-medium mb-1.5">
                                 {formData.bulk_start} ~ {formData.bulk_end}
                               </p>
-                              <p className="text-xs text-slate-400">
+                              <p className="text-base text-slate-400">
                                 총 <strong className="text-blue-400">{count}개</strong> 회원이 생성됩니다
                               </p>
                             </div>
@@ -2048,15 +2052,15 @@ export function UserManagement() {
                     return '';
                   })()}
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="nickname" className="text-right text-slate-300">
+                <div className="grid grid-cols-4 items-center gap-5">
+                  <Label htmlFor="nickname" className="text-right text-slate-300 text-lg">
                     닉네임 접두사
                   </Label>
                   <Input
                     id="nickname"
                     value={formData.nickname}
                     onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
-                    className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                    className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
                     placeholder="비워두면 아이디와 동일"
                   />
                 </div>
@@ -2064,35 +2068,35 @@ export function UserManagement() {
             ) : (
               <>
                   {/* 단일 생성 모드일 때 */}
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="username" className="text-right text-slate-300">
+                  <div className="grid grid-cols-4 items-center gap-5">
+                    <Label htmlFor="username" className="text-right text-slate-300 text-lg">
                       {t.userManagement.username} <span className="text-red-400">*</span>
                     </Label>
                     <Input
                       id="username"
                       value={formData.username}
                       onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                      className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                      className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
                       placeholder={t.userManagement.enterUsername}
                     />
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="nickname" className="text-right text-slate-300">
+                  <div className="grid grid-cols-4 items-center gap-5">
+                    <Label htmlFor="nickname" className="text-right text-slate-300 text-lg">
                       {t.userManagement.nickname}
                     </Label>
                     <Input
                       id="nickname"
                       value={formData.nickname}
                       onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
-                      className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                      className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
                       placeholder={t.userManagement.enterNickname}
                     />
                   </div>
                 </>
               )}
               
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="password" className="text-right text-slate-300">
+              <div className="grid grid-cols-4 items-center gap-5">
+                <Label htmlFor="password" className="text-right text-slate-300 text-lg">
                   {t.common.password} <span className="text-red-400">*</span>
                 </Label>
                 <Input
@@ -2100,7 +2104,7 @@ export function UserManagement() {
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-2 focus:ring-blue-500/20"
+                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
                   placeholder={t.userManagement.enterInitialPassword}
                 />
               </div>
@@ -2108,20 +2112,20 @@ export function UserManagement() {
             
             {/* Lv1(시스템관리자)이 회원 생성 시 소속 파트너 선택 */}
             {authState.user?.level === 1 && availablePartners.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
-                  <div className="w-1 h-4 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
-                  <h4 className="text-sm font-semibold text-slate-200">조직 설정</h4>
+              <div className="space-y-5">
+                <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
+                  <div className="w-1.5 h-6 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
+                  <h4 className="text-lg font-semibold text-slate-200">조직 설정</h4>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right text-slate-300">
+                <div className="grid grid-cols-4 items-center gap-5">
+                <Label className="text-right text-slate-300 text-lg">
                   {t.userManagement.partnerAffiliation}
                 </Label>
                 <Select 
                   value={formData.selected_referrer_id || undefined} 
                   onValueChange={(value) => setFormData(prev => ({ ...prev, selected_referrer_id: value }))}
                 >
-                  <SelectTrigger className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20">
+                  <SelectTrigger className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12">
                     <SelectValue placeholder={t.userManagement.selectPartnerOptional} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700">
@@ -2138,7 +2142,7 @@ export function UserManagement() {
                         <SelectItem 
                           key={partner.id} 
                           value={partner.id} 
-                          className="text-slate-200 focus:bg-slate-700 focus:text-slate-100"
+                          className="text-slate-200 focus:bg-slate-700 focus:text-slate-100 text-lg py-3"
                         >
                           {partner.nickname || partner.username} ({levelText})
                         </SelectItem>
@@ -2151,60 +2155,60 @@ export function UserManagement() {
             )}
 
             {/* 은행 정보 섹션 */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
-                <div className="w-1 h-4 bg-gradient-to-b from-green-400 to-emerald-400 rounded-full"></div>
-                <h4 className="text-sm font-semibold text-slate-200">은행 정보</h4>
-                <span className="text-xs text-slate-400">선택사항</span>
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
+                <div className="w-1.5 h-6 bg-gradient-to-b from-green-400 to-emerald-400 rounded-full"></div>
+                <h4 className="text-lg font-semibold text-slate-200">은행 정보</h4>
+                <span className="text-base text-slate-400">선택사항</span>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right text-slate-300">
+              <div className="grid grid-cols-4 items-center gap-5">
+                <Label className="text-right text-slate-300 text-lg">
                   {t.userManagement.bankName}
                 </Label>
               <Select 
                 value={formData.bank_name || undefined} 
                 onValueChange={(value) => setFormData(prev => ({ ...prev, bank_name: value }))}
               >
-                <SelectTrigger className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20">
+                <SelectTrigger className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12">
                   <SelectValue placeholder={t.userManagement.selectBank} />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
                   {BANK_LIST.map(bank => (
-                    <SelectItem key={bank} value={bank} className="text-slate-200 focus:bg-slate-700 focus:text-slate-100">{bank}</SelectItem>
+                    <SelectItem key={bank} value={bank} className="text-slate-200 focus:bg-slate-700 focus:text-slate-100 text-lg py-3">{bank}</SelectItem>
                   ))}
                 </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="bank_account" className="text-right text-slate-300">
+              <div className="grid grid-cols-4 items-center gap-5">
+                <Label htmlFor="bank_account" className="text-right text-slate-300 text-lg">
                   {t.userManagement.accountNumber}
                 </Label>
                 <Input
                   id="bank_account"
                   value={formData.bank_account}
                   onChange={(e) => setFormData(prev => ({ ...prev, bank_account: e.target.value }))}
-                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
                   placeholder={t.userManagement.enterAccountNumber}
                 />
               </div>
             </div>
 
             {/* 메모 섹션 */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
-                <div className="w-1 h-4 bg-gradient-to-b from-amber-400 to-orange-400 rounded-full"></div>
-                <h4 className="text-sm font-semibold text-slate-200">메모</h4>
-                <span className="text-xs text-slate-400">선택사항</span>
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
+                <div className="w-1.5 h-6 bg-gradient-to-b from-amber-400 to-orange-400 rounded-full"></div>
+                <h4 className="text-lg font-semibold text-slate-200">메모</h4>
+                <span className="text-base text-slate-400">선택사항</span>
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="memo" className="text-right text-slate-300">
+              <div className="grid grid-cols-4 items-center gap-5">
+                <Label htmlFor="memo" className="text-right text-slate-300 text-lg">
                   {t.common.note}
                 </Label>
                 <Input
                   id="memo"
                   value={formData.memo}
                   onChange={(e) => setFormData(prev => ({ ...prev, memo: e.target.value }))}
-                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20"
+                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
                   placeholder={t.userManagement.adminMemo}
                 />
               </div>
@@ -2215,16 +2219,16 @@ export function UserManagement() {
               type="button" 
               variant="outline"
               onClick={() => setShowCreateDialog(false)}
-              className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100"
+              className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 text-lg px-6 py-3 h-auto"
             >
               {t.common.cancel}
             </Button>
             <Button 
               type="button"
               onClick={createUser}
-              className="btn-premium-primary"
+              className="btn-premium-primary text-lg px-6 py-3 h-auto"
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-6 w-6 mr-2" />
               {t.userManagement.createUser}
             </Button>
           </DialogFooter>
@@ -2233,10 +2237,10 @@ export function UserManagement() {
 
       {/* 회원 삭제 확인 다이얼로그 */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent className="sm:max-w-[425px] bg-slate-900/90 backdrop-blur-md border-slate-700/60 shadow-2xl shadow-red-500/20">
+        <DialogContent className="sm:max-w-[600px] bg-slate-900/90 backdrop-blur-md border-slate-700/60 shadow-2xl shadow-red-500/20">
           <DialogHeader>
-            <DialogTitle className="text-xl text-slate-100">{t.userManagement.deleteConfirm}</DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogTitle className="text-3xl text-slate-100">{t.userManagement.deleteConfirm}</DialogTitle>
+            <DialogDescription className="text-lg text-slate-400">
               {t.userManagement.deleteConfirmMessagePrefix}{deleteUser?.username}{t.userManagement.deleteConfirmMessageSuffix}
             </DialogDescription>
           </DialogHeader>
@@ -2245,23 +2249,23 @@ export function UserManagement() {
               variant="outline"
               onClick={() => setShowDeleteDialog(false)}
               disabled={deleteLoading}
-              className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100"
+              className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 text-lg px-6 py-3 h-auto"
             >
               {t.common.cancel}
             </Button>
             <Button
               onClick={handleDeleteUser}
               disabled={deleteLoading}
-              className="btn-premium-danger"
+              className="btn-premium-danger text-lg px-6 py-3 h-auto"
             >
               {deleteLoading ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-2"></div>
                   {t.userManagement.deleting}
                 </>
               ) : (
                 <>
-                  <Trash2 className="h-4 w-4 mr-2" />
+                  <Trash2 className="h-6 w-6 mr-2" />
                   {t.userManagement.permanentDelete}
                 </>
               )}

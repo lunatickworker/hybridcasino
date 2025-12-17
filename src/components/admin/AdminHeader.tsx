@@ -42,7 +42,10 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange, currentRoute }: AdminHeaderProps) {
   const { logout } = useAuth();
-  const { t, formatCurrency } = useLanguage();
+  const { t, formatCurrency: formatCurrencyFromContext, language } = useLanguage();
+  
+  // formatCurrency를 formatCurrencyFromContext로 alias
+  const formatCurrency = formatCurrencyFromContext;
   
   // ✅ useBalance를 안전하게 사용 (Provider 없을 때 대비)
   let balance = 0;
@@ -879,10 +882,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     onClick={handleSyncInvestBalance}
                   >
                     <div className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-blue-400" />
+                      <Wallet className="h-6 w-6 text-blue-400" />
                       <div>
-                        <div className="text-[9px] text-blue-300 font-medium">Invest</div>
-                        <div className="text-sm font-bold text-white whitespace-nowrap">
+                        <div className="text-lg text-blue-300 font-medium">Invest</div>
+                        <div className="text-lg font-bold text-white whitespace-nowrap">
                           {typeof investBalance === 'number' ? <AnimatedCurrency value={investBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
                         </div>
                       </div>
@@ -897,10 +900,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     onClick={handleSyncOroplayBalance}
                   >
                     <div className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-green-400" />
+                      <Wallet className="h-6 w-6 text-green-400" />
                       <div>
-                        <div className="text-[9px] text-green-300 font-medium">GMS 보유금</div>
-                        <div className="text-sm font-bold text-white whitespace-nowrap">
+                        <div className="text-lg text-green-300 font-medium">GMS 보유금</div>
+                        <div className="text-lg font-bold text-white whitespace-nowrap">
                           {typeof oroplayBalance === 'number' ? <AnimatedCurrency value={oroplayBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
                         </div>
                       </div>
@@ -915,10 +918,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     onClick={handleSyncFamilyBalance}
                   >
                     <div className="flex items-center gap-2">
-                      <Wallet className="h-4 w-4 text-purple-400" />
+                      <Wallet className="h-6 w-6 text-purple-400" />
                       <div>
-                        <div className="text-[9px] text-purple-300 font-medium">Family 보유금</div>
-                        <div className="text-sm font-bold text-white whitespace-nowrap">
+                        <div className="text-lg text-purple-300 font-medium">Family 보유금</div>
+                        <div className="text-lg font-bold text-white whitespace-nowrap">
                           {typeof familyapiBalance === 'number' ? <AnimatedCurrency value={familyapiBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
                         </div>
                       </div>
@@ -932,13 +935,17 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             {user.level === 2 && (
               <div className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}>
                 <div className="flex items-center gap-2">
-                  <Wallet className="h-4 w-4 text-green-400" />
+                  <Wallet className="h-6 w-6 text-green-400" />
                   <div>
-                    <div className="text-[9px] text-green-300 font-medium">총 보유금</div>
-                    <div className="text-sm font-bold text-white whitespace-nowrap">
-                      {typeof investBalance === 'number' && typeof oroplayBalance === 'number' && typeof familyapiBalance === 'number' 
-                        ? <AnimatedCurrency value={investBalance + oroplayBalance + familyapiBalance} duration={800} currencySymbol={t.common.currency} /> 
-                        : `${t.common.currency}0`}
+                    <div className="text-lg text-green-300 font-medium">총 보유금</div>
+                    <div className="text-lg font-bold text-white whitespace-nowrap">
+                      {(() => {
+                        let total = 0;
+                        if (useInvestApi && typeof investBalance === 'number') total += investBalance;
+                        if (useOroplayApi && typeof oroplayBalance === 'number') total += oroplayBalance;
+                        if (useFamilyApi && typeof familyapiBalance === 'number') total += familyapiBalance;
+                        return <AnimatedCurrency value={total} duration={800} currencySymbol={t.common.currency} />;
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -949,10 +956,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             {user.level >= 3 && (
               <div className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-yellow-500/20 to-amber-500/20 border border-yellow-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}>
                 <div className="flex items-center gap-2">
-                  <Wallet className="h-4 w-4 text-yellow-400" />
+                  <Wallet className="h-6 w-6 text-yellow-400" />
                   <div>
-                    <div className="text-[9px] text-yellow-300 font-medium">{t.header.gmsBalance}</div>
-                    <div className="text-sm font-bold text-white">
+                    <div className="text-lg text-yellow-300 font-medium">{t.header.gmsBalance}</div>
+                    <div className="text-lg font-bold text-white">
                       {balanceLoading ? '...' : <AnimatedCurrency value={balance || 0} duration={800} />}
                     </div>
                   </div>
@@ -963,10 +970,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             {/* 총 입금 */}
             <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 transition-all min-w-[100px]">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-cyan-400" />
+                <TrendingUp className="h-6 w-6 text-cyan-400" />
                 <div>
-                  <div className="text-[9px] text-cyan-300 font-medium">{t.header.totalDeposit}</div>
-                  <div className="text-sm font-bold text-white">{formatCurrency(stats.daily_deposit)}</div>
+                  <div className="text-lg text-cyan-300 font-medium">{t.header.totalDeposit}</div>
+                  <div className="text-lg font-bold text-white">{formatCurrency(stats.daily_deposit)}</div>
                 </div>
               </div>
             </div>
@@ -974,10 +981,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             {/* 총 출금 */}
             <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 transition-all min-w-[100px]">
               <div className="flex items-center gap-2">
-                <TrendingDown className="h-4 w-4 text-orange-400" />
+                <TrendingDown className="h-6 w-6 text-orange-400" />
                 <div>
-                  <div className="text-[9px] text-orange-300 font-medium">{t.header.totalWithdrawal}</div>
-                  <div className="text-sm font-bold text-white">{formatCurrency(stats.daily_withdrawal)}</div>
+                  <div className="text-lg text-orange-300 font-medium">{t.header.totalWithdrawal}</div>
+                  <div className="text-lg font-bold text-white">{formatCurrency(stats.daily_withdrawal)}</div>
                 </div>
               </div>
             </div>
@@ -985,10 +992,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             {/* 총 회원 */}
             <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-slate-500/20 to-gray-500/20 border border-slate-500/30 transition-all min-w-[100px]">
               <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-slate-400" />
+                <Users className="h-6 w-6 text-slate-400" />
                 <div>
-                  <div className="text-[9px] text-slate-300 font-medium">{t.header.totalMembers}</div>
-                  <div className="text-sm font-bold text-white">{formatNumber(totalUsers)}</div>
+                  <div className="text-lg text-slate-300 font-medium">{t.header.totalMembers}</div>
+                  <div className="text-lg font-bold text-white">{formatNumber(totalUsers)}</div>
                 </div>
               </div>
             </div>
@@ -996,10 +1003,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             {/* 온라인 */}
             <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 transition-all min-w-[100px]">
               <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-emerald-400" />
+                <Users className="h-6 w-6 text-emerald-400" />
                 <div>
-                  <div className="text-[9px] text-emerald-300 font-medium">{t.header.online}</div>
-                  <div className="text-sm font-bold text-white">{formatNumber(stats.online_users)}{t.onlineUsers.people}</div>
+                  <div className="text-lg text-emerald-300 font-medium">{t.header.online}</div>
+                  <div className="text-lg font-bold text-white">{formatNumber(stats.online_users)}{t.onlineUsers.people}</div>
                 </div>
               </div>
             </div>
@@ -1015,8 +1022,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
                     onClick={() => onRouteChange?.('/admin/users')}
                   >
-                    <div className="text-[9px] text-cyan-300 font-medium text-center">{t.header.signupApproval}</div>
-                    <div className="text-base font-bold text-white text-center">{stats.pending_approvals}</div>
+                    <div className="text-lg text-cyan-300 font-medium text-center">{t.header.signupApproval}</div>
+                    <div className="text-lg font-bold text-white text-center">{stats.pending_approvals}</div>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>{t.header.signupApproval}</TooltipContent>
@@ -1031,8 +1038,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
                     onClick={() => onRouteChange?.('/admin/customer-service')}
                   >
-                    <div className="text-[9px] text-purple-300 font-medium text-center">{t.header.customerInquiry}</div>
-                    <div className="text-base font-bold text-white text-center">{stats.pending_messages}</div>
+                    <div className="text-lg text-purple-300 font-medium text-center">{t.header.customerInquiry}</div>
+                    <div className="text-lg font-bold text-white text-center">{stats.pending_messages}</div>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>{t.header.customerInquiry}</TooltipContent>
@@ -1047,8 +1054,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
                     onClick={() => onRouteChange?.('/admin/transactions#deposit-request')}
                   >
-                    <div className="text-[9px] text-emerald-300 font-medium text-center">{t.dashboard.pendingDeposits}</div>
-                    <div className="text-base font-bold text-white text-center">{stats.pending_deposits}</div>
+                    <div className="text-lg text-emerald-300 font-medium text-center">{t.dashboard.pendingDeposits}</div>
+                    <div className="text-lg font-bold text-white text-center">{stats.pending_deposits}</div>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>{t.dashboard.pendingDeposits}</TooltipContent>
@@ -1063,8 +1070,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
                     onClick={() => onRouteChange?.('/admin/transactions#withdrawal-request')}
                   >
-                    <div className="text-[9px] text-orange-300 font-medium text-center">{t.dashboard.pendingWithdrawals}</div>
-                    <div className="text-base font-bold text-white text-center">{stats.pending_withdrawals}</div>
+                    <div className="text-lg text-orange-300 font-medium text-center">{t.dashboard.pendingWithdrawals}</div>
+                    <div className="text-lg font-bold text-white text-center">{stats.pending_withdrawals}</div>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>{t.dashboard.pendingWithdrawals}</TooltipContent>
@@ -1121,9 +1128,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
                 <div className="px-2 py-2 border-b border-slate-700">
-                  <p className="text-sm font-semibold text-slate-100">{user.nickname}</p>
-                  <p className="text-xs text-slate-400">{user.username}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">관리자 계정</p>
+                  <p className="text-xl font-semibold text-slate-100">{user.nickname}</p>
+                  <p className="text-base text-slate-400">{user.username}</p>
+                  <p className="text-base text-slate-500 mt-0.5">관리자 계정</p>
                 </div>
                 <DropdownMenuItem onClick={handleLogout} className="text-rose-400 cursor-pointer hover:bg-slate-700">
                   <LogOut className="h-4 w-4 mr-2" />

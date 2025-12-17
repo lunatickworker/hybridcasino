@@ -819,6 +819,7 @@ export const en = {
     profitLoss: 'Profit/Loss',
     playTime: 'Play Time',
     providerTime: 'Provider Time',
+    dateTime: 'Date/Time',
     totalBets: 'Total Bets',
     totalBetAmount: 'Total Bet Amount',
     totalWinAmount: 'Total Win Amount',
@@ -1930,12 +1931,12 @@ export const en = {
     
     // Partner Level Text
     levelText: {
-      1: 'System Admin',
-      2: 'Head Office',
-      3: 'Main Office',
-      4: 'Sub Office',
-      5: 'Distributor',
-      6: 'Store',
+      '1': 'System Admin',
+      '2': 'Head Office',
+      '3': 'Main Office',
+      '4': 'Sub Office',
+      '5': 'Distributor',
+      '6': 'Store',
       unknown: 'Unknown',
     },
     
@@ -1952,6 +1953,11 @@ export const en = {
     selectParentLabel: 'Select Parent Partner',
     selectParentPlaceholder: 'Select parent partner',
     parentDescription: 'Will be added under the selected partner.',
+    
+    // Timezone Settings
+    timezoneOffset: 'Timezone Setting',
+    selectTimezone: 'Select Timezone',
+    timezoneDescription: 'Set the timezone for the head office. It will be applied to statistics and time displays.',
     
     // Commission Settings
     commissionSettings: 'Commission Settings',

@@ -5,7 +5,7 @@ import { LoadingSpinner } from "./LoadingSpinner";
 const Dashboard = lazy(() => import("../admin/Dashboard"));
 const UserManagement = lazy(() => import("../admin/UserManagement").then(m => ({ default: m.UserManagement })));
 const BlacklistManagement = lazy(() => import("../admin/BlacklistManagement").then(m => ({ default: m.BlacklistManagement })));
-const PointManagement = lazy(() => import("../admin/PointManagement").then(m => ({ default: m.PointManagement })));
+const PointManagement = lazy(() => import("../admin/PointManagement"));
 const OnlineUsers = lazy(() => import("../admin/OnlineUsers").then(m => ({ default: m.OnlineUsers })));
 const PartnerConnectionStatus = lazy(() => import("../admin/PartnerConnectionStatus").then(m => ({ default: m.PartnerConnectionStatus })));
 const PartnerManagement = lazy(() => import("../admin/PartnerManagementV2").then(m => ({ default: m.PartnerManagementV2 })));

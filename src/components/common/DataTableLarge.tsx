@@ -43,7 +43,7 @@ interface DataTableProps<T> {
 }
 
 // ✅ React.memo로 감싸서 props가 변경되지 않으면 리렌더링 방지
-export const DataTable = memo(function DataTable<T extends Record<string, any>>({
+export const DataTableLarge = memo(function DataTableLarge<T extends Record<string, any>>({
   columns,
   data,
   loading = false,
@@ -138,7 +138,7 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
       {/* 검색 - enableSearch prop으로 제어 */}
       {searchable && enableSearch && (
         <div className="flex items-center gap-2">
-          <Search className="h-4 w-4 text-slate-400" />
+          <Search className="h-9 w-9 text-slate-400" />
           <Input
             placeholder={searchPlaceholder}
             value={searchTerm}
@@ -146,7 +146,7 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
               setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-            className="max-w-sm input-premium"
+            className="max-w-sm input-premium text-2xl py-6"
           />
         </div>
       )}
@@ -164,17 +164,17 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
                   <TableHead
                     key={index}
                     className={cn(
-                      "whitespace-nowrap text-[#94a3b8] font-semibold text-center text-xl",
+                      "whitespace-nowrap text-[#94a3b8] font-semibold text-center text-2xl py-6 px-6",
                       column.sortable && "cursor-pointer hover:bg-slate-700/50",
                       column.className
                     )}
                     style={{ width: column.width }}
                     onClick={() => column.sortable && handleSort(columnKey)}
                   >
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex items-center justify-center gap-2">
                       {columnTitle}
                       {column.sortable && sortConfig?.key === columnKey && sortConfig.direction && (
-                        <span className="text-xs text-blue-400">
+                        <span className="text-xl text-blue-400">
                           {sortConfig.direction === "asc" ? "↑" : "↓"}
                         </span>
                       )}
@@ -189,7 +189,7 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
               <TableRow className="border-slate-700/50">
                 <TableCell
                   colSpan={columns.length}
-                  className="text-center py-8 text-slate-400"
+                  className="text-center py-10 text-slate-400 text-2xl"
                 >
                   {emptyMessage}
                 </TableCell>
@@ -203,13 +203,13 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
                   <TableRow
                     key={uniqueKey}
                     className={cn(
-                      "border-slate-700/50 text-slate-200",
+                      "border-slate-700/50 text-slate-200 text-xl",
                       onRowClick && "cursor-pointer hover:bg-slate-700/30"
                     )}
                     onClick={() => onRowClick?.(row, startIndex + rowIndex)}
                   >
                     {columns.map((column, colIndex) => (
-                      <TableCell key={`${uniqueKey}-col-${colIndex}`} className={cn("text-center", column.className)}>
+                      <TableCell key={`${uniqueKey}-col-${colIndex}`} className={cn("text-center py-6", column.className)}>
                         {column.render
                           ? column.render(getCellValue(row, column), row, startIndex + rowIndex)
                           : column.cell
@@ -229,22 +229,22 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
       {pagination && totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="text-sm text-slate-400">
+            <div className="text-xl text-slate-400">
               총 {sortedData.length}개 중 {startIndex + 1}-{Math.min(startIndex + currentPageSize, sortedData.length)}개 표시
             </div>
             {/* 페이지 크기 선택 */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-400">페이지당</span>
+              <span className="text-xl text-slate-400">페이지당</span>
               <Select
                 value={currentPageSize.toString()}
                 onValueChange={handlePageSizeChange}
               >
-                <SelectTrigger className="w-20 h-8 border-slate-700 text-slate-300 bg-slate-800/50">
+                <SelectTrigger className="w-32 h-12 border-slate-700 text-slate-300 bg-slate-800/50 text-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {pageSizeOptions.map(size => (
-                    <SelectItem key={size} value={size.toString()}>{size}개</SelectItem>
+                    <SelectItem key={size} value={size.toString()} className="text-xl">{size}개</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -256,12 +256,12 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
               size="sm"
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
-              className="border-slate-700 text-slate-300 hover:bg-slate-700/50"
+              className="border-slate-700 text-slate-300 hover:bg-slate-700/50 text-xl px-6 py-3 h-auto"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-7 w-7 mr-1" />
               이전
             </Button>
-            <span className="text-sm px-2 text-slate-300">
+            <span className="text-xl px-3 text-slate-300">
               {currentPage} / {totalPages}
             </span>
             <Button
@@ -269,10 +269,10 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
               size="sm"
               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages}
-              className="border-slate-700 text-slate-300 hover:bg-slate-700/50"
+              className="border-slate-700 text-slate-300 hover:bg-slate-700/50 text-xl px-6 py-3 h-auto"
             >
               다음
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-7 w-7 ml-1" />
             </Button>
           </div>
         </div>
@@ -282,22 +282,22 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
       {pagination && totalPages <= 1 && sortedData.length > 0 && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="text-sm text-slate-400">
+            <div className="text-xl text-slate-400">
               총 {sortedData.length}개 표시
             </div>
             {/* 페이지 크기 선택 */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-400">페이지당</span>
+              <span className="text-xl text-slate-400">페이지당</span>
               <Select
                 value={currentPageSize.toString()}
                 onValueChange={handlePageSizeChange}
               >
-                <SelectTrigger className="w-20 h-8 border-slate-700 text-slate-300 bg-slate-800/50">
+                <SelectTrigger className="w-32 h-12 border-slate-700 text-slate-300 bg-slate-800/50 text-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {pageSizeOptions.map(size => (
-                    <SelectItem key={size} value={size.toString()}>{size}개</SelectItem>
+                    <SelectItem key={size} value={size.toString()} className="text-xl">{size}개</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

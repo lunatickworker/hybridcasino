@@ -45,11 +45,11 @@ export function UnifiedCard({
     return (
       <div className={cardClasses}>
         {/* 헤더 */}
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-700/50 px-6 pt-6">
-          <div className={cn("p-2 rounded-lg bg-slate-800/50", iconColor.replace('text-', 'bg-') + '/20')}>
-            <Icon className={cn("h-5 w-5", iconColor)} />
+        <div className="flex items-center gap-4 mb-6 pb-5 border-b border-slate-700/50 px-6 pt-6">
+          <div className={cn("p-3 rounded-lg bg-slate-800/50", iconColor.replace('text-', 'bg-') + '/20')}>
+            <Icon className={cn("h-7 w-7", iconColor)} />
           </div>
-          <h3 className="font-semibold text-slate-100">
+          <h3 className="text-2xl font-semibold text-slate-100">
             {title}
           </h3>
           {(headerAction || action) && (
@@ -61,7 +61,7 @@ export function UnifiedCard({
         </div>
 
         {/* 컨텐츠 */}
-        <div className="space-y-3 px-6 pb-6">
+        <div className="space-y-4 px-6 pb-6">
           {children}
         </div>
       </div>
@@ -130,24 +130,24 @@ export function SectionRow({
   iconColor = "text-slate-400"
 }: SectionRowProps) {
   return (
-    <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 transition-colors">
-      <div className="flex items-center gap-3">
+    <div className="flex items-center justify-between py-4 px-5 rounded-lg bg-slate-800/30 hover:bg-slate-800/50 transition-colors">
+      <div className="flex items-center gap-4">
         {Icon && (
-          <div className={cn("p-1.5 rounded-lg bg-slate-700/50", iconColor)}>
-            <Icon className="h-4 w-4" />
+          <div className={cn("p-2 rounded-lg bg-slate-700/50", iconColor)}>
+            <Icon className="h-5 w-5" />
           </div>
         )}
-        <span className="text-slate-300 font-medium">
+        <span className="text-slate-100 font-medium text-lg">
           {label}
         </span>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         {badge && (
-          <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", badgeColor)}>
+          <span className={cn("px-3 py-1.5 rounded-full text-sm font-semibold", badgeColor)}>
             {badge}
           </span>
         )}
-        <span className={cn("font-bold text-lg", valueColor)}>
+        <span className={cn("font-bold text-2xl", valueColor)}>
           {value}
         </span>
       </div>

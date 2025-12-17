@@ -823,6 +823,7 @@ export const ko = {
     profitLoss: '손익',
     playTime: '플레이 시간',
     providerTime: '프로바이더 시간',
+    dateTime: '날짜/일시',
     totalBets: '총 베팅 수',
     totalBetAmount: '총 베팅액',
     totalWinAmount: '총 당첨액',
@@ -1227,6 +1228,20 @@ export const ko = {
     loadFailed: '블랙리스트를 불러오는데 실패했습니다.',
     restoreSuccess: '{{username}}님이 회원관리로 복원되었습니다.',
     restoreFailed: '블랙리스트 해제 중 오류가 발생했습니다.',
+    blockedUsers: '차단된 회원',
+    blockedCount: '전체 차단된 회원 수',
+    searchResults: '검색 결과',
+    filteredResults: '필터링된 결과 수',
+    blockReason: '차단 사유',
+    processor: '처리자',
+    blockDate: '차단일시',
+    blocked: '차단됨',
+    restore: '복원',
+    management: '관리',
+    noReason: '사유 없음',
+    noBlacklist: '차단된 회원이 없습니다.',
+    noSearchResults: '검색 결과가 없습니다.',
+    addFromUserManagement: '회원 관리에서 회원을 차단할 수 있습니다.',
   },
 
   // 정산
@@ -2044,12 +2059,12 @@ export const ko = {
     
     // 파트너 레벨 텍스트
     levelText: {
-      1: '시스템관리자',
-      2: '대본사',
-      3: '본사',
-      4: '부본사',
-      5: '총판',
-      6: '매장',
+      '1': '시스템관리자',
+      '2': '대본사',
+      '3': '본사',
+      '4': '부본사',
+      '5': '총판',
+      '6': '매장',
       unknown: '알 수 없음',
     },
     
@@ -2066,6 +2081,11 @@ export const ko = {
     selectParentLabel: '소속 파트너 선택',
     selectParentPlaceholder: '상위 파트너를 선택하세요',
     parentDescription: '선택한 파트너의 하위로 추가됩니다.',
+    
+    // 타임존 설정
+    timezoneOffset: '타임존 설정',
+    selectTimezone: '타임존 선택',
+    timezoneDescription: '대본사의 기준 타임존을 설정합니다. 통계 및 시간 표시에 적용됩니다.',
     
     // 커미션 설정
     commissionSettings: '커미션 설정',

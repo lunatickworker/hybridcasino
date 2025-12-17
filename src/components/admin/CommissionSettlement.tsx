@@ -249,8 +249,8 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-white mb-2">{t.settlement.commissionSettlementTitle}</h1>
-          <p className="text-slate-400">
+          <h1 className="text-3xl text-white mb-2">{t.settlement.commissionSettlementTitle}</h1>
+          <p className="text-xl text-slate-400">
             {t.settlement.commissionSettlementSubtitle}
           </p>
         </div>
@@ -260,16 +260,18 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
             size="sm"
             onClick={handleRefresh}
             disabled={refreshing}
+            className="text-lg px-4 py-2"
           >
-            <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
+            <RefreshCw className={cn("h-6 w-6 mr-2", refreshing && "animate-spin")} />
             {t.common.refresh}
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={handleExport}
+            className="text-lg px-4 py-2"
           >
-            <Download className="h-4 w-4 mr-2" />
+            <Download className="h-6 w-6 mr-2" />
             {t.settlement.exportExcel}
           </Button>
           <Button
@@ -277,9 +279,9 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
             size="sm"
             onClick={handleExecuteSettlement}
             disabled={executing || stats.totalCommission <= 0}
-            className="bg-orange-600 hover:bg-orange-700"
+            className="bg-orange-600 hover:bg-orange-700 text-lg px-4 py-2"
           >
-            <CheckCircle className={cn("h-4 w-4 mr-2", executing && "animate-spin")} />
+            <CheckCircle className={cn("h-6 w-6 mr-2", executing && "animate-spin")} />
             {executing ? t.settlement.settling : t.settlement.executeSettlement}
           </Button>
         </div>
@@ -352,10 +354,7 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <CardTitle>{t.settlement.partnerCommissionDetails}</CardTitle>
-              <CardDescription>
-                {t.settlement.partnerCommissionDetailsDesc.replace('{count}', stats.partnerCount.toString())}
-              </CardDescription>
+              <CardTitle className="text-3xl">{t.settlement.partnerCommissionDetails}</CardTitle>
             </div>
             <div className="flex items-center gap-3">
               {/* API 필터 - Lv3~Lv6은 통합 GMS 머니만 사용하므로 숨김 */}
@@ -431,14 +430,14 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-700">
-                    <th className="text-left p-3 text-slate-400">{t.settlement.partner}</th>
-                    <th className="text-left p-3 text-slate-400">{t.settlement.grade}</th>
-                    <th className="text-right p-3 text-blue-400">🎰 카지노 롤링</th>
-                    <th className="text-right p-3 text-blue-400">🎰 카지노 루징</th>
-                    <th className="text-right p-3 text-purple-400">🎮 슬롯 롤링</th>
-                    <th className="text-right p-3 text-purple-400">🎮 슬롯 루징</th>
-                    <th className="text-right p-3 text-emerald-400">💰 환전 수수료</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.totalCommission}</th>
+                    <th className="text-left p-4 text-slate-400 text-xl">{t.settlement.partner}</th>
+                    <th className="text-left p-4 text-slate-400 text-xl">{t.settlement.grade}</th>
+                    <th className="text-right p-4 text-blue-400 text-xl">🎰 카지노 롤링</th>
+                    <th className="text-right p-4 text-blue-400 text-xl">🎰 카지노 루징</th>
+                    <th className="text-right p-4 text-purple-400 text-xl">🎮 슬롯 롤링</th>
+                    <th className="text-right p-4 text-purple-400 text-xl">🎮 슬롯 루징</th>
+                    <th className="text-right p-4 text-emerald-400 text-xl">💰 환전 수수료</th>
+                    <th className="text-right p-4 text-slate-400 text-xl">{t.settlement.totalCommission}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -452,53 +451,53 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
                         transition={{ duration: 0.2 }}
                         className="border-b border-slate-800 hover:bg-slate-800/30"
                       >
-                        <td className="p-3">
+                        <td className="p-4">
                           <div>
-                            <p className="text-white">{comm.partner_nickname}</p>
-                            <p className="text-xs text-slate-400">{comm.partner_username}</p>
+                            <p className="text-white text-xl">{comm.partner_nickname}</p>
+                            <p className="text-lg text-slate-400">{comm.partner_username}</p>
                           </div>
                         </td>
-                        <td className="p-3">
-                          <Badge variant="outline">{getLevelText(comm.partner_level)}</Badge>
+                        <td className="p-4">
+                          <Badge variant="outline" className="text-lg px-3 py-1">{getLevelText(comm.partner_level)}</Badge>
                         </td>
                         {/* 카지노 롤링 */}
-                        <td className="p-3 text-right">
+                        <td className="p-4 text-right">
                           <div>
-                            <p className="text-blue-400">₩{comm.casino_rolling_commission_amount.toLocaleString()}</p>
-                            <p className="text-xs text-slate-500">{comm.casino_rolling_commission}% · ₩{comm.casino_bet_amount.toLocaleString()}</p>
+                            <p className="text-blue-400 text-xl">₩{comm.casino_rolling_commission_amount.toLocaleString()}</p>
+                            <p className="text-lg text-slate-500">{comm.casino_rolling_commission}% · ₩{comm.casino_bet_amount.toLocaleString()}</p>
                           </div>
                         </td>
                         {/* 카지노 루징 */}
-                        <td className="p-3 text-right">
+                        <td className="p-4 text-right">
                           <div>
-                            <p className="text-blue-400">₩{comm.casino_losing_commission_amount.toLocaleString()}</p>
-                            <p className="text-xs text-slate-500">{comm.casino_losing_commission}% · ₩{comm.casino_loss_amount.toLocaleString()}</p>
+                            <p className="text-blue-400 text-xl">₩{comm.casino_losing_commission_amount.toLocaleString()}</p>
+                            <p className="text-lg text-slate-500">{comm.casino_losing_commission}% · ₩{comm.casino_loss_amount.toLocaleString()}</p>
                           </div>
                         </td>
                         {/* 슬롯 롤링 */}
-                        <td className="p-3 text-right">
+                        <td className="p-4 text-right">
                           <div>
-                            <p className="text-purple-400">₩{comm.slot_rolling_commission_amount.toLocaleString()}</p>
-                            <p className="text-xs text-slate-500">{comm.slot_rolling_commission}% · ₩{comm.slot_bet_amount.toLocaleString()}</p>
+                            <p className="text-purple-400 text-xl">₩{comm.slot_rolling_commission_amount.toLocaleString()}</p>
+                            <p className="text-lg text-slate-500">{comm.slot_rolling_commission}% · ₩{comm.slot_bet_amount.toLocaleString()}</p>
                           </div>
                         </td>
                         {/* 슬롯 루징 */}
-                        <td className="p-3 text-right">
+                        <td className="p-4 text-right">
                           <div>
-                            <p className="text-purple-400">₩{comm.slot_losing_commission_amount.toLocaleString()}</p>
-                            <p className="text-xs text-slate-500">{comm.slot_losing_commission}% · ₩{comm.slot_loss_amount.toLocaleString()}</p>
+                            <p className="text-purple-400 text-xl">₩{comm.slot_losing_commission_amount.toLocaleString()}</p>
+                            <p className="text-lg text-slate-500">{comm.slot_losing_commission}% · ₩{comm.slot_loss_amount.toLocaleString()}</p>
                           </div>
                         </td>
                         {/* 환전 수수료 */}
-                        <td className="p-3 text-right">
+                        <td className="p-4 text-right">
                           <div>
-                            <p className="text-emerald-400">₩{comm.withdrawal_commission.toLocaleString()}</p>
-                            <p className="text-xs text-slate-500">{comm.withdrawal_fee}%</p>
+                            <p className="text-emerald-400 text-xl">₩{comm.withdrawal_commission.toLocaleString()}</p>
+                            <p className="text-lg text-slate-500">{comm.withdrawal_fee}%</p>
                           </div>
                         </td>
                         {/* 전체 커미션 */}
-                        <td className="p-3 text-right">
-                          <p className="text-orange-400 font-mono">₩{comm.total_commission.toLocaleString()}</p>
+                        <td className="p-4 text-right">
+                          <p className="text-orange-400 font-mono text-xl">₩{comm.total_commission.toLocaleString()}</p>
                         </td>
                       </motion.tr>
                     ))}
@@ -506,23 +505,23 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-800/50 border-t-2 border-slate-600">
-                    <td colSpan={2} className="p-3 text-white">{t.settlement.totalSum}</td>
-                    <td className="p-3 text-right text-blue-400 font-mono">
+                    <td colSpan={2} className="p-4 text-white text-xl">{t.settlement.totalSum}</td>
+                    <td className="p-4 text-right text-blue-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
                       ₩{commissions.reduce((sum, c) => sum + c.casino_rolling_commission_amount, 0).toLocaleString()}
                     </td>
-                    <td className="p-3 text-right text-blue-400 font-mono">
+                    <td className="p-4 text-right text-blue-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
                       ₩{commissions.reduce((sum, c) => sum + c.casino_losing_commission_amount, 0).toLocaleString()}
                     </td>
-                    <td className="p-3 text-right text-purple-400 font-mono">
+                    <td className="p-4 text-right text-purple-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
                       ₩{commissions.reduce((sum, c) => sum + c.slot_rolling_commission_amount, 0).toLocaleString()}
                     </td>
-                    <td className="p-3 text-right text-purple-400 font-mono">
+                    <td className="p-4 text-right text-purple-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
                       ₩{commissions.reduce((sum, c) => sum + c.slot_losing_commission_amount, 0).toLocaleString()}
                     </td>
-                    <td className="p-3 text-right text-emerald-400 font-mono">
+                    <td className="p-4 text-right text-emerald-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
                       ₩{stats.totalWithdrawalCommission.toLocaleString()}
                     </td>
-                    <td className="p-3 text-right text-orange-400 font-mono">
+                    <td className="p-4 text-right text-orange-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
                       ₩{stats.totalCommission.toLocaleString()}
                     </td>
                   </tr>

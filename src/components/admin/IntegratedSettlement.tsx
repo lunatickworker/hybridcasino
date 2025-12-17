@@ -375,29 +375,30 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-white mb-2">{t.settlement.integratedSettlementTitle}</h1>
-          <p className="text-slate-400">
+          <h1 className="text-3xl text-white mb-2">{t.settlement.integratedSettlementTitle}</h1>
+          <p className="text-xl text-slate-400">
             {t.settlement.integratedSettlementSubtitle}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
-            size="sm"
+            size="lg"
             onClick={handleRefresh}
             disabled={refreshing}
+            className="text-lg px-6 py-3"
           >
-            <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
+            <RefreshCw className={cn("h-6 w-6 mr-2", refreshing && "animate-spin")} />
             {t.common.refresh}
           </Button>
           <Button
             variant="default"
-            size="sm"
+            size="lg"
             onClick={handleExecuteSettlement}
             disabled={executing || summary.netTotalProfit <= 0}
-            className="bg-purple-600 hover:bg-purple-700"
+            className="bg-purple-600 hover:bg-purple-700 text-lg px-6 py-3"
           >
-            <FileCheck className={cn("h-4 w-4 mr-2", executing && "animate-spin")} />
+            <FileCheck className={cn("h-6 w-6 mr-2", executing && "animate-spin")} />
             {executing ? t.settlement.savingSettlement : t.settlement.saveSettlementRecord}
           </Button>
         </div>
@@ -408,47 +409,47 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex-1">
-              <CardTitle>조회 설정</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-3xl">조회 설정</CardTitle>
+              <CardDescription className="text-xl">
                 조회 기간 및 API를 선택하세요
               </CardDescription>
             </div>
             <div className="flex items-center gap-3">
               {user.level <= 2 && (
                 <Select value={apiFilter} onValueChange={(value) => setApiFilter(value as 'all' | 'invest' | 'oroplay')}>
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-[210px] h-12 text-lg">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">{t.settlement.allApi}</SelectItem>
+                    <SelectItem value="all" className="text-lg">{t.settlement.allApi}</SelectItem>
                     {availableApis.includes('invest') && (
-                      <SelectItem value="invest">{t.settlement.investOnly}</SelectItem>
+                      <SelectItem value="invest" className="text-lg">{t.settlement.investOnly}</SelectItem>
                     )}
                     {availableApis.includes('oroplay') && (
-                      <SelectItem value="oroplay">{t.settlement.oroplaysOnly}</SelectItem>
+                      <SelectItem value="oroplay" className="text-lg">{t.settlement.oroplaysOnly}</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
               )}
 
               <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[270px] h-12 text-lg">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="today">{t.settlement.today}</SelectItem>
-                  <SelectItem value="yesterday">{t.settlement.yesterday}</SelectItem>
-                  <SelectItem value="week">{t.settlement.lastWeek}</SelectItem>
-                  <SelectItem value="month">{t.settlement.thisMonth}</SelectItem>
-                  <SelectItem value="custom">{t.settlement.customPeriod}</SelectItem>
+                  <SelectItem value="today" className="text-lg">{t.settlement.today}</SelectItem>
+                  <SelectItem value="yesterday" className="text-lg">{t.settlement.yesterday}</SelectItem>
+                  <SelectItem value="week" className="text-lg">{t.settlement.lastWeek}</SelectItem>
+                  <SelectItem value="month" className="text-lg">{t.settlement.thisMonth}</SelectItem>
+                  <SelectItem value="custom" className="text-lg">{t.settlement.customPeriod}</SelectItem>
                 </SelectContent>
               </Select>
 
               {periodFilter === "custom" && (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-[280px] justify-start text-left">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
+                    <Button variant="outline" className="w-[420px] h-12 justify-start text-left text-lg">
+                      <CalendarIcon className="mr-2 h-6 w-6" />
                       {dateRange?.from ? (
                         dateRange.to ? (
                           <>
@@ -484,32 +485,32 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       {/* 1. 입출금 현황 */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-blue-400" />
+          <CardTitle className="flex items-center gap-2 text-3xl">
+            <Wallet className="h-8 w-8 text-blue-400" />
             입출금 현황
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xl">
             하위 조직의 실제 충전/환전 내역입니다
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-slate-800/50 rounded-lg">
-              <div className="text-slate-400 text-sm mb-1">총 충전액</div>
-              <div className="text-2xl text-emerald-400">
+              <div className="text-slate-400 text-xl mb-1">총 충전액</div>
+              <div className="text-3xl text-emerald-400">
                 ₩{detailedStats.totalDeposit.toLocaleString()}
               </div>
             </div>
             <div className="p-4 bg-slate-800/50 rounded-lg">
-              <div className="text-slate-400 text-sm mb-1">총 환전액</div>
-              <div className="text-2xl text-red-400">
+              <div className="text-slate-400 text-xl mb-1">총 환전액</div>
+              <div className="text-3xl text-red-400">
                 ₩{detailedStats.totalWithdrawal.toLocaleString()}
               </div>
             </div>
             <div className="p-4 bg-slate-800/50 rounded-lg">
-              <div className="text-slate-400 text-sm mb-1">입출금 차액</div>
+              <div className="text-slate-400 text-xl mb-1">입출금 차액</div>
               <div className={cn(
-                "text-2xl",
+                "text-3xl",
                 detailedStats.depositWithdrawalDiff > 0 ? "text-emerald-400" : "text-red-400"
               )}>
                 ₩{detailedStats.depositWithdrawalDiff.toLocaleString()}
@@ -522,11 +523,11 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       {/* 2. 베팅 현황 (카지노/슬롯 분리) */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-purple-400" />
+          <CardTitle className="flex items-center gap-2 text-3xl">
+            <CreditCard className="h-8 w-8 text-purple-400" />
             베팅 현황
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xl">
             카지노와 슬롯 게임의 베팅 통계입니다
           </CardDescription>
         </CardHeader>
@@ -534,23 +535,23 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
           <div className="space-y-4">
             {/* 카지노 */}
             <div>
-              <h3 className="text-sm mb-3 text-slate-300">🎰 카지노</h3>
+              <h3 className="text-xl mb-3 text-slate-300">🎰 카지노</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-1">총 베팅액</div>
-                  <div className="text-xl">
+                  <div className="text-slate-400 text-xl mb-1">총 베팅액</div>
+                  <div className="text-3xl">
                     ₩{detailedStats.casinoBetAmount.toLocaleString()}
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-1">총 승리액</div>
-                  <div className="text-xl text-emerald-400">
+                  <div className="text-slate-400 text-xl mb-1">총 승리액</div>
+                  <div className="text-3xl text-emerald-400">
                     ₩{detailedStats.casinoWinAmount.toLocaleString()}
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-1">손실액</div>
-                  <div className="text-xl text-red-400">
+                  <div className="text-slate-400 text-xl mb-1">손실액</div>
+                  <div className="text-3xl text-red-400">
                     ₩{detailedStats.casinoLossAmount.toLocaleString()}
                   </div>
                 </div>
@@ -559,23 +560,23 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
             {/* 슬롯 */}
             <div>
-              <h3 className="text-sm mb-3 text-slate-300">🎲 슬롯</h3>
+              <h3 className="text-xl mb-3 text-slate-300">🎲 슬롯</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-1">총 베팅액</div>
-                  <div className="text-xl">
+                  <div className="text-slate-400 text-xl mb-1">총 베팅액</div>
+                  <div className="text-3xl">
                     ₩{detailedStats.slotBetAmount.toLocaleString()}
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-1">총 승리액</div>
-                  <div className="text-xl text-emerald-400">
+                  <div className="text-slate-400 text-xl mb-1">총 승리액</div>
+                  <div className="text-3xl text-emerald-400">
                     ₩{detailedStats.slotWinAmount.toLocaleString()}
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-1">손실액</div>
-                  <div className="text-xl text-red-400">
+                  <div className="text-slate-400 text-xl mb-1">손실액</div>
+                  <div className="text-3xl text-red-400">
                     ₩{detailedStats.slotLossAmount.toLocaleString()}
                   </div>
                 </div>
@@ -588,11 +589,11 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       {/* 3. 통합 정산 (최종 손익) */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUpDown className="h-5 w-5 text-yellow-400" />
+          <CardTitle className="flex items-center gap-2 text-3xl">
+            <TrendingUpDown className="h-8 w-8 text-yellow-400" />
             통합 정산
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xl">
             입출금 + 게임 손익 + 커미션을 종합한 최종 정산 내역입니다
           </CardDescription>
         </CardHeader>
@@ -600,30 +601,30 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
           <div className="space-y-4">
             {/* 게임 하우스 손익 */}
             <div>
-              <h3 className="text-sm mb-3 text-slate-300">게임 하우스 손익</h3>
+              <h3 className="text-xl mb-3 text-slate-300">게임 하우스 손익</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-1">카지노 손익</div>
+                  <div className="text-slate-400 text-xl mb-1">카지노 손익</div>
                   <div className={cn(
-                    "text-xl",
+                    "text-3xl",
                     detailedStats.casinoHouseProfit > 0 ? "text-emerald-400" : "text-red-400"
                   )}>
                     ₩{detailedStats.casinoHouseProfit.toLocaleString()}
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-1">슬롯 손익</div>
+                  <div className="text-slate-400 text-xl mb-1">슬롯 손익</div>
                   <div className={cn(
-                    "text-xl",
+                    "text-3xl",
                     detailedStats.slotHouseProfit > 0 ? "text-emerald-400" : "text-red-400"
                   )}>
                     ₩{detailedStats.slotHouseProfit.toLocaleString()}
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-1">총 게임 손익</div>
+                  <div className="text-slate-400 text-xl mb-1">총 게임 손익</div>
                   <div className={cn(
-                    "text-xl",
+                    "text-3xl",
                     detailedStats.totalHouseProfit > 0 ? "text-emerald-400" : "text-red-400"
                   )}>
                     ₩{detailedStats.totalHouseProfit.toLocaleString()}
@@ -634,80 +635,80 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
             {/* 커미션 수입 */}
             <div>
-              <h3 className="text-sm mb-3 text-slate-300">내 커미션 수입</h3>
+              <h3 className="text-xl mb-3 text-slate-300">내 커미션 수입</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-2">카지노</div>
+                  <div className="text-slate-400 text-xl mb-2">카지노</div>
                   <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xl">
                       <span className="text-slate-400">롤링:</span>
                       <span className="text-emerald-400">₩{summary.myCasinoRollingIncome.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xl">
                       <span className="text-slate-400">루징:</span>
                       <span className="text-emerald-400">₩{summary.myCasinoLosingIncome.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-2">슬롯</div>
+                  <div className="text-slate-400 text-xl mb-2">슬롯</div>
                   <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xl">
                       <span className="text-slate-400">롤링:</span>
                       <span className="text-emerald-400">₩{summary.mySlotRollingIncome.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xl">
                       <span className="text-slate-400">루징:</span>
                       <span className="text-emerald-400">₩{summary.mySlotLosingIncome.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-2">환전 수수료</div>
-                  <div className="text-xl text-emerald-400">
+                  <div className="text-slate-400 text-xl mb-2">환전 수수료</div>
+                  <div className="text-3xl text-emerald-400">
                     ₩{summary.myWithdrawalIncome.toLocaleString()}
                   </div>
-                  <div className="text-xs text-slate-500 mt-1">총 수입: ₩{summary.myTotalIncome.toLocaleString()}</div>
+                  <div className="text-lg text-slate-500 mt-1">총 수입: ₩{summary.myTotalIncome.toLocaleString()}</div>
                 </div>
               </div>
             </div>
 
             {/* 하위 파트너 지급 (요약만) */}
             <div>
-              <h3 className="text-sm mb-3 text-slate-300">하위 파트너 지급</h3>
+              <h3 className="text-xl mb-3 text-slate-300">하위 파트너 지급</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-2">카지노</div>
+                  <div className="text-slate-400 text-xl mb-2">카지노</div>
                   <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xl">
                       <span className="text-slate-400">롤링:</span>
                       <span className="text-red-400">₩{summary.partnerCasinoRollingPayments.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xl">
                       <span className="text-slate-400">루징:</span>
                       <span className="text-red-400">₩{summary.partnerCasinoLosingPayments.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-2">슬롯</div>
+                  <div className="text-slate-400 text-xl mb-2">슬롯</div>
                   <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xl">
                       <span className="text-slate-400">롤링:</span>
                       <span className="text-red-400">₩{summary.partnerSlotRollingPayments.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between text-xl">
                       <span className="text-slate-400">루징:</span>
                       <span className="text-red-400">₩{summary.partnerSlotLosingPayments.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-sm mb-2">환전 수수료</div>
-                  <div className="text-xl text-red-400">
+                  <div className="text-slate-400 text-xl mb-2">환전 수수료</div>
+                  <div className="text-3xl text-red-400">
                     ₩{summary.partnerWithdrawalPayments.toLocaleString()}
                   </div>
-                  <div className="text-xs text-slate-500 mt-1">총 지급: ₩{summary.partnerTotalPayments.toLocaleString()}</div>
+                  <div className="text-lg text-slate-500 mt-1">총 지급: ₩{summary.partnerTotalPayments.toLocaleString()}</div>
                 </div>
               </div>
             </div>
@@ -716,8 +717,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
             <div className="mt-6 p-6 bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg border border-purple-500/30">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-slate-400 text-sm mb-1">최종 순수익</div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-slate-400 text-xl mb-1">최종 순수익</div>
+                  <div className="text-lg text-slate-500">
                     입출금 차액 (₩{detailedStats.depositWithdrawalDiff.toLocaleString()}) 
                     + 게임 손익 (₩{detailedStats.totalHouseProfit.toLocaleString()})
                     + 커미션 수입 (₩{summary.myTotalIncome.toLocaleString()})
@@ -725,7 +726,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                   </div>
                 </div>
                 <div className={cn(
-                  "text-3xl",
+                  "text-4xl",
                   summary.netTotalProfit > 0 ? "text-emerald-400" : "text-red-400"
                 )}>
                   ₩{(detailedStats.depositWithdrawalDiff + detailedStats.totalHouseProfit + summary.myTotalIncome - summary.partnerTotalPayments).toLocaleString()}

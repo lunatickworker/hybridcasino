@@ -67,41 +67,41 @@ export function PasswordChangeSection({ userId }: PasswordChangeSectionProps) {
 
   return (
     <div>
-      <h3 className="flex items-center gap-2 mb-3">
-        <Settings className="h-3.5 w-3.5 text-red-400" />
-        <span className="text-xs">{t.passwordChange.title}</span>
+      <h3 className="flex items-center gap-2 mb-4">
+        <Settings className="h-6 w-6 text-red-400" />
+        <span className="text-base">{t.passwordChange.title}</span>
       </h3>
       <Card className="bg-white/5 border-white/10">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="newPassword" className="text-xs">{t.passwordChange.newPassword}</Label>
+        <CardContent className="p-6">
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <Label htmlFor="newPassword" className="text-base">{t.passwordChange.newPassword}</Label>
               <Input
                 id="newPassword"
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder={t.passwordChange.newPasswordPlaceholder}
-                className="bg-white/5 border-white/10 text-xs h-9"
+                className="bg-white/5 border-white/10 text-base h-12"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword" className="text-xs">{t.passwordChange.confirmPassword}</Label>
+            <div className="space-y-3">
+              <Label htmlFor="confirmPassword" className="text-base">{t.passwordChange.confirmPassword}</Label>
               <Input
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder={t.passwordChange.confirmPasswordPlaceholder}
-                className="bg-white/5 border-white/10 text-xs h-9"
+                className="bg-white/5 border-white/10 text-base h-12"
               />
             </div>
           </div>
-          <div className="flex justify-end mt-4">
+          <div className="flex justify-end mt-6">
             <Button
               onClick={changePassword}
               disabled={passwordLoading || !newPassword || !confirmPassword}
-              className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white px-4 py-2 text-xs h-9"
+              className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white px-6 py-3 text-base h-12"
             >
               {passwordLoading ? t.passwordChange.changing : t.passwordChange.changeButton}
             </Button>

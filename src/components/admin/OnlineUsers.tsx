@@ -4,7 +4,7 @@ import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import { Partner } from "../../types";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
-import { DataTable } from "../common/DataTable";
+import { DataTableLarge } from "../common/DataTableLarge";
 import { AnimatedBalance } from "../common/AnimatedBalance";
 import { toast } from "sonner@2.0.3";
 import { RefreshCw, Power, Smartphone, Monitor, Users, DollarSign, TrendingDown, Clock } from "lucide-react";
@@ -128,7 +128,7 @@ function SessionCheckbox({
       onChange={() => onToggle(rowId)}
       disabled={isDisabled}
       className={cn(
-        "w-4 h-4 rounded border-slate-600 bg-slate-700 text-purple-500 focus:ring-purple-500 focus:ring-offset-slate-900",
+        "w-6 h-6 rounded border-slate-600 bg-slate-700 text-purple-500 focus:ring-purple-500 focus:ring-offset-slate-900",
         isDisabled && "opacity-40 cursor-not-allowed"
       )}
     />
@@ -215,29 +215,6 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       ),
     },
     {
-      key: 'nickname',
-      header: t.common.nickname,
-      sortable: true,
-      render: (value: string, row: OnlineSession) => (
-        <span className={cn("text-slate-200", row.status !== 'active' && "opacity-40")}>
-          {value}
-        </span>
-      ),
-    },
-    {
-      key: 'game_name',
-      header: t.common.game,
-      sortable: true,
-      render: (value: string, row: OnlineSession) => (
-        <div className={cn("space-y-1", row.status !== 'active' && "opacity-40")}>
-          <div className="text-slate-200">{value}</div>
-          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-            {row.provider_name}
-          </Badge>
-        </div>
-      ),
-    },
-    {
       key: 'balance_before',
       header: t.onlineUsers.startingBalance,
       sortable: true,
@@ -279,7 +256,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           variant={value === 'Mobile' ? 'default' : 'secondary'} 
           className={cn("gap-1", row.status !== 'active' && "opacity-40")}
         >
-          {value === 'Mobile' ? <Smartphone className="w-3 h-3" /> : <Monitor className="w-3 h-3" />}
+          {value === 'Mobile' ? <Smartphone className="w-6 h-6" /> : <Monitor className="w-6 h-6" />}
           {value}
         </Badge>
       ),
@@ -314,11 +291,11 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
             onClick={() => syncBalance(row)}
             disabled={syncingBalance === row.user_id || row.status !== 'active'}
             className={cn(
-              "text-slate-400 hover:text-slate-200",
+              "text-slate-400 hover:text-slate-200 h-10 w-10 p-0",
               row.status !== 'active' && "opacity-40 cursor-not-allowed"
             )}
           >
-            <RefreshCw className={`w-3 h-3 ${syncingBalance === row.user_id ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-6 h-6 ${syncingBalance === row.user_id ? 'animate-spin' : ''}`} />
           </Button>
           <Button
             variant="ghost"
@@ -329,11 +306,11 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
             }}
             disabled={row.status !== 'active'}
             className={cn(
-              "bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300",
+              "bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 h-10 w-10 p-0",
               row.status !== 'active' && "opacity-40 cursor-not-allowed"
             )}
           >
-            <Power className="w-3 h-3" />
+            <Power className="w-6 h-6" />
           </Button>
         </div>
       ),
@@ -353,7 +330,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           type="checkbox"
           checked={isAllSelected}
           onChange={toggleAllSessions}
-          className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-purple-500 focus:ring-purple-500 focus:ring-offset-slate-900"
+          className="w-6 h-6 rounded border-slate-600 bg-slate-700 text-purple-500 focus:ring-purple-500 focus:ring-offset-slate-900"
         />
       ),
     };
@@ -841,8 +818,8 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-100">{t.onlineUsers.title}</h2>
-          <p className="text-sm text-slate-400 mt-1">
+          <h2 className="text-3xl font-bold text-slate-100">{t.onlineUsers.title}</h2>
+          <p className="text-lg text-slate-400 mt-1">
             {t.onlineUsers.subtitle}
           </p>
         </div>
@@ -851,14 +828,14 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
             <Button 
               variant="destructive"
               onClick={() => setShowBulkKickDialog(true)}
-              className="bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 border border-red-500/30"
+              className="bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 border border-red-500/30 text-lg px-6 py-3 h-auto"
             >
-              <Power className="w-4 h-4 mr-2" />
+              <Power className="w-6 h-6 mr-2" />
               선택한 게임 종료 ({selectedSessions.size})
             </Button>
           )}
-          <Button onClick={() => loadSessions(true)} disabled={loading || refreshing}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+          <Button onClick={() => loadSessions(true)} disabled={loading || refreshing} className="text-lg px-6 py-3 h-auto">
+            <RefreshCw className={`w-6 h-6 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             {t.onlineUsers.refresh}
           </Button>
         </div>
@@ -896,7 +873,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
         />
       </div>
 
-      <DataTable
+      <DataTableLarge
         data={sessions}
         columns={columnsWithCheckboxHeader}
         loading={loading}
@@ -906,16 +883,16 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       <Dialog open={showKickDialog} onOpenChange={setShowKickDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>세션 강제 종료</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-3xl">세션 강제 종료</DialogTitle>
+            <DialogDescription className="text-lg">
               {selectedSession?.username}({selectedSession?.nickname}) 님의 세션을 강제 종료하시겠습니까?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowKickDialog(false)}>
+            <Button variant="outline" onClick={() => setShowKickDialog(false)} className="text-lg px-6 py-3 h-auto">
               취소
             </Button>
-            <Button variant="destructive" onClick={handleKickUser}>
+            <Button variant="destructive" onClick={handleKickUser} className="text-lg px-6 py-3 h-auto">
               강제 종료
             </Button>
           </DialogFooter>
@@ -925,16 +902,16 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       <Dialog open={showBulkKickDialog} onOpenChange={setShowBulkKickDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>선택한 게임 일괄 종료</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-3xl">선택한 게임 일괄 종료</DialogTitle>
+            <DialogDescription className="text-lg">
               선택한 {selectedSessions.size}개의 게임 세션을 모두 강제 종료하시겠습니까?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowBulkKickDialog(false)}>
+            <Button variant="outline" onClick={() => setShowBulkKickDialog(false)} className="text-lg px-6 py-3 h-auto">
               취소
             </Button>
-            <Button variant="destructive" onClick={handleBulkKickSessions}>
+            <Button variant="destructive" onClick={handleBulkKickSessions} className="text-lg px-6 py-3 h-auto">
               {selectedSessions.size}개 강제 종료
             </Button>
           </DialogFooter>

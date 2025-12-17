@@ -4,7 +4,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { DataTable } from "../common/DataTable";
+import { DataTableLarge } from "../common/DataTableLarge";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle, AdminDialogTrigger as DialogTrigger } from "./AdminDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -1238,55 +1238,55 @@ export function PointManagement() {
             <Coins className="h-6 w-6 text-amber-400" />
             {t.pointManagement.title}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-lg text-slate-400">
             {t.pointManagement.subtitle}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Dialog open={showGiveDialog} onOpenChange={setShowGiveDialog}>
             <DialogTrigger asChild>
-              <Button className="btn-premium-warning">
-                <Gift className="h-4 w-4 mr-2" />
+              <Button className="btn-premium-warning text-lg px-6 py-3 h-auto">
+                <Gift className="h-6 w-6 mr-2" />
                 {t.pointManagement.givePoints}
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[550px]">
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Gift className="h-5 w-5 text-orange-500" />
+                <DialogTitle className="flex items-center gap-3 text-2xl">
+                  <Gift className="h-8 w-8 text-orange-500" />
                   {t.pointManagement.givePointsTitle}
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-lg">
                   {t.pointManagement.givePointsDesc}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-5 py-4">
                 {/* 사용자 검색 */}
                 <div className="grid gap-2">
-                  <Label htmlFor="user">{t.pointManagement.user}</Label>
+                  <Label htmlFor="user" className="text-lg">{t.pointManagement.user}</Label>
                   <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         role="combobox"
                         aria-expanded={userSearchOpen}
-                        className="justify-between input-premium h-10"
+                        className="justify-between input-premium h-14 text-lg"
                       >
                         {selectedUserId
                           ? users.find((user) => user.id === selectedUserId)?.username + 
                             " (" + users.find((user) => user.id === selectedUserId)?.nickname + ")" +
                             " - " + (users.find((user) => user.id === selectedUserId)?.points || 0).toLocaleString() + "P"
                           : t.pointManagement.selectUserMemoPlaceholder}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        <ChevronsUpDown className="ml-2 h-6 w-6 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[480px] p-0 bg-slate-800 border-slate-700">
                       <Command className="bg-slate-800">
                         <CommandInput 
                           placeholder={t.pointManagement.searchUserPlaceholder}
-                          className="h-9 text-slate-100 placeholder:text-slate-500" 
+                          className="h-12 text-lg text-slate-100 placeholder:text-slate-500" 
                         />
-                        <CommandEmpty className="text-slate-400 py-6 text-center text-sm">
+                        <CommandEmpty className="text-slate-400 py-6 text-center text-lg">
                           {t.pointManagement.userNotFound}
                         </CommandEmpty>
                         <CommandGroup className="max-h-64 overflow-auto">
@@ -1298,20 +1298,20 @@ export function PointManagement() {
                                 setSelectedUserId(user.id);
                                 setUserSearchOpen(false);
                               }}
-                              className="flex items-center justify-between cursor-pointer hover:bg-slate-700/50 text-slate-300"
+                              className="flex items-center justify-between cursor-pointer hover:bg-slate-700/50 text-slate-300 py-3"
                             >
                               <div className="flex items-center gap-2">
                                 <Check
-                                  className={`mr-2 h-4 w-4 ${
+                                  className={`mr-2 h-6 w-6 ${
                                     selectedUserId === user.id ? "opacity-100 text-orange-500" : "opacity-0"
                                   }`}
                                 />
                                 <div>
-                                  <div className="font-medium text-slate-100">{user.username}</div>
-                                  <div className="text-xs text-slate-400">{user.nickname}</div>
+                                  <div className="font-medium text-slate-100 text-lg">{user.username}</div>
+                                  <div className="text-base text-slate-400">{user.nickname}</div>
                                 </div>
                               </div>
-                              <div className="text-sm">
+                              <div className="text-lg">
                                 <span className="text-amber-400 font-mono">{user.points.toLocaleString()}P</span>
                               </div>
                             </CommandItem>
@@ -1325,13 +1325,13 @@ export function PointManagement() {
                 {/* 포인트 입력 */}
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="amount">{t.pointManagement.points}</Label>
+                    <Label htmlFor="amount" className="text-lg">{t.pointManagement.points}</Label>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       onClick={clearPointAmount}
-                      className="h-7 px-2 text-xs text-slate-400 hover:text-orange-400 hover:bg-orange-500/10"
+                      className="h-10 px-3 text-base text-slate-400 hover:text-orange-400 hover:bg-orange-500/10"
                     >
                       {t.pointManagement.deleteAll}
                     </Button>
@@ -1341,14 +1341,14 @@ export function PointManagement() {
                     type="number"
                     value={pointAmount}
                     onChange={(e) => setPointAmount(e.target.value)}
-                    className="input-premium"
+                    className="input-premium h-14 text-lg"
                     placeholder={t.pointManagement.enterGiveAmount}
                   />
                 </div>
 
                 {/* 포인트 단축버튼 */}
                 <div className="grid gap-2">
-                  <Label className="text-slate-400 text-sm">{t.pointManagement.quickGive}</Label>
+                  <Label className="text-slate-400 text-lg">{t.pointManagement.quickGive}</Label>
                   <div className="grid grid-cols-4 gap-2">
                     {quickAmounts.map((amount) => (
                       <Button
@@ -1356,7 +1356,7 @@ export function PointManagement() {
                         type="button"
                         variant="outline"
                         onClick={() => addQuickAmount(amount)}
-                        className="h-9 transition-all bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-orange-500/20 hover:border-orange-500/60 hover:text-orange-400 hover:shadow-[0_0_15px_rgba(251,146,60,0.3)]"
+                        className="h-12 text-base transition-all bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-orange-500/20 hover:border-orange-500/60 hover:text-orange-400 hover:shadow-[0_0_15px_rgba(251,146,60,0.3)]"
                       >
                         +{amount}P
                       </Button>
@@ -1366,12 +1366,12 @@ export function PointManagement() {
 
                 {/* 메모 */}
                 <div className="grid gap-2">
-                  <Label htmlFor="memo">{t.pointManagement.memo}</Label>
+                  <Label htmlFor="memo" className="text-lg">{t.pointManagement.memo}</Label>
                   <Textarea
                     id="memo"
                     value={memo}
                     onChange={(e) => setMemo(e.target.value)}
-                    className="input-premium min-h-[80px]"
+                    className="input-premium min-h-[120px] text-lg"
                     placeholder={t.pointManagement.giveMemoPlaceholder}
                   />
                 </div>
@@ -1381,7 +1381,7 @@ export function PointManagement() {
                   type="submit" 
                   onClick={givePoints} 
                   disabled={loading} 
-                  className="btn-premium-warning w-full"
+                  className="btn-premium-warning w-full h-14 text-lg"
                 >
                   {loading ? t.pointManagement.processing : t.pointManagement.givePointsButton}
                 </Button>
@@ -1391,48 +1391,48 @@ export function PointManagement() {
 
           <Dialog open={showRecoverDialog} onOpenChange={setShowRecoverDialog}>
             <DialogTrigger asChild>
-              <Button className="btn-premium-danger">
-                <MinusCircle className="h-4 w-4 mr-2" />
+              <Button className="btn-premium-danger text-lg px-6 py-3 h-auto">
+                <MinusCircle className="h-6 w-6 mr-2" />
                 {t.pointManagement.recoverPoints}
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[550px]">
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <MinusCircle className="h-5 w-5 text-red-500" />
+                <DialogTitle className="flex items-center gap-3 text-2xl">
+                  <MinusCircle className="h-8 w-8 text-red-500" />
                   {t.pointManagement.recoverPointsTitle}
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-lg">
                   {t.pointManagement.recoverPointsDesc}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-5 py-4">
                 {/* 사용자 검색 */}
                 <div className="grid gap-2">
-                  <Label htmlFor="recover_user">{t.pointManagement.user}</Label>
+                  <Label htmlFor="recover_user" className="text-lg">{t.pointManagement.user}</Label>
                   <Popover open={recoverUserSearchOpen} onOpenChange={setRecoverUserSearchOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         role="combobox"
                         aria-expanded={recoverUserSearchOpen}
-                        className="justify-between input-premium h-10"
+                        className="justify-between input-premium h-14 text-lg"
                       >
                         {selectedUserId
                           ? users.find((user) => user.id === selectedUserId)?.username + 
                             " (" + users.find((user) => user.id === selectedUserId)?.nickname + ")" +
                             " - " + (users.find((user) => user.id === selectedUserId)?.points || 0).toLocaleString() + "P"
                           : t.pointManagement.selectUserPlaceholder}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        <ChevronsUpDown className="ml-2 h-6 w-6 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[480px] p-0 bg-slate-800 border-slate-700">
                       <Command className="bg-slate-800">
                         <CommandInput 
                           placeholder={t.pointManagement.searchUserPlaceholder}
-                          className="h-9 text-slate-100 placeholder:text-slate-500" 
+                          className="h-12 text-lg text-slate-100 placeholder:text-slate-500" 
                         />
-                        <CommandEmpty className="text-slate-400 py-6 text-center text-sm">
+                        <CommandEmpty className="text-slate-400 py-6 text-center text-lg">
                           {t.pointManagement.userNotFound}
                         </CommandEmpty>
                         <CommandGroup className="max-h-64 overflow-auto">
@@ -1444,20 +1444,20 @@ export function PointManagement() {
                                 setSelectedUserId(user.id);
                                 setRecoverUserSearchOpen(false);
                               }}
-                              className="flex items-center justify-between cursor-pointer hover:bg-slate-700/50 text-slate-300"
+                              className="flex items-center justify-between cursor-pointer hover:bg-slate-700/50 text-slate-300 py-3"
                             >
                               <div className="flex items-center gap-2">
                                 <Check
-                                  className={`mr-2 h-4 w-4 ${
+                                  className={`mr-2 h-6 w-6 ${
                                     selectedUserId === user.id ? "opacity-100 text-red-500" : "opacity-0"
                                   }`}
                                 />
                                 <div>
-                                  <div className="font-medium text-slate-100">{user.username}</div>
-                                  <div className="text-xs text-slate-400">{user.nickname}</div>
+                                  <div className="font-medium text-slate-100 text-lg">{user.username}</div>
+                                  <div className="text-base text-slate-400">{user.nickname}</div>
                                 </div>
                               </div>
-                              <div className="text-sm">
+                              <div className="text-lg">
                                 <span className="text-amber-400 font-mono">{user.points.toLocaleString()}P</span>
                               </div>
                             </CommandItem>
@@ -1471,13 +1471,13 @@ export function PointManagement() {
                 {/* 포인트 입력 */}
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="recover_amount">{t.pointManagement.recoverAmount}</Label>
+                    <Label htmlFor="recover_amount" className="text-lg">{t.pointManagement.recoverAmount}</Label>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       onClick={clearRecoverAmount}
-                      className="h-7 px-2 text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+                      className="h-10 px-3 text-base text-slate-400 hover:text-red-400 hover:bg-red-500/10"
                     >
                       {t.pointManagement.deleteAll}
                     </Button>
@@ -1487,14 +1487,14 @@ export function PointManagement() {
                     type="number"
                     value={recoverAmount}
                     onChange={(e) => setRecoverAmount(e.target.value)}
-                    className="input-premium"
+                    className="input-premium h-14 text-lg"
                     placeholder={t.pointManagement.enterRecoverAmount}
                   />
                 </div>
 
                 {/* 포인트 단축버튼 */}
                 <div className="grid gap-2">
-                  <Label className="text-slate-400 text-sm">{t.pointManagement.quickRecover}</Label>
+                  <Label className="text-slate-400 text-lg">{t.pointManagement.quickRecover}</Label>
                   <div className="grid grid-cols-4 gap-2">
                     {quickAmounts.map((amount) => (
                       <Button
@@ -1502,7 +1502,7 @@ export function PointManagement() {
                         type="button"
                         variant="outline"
                         onClick={() => addQuickRecoverAmount(amount)}
-                        className="h-9 transition-all bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-400 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                        className="h-12 text-base transition-all bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-400 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]"
                       >
                         +{amount}P
                       </Button>
@@ -1512,12 +1512,12 @@ export function PointManagement() {
 
                 {/* 메모 */}
                 <div className="grid gap-2">
-                  <Label htmlFor="recover_memo">{t.pointManagement.memo}</Label>
+                  <Label htmlFor="recover_memo" className="text-lg">{t.pointManagement.memo}</Label>
                   <Textarea
                     id="recover_memo"
                     value={memo}
                     onChange={(e) => setMemo(e.target.value)}
-                    className="input-premium min-h-[80px]"
+                    className="input-premium min-h-[120px] text-lg"
                     placeholder={t.pointManagement.recoverMemoPlaceholder}
                   />
                 </div>
@@ -1527,7 +1527,7 @@ export function PointManagement() {
                   type="submit" 
                   onClick={recoverPoints} 
                   disabled={loading} 
-                  className="btn-premium-danger w-full"
+                  className="btn-premium-danger w-full h-14 text-lg"
                 >
                   {loading ? t.pointManagement.processing : t.pointManagement.recoverPointsButton}
                 </Button>
@@ -1537,48 +1537,48 @@ export function PointManagement() {
 
           <Dialog open={showConvertDialog} onOpenChange={setShowConvertDialog}>
             <DialogTrigger asChild>
-              <Button className="btn-premium-primary">
-                <ArrowRightLeft className="h-4 w-4 mr-2" />
+              <Button className="btn-premium-primary text-lg px-6 py-3 h-auto">
+                <ArrowRightLeft className="h-6 w-6 mr-2" />
                 {t.pointManagement.convertToBalance}
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[550px]">
               <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <ArrowRightLeft className="h-5 w-5 text-blue-500" />
+                <DialogTitle className="flex items-center gap-3 text-2xl">
+                  <ArrowRightLeft className="h-8 w-8 text-blue-500" />
                   {t.pointManagement.convertToBalanceTitle}
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-lg">
                   {t.pointManagement.convertPointsDesc}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-5 py-4">
                 {/* 사용자 검색 */}
                 <div className="grid gap-2">
-                  <Label htmlFor="convert_user">{t.pointManagement.user}</Label>
+                  <Label htmlFor="convert_user" className="text-lg">{t.pointManagement.user}</Label>
                   <Popover open={convertUserSearchOpen} onOpenChange={setConvertUserSearchOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         role="combobox"
                         aria-expanded={convertUserSearchOpen}
-                        className="justify-between input-premium h-10"
+                        className="justify-between input-premium h-14 text-lg"
                       >
                         {selectedUserId
                           ? users.find((user) => user.id === selectedUserId)?.username + 
                             " (" + users.find((user) => user.id === selectedUserId)?.nickname + ")" +
                             " - " + (users.find((user) => user.id === selectedUserId)?.points || 0).toLocaleString() + "P"
                           : t.pointManagement.selectUserPlaceholder}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        <ChevronsUpDown className="ml-2 h-6 w-6 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[480px] p-0 bg-slate-800 border-slate-700">
                       <Command className="bg-slate-800">
                         <CommandInput 
                           placeholder={t.pointManagement.searchUserPlaceholder}
-                          className="h-9 text-slate-100 placeholder:text-slate-500" 
+                          className="h-12 text-lg text-slate-100 placeholder:text-slate-500" 
                         />
-                        <CommandEmpty className="text-slate-400 py-6 text-center text-sm">
+                        <CommandEmpty className="text-slate-400 py-6 text-center text-lg">
                           {t.pointManagement.userNotFound}
                         </CommandEmpty>
                         <CommandGroup className="max-h-64 overflow-auto">
@@ -1590,20 +1590,20 @@ export function PointManagement() {
                                 setSelectedUserId(user.id);
                                 setConvertUserSearchOpen(false);
                               }}
-                              className="flex items-center justify-between cursor-pointer hover:bg-slate-700/50 text-slate-300"
+                              className="flex items-center justify-between cursor-pointer hover:bg-slate-700/50 text-slate-300 py-3"
                             >
                               <div className="flex items-center gap-2">
                                 <Check
-                                  className={`mr-2 h-4 w-4 ${
+                                  className={`mr-2 h-6 w-6 ${
                                     selectedUserId === user.id ? "opacity-100 text-blue-500" : "opacity-0"
                                   }`}
                                 />
                                 <div>
-                                  <div className="font-medium text-slate-100">{user.username}</div>
-                                  <div className="text-xs text-slate-400">{user.nickname}</div>
+                                  <div className="font-medium text-slate-100 text-lg">{user.username}</div>
+                                  <div className="text-base text-slate-400">{user.nickname}</div>
                                 </div>
                               </div>
-                              <div className="text-sm">
+                              <div className="text-lg">
                                 <span className="text-amber-400 font-mono">{user.points.toLocaleString()}P</span>
                               </div>
                             </CommandItem>
@@ -1617,13 +1617,13 @@ export function PointManagement() {
                 {/* 전환금액 입력 */}
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="convert_amount">{t.pointManagement.convertAmount}</Label>
+                    <Label htmlFor="convert_amount" className="text-lg">{t.pointManagement.convertAmount}</Label>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       onClick={clearConvertAmount}
-                      className="h-7 px-2 text-xs text-slate-400 hover:text-blue-400 hover:bg-blue-500/10"
+                      className="h-10 px-3 text-base text-slate-400 hover:text-blue-400 hover:bg-blue-500/10"
                     >
                       {t.pointManagement.deleteAll}
                     </Button>
@@ -1633,14 +1633,14 @@ export function PointManagement() {
                     type="number"
                     value={convertAmount}
                     onChange={(e) => setConvertAmount(e.target.value)}
-                    className="input-premium"
+                    className="input-premium h-14 text-lg"
                     placeholder={t.pointManagement.enterConvertAmount}
                   />
                 </div>
 
                 {/* 포인트 단축버튼 */}
                 <div className="grid gap-2">
-                  <Label className="text-slate-400 text-sm">{t.pointManagement.quickConvert}</Label>
+                  <Label className="text-slate-400 text-lg">{t.pointManagement.quickConvert}</Label>
                   <div className="grid grid-cols-4 gap-2">
                     {quickAmounts.map((amount) => (
                       <Button
@@ -1648,7 +1648,7 @@ export function PointManagement() {
                         type="button"
                         variant="outline"
                         onClick={() => addQuickConvertAmount(amount)}
-                        className="h-9 transition-all bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-blue-500/20 hover:border-blue-500/60 hover:text-blue-400 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+                        className="h-12 text-base transition-all bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-blue-500/20 hover:border-blue-500/60 hover:text-blue-400 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)]"
                       >
                         +{amount}P
                       </Button>
@@ -1658,12 +1658,12 @@ export function PointManagement() {
 
                 {/* 메모 */}
                 <div className="grid gap-2">
-                  <Label htmlFor="convert_memo">{t.pointManagement.memo}</Label>
+                  <Label htmlFor="convert_memo" className="text-lg">{t.pointManagement.memo}</Label>
                   <Textarea
                     id="convert_memo"
                     value={memo}
                     onChange={(e) => setMemo(e.target.value)}
-                    className="input-premium min-h-[80px]"
+                    className="input-premium min-h-[120px] text-lg"
                     placeholder={t.pointManagement.convertMemoPlaceholder}
                   />
                 </div>
@@ -1673,7 +1673,7 @@ export function PointManagement() {
                   type="submit" 
                   onClick={convertPointsToBalance} 
                   disabled={loading}
-                  className="btn-premium-primary w-full"
+                  className="btn-premium-primary w-full h-14 text-lg"
                 >
                   {loading ? t.pointManagement.processing : t.pointManagement.convertButton}
                 </Button>
@@ -1781,7 +1781,7 @@ export function PointManagement() {
         </div>
         
         {/* 테이블 (내부 검색 비활성화) */}
-        <DataTable 
+        <DataTableLarge 
           columns={columns} 
           data={filteredTransactions}
           searchable={false}

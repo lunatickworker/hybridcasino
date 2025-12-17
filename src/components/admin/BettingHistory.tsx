@@ -36,6 +36,7 @@ interface BettingRecord {
 
 export function BettingHistory({ user }: BettingHistoryProps) {
   const { t } = useLanguage();
+  
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [bettingRecords, setBettingRecords] = useState<BettingRecord[]>([]);
@@ -404,21 +405,21 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       key: 'username',
       header: t.common.username,
       render: (_: any, record: BettingRecord) => (
-        <span className="text-blue-300 font-medium">{record?.username}</span>
+        <span className="text-blue-300 font-medium text-xl">{record?.username}</span>
       )
     },
     {
       key: 'game_title',
       header: t.bettingHistory.gameName,
       render: (_: any, record: BettingRecord) => (
-        <span className="text-slate-200">{record?.game_title || `Korean Speed Baccarat A`}</span>
+        <span className="text-slate-200 text-xl">{record?.game_title || `Korean Speed Baccarat A`}</span>
       )
     },
     {
       key: 'provider',
       header: t.bettingHistory.provider,
       render: (_: any, record: BettingRecord) => (
-        <Badge variant="secondary" className="bg-indigo-500/20 text-indigo-300 border-indigo-400/30">
+        <Badge variant="secondary" className="bg-indigo-500/20 text-indigo-300 border-indigo-400/30 text-lg px-4 py-1.5">
           {record?.provider_name || 'Evolution'}
         </Badge>
       )
@@ -429,9 +430,9 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       render: (_: any, record: BettingRecord) => {
         const amount = Number(record?.bet_amount || 0);
         if (amount === 0) {
-          return <span className="text-slate-500">Betting...</span>;
+          return <span className="text-slate-500 text-xl">Betting...</span>;
         }
-        return <span className="text-orange-400 font-semibold">₩{amount.toLocaleString()}</span>;
+        return <span className="text-orange-400 font-semibold text-xl">₩{amount.toLocaleString()}</span>;
       }
     },
     {
@@ -440,23 +441,23 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       render: (_: any, record: BettingRecord) => {
         const amount = Number(record?.win_amount || 0);
         if (amount === 0) {
-          return <span className="text-slate-500">Betting...</span>;
+          return <span className="text-slate-500 text-xl">Betting...</span>;
         }
-        return <span className="text-emerald-400 font-semibold">₩{amount.toLocaleString()}</span>;
+        return <span className="text-emerald-400 font-semibold text-xl">₩{amount.toLocaleString()}</span>;
       }
     },
     {
       key: 'balance_before',
       header: t.bettingHistory.balanceBefore,
       render: (_: any, record: BettingRecord) => (
-        <span className="text-slate-300">₩{Number(record?.balance_before || 0).toLocaleString()}</span>
+        <span className="text-slate-300 text-xl">₩{Number(record?.balance_before || 0).toLocaleString()}</span>
       )
     },
     {
       key: 'balance_after',
       header: t.bettingHistory.balanceAfter,
       render: (_: any, record: BettingRecord) => (
-        <span className="text-slate-300">₩{Number(record?.balance_after || 0).toLocaleString()}</span>
+        <span className="text-slate-300 text-xl">₩{Number(record?.balance_after || 0).toLocaleString()}</span>
       )
     },
     {
@@ -468,7 +469,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         const profitColor = profit > 0 ? 'text-green-400' : profit < 0 ? 'text-red-400' : 'text-slate-400';
         const profitBg = profit > 0 ? 'bg-green-500/10' : profit < 0 ? 'bg-red-500/10' : '';
         return (
-          <span className={`${profitColor} ${profitBg} px-2 py-1 rounded font-bold`}>
+          <span className={`${profitColor} ${profitBg} px-3 py-1.5 rounded font-bold text-xl`}>
             {profit > 0 ? '+' : ''}₩{profit.toLocaleString()}
           </span>
         );
@@ -476,9 +477,9 @@ export function BettingHistory({ user }: BettingHistoryProps) {
     },
     {
       key: 'played_at',
-      header: t.bettingHistory.providerTime,
+      header: t.bettingHistory.dateTime,
       render: (_: any, record: BettingRecord) => (
-        <span className="text-xs text-slate-400">{formatKoreanDate(record?.played_at)}</span>
+        <span className="text-lg text-slate-400">{formatKoreanDate(record?.played_at)}</span>
       )
     }
   ];
@@ -521,14 +522,14 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex gap-2 items-center w-full md:w-auto flex-wrap">
           <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-[210px] h-14 text-lg">
               <SelectValue placeholder={t.bettingHistory.periodSelection} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">{t.bettingHistory.all}</SelectItem>
-              <SelectItem value="today">{t.bettingHistory.today}</SelectItem>
-              <SelectItem value="week">{t.bettingHistory.last7Days}</SelectItem>
-              <SelectItem value="month">{t.bettingHistory.last30Days}</SelectItem>
+              <SelectItem value="all" className="text-lg">{t.bettingHistory.all}</SelectItem>
+              <SelectItem value="today" className="text-lg">{t.bettingHistory.today}</SelectItem>
+              <SelectItem value="week" className="text-lg">{t.bettingHistory.last7Days}</SelectItem>
+              <SelectItem value="month" className="text-lg">{t.bettingHistory.last30Days}</SelectItem>
             </SelectContent>
           </Select>
           
@@ -536,17 +537,17 @@ export function BettingHistory({ user }: BettingHistoryProps) {
             placeholder={t.bettingHistory.searchPlaceholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-[250px]"
+            className="w-full md:w-[375px] h-14 text-lg"
           />
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={handleForceRefresh} variant="outline" size="sm" disabled={refreshing}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+          <Button onClick={handleForceRefresh} variant="outline" className="h-14 px-6 text-lg" disabled={refreshing}>
+            <RefreshCw className={`h-6 w-6 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? t.common.refreshing : t.common.refresh}
           </Button>
-          <Button onClick={downloadExcel} variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
+          <Button onClick={downloadExcel} variant="outline" className="h-14 px-6 text-lg">
+            <Download className="h-6 w-6 mr-2" />
             {t.bettingHistory.csvDownload}
           </Button>
         </div>

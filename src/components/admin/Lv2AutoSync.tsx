@@ -25,6 +25,37 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
     familyapi: false
   });
 
+  // ✅ 네트워크 오류 재시도 헬퍼 함수
+  const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 2): Promise<Response> => {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15초 타임아웃
+        
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error: any) {
+        lastError = error;
+        
+        // 마지막 재시도가 아니면 대기 후 재시도
+        if (attempt < maxRetries) {
+          const waitTime = Math.pow(2, attempt) * 1000; // 지수 백오프: 1초, 2초
+          console.log(`⚠️ [Lv2AutoSync] 재시도 대기 중... (${attempt + 1}/${maxRetries + 1}) - ${waitTime}ms`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+      }
+    }
+    
+    throw lastError;
+  };
+
   // API 활성화 상태 조회
   useEffect(() => {
     const checkActiveApis = async () => {
@@ -86,7 +117,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
         investSyncCountRef.current += 1;
         console.log(`🎰 [Lv2AutoSync #${investSyncCountRef.current}] Invest 베팅 동기화 시작...`);
 
-        const investBetsResponse = await fetch(`${EDGE_FUNCTION_URL}/sync/invest-bets`, {
+        const investBetsResponse = await fetchWithRetry(`${EDGE_FUNCTION_URL}/sync/invest-bets`, {
           method: 'POST',
           headers,
         });
@@ -113,7 +144,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
         // 1. OroPlay 베팅 동기화
         if (activeApis.oroplay) {
           console.log('📞 [Lv2AutoSync] OroPlay 베팅 동기화 호출...');
-          const betsResponse = await fetch(`${EDGE_FUNCTION_URL}/sync/oroplay-bets`, {
+          const betsResponse = await fetchWithRetry(`${EDGE_FUNCTION_URL}/sync/oroplay-bets`, {
             method: 'POST',
             headers,
           });
@@ -130,7 +161,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
         // 2. FamilyAPI 베팅 동기화
         if (activeApis.familyapi) {
           console.log('📞 [Lv2AutoSync] FamilyAPI 베팅 동기화 호출...');
-          const familyBetsResponse = await fetch(`${EDGE_FUNCTION_URL}/sync/familyapi-bets`, {
+          const familyBetsResponse = await fetchWithRetry(`${EDGE_FUNCTION_URL}/sync/familyapi-bets`, {
             method: 'POST',
             headers,
           });
@@ -146,7 +177,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
 
         // 3. Lv2 보유금 동기화
         console.log('📞 [Lv2AutoSync] Lv2 보유금 동기화 호출...');
-        const balanceResponse = await fetch(`${EDGE_FUNCTION_URL}/sync/lv2-balances`, {
+        const balanceResponse = await fetchWithRetry(`${EDGE_FUNCTION_URL}/sync/lv2-balances`, {
           method: 'POST',
           headers,
         });

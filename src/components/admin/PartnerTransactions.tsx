@@ -252,7 +252,7 @@ export function PartnerTransactions() {
   const columns = [
     {
       key: 'created_at',
-      header: t.partnerTransactions.dateTime,
+      header: '날짜일시',
       cell: (row: PartnerTransaction) => {
         const date = new Date(row.created_at);
         const year = date.getFullYear();
@@ -261,7 +261,7 @@ export function PartnerTransactions() {
         const hours = date.getHours().toString().padStart(2, '0');
         const minutes = date.getMinutes().toString().padStart(2, '0');
         return (
-          <div className="text-slate-400 text-sm whitespace-nowrap">
+          <div className="text-slate-400 text-xl whitespace-nowrap">
             {year}. {month.toString().padStart(2, '0')}. {day.toString().padStart(2, '0')}. {hours}:{minutes}
           </div>
         );
@@ -274,7 +274,7 @@ export function PartnerTransactions() {
         <div className="flex flex-col gap-1">
           {getTransactionTypeBadge(row.transaction_type)}
           {row.api_type && (
-            <Badge className={`px-2 py-0.5 text-xs ${
+            <Badge className={`px-3 py-1.5 text-base ${
               row.api_type === 'invest' 
                 ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' 
                 : 'bg-purple-500/20 text-purple-400 border-purple-500/50'
@@ -291,11 +291,8 @@ export function PartnerTransactions() {
       cell: (row: PartnerTransaction) => {
         if (!row.from_partner) return <span className="text-slate-600">-</span>;
         return (
-          <div className="flex flex-col gap-1">
-            <div className="text-sm text-slate-200">
-              {row.from_partner.nickname || row.from_partner.username}
-            </div>
-            {row.from_partner.partner_type && getPartnerTypeBadge(row.from_partner.partner_type)}
+          <div className="text-xl text-slate-200">
+            {row.from_partner.nickname || row.from_partner.username}
           </div>
         );
       }
@@ -303,7 +300,7 @@ export function PartnerTransactions() {
     {
       key: 'arrow',
       header: '',
-      cell: () => <span className="text-slate-500 text-lg">→</span>
+      cell: () => <span className="text-slate-500 text-2xl">→</span>
     },
     {
       key: 'to_partner',
@@ -311,11 +308,8 @@ export function PartnerTransactions() {
       cell: (row: PartnerTransaction) => {
         if (!row.to_partner) return <span className="text-slate-600">-</span>;
         return (
-          <div className="flex flex-col gap-1">
-            <div className="text-sm text-slate-200">
-              {row.to_partner.nickname || row.to_partner.username}
-            </div>
-            {row.to_partner.partner_type && getPartnerTypeBadge(row.to_partner.partner_type)}
+          <div className="text-xl text-slate-200">
+            {row.to_partner.nickname || row.to_partner.username}
           </div>
         );
       }
@@ -326,7 +320,7 @@ export function PartnerTransactions() {
       cell: (row: PartnerTransaction) => {
         const isPositive = row.transaction_type === 'deposit';
         return (
-          <div className={`font-mono ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <div className={`font-mono text-xl ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
             {isPositive ? '+' : ''}{Math.abs(row.amount).toLocaleString()}원
           </div>
         );
@@ -336,7 +330,7 @@ export function PartnerTransactions() {
       key: 'balance_before',
       header: t.partnerTransactions.balanceBefore,
       cell: (row: PartnerTransaction) => (
-        <div className="font-mono text-slate-400">
+        <div className="font-mono text-slate-400 text-xl">
           {row.balance_before.toLocaleString()}원
         </div>
       )
@@ -345,7 +339,7 @@ export function PartnerTransactions() {
       key: 'balance_after',
       header: t.partnerTransactions.balanceAfter,
       cell: (row: PartnerTransaction) => (
-        <div className="font-mono text-cyan-400">
+        <div className="font-mono text-cyan-400 text-xl">
           {row.balance_after.toLocaleString()}원
         </div>
       )
@@ -353,11 +347,15 @@ export function PartnerTransactions() {
     {
       key: 'memo',
       header: t.partnerTransactions.memo,
-      cell: (row: PartnerTransaction) => (
-        <div className="max-w-[250px] text-sm text-slate-400 truncate" title={row.memo || ''}>
-          {row.memo || '-'}
-        </div>
-      )
+      cell: (row: PartnerTransaction) => {
+        // 대괄호와 그 안의 내용 모두 제거
+        const cleanMemo = row.memo ? row.memo.replace(/\[.*?\]/g, '').trim() : '-';
+        return (
+          <div className="max-w-[250px] text-xl text-slate-400 truncate" title={cleanMemo}>
+            {cleanMemo || '-'}
+          </div>
+        );
+      }
     }
   ];
 
@@ -438,8 +436,8 @@ export function PartnerTransactions() {
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-700/50">
           <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-slate-400" />
-            <h3 className="font-semibold text-slate-100">{t.partnerTransactions.title}</h3>
+            <Calendar className="h-8 w-8 text-slate-400" />
+            <h3 className="text-2xl font-semibold text-slate-100">{t.partnerTransactions.title}</h3>
           </div>
         </div>
 
@@ -490,7 +488,7 @@ export function PartnerTransactions() {
 
           {/* 검색 */}
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-3 top-2.5 h-6 w-6 text-slate-400" />
             <Input
               placeholder={t.partnerTransactions.searchPlaceholder}
               className="pl-10 input-premium"

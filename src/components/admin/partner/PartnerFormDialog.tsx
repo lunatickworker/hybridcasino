@@ -182,12 +182,12 @@ export function PartnerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-2xl">
             {mode === 'create' ? t.partnerManagement.newPartner : '파트너 정보 수정'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-lg">
             {mode === 'create' 
               ? t.partnerManagement.createPartnerDescription 
               : '파트너의 정보를 수정합니다.'
@@ -195,11 +195,11 @@ export function PartnerFormDialog({
           </DialogDescription>
         </DialogHeader>
         
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-6 py-6">
           {/* 아이디/닉네임 */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={mode === 'create' ? "username" : "edit_username"}>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <Label htmlFor={mode === 'create' ? "username" : "edit_username"} className="text-lg">
                 {t.partnerManagement.partnerUsername}
               </Label>
               <Input
@@ -208,11 +208,11 @@ export function PartnerFormDialog({
                 onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
                 placeholder={t.partnerManagement.partnerUsernameInput}
                 disabled={mode === 'edit'}
-                className={mode === 'edit' ? 'bg-muted' : ''}
+                className={`text-base h-12 ${mode === 'edit' ? 'bg-muted' : ''}`}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor={mode === 'create' ? "nickname" : "edit_nickname"}>
+            <div className="space-y-3">
+              <Label htmlFor={mode === 'create' ? "nickname" : "edit_nickname"} className="text-lg">
                 {t.partnerManagement.partnerNickname}
               </Label>
               <Input
@@ -220,13 +220,14 @@ export function PartnerFormDialog({
                 value={formData.nickname}
                 onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
                 placeholder={t.partnerManagement.partnerNicknameInput}
+                className="text-base h-12"
               />
             </div>
           </div>
 
           {/* 비밀번호 */}
-          <div className="space-y-2">
-            <Label htmlFor={mode === 'create' ? "password" : "edit_password"}>
+          <div className="space-y-3">
+            <Label htmlFor={mode === 'create' ? "password" : "edit_password"} className="text-lg">
               {mode === 'create' ? t.common.password : t.partnerManagement.passwordChangeOnly}
             </Label>
             <Input
@@ -238,9 +239,10 @@ export function PartnerFormDialog({
                 ? t.partnerManagement.initialPassword 
                 : t.partnerManagement.passwordChangeHint
               }
+              className="text-base h-12"
             />
             {mode === 'edit' && (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {t.partnerManagement.passwordChangeNote}
               </p>
             )}
@@ -248,38 +250,38 @@ export function PartnerFormDialog({
 
           {/* 파트너 등급 (생성시에만) */}
           {mode === 'create' && (
-            <div className="space-y-2">
-              <Label htmlFor="partner_type">{t.partnerManagement.partnerGrade}</Label>
+            <div className="space-y-3">
+              <Label htmlFor="partner_type" className="text-lg">{t.partnerManagement.partnerGrade}</Label>
               <Select 
                 value={formData.partner_type} 
                 onValueChange={(value: Partner['partner_type']) => {
                   setFormData(prev => ({ ...prev, partner_type: value }));
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-12 text-base">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {userLevel === 1 && (
-                    <SelectItem value="head_office">{t.partnerManagement.headOffice}</SelectItem>
+                    <SelectItem value="head_office" className="text-base py-3">{t.partnerManagement.headOffice}</SelectItem>
                   )}
                   {userLevel === 2 && (
-                    <SelectItem value="main_office">{t.partnerManagement.mainOffice}</SelectItem>
+                    <SelectItem value="main_office" className="text-base py-3">{t.partnerManagement.mainOffice}</SelectItem>
                   )}
                   {userLevel === 3 && (
-                    <SelectItem value="sub_office">{t.partnerManagement.subOffice}</SelectItem>
+                    <SelectItem value="sub_office" className="text-base py-3">{t.partnerManagement.subOffice}</SelectItem>
                   )}
                   {userLevel === 4 && (
-                    <SelectItem value="distributor">{t.partnerManagement.distributor}</SelectItem>
+                    <SelectItem value="distributor" className="text-base py-3">{t.partnerManagement.distributor}</SelectItem>
                   )}
                   {userLevel === 5 && (
-                    <SelectItem value="store">{t.partnerManagement.store}</SelectItem>
+                    <SelectItem value="store" className="text-base py-3">{t.partnerManagement.store}</SelectItem>
                   )}
                 </SelectContent>
               </Select>
               {hierarchyWarning && (
-                <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800">
-                  <p className="text-xs text-red-700 dark:text-red-300">
+                <div className="p-5 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800">
+                  <p className="text-sm text-red-700 dark:text-red-300">
                     {hierarchyWarning}
                   </p>
                 </div>
@@ -288,42 +290,42 @@ export function PartnerFormDialog({
           )}
 
           {/* 커미션 설정 */}
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-2 text-base">
-                <DollarSign className="h-4 w-4 text-green-500" />
+              <Label className="flex items-center gap-3 text-xl">
+                <DollarSign className="h-6 w-6 text-green-500" />
                 {t.partnerManagement.commissionSettingsLabel}
               </Label>
               {formData.partner_type !== 'head_office' && parentCommission && (
-                <Badge variant="outline" className="text-xs bg-slate-800/50 border-slate-600">
+                <Badge variant="outline" className="text-sm bg-slate-800/50 border-slate-600 px-4 py-2">
                   상위: C {parentCommission.casinoRolling}%/{parentCommission.casinoLosing}% | S {parentCommission.slotRolling}%/{parentCommission.slotLosing}%
                 </Badge>
               )}
             </div>
             
             {formData.partner_type === 'head_office' ? (
-              <div className="p-4 bg-purple-500/10 rounded-lg border border-purple-500/30">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
+              <div className="p-6 bg-purple-500/10 rounded-lg border border-purple-500/30">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center text-xl">
                     🏢
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-purple-300">대본사 계정</p>
-                    <p className="text-xs text-purple-400/80 mt-1">
+                    <p className="text-base font-medium text-purple-300">대본사 계정</p>
+                    <p className="text-sm text-purple-400/80 mt-1.5">
                       최상위 파트너로 커미션이 100%로 고정됩니다.
                     </p>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="p-4 bg-amber-500/10 rounded-lg border border-amber-500/30">
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+              <div className="p-6 bg-amber-500/10 rounded-lg border border-amber-500/30">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center text-xl">
                     ⚠️
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-amber-300">커미션 설정 안내</p>
-                    <p className="text-xs text-amber-400/80 mt-1">
+                    <p className="text-base font-medium text-amber-300">커미션 설정 안내</p>
+                    <p className="text-sm text-amber-400/80 mt-1.5">
                       커미션 변경 시 정산에 즉시 반영되며, 상위 파트너 요율을 초과할 수 없습니다.
                     </p>
                   </div>
@@ -332,16 +334,16 @@ export function PartnerFormDialog({
             )}
             
             {/* 카지노 커미션 */}
-            <div className="space-y-3 p-4 bg-slate-800/30 rounded-lg border border-slate-700/50">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
-                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-500/20 border border-blue-500/30">
-                  <span className="text-sm">🎲</span>
+            <div className="space-y-4 p-6 bg-slate-800/30 rounded-lg border border-slate-700/50">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-700/50">
+                <div className="flex items-center justify-center w-11 h-11 rounded-lg bg-blue-500/20 border border-blue-500/30">
+                  <span className="text-lg">🎲</span>
                 </div>
-                <Label className="text-sm font-medium text-slate-200">카지노 커미션</Label>
+                <Label className="text-lg font-medium text-slate-200">카지노 커미션</Label>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="casino_commission_rolling" className="text-xs text-slate-400">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <Label htmlFor="casino_commission_rolling" className="text-sm text-slate-400">
                     롤링 커미션 (%)
                   </Label>
                   <Input
@@ -353,14 +355,14 @@ export function PartnerFormDialog({
                     value={formData.casino_rolling_commission}
                     onChange={(e) => setFormData(prev => ({ ...prev, casino_rolling_commission: parseFloat(e.target.value) || 0 }))}
                     disabled={formData.partner_type === 'head_office'}
-                    className={`bg-slate-800/50 border-slate-600 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`bg-slate-800/50 border-slate-600 text-base h-12 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
                   />
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-xs text-slate-500">
                     {formData.partner_type === 'head_office' ? '고정값' : '총 베팅액 기준'}
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="casino_commission_losing" className="text-xs text-slate-400">
+                <div className="space-y-3">
+                  <Label htmlFor="casino_commission_losing" className="text-sm text-slate-400">
                     루징 커미션 (%)
                   </Label>
                   <Input
@@ -372,9 +374,9 @@ export function PartnerFormDialog({
                     value={formData.casino_losing_commission}
                     onChange={(e) => setFormData(prev => ({ ...prev, casino_losing_commission: parseFloat(e.target.value) || 0 }))}
                     disabled={formData.partner_type === 'head_office'}
-                    className={`bg-slate-800/50 border-slate-600 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`bg-slate-800/50 border-slate-600 text-base h-12 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
                   />
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-xs text-slate-500">
                     {formData.partner_type === 'head_office' ? '고정값' : '회원 순손실 기준'}
                   </p>
                 </div>
@@ -382,16 +384,16 @@ export function PartnerFormDialog({
             </div>
 
             {/* 슬롯 커미션 */}
-            <div className="space-y-3 p-4 bg-slate-800/30 rounded-lg border border-slate-700/50">
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-700/50">
-                <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/30">
-                  <span className="text-sm">🎰</span>
+            <div className="space-y-4 p-6 bg-slate-800/30 rounded-lg border border-slate-700/50">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-700/50">
+                <div className="flex items-center justify-center w-11 h-11 rounded-lg bg-emerald-500/20 border border-emerald-500/30">
+                  <span className="text-lg">🎰</span>
                 </div>
-                <Label className="text-sm font-medium text-slate-200">슬롯 커미션</Label>
+                <Label className="text-lg font-medium text-slate-200">슬롯 커미션</Label>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="slot_commission_rolling" className="text-xs text-slate-400">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <Label htmlFor="slot_commission_rolling" className="text-sm text-slate-400">
                     롤링 커미션 (%)
                   </Label>
                   <Input
@@ -403,14 +405,14 @@ export function PartnerFormDialog({
                     value={formData.slot_rolling_commission}
                     onChange={(e) => setFormData(prev => ({ ...prev, slot_rolling_commission: parseFloat(e.target.value) || 0 }))}
                     disabled={formData.partner_type === 'head_office'}
-                    className={`bg-slate-800/50 border-slate-600 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`bg-slate-800/50 border-slate-600 text-base h-12 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
                   />
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-xs text-slate-500">
                     {formData.partner_type === 'head_office' ? '고정값' : '총 베팅액 기준'}
                   </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="slot_commission_losing" className="text-xs text-slate-400">
+                <div className="space-y-3">
+                  <Label htmlFor="slot_commission_losing" className="text-sm text-slate-400">
                     루징 커미션 (%)
                   </Label>
                   <Input
@@ -422,9 +424,9 @@ export function PartnerFormDialog({
                     value={formData.slot_losing_commission}
                     onChange={(e) => setFormData(prev => ({ ...prev, slot_losing_commission: parseFloat(e.target.value) || 0 }))}
                     disabled={formData.partner_type === 'head_office'}
-                    className={`bg-slate-800/50 border-slate-600 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`bg-slate-800/50 border-slate-600 text-base h-12 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
                   />
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-xs text-slate-500">
                     {formData.partner_type === 'head_office' ? '고정값' : '회원 순손실 기준'}
                   </p>
                 </div>
@@ -432,8 +434,8 @@ export function PartnerFormDialog({
             </div>
 
             {/* 출금 수수료 */}
-            <div className="space-y-2">
-              <Label htmlFor="withdrawal_fee" className="text-sm text-slate-300">
+            <div className="space-y-3">
+              <Label htmlFor="withdrawal_fee" className="text-lg text-slate-300">
                 {t.partnerManagement.withdrawalFeeLabel}
               </Label>
               <Input
@@ -445,9 +447,9 @@ export function PartnerFormDialog({
                 value={formData.withdrawal_fee}
                 onChange={(e) => setFormData(prev => ({ ...prev, withdrawal_fee: parseFloat(e.target.value) || 0 }))}
                 disabled={formData.partner_type === 'head_office'}
-                className={`bg-slate-800/50 border-slate-600 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`bg-slate-800/50 border-slate-600 text-base h-12 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-sm text-slate-500">
                 {formData.partner_type === 'head_office' ? '대본사 고정값' : t.partnerManagement.withdrawalFeeDesc}
               </p>
             </div>
@@ -461,12 +463,14 @@ export function PartnerFormDialog({
               onOpenChange(false);
               resetForm();
             }}
+            className="text-base px-6 py-6 h-auto"
           >
             {t.common.cancel}
           </Button>
           <Button 
             onClick={handleSubmit} 
             disabled={loading}
+            className="text-base px-6 py-6 h-auto"
           >
             {loading 
               ? (mode === 'create' ? t.partnerManagement.creating : '수정 중...') 

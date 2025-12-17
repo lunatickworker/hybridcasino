@@ -258,45 +258,45 @@ export function ForceTransactionModal({
       }
       onOpenChange(o);
     }}>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[800px]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-3 text-3xl">
             {type === 'deposit' ? (
               <>
-                <TrendingUp className="h-5 w-5 text-emerald-500" />
+                <TrendingUp className="h-7 w-7 text-emerald-500" />
                 강제 입금
               </>
             ) : (
               <>
-                <TrendingDown className="h-5 w-5 text-rose-500" />
+                <TrendingDown className="h-7 w-7 text-rose-500" />
                 강제 출금
               </>
             )}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-lg">
             {targetType === 'user' ? '회원' : '파트너'}의 잔액을 직접 조정합니다.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-5 py-4">
+        <div className="grid gap-6 py-4">
           {/* 거래 유형 */}
-          <div className="grid gap-2">
-            <Label htmlFor="force-transaction-type">거래 유형</Label>
+          <div className="grid gap-3">
+            <Label htmlFor="force-transaction-type" className="text-lg">거래 유형</Label>
             <Select value={type} onValueChange={(v: 'deposit' | 'withdrawal') => onTypeChange(v)}>
-              <SelectTrigger id="force-transaction-type" className="input-premium h-10">
+              <SelectTrigger id="force-transaction-type" className="input-premium h-12 text-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
-                <SelectItem value="deposit">입금</SelectItem>
-                <SelectItem value="withdrawal">출금</SelectItem>
+                <SelectItem value="deposit" className="text-lg py-3">입금</SelectItem>
+                <SelectItem value="withdrawal" className="text-lg py-3">출금</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* 회원 선택 - 고정된 대상이 없을 때만 표시 */}
           {!isTargetFixed && (
-            <div className="grid gap-2">
-              <Label htmlFor="force-transaction-target-search">{targetType === 'user' ? '회원' : '파트너'} 선택</Label>
+            <div className="grid gap-3">
+              <Label htmlFor="force-transaction-target-search" className="text-lg">{targetType === 'user' ? '회원' : '파트너'} 선택</Label>
               <Popover open={searchOpen} onOpenChange={setSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -304,22 +304,22 @@ export function ForceTransactionModal({
                     variant="outline"
                     role="combobox"
                     aria-expanded={searchOpen}
-                    className="justify-between input-premium h-10"
+                    className="justify-between input-premium h-12 text-lg"
                   >
                     {selectedTargetId
                       ? `${selectedTarget?.username} (${selectedTarget?.nickname}) - ${currentBalance.toLocaleString()}원`
                       : `아이디, 닉네임으로 검색`}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <ChevronsUpDown className="ml-2 h-6 w-6 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[480px] p-0 bg-slate-800 border-slate-700">
+                <PopoverContent className="w-[600px] p-0 bg-slate-800 border-slate-700">
                   <Command className="bg-slate-800">
                     <CommandInput 
                       placeholder={`아이디, 닉네임으로 검색...`}
-                      className="h-9 text-slate-100 placeholder:text-slate-500"
+                      className="h-12 text-lg text-slate-100 placeholder:text-slate-500"
                     />
                     <CommandList>
-                      <CommandEmpty className="text-slate-400 py-6 text-center text-sm">
+                      <CommandEmpty className="text-slate-400 py-6 text-center text-lg">
                         {targetType === 'user' ? '회원' : '파트너'}을 찾을 수 없습니다.
                       </CommandEmpty>
                       <CommandGroup className="max-h-64 overflow-auto">
@@ -331,20 +331,20 @@ export function ForceTransactionModal({
                               setSelectedTargetId(t.id);
                               setSearchOpen(false);
                             }}
-                            className="flex items-center justify-between cursor-pointer hover:bg-slate-700/50 text-slate-300"
+                            className="flex items-center justify-between cursor-pointer hover:bg-slate-700/50 text-slate-300 py-3"
                           >
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-3">
                               <Check
-                                className={`mr-2 h-4 w-4 ${
+                                className={`mr-2 h-6 w-6 ${
                                   selectedTargetId === t.id ? `opacity-100 ${type === 'deposit' ? 'text-emerald-500' : 'text-rose-500'}` : "opacity-0"
                                 }`}
                               />
                               <div>
-                                <div className="font-medium text-slate-100">{t.username}</div>
-                                <div className="text-xs text-slate-400">{t.nickname}</div>
+                                <div className="font-medium text-slate-100 text-lg">{t.username}</div>
+                                <div className="text-base text-slate-400">{t.nickname}</div>
                               </div>
                             </div>
-                            <div className="text-sm">
+                            <div className="text-lg">
                               <span className="text-cyan-400 font-mono">{parseFloat(t.balance?.toString() || '0').toLocaleString()}원</span>
                             </div>
                           </CommandItem>
@@ -359,14 +359,14 @@ export function ForceTransactionModal({
 
           {/* 선택된 회원 정보 */}
           {selectedTarget && (
-            <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-400">선택된 {targetType === 'user' ? '회원' : '파트너'}</span>
-                <span className="text-cyan-400 font-medium">{selectedTarget.nickname}</span>
+            <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-lg text-slate-400">선택된 {targetType === 'user' ? '회원' : '파트너'}</span>
+                <span className="text-cyan-400 font-medium text-xl">{selectedTarget.nickname}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-400">{targetType === 'user' ? '회원' : '파트너'} 잔고</span>
-                <span className="font-mono text-cyan-400">
+                <span className="text-lg text-slate-400">{targetType === 'user' ? '회원' : '파트너'} 잔고</span>
+                <span className="font-mono text-cyan-400 text-xl">
                   {currentBalance.toLocaleString()}원
                 </span>
               </div>
@@ -375,17 +375,17 @@ export function ForceTransactionModal({
 
           {/* 관리자 보유금 (입금 시에만 표시) */}
           {type === 'deposit' && (
-            <div className="p-3 bg-emerald-900/20 rounded-lg border border-emerald-700/50">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-emerald-400">💰 관리자 보유금 (입금 가능 금액)</span>
+            <div className="p-4 bg-emerald-900/20 rounded-lg border border-emerald-700/50">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-lg text-emerald-400">💰 관리자 보유금 (입금 가능 금액)</span>
               </div>
               {/* Lv1: API별 보유금 표시 (✅ 비활성화된 API 숨김) */}
               {currentUserLevel === 1 ? (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {useInvestApi && (
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400">Invest API:</span>
-                      <span className={`font-mono text-sm ${
+                      <span className="text-base text-slate-400">Invest API:</span>
+                      <span className={`font-mono text-lg ${
                         isLv1ToLv2 && apiType === 'invest' ? 'text-emerald-400 font-bold' : 'text-emerald-400/60'
                       }`}>
                         {currentUserInvestBalance.toLocaleString()}원
@@ -394,8 +394,8 @@ export function ForceTransactionModal({
                   )}
                   {useOroplayApi && (
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400">OroPlay API:</span>
-                      <span className={`font-mono text-sm ${
+                      <span className="text-base text-slate-400">OroPlay API:</span>
+                      <span className={`font-mono text-lg ${
                         isLv1ToLv2 && apiType === 'oroplay' ? 'text-emerald-400 font-bold' : 'text-emerald-400/60'
                       }`}>
                         {currentUserOroplayBalance.toLocaleString()}원
@@ -403,16 +403,16 @@ export function ForceTransactionModal({
                     </div>
                   )}
                   {isLv1ToLv2 ? (
-                    <div className="pt-1.5 mt-1.5 border-t border-emerald-700/30 flex items-center justify-between">
-                      <span className="text-sm text-emerald-400">입금 가능 (선택한 API):</span>
-                      <span className="font-mono text-emerald-400 font-bold">
+                    <div className="pt-2 mt-2 border-t border-emerald-700/30 flex items-center justify-between">
+                      <span className="text-lg text-emerald-400">입금 가능 (선택한 API):</span>
+                      <span className="font-mono text-emerald-400 font-bold text-lg">
                         {(apiType === 'invest' ? currentUserInvestBalance : currentUserOroplayBalance).toLocaleString()}원
                       </span>
                     </div>
                   ) : (
-                    <div className="pt-1.5 mt-1.5 border-t border-emerald-700/30 flex items-center justify-between">
-                      <span className="text-sm text-emerald-400">입금 가능 (최소값):</span>
-                      <span className="font-mono text-emerald-400 font-bold">
+                    <div className="pt-2 mt-2 border-t border-emerald-700/30 flex items-center justify-between">
+                      <span className="text-lg text-emerald-400">입금 가능 (최소값):</span>
+                      <span className="font-mono text-emerald-400 font-bold text-lg">
                         {(() => {
                           const balances = [];
                           if (useInvestApi) balances.push(currentUserInvestBalance);
@@ -422,7 +422,7 @@ export function ForceTransactionModal({
                       </span>
                     </div>
                   )}
-                  <p className="text-xs text-slate-500 mt-2">
+                  <p className="text-base text-slate-500 mt-2">
                     {isLv1ToLv2 
                       ? `※ 선택한 API 보유금에서만 입금됩니다.`
                       : useInvestApi && useOroplayApi
@@ -431,19 +431,19 @@ export function ForceTransactionModal({
                   </p>
                 </div>
               ) : currentUserLevel === 2 ? (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {/* ✅ Lv2: 총 보유금만 표시 */}
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-emerald-400">총 보유금:</span>
-                    <span className="font-mono text-emerald-400 font-bold">
+                    <span className="text-lg text-emerald-400">총 보유금:</span>
+                    <span className="font-mono text-emerald-400 font-bold text-lg">
                       {(currentUserInvestBalance + currentUserOroplayBalance + currentUserFamilyapiBalance).toLocaleString()}원
                     </span>
                   </div>
                 </div>
               ) : (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-400">사용 가능:</span>
-                  <span className="font-mono text-emerald-400">
+                  <span className="text-lg text-slate-400">사용 가능:</span>
+                  <span className="font-mono text-emerald-400 text-lg">
                     {currentUserBalance.toLocaleString()}원
                   </span>
                 </div>
@@ -453,20 +453,20 @@ export function ForceTransactionModal({
 
           {/* ✅ API 선택 (Lv1 → Lv2 입출금만) - 비활성화된 API 숨김 */}
           {showApiSelector && (
-            <div className="grid gap-2">
-              <Label htmlFor="api-type-select">
+            <div className="grid gap-3">
+              <Label htmlFor="api-type-select" className="text-lg">
                 {type === 'deposit' ? '입금할' : '회수할'} API 선택
               </Label>
               <Select value={apiType} onValueChange={(v: 'invest' | 'oroplay') => setApiType(v)}>
-                <SelectTrigger id="api-type-select" className="input-premium h-10">
+                <SelectTrigger id="api-type-select" className="input-premium h-12 text-lg">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
-                  {useInvestApi && <SelectItem value="invest">Invest API</SelectItem>}
-                  {useOroplayApi && <SelectItem value="oroplay">OroPlay API</SelectItem>}
+                  {useInvestApi && <SelectItem value="invest" className="text-lg py-3">Invest API</SelectItem>}
+                  {useOroplayApi && <SelectItem value="oroplay" className="text-lg py-3">OroPlay API</SelectItem>}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-slate-500">
+              <p className="text-base text-slate-500">
                 {type === 'deposit' 
                   ? `선택한 API로만 입금됩니다.` 
                   : `선택한 API의 보유금에서만 출금됩니다.`}
@@ -475,15 +475,15 @@ export function ForceTransactionModal({
           )}
 
           {/* 금액 */}
-          <div className="grid gap-2">
+          <div className="grid gap-3">
             <div className="flex items-center justify-between">
-              <Label htmlFor="force-transaction-amount">금액</Label>
+              <Label htmlFor="force-transaction-amount" className="text-lg">금액</Label>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={handleClearAmount}
-                className={`h-7 px-2 text-xs text-slate-400 ${
+                className={`h-9 px-3 text-base text-slate-400 ${
                   type === 'deposit' 
                     ? 'hover:text-orange-400 hover:bg-orange-500/10' 
                     : 'hover:text-red-400 hover:bg-red-500/10'
@@ -498,14 +498,14 @@ export function ForceTransactionModal({
               type="number"
               value={amount}
               onChange={(e) => handleAmountChange(e.target.value)}
-              className="input-premium"
+              className="input-premium h-12 text-lg"
               placeholder="금액을 입력하세요"
             />
           </div>
 
           {/* 금액 단축 버튼 */}
-          <div className="grid gap-2">
-            <Label className="text-slate-400 text-sm">단축 입력 (누적 더하기)</Label>
+          <div className="grid gap-3">
+            <Label className="text-slate-400 text-lg">단축 입력 (누적 더하기)</Label>
             <div className="grid grid-cols-4 gap-2">
               {amountShortcuts.map((amt) => (
                 <Button
@@ -513,7 +513,7 @@ export function ForceTransactionModal({
                   type="button"
                   variant="outline"
                   onClick={() => handleAmountShortcut(amt)}
-                  className={`h-9 transition-all bg-slate-800/50 border-slate-700 text-slate-300 ${
+                  className={`h-12 text-lg transition-all bg-slate-800/50 border-slate-700 text-slate-300 ${
                     type === 'deposit'
                       ? 'hover:bg-orange-500/20 hover:border-orange-500/60 hover:text-orange-400 hover:shadow-[0_0_15px_rgba(251,146,60,0.3)]'
                       : 'hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-400 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]'
@@ -532,9 +532,9 @@ export function ForceTransactionModal({
                 type="button"
                 variant="outline"
                 onClick={handleFullWithdrawal}
-                className="w-full h-9 bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40 hover:border-red-500"
+                className="w-full h-12 text-lg bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40 hover:border-red-500"
               >
-                <Trash2 className="h-4 w-4 mr-2" />
+                <Trash2 className="h-6 w-6 mr-2" />
                 전액출금
               </Button>
             </div>
@@ -542,21 +542,21 @@ export function ForceTransactionModal({
 
           {/* 에러 메시지 */}
           {errorMessage && (
-            <div className="p-3 bg-rose-900/20 border border-rose-500/50 rounded-lg">
-              <p className="text-sm text-rose-400">{errorMessage}</p>
+            <div className="p-4 bg-rose-900/20 border border-rose-500/50 rounded-lg">
+              <p className="text-lg text-rose-400">{errorMessage}</p>
             </div>
           )}
 
           {/* 메모 */}
-          <div className="grid gap-2">
-            <Label htmlFor="force-transaction-memo">메모</Label>
+          <div className="grid gap-3">
+            <Label htmlFor="force-transaction-memo" className="text-lg">메모</Label>
             <Textarea
               id="force-transaction-memo"
               name="memo"
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
               placeholder="메모를 입력하세요 (선택사항)"
-              className="input-premium min-h-[80px]"
+              className="input-premium min-h-[120px] text-lg"
             />
           </div>
         </div>
@@ -566,7 +566,7 @@ export function ForceTransactionModal({
             type="button"
             onClick={handleSubmit}
             disabled={submitting || (!propSelectedTarget?.id && !selectedTargetId) || !amount || parseFloat(amount) <= 0 || !!errorMessage}
-            className={`w-full ${type === 'deposit' ? 'btn-premium-warning' : 'btn-premium-danger'}`}
+            className={`w-full h-12 text-lg ${type === 'deposit' ? 'btn-premium-warning' : 'btn-premium-danger'}`}
           >
             {submitting ? '처리 중...' : type === 'deposit' ? '강제 입금' : '강제 출금'}
           </Button>

@@ -173,51 +173,54 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-white mb-2">{t.settlement.historyTitle}</h1>
-          <p className="text-slate-400">
+          <h1 className="text-4xl text-white mb-3">{t.settlement.historyTitle}</h1>
+          <p className="text-xl text-slate-400">
             {t.settlement.historySubtitle}
           </p>
         </div>
         <Button
           variant="outline"
-          size="sm"
+          size="lg"
           onClick={handleRefresh}
           disabled={refreshing}
+          className="text-lg px-6 py-3 h-auto"
         >
-          <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
+          <RefreshCw className={cn("h-6 w-6 mr-3", refreshing && "animate-spin")} />
           {t.common.refresh}
         </Button>
       </div>
 
-      {/* 필터 */}
+      {/* 정산 이력 목록 - 필터 통합 */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>{t.settlement.filter}</CardTitle>
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <CardDescription className="text-3xl text-slate-300">{t.settlement.completedSettlements}</CardDescription>
+            </div>
+            <div className="flex items-center gap-4">
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[240px] h-12 text-lg">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">{t.settlement.all}</SelectItem>
-                  <SelectItem value="partner_commission">{t.settlement.partnerCommission}</SelectItem>
-                  <SelectItem value="integrated">{t.settlement.integratedType}</SelectItem>
-                  <SelectItem value="rolling">{t.settlement.rollingType}</SelectItem>
-                  <SelectItem value="losing">{t.settlement.losingType}</SelectItem>
+                  <SelectItem value="all" className="text-lg py-3">{t.settlement.all}</SelectItem>
+                  <SelectItem value="partner_commission" className="text-lg py-3">{t.settlement.partnerCommission}</SelectItem>
+                  <SelectItem value="integrated" className="text-lg py-3">{t.settlement.integratedType}</SelectItem>
+                  <SelectItem value="rolling" className="text-lg py-3">{t.settlement.rollingType}</SelectItem>
+                  <SelectItem value="losing" className="text-lg py-3">{t.settlement.losingType}</SelectItem>
                 </SelectContent>
               </Select>
 
               {/* Lv1, Lv2만 API 필터 표시 */}
               {user.level <= 2 && (
                 <Select value={apiFilter} onValueChange={setApiFilter}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[240px] h-12 text-lg">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">{t.settlement.all}</SelectItem>
+                    <SelectItem value="all" className="text-lg py-3">{t.settlement.all}</SelectItem>
                     {availableApis.map(api => (
-                      <SelectItem key={api} value={api}>{api}</SelectItem>
+                      <SelectItem key={api} value={api} className="text-lg py-3">{api}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -225,8 +228,8 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
 
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[280px] justify-start text-left">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
+                  <Button variant="outline" className="w-[360px] h-12 justify-start text-left text-lg">
+                    <CalendarIcon className="mr-3 h-6 w-6" />
                     {dateRange?.from ? (
                       dateRange.to ? (
                         <>
@@ -256,91 +259,89 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
             </div>
           </div>
         </CardHeader>
-      </Card>
-
-      {/* 정산 이력 목록 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t.settlement.historyCount.replace('{count}', settlements.length.toString())}</CardTitle>
-          <CardDescription>{t.settlement.completedSettlements}</CardDescription>
-        </CardHeader>
         <CardContent>
           {settlements.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
-              <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>{t.settlement.noHistory}</p>
+            <div className="text-center py-16 text-slate-400">
+              <AlertCircle className="h-20 w-20 mx-auto mb-4 opacity-50" />
+              <p className="text-xl">{t.settlement.noHistory}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-700">
-                    <th className="text-left p-3 text-slate-400">{t.settlement.settlementDateTime}</th>
-                    <th className="text-left p-3 text-slate-400">{t.settlement.settlementType}</th>
-                    <th className="text-left p-3 text-slate-400">{t.settlement.settlementPeriod}</th>
-                    <th className="text-left p-3 text-slate-400">{t.settlement.periodRange}</th>
-                    <th className="text-left p-3 text-slate-400">{t.settlement.api}</th>
-                    <th className="text-right p-3 text-blue-400">🎰 카지노 롤링</th>
-                    <th className="text-right p-3 text-blue-400">🎰 카지노 루징</th>
-                    <th className="text-right p-3 text-purple-400">🎮 슬롯 롤링</th>
-                    <th className="text-right p-3 text-purple-400">🎮 슬롯 루징</th>
-                    <th className="text-right p-3 text-green-400">{t.settlement.withdrawal}</th>
-                    <th className="text-right p-3 text-slate-400">{t.settlement.totalAmount}</th>
-                    <th className="text-left p-3 text-slate-400">{t.settlement.executor}</th>
+                    <th className="text-left p-5 text-slate-400 text-base">{t.settlement.settlementDateTime}</th>
+                    <th className="text-left p-5 text-slate-400 text-base">{t.settlement.settlementType}</th>
+                    <th className="text-left p-5 text-slate-400 text-base">{t.settlement.settlementPeriod}</th>
+                    <th className="text-left p-5 text-slate-400 text-base">{t.settlement.periodRange}</th>
+                    <th className="text-left p-5 text-slate-400 text-base">{t.settlement.api}</th>
+                    <th className="text-right p-5 text-blue-400 text-base">🎰 카지노 롤링</th>
+                    <th className="text-right p-5 text-blue-400 text-base">🎰 카지노 루징</th>
+                    <th className="text-right p-5 text-purple-400 text-base">🎮 슬롯 롤링</th>
+                    <th className="text-right p-5 text-purple-400 text-base">🎮 슬롯 루징</th>
+                    <th className="text-right p-5 text-green-400 text-base">💰 출금 수수료</th>
+                    <th className="text-right p-5 text-slate-400 text-base">{t.settlement.totalAmount}</th>
+                    <th className="text-left p-5 text-slate-400 text-base">{t.settlement.executor}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {settlements.map((settlement) => (
-                    <tr key={settlement.id} className="border-b border-slate-800 hover:bg-slate-800/30">
-                      <td className="p-3 text-slate-300">
-                        {format(new Date(settlement.processed_at || settlement.created_at), "yyyy-MM-dd HH:mm", { locale: ko })}
-                      </td>
-                      <td className="p-3">
-                        <Badge className={getSettlementTypeColor(settlement.settlement_type)}>
-                          {getSettlementTypeText(settlement.settlement_type)}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-slate-300">
-                        {getPeriodText(settlement.settlement_period)}
-                      </td>
-                      <td className="p-3 text-slate-300 text-xs">
-                        {format(new Date(settlement.period_start), "MM/dd", { locale: ko })} ~ {format(new Date(settlement.period_end), "MM/dd", { locale: ko })}
-                      </td>
-                      <td className="p-3">
-                        <Badge variant="outline" className="text-xs">
-                          {settlement.api_filter === 'all' ? t.settlement.all : settlement.api_filter}
-                        </Badge>
-                      </td>
-                      <td className="p-3 text-right text-blue-400">
-                        ₩{(settlement.casino_rolling_commission || 0).toLocaleString()}
-                      </td>
-                      <td className="p-3 text-right text-blue-400">
-                        ₩{(settlement.casino_losing_commission || 0).toLocaleString()}
-                      </td>
-                      <td className="p-3 text-right text-purple-400">
-                        ₩{(settlement.slot_rolling_commission || 0).toLocaleString()}
-                      </td>
-                      <td className="p-3 text-right text-purple-400">
-                        ₩{(settlement.slot_losing_commission || 0).toLocaleString()}
-                      </td>
-                      <td className="p-3 text-right text-green-400">
-                        ₩{settlement.withdrawal_commission.toLocaleString()}
-                      </td>
-                      <td className="p-3 text-right">
-                        {settlement.settlement_type === 'integrated' ? (
-                          <div>
-                            <p className="text-orange-400 font-mono">₩{settlement.net_profit.toLocaleString()}</p>
-                            <p className="text-xs text-slate-500">{t.settlement.netProfitLabel}</p>
-                          </div>
-                        ) : (
-                          <p className="text-orange-400 font-mono">₩{settlement.commission_amount.toLocaleString()}</p>
-                        )}
-                      </td>
-                      <td className="p-3 text-slate-300 text-sm">
-                        {settlement.executor_nickname || '-'}
-                      </td>
-                    </tr>
-                  ))}
+                  {settlements.map((settlement) => {
+                    // 총액 계산: 카지노 + 슬롯 + 출금 수수료
+                    const totalAmount = Math.round(
+                      (settlement.casino_rolling_commission || 0) +
+                      (settlement.casino_losing_commission || 0) +
+                      (settlement.slot_rolling_commission || 0) +
+                      (settlement.slot_losing_commission || 0) +
+                      (settlement.withdrawal_commission || 0)
+                    );
+                    
+                    return (
+                      <tr key={settlement.id} className="border-b border-slate-800 hover:bg-slate-800/30">
+                        <td className="p-5 text-slate-300 text-lg whitespace-nowrap">
+                          {format(new Date(settlement.processed_at || settlement.created_at), "yyyy-MM-dd HH:mm", { locale: ko })}
+                        </td>
+                        <td className="p-5">
+                          <Badge className={cn(getSettlementTypeColor(settlement.settlement_type), "text-base px-4 py-2 whitespace-nowrap")}>
+                            {getSettlementTypeText(settlement.settlement_type)}
+                          </Badge>
+                        </td>
+                        <td className="p-5 text-slate-300 text-lg whitespace-nowrap">
+                          {getPeriodText(settlement.settlement_period)}
+                        </td>
+                        <td className="p-5 text-slate-300 text-base whitespace-nowrap">
+                          {format(new Date(settlement.period_start), "MM/dd", { locale: ko })} ~ {format(new Date(settlement.period_end), "MM/dd", { locale: ko })}
+                        </td>
+                        <td className="p-5">
+                          <Badge variant="outline" className="text-base px-4 py-2 whitespace-nowrap">
+                            {settlement.api_filter === 'all' ? t.settlement.all : settlement.api_filter}
+                          </Badge>
+                        </td>
+                        <td className="p-5 text-right text-blue-400 text-lg whitespace-nowrap">
+                          ₩{Math.round(settlement.casino_rolling_commission || 0).toLocaleString()}
+                        </td>
+                        <td className="p-5 text-right text-blue-400 text-lg whitespace-nowrap">
+                          ₩{Math.round(settlement.casino_losing_commission || 0).toLocaleString()}
+                        </td>
+                        <td className="p-5 text-right text-purple-400 text-lg whitespace-nowrap">
+                          ₩{Math.round(settlement.slot_rolling_commission || 0).toLocaleString()}
+                        </td>
+                        <td className="p-5 text-right text-purple-400 text-lg whitespace-nowrap">
+                          ₩{Math.round(settlement.slot_losing_commission || 0).toLocaleString()}
+                        </td>
+                        <td className="p-5 text-right text-green-400 text-lg whitespace-nowrap">
+                          ₩{Math.round(settlement.withdrawal_commission).toLocaleString()}
+                        </td>
+                        <td className="p-5 text-right whitespace-nowrap">
+                          <span className="text-orange-400 font-mono text-xl">
+                            ₩{totalAmount.toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="p-5 text-slate-300 text-lg whitespace-nowrap">
+                          {settlement.executor_nickname || '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

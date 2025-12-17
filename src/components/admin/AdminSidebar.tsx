@@ -121,7 +121,8 @@ interface AdminSidebarProps {
 }
 
 export function AdminSidebar({ user, className, onNavigate, currentRoute }: AdminSidebarProps) {
-  const { language, t } = useLanguage();
+  const { t, language } = useLanguage();
+  
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loadingMenus, setLoadingMenus] = useState(true);
@@ -425,8 +426,8 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
             }
           }}
           className={cn(
-            "flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200",
-            "text-base group relative",
+            "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
+            "text-xl group relative",
             depth === 0 ? "w-full" : "w-[calc(100%-12px)]", // 서브메뉴는 오른쪽 여백 추가
             isActive
               ? "bg-slate-800/80 text-white border border-blue-500/30 shadow-sm"
@@ -435,7 +436,7 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
           )}
         >
           <Icon className={cn(
-            "w-5 h-5 flex-shrink-0",
+            "w-7 h-7 flex-shrink-0",
             isActive ? "text-white" : "text-slate-400 group-hover:text-blue-400"
           )} />
           <span className={cn(
@@ -446,9 +447,9 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
           </span>
           {hasChildren && (
             isExpanded ? (
-              <ChevronDown className="w-5 h-5 text-slate-400 flex-shrink-0" />
+              <ChevronDown className="w-7 h-7 text-slate-400 flex-shrink-0" />
             ) : (
-              <ChevronRight className="w-5 h-5 text-slate-400 flex-shrink-0" />
+              <ChevronRight className="w-7 h-7 text-slate-400 flex-shrink-0" />
             )
           )}
         </button>
@@ -464,15 +465,13 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
 
   return (
     <div className={cn("flex flex-col h-full bg-[#0f1419] overflow-hidden", className)}>
-      <div className="p-4 border-b border-slate-700/50 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-lg">G</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-white font-bold truncate">GMS</h1>
-            <p className="text-xs text-slate-400 truncate">{user.nickname}</p>
-          </div>
+      <div className="py-2 px-3 border-b border-slate-700/50 flex-shrink-0">
+        <div className="flex items-center justify-center">
+          <img 
+            src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/gms%20logo.png" 
+            alt="GMS Logo"
+            className="w-[70%] h-auto object-contain"
+          />
         </div>
       </div>
 

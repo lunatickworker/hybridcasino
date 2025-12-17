@@ -148,7 +148,7 @@ export function BlacklistManagement() {
             <Shield className="h-6 w-6 text-rose-400" />
             {t.blacklist.title}
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-lg text-slate-400">
             {t.blacklist.subtitle}
           </p>
         </div>
@@ -156,8 +156,9 @@ export function BlacklistManagement() {
           onClick={fetchBlacklistedUsers} 
           variant="outline"
           disabled={loading}
+          className="text-lg px-6 py-3 h-auto"
         >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-6 w-6 mr-2 ${loading ? 'animate-spin' : ''}`} />
           {t.common.refresh}
         </Button>
       </div>

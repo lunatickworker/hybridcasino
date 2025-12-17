@@ -64,15 +64,10 @@ export async function getBettingStatsByGameType(
     for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
       const chunk = userIds.slice(i, i + CHUNK_SIZE);
 
-      // ✅ games 테이블과 JOIN하여 game_type을 직접 가져옴
+      // ✅ game_records 테이블에서 game_type을 직접 가져옴
       let query = supabase
         .from('game_records')
-        .select(`
-          bet_amount, 
-          win_amount, 
-          game_type,
-          games!inner(game_type)
-        `)
+        .select('bet_amount, win_amount, game_type')
         .in('user_id', chunk)
         .gte('played_at', startDate)
         .lte('played_at', endDate);
@@ -97,8 +92,8 @@ export async function getBettingStatsByGameType(
           const win = record.win_amount || 0;
           const loss = bet - win;
           
-          // ✅ game_records의 game_type이 있으면 사용, 없으면 games 테이블에서 가져온 값 사용
-          const gameType = record.game_type || (record.games as any)?.game_type || 'casino';
+          // ✅ game_records의 game_type 사용, 없으면 기본값 'casino'
+          const gameType = record.game_type || 'casino';
 
           if (gameType === 'slot') {
             slotBetAmount += bet;

@@ -15,7 +15,7 @@ import {
 import { formatCurrency as formatCurrencyUtil, formatNumber, getPartnerLevelText } from "../../lib/utils";
 import { DashboardStats, Partner } from "../../types";
 import { calculatePendingDeposits } from "../../lib/settlementCalculator";
-import { useLanguage } from "../../contexts/LanguageContext";
+import { useLanguage } from "../../contexts/LanguageContext"; // v2.0 - Updated with fallback support
 import { getCurrentTimeFormatted } from "../../lib/timezoneHelper";
 
 interface DashboardProps {
@@ -610,12 +610,12 @@ export function Dashboard({ user }: DashboardProps) {
           <h1 className="text-2xl font-bold text-slate-100">
             {t.dashboard.adminDashboard}
           </h1>
-          <p className="text-sm text-slate-400">
+          <p className="text-xl text-slate-400">
             {getPartnerLevelText(user.level)} · {user.nickname}{t.dashboard.realtimeStatus}
           </p>
         </div>
-        <Badge variant="outline" className="flex items-center gap-2 px-3 py-1.5 text-xs badge-premium-primary">
-          <Clock className="h-3.5 w-3.5" />
+        <Badge variant="outline" className="flex items-center gap-3 px-4 py-2 text-base badge-premium-primary">
+          <Clock className="h-5 w-5" />
           {formattedTime}
         </Badge>
       </div>
@@ -771,79 +771,6 @@ export function Dashboard({ user }: DashboardProps) {
             icon={BarChart3}
             iconColor="text-cyan-400"
           />
-        </PremiumSectionCard>
-      </div>
-
-      {/* 통합 정산 섹션 */}
-      <div className="grid gap-5 md:grid-cols-2">
-        {/* 자신의 사용자 통합 정산 */}
-        <PremiumSectionCard
-          title="자신의 사용자 통합 정산"
-          icon={Activity}
-          iconColor="text-emerald-400"
-        >
-          <SectionRow
-            label="실제 입출금 순액"
-            value={formatCurrency(directStats.netDeposit)}
-            valueColor={directStats.netDeposit >= 0 ? "text-cyan-400" : "text-rose-400"}
-            icon={DollarSign}
-            iconColor="text-cyan-400"
-          />
-          <SectionRow
-            label="게임 손익 (베팅-당첨)"
-            value={formatCurrency(directStats.gameProfit)}
-            valueColor={directStats.gameProfit >= 0 ? "text-emerald-400" : "text-rose-400"}
-            icon={Target}
-            iconColor="text-emerald-400"
-          />
-          <div className="pt-2 border-t border-slate-700/50">
-            <SectionRow
-              label="최종 정산 금액"
-              value={formatCurrency(directStats.netDeposit + directStats.gameProfit)}
-              valueColor={
-                (directStats.netDeposit + directStats.gameProfit) >= 0 
-                  ? "text-emerald-400" 
-                  : "text-rose-400"
-              }
-              icon={Activity}
-              iconColor="text-emerald-400"
-            />
-          </div>
-        </PremiumSectionCard>
-
-        {/* 하위 파트너 사용자 통합 정산 */}
-        <PremiumSectionCard
-          title="하위 파트너 사용자 통합 정산"
-          icon={Activity}
-          iconColor="text-violet-400"
-        >
-          <SectionRow
-            label="실제 입출금 순액"
-            value={formatCurrency(subPartnerStats.netDeposit)}
-            valueColor={subPartnerStats.netDeposit >= 0 ? "text-cyan-400" : "text-rose-400"}
-            icon={DollarSign}
-            iconColor="text-cyan-400"
-          />
-          <SectionRow
-            label="게임 손익 (베팅-당첨)"
-            value={formatCurrency(subPartnerStats.gameProfit)}
-            valueColor={subPartnerStats.gameProfit >= 0 ? "text-emerald-400" : "text-rose-400"}
-            icon={Target}
-            iconColor="text-violet-400"
-          />
-          <div className="pt-2 border-t border-slate-700/50">
-            <SectionRow
-              label="최종 정산 금액"
-              value={formatCurrency(subPartnerStats.netDeposit + subPartnerStats.gameProfit)}
-              valueColor={
-                (subPartnerStats.netDeposit + subPartnerStats.gameProfit) >= 0 
-                  ? "text-emerald-400" 
-                  : "text-rose-400"
-              }
-              icon={Activity}
-              iconColor="text-violet-400"
-            />
-          </div>
         </PremiumSectionCard>
       </div>
 

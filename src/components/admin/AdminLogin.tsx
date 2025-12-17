@@ -5,7 +5,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { ButtonLoading } from "../common/LoadingSpinner";
 import { useAuth } from "../../hooks/useAuth";
-import { useLanguage } from "../../contexts/LanguageContext";
+import { useLanguage } from "../../contexts/LanguageContext"; // v2.2 - Clean hook usage
 import { toast } from "sonner@2.0.3";
 import { Shield } from "lucide-react";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
@@ -15,40 +15,11 @@ interface AdminLoginProps {
 }
 
 export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
-  
-  // ✅ useLanguage를 try-catch로 감싸서 에러 방지
-  let t: any;
-  let language: string = 'ko';
-  let setLanguage: any;
-  
-  try {
-    const languageContext = useLanguage();
-    t = languageContext.t;
-    language = languageContext.language;
-    setLanguage = languageContext.setLanguage;
-  } catch (error) {
-    // LanguageProvider가 없는 경우 기본값 사용
-    console.warn('⚠️ LanguageProvider not available, using default Korean translations');
-    t = {
-      error: { validation: '모든 필드를 입력해주세요.' },
-      login: {
-        loginSuccess: '로그인 성공',
-        loginFailed: '로그인 실패',
-        title: '관리자 로그인',
-        description: '관리자 계정으로 로그인하세요',
-        username: '아이디',
-        password: '비밀번호',
-        loginButton: '로그인',
-        loggingIn: '로그인 중...',
-        language: '언어'
-      }
-    };
-    setLanguage = () => {};
-  }
+  const { t, language, setLanguage } = useLanguage();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,48 +80,41 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
       <Card className="w-full max-w-md bg-slate-800/50 border-slate-700 shadow-2xl">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <Shield className="h-12 w-12 text-blue-400" />
+            <Shield className="h-20 w-20 text-blue-400" />
           </div>
-          <CardTitle className="text-2xl font-bold text-white">GMS {t.header.admin}</CardTitle>
-          <CardDescription className="text-slate-400">
-            {t.login.title}
-          </CardDescription>
+          <CardTitle className="text-4xl font-bold text-white">GMS {t.header.admin}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="space-y-1">
-              <h3 className="text-white">{t.login.title}</h3>
-              <p className="text-sm text-slate-400">{t.common.username} {t.common.password}</p>
-            </div>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username" className="text-white">{t.common.username}</Label>
+                <Label htmlFor="username" className="text-xl text-white">{t.common.username}</Label>
                 <Input
                   id="username"
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder={t.common.username}
-                  className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+                  className="h-14 text-2xl bg-slate-700/50 border-slate-600 text-white placeholder:text-xl placeholder:text-slate-400"
                   disabled={loading}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-white">{t.common.password}</Label>
+                <Label htmlFor="password" className="text-xl text-white">{t.common.password}</Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={t.common.password}
-                  className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+                  className="h-14 text-2xl bg-slate-700/50 border-slate-600 text-white placeholder:text-xl placeholder:text-slate-400"
                   disabled={loading}
                 />
               </div>
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-slate-700 hover:bg-slate-600"
+                className="w-full bg-slate-700 hover:bg-slate-600 h-14 text-xl"
               >
                 {loading ? (
                   <ButtonLoading>{t.login.login}</ButtonLoading>
@@ -163,7 +127,7 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
         </CardContent>
         
         {/* 시스템 정보 */}
-        <div className="px-6 pb-6 text-center text-xs text-slate-500 space-y-1">
+        <div className="px-6 pb-6 text-center text-base text-slate-500 space-y-1">
           <p>GMS v1.0 | {t.systemSettings.title}</p>
           <p>7-tier Authority System | Real-time Data Sync</p>
         </div>
