@@ -1,0 +1,44 @@
+{
+  "rewrites": [
+    {
+      "source": "/balance",
+      "destination": "https://hduofjzsitoaujyjvuix.supabase.co/functions/v1/server/balance",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkdW9manpzaXRvYXVqeWp2dWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQzMzg1NDcsImV4cCI6MjA0OTkxNDU0N30.hS2d-yf2h61FBMdFPW7HZ-WFZcLMXUOWnZU__s-ksRA"
+      }
+    },
+    {
+      "source": "/changebalance",
+      "destination": "https://hduofjzsitoaujyjvuix.supabase.co/functions/v1/server/changebalance",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkdW9manpzaXRvYXVqeWp2dWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQzMzg1NDcsImV4cCI6MjA0OTkxNDU0N30.hS2d-yf2h61FBMdFPW7HZ-WFZcLMXUOWnZU__s-ksRA"
+      }
+    },
+    {
+      "source": "/changebalance/slot",
+      "destination": "https://hduofjzsitoaujyjvuix.supabase.co/functions/v1/server/changebalance/slot",
+      "headers": {
+        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhkdW9manpzaXRvYXVqeWp2dWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQzMzg1NDcsImV4cCI6MjA0OTkxNDU0N30.hS2d-yf2h61FBMdFPW7HZ-WFZcLMXUOWnZU__s-ksRA"
+      }
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(balance|changebalance)(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Accept"
+        }
+      ]
+    }
+  ]
+}

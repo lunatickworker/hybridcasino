@@ -835,6 +835,41 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                   </div>
                 </div>
 
+                {/* FamilyAPI Callback URL 정보 */}
+                <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/30 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-purple-400" />
+                    <p className="text-sm font-medium text-purple-400">
+                      FamilyAPI Callback 엔드포인트
+                    </p>
+                  </div>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-slate-400">Base URL:</span>
+                      <code className="bg-slate-900/50 px-2 py-1 rounded text-purple-300">
+                        https://hduofjzsitoaujyjvuix.supabase.co/functions/v1/server
+                      </code>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-slate-400">Callback Paths:</span>
+                      <div className="space-y-1">
+                        <code className="bg-slate-900/50 px-2 py-1 rounded text-purple-300 block">
+                          /balance (잔고 확인)
+                        </code>
+                        <code className="bg-slate-900/50 px-2 py-1 rounded text-purple-300 block">
+                          /changebalance (카지노 베팅/결과)
+                        </code>
+                        <code className="bg-slate-900/50 px-2 py-1 rounded text-purple-300 block">
+                          /changebalance/slot (슬롯 베팅/결과)
+                        </code>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    💡 FamilyAPI 측에 위 callback URL을 등록해야 게임이 정상 작동합니다.
+                  </p>
+                </div>
+
                 <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
                   <p className="text-sm text-yellow-400">
                     {t.systemSettings.depositLimitInfo}

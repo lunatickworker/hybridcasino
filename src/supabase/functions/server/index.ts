@@ -23,9 +23,10 @@ const supabase = createClient(
 // =====================================================
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Content-Type': 'application/json',
+  'Accept': 'application/json',
 };
 
 // =====================================================
@@ -766,7 +767,8 @@ Deno.serve(async (req: Request) => {
 
   try {
     // Root health check
-    if (path === '/' || path === '/server' || path === '/server/') {
+    if (path === '/' || path === '/server' || path === '/server/' || 
+        path === '/functions/v1/server' || path === '/functions/v1/server/') {
       return new Response(
         JSON.stringify({
           status: 'ok',
@@ -798,20 +800,24 @@ Deno.serve(async (req: Request) => {
 
     // =====================================================
     // ⭐ FamilyAPI 콜백 엔드포인트 (PUBLIC - Authorization 불필요)
+    // ⭐ Vercel rewrites를 통해 /server/balance 형태로 들어옴
     // =====================================================
     
     // 1. 잔고 확인 콜백 (GET, POST 지원)
-    if ((path === '/balance' || path === '/server/balance') && (req.method === 'POST' || req.method === 'GET')) {
+    if ((path.endsWith('/balance') || path === '/server/balance' || path === '/functions/v1/server/balance') && req.method === 'POST') {
+      console.log('📞 [FamilyAPI] /balance callback 처리');
       return await handleBalanceCallback(req, supabase, corsHeaders);
     }
 
     // 2. 카지노 베팅/결과 콜백
-    if ((path === '/changebalance' || path === '/server/changebalance') && req.method === 'POST') {
+    if ((path.endsWith('/changebalance') || path === '/server/changebalance' || path === '/functions/v1/server/changebalance') && req.method === 'POST') {
+      console.log('📞 [FamilyAPI] /changebalance callback 처리');
       return await handleChangeBalanceCallback(req, supabase, corsHeaders);
     }
 
     // 3. 슬롯 베팅/결과 콜백
-    if ((path === '/changebalance/slot' || path === '/server/changebalance/slot') && req.method === 'POST') {
+    if ((path.endsWith('/changebalance/slot') || path === '/server/changebalance/slot' || path === '/functions/v1/server/changebalance/slot') && req.method === 'POST') {
+      console.log('📞 [FamilyAPI] /changebalance/slot callback 처리');
       return await handleChangeBalanceSlotCallback(req, supabase, corsHeaders);
     }
 
