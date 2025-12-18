@@ -1,18 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/balance",
-      "destination": "https://hduofjzsitoaujyjvuix.supabase.co/functions/v1/server/balance"
-    },
-    {
-      "source": "/changebalance",
-      "destination": "https://hduofjzsitoaujyjvuix.supabase.co/functions/v1/server/changebalance"
-    },
-    {
-      "source": "/changebalance/slot",
-      "destination": "https://hduofjzsitoaujyjvuix.supabase.co/functions/v1/server/changebalance/slot"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
@@ -31,7 +19,7 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Accept"
+          "value": "Content-Type, Accept, Authorization"
         }
       ]
     }
