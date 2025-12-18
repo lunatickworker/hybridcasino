@@ -54,11 +54,11 @@ export function PartnerFormDialog({
     opcode: "",
     secret_key: "",
     api_token: "",
-    casino_rolling_commission: 0.5,
-    casino_losing_commission: 5.0,
-    slot_rolling_commission: 0.5,
-    slot_losing_commission: 5.0,
-    withdrawal_fee: 1.0
+    casino_rolling_commission: 0,
+    casino_losing_commission: 0,
+    slot_rolling_commission: 0,
+    slot_losing_commission: 0,
+    withdrawal_fee: 0
   });
 
   // 파트너 데이터 로드 (수정 모드)
@@ -73,15 +73,14 @@ export function PartnerFormDialog({
         opcode: "",
         secret_key: "",
         api_token: "",
-        casino_rolling_commission: partner.casino_rolling_commission || partner.commission_rolling || 0.5,
-        casino_losing_commission: partner.casino_losing_commission || partner.commission_losing || 5.0,
-        slot_rolling_commission: partner.slot_rolling_commission || partner.commission_rolling || 0.5,
-        slot_losing_commission: partner.slot_losing_commission || partner.commission_losing || 5.0,
-        withdrawal_fee: partner.withdrawal_fee
+        casino_rolling_commission: partner.casino_rolling_commission || partner.commission_rolling || 0,
+        casino_losing_commission: partner.casino_losing_commission || partner.commission_losing || 0,
+        slot_rolling_commission: partner.slot_rolling_commission || partner.commission_rolling || 0,
+        slot_losing_commission: partner.slot_losing_commission || partner.commission_losing || 0,
+        withdrawal_fee: partner.withdrawal_fee || 0
       });
-    } else if (mode === 'create') {
-      resetForm();
     }
+    // ✅ 생성 모드일 때는 resetForm 호출하지 않음 (마지막 입력값 유지)
   }, [mode, partner, open]);
 
   const resetForm = () => {
@@ -94,11 +93,11 @@ export function PartnerFormDialog({
       opcode: "",
       secret_key: "",
       api_token: "",
-      casino_rolling_commission: 0.5,
-      casino_losing_commission: 5.0,
-      slot_rolling_commission: 0.5,
-      slot_losing_commission: 5.0,
-      withdrawal_fee: 1.0
+      casino_rolling_commission: 0,
+      casino_losing_commission: 0,
+      slot_rolling_commission: 0,
+      slot_losing_commission: 0,
+      withdrawal_fee: 0
     });
     setHierarchyWarning("");
     setParentCommission(null);

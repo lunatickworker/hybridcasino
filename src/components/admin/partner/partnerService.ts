@@ -5,41 +5,114 @@ import { Partner } from "./types";
  * 파트너 목록 조회
  */
 export const fetchPartners = async (currentUserId: string, userLevel: number) => {
-  let query = supabase
-    .from('partners')
-    .select(`
-      id,
-      username,
-      nickname,
-      partner_type,
-      level,
-      parent_id,
-      balance,
-      invest_balance,
-      oroplay_balance,
-      commission_rolling,
-      commission_losing,
-      casino_rolling_commission,
-      casino_losing_commission,
-      slot_rolling_commission,
-      slot_losing_commission,
-      withdrawal_fee,
-      status,
-      created_at,
-      last_login_at
-    `);
-  
   const isSystemAdmin = userLevel === 1;
   
-  const { data, error } = isSystemAdmin
-    ? await query
-    : await supabase.rpc('get_hierarchical_partners', { p_partner_id: currentUserId });
-
-  if (error) throw error;
+  let allPartners: any[] = [];
+  
+  if (isSystemAdmin) {
+    // 시스템 관리자: 모든 파트너 직접 조회
+    const { data, error } = await supabase
+      .from('partners')
+      .select(`
+        id,
+        username,
+        nickname,
+        partner_type,
+        level,
+        parent_id,
+        balance,
+        invest_balance,
+        oroplay_balance,
+        commission_rolling,
+        commission_losing,
+        casino_rolling_commission,
+        casino_losing_commission,
+        slot_rolling_commission,
+        slot_losing_commission,
+        withdrawal_fee,
+        status,
+        created_at,
+        last_login_at
+      `);
+    
+    if (error) throw error;
+    allPartners = data || [];
+  } else {
+    // 일반 파트너: 직접 재귀적으로 모든 하위 파트너 조회 (RPC 사용 안 함)
+    const allPartnerIds: string[] = [currentUserId];
+    let currentLevelIds = [currentUserId];
+    
+    // 최대 6단계까지 재귀 조회 (Lv2 -> Lv7)
+    for (let level = 0; level < 6; level++) {
+      if (currentLevelIds.length === 0) break;
+      
+      const { data: nextLevelPartners, error } = await supabase
+        .from('partners')
+        .select('id')
+        .in('parent_id', currentLevelIds);
+      
+      if (error) throw error;
+      
+      if (nextLevelPartners && nextLevelPartners.length > 0) {
+        const nextIds = nextLevelPartners.map(p => p.id);
+        allPartnerIds.push(...nextIds);
+        currentLevelIds = nextIds;
+      } else {
+        break;
+      }
+    }
+    
+    // 모든 하위 파트너의 전체 정보 조회 (커미션 필드 포함)
+    if (allPartnerIds.length > 1) {
+      // 자기 자신 제외
+      const childIds = allPartnerIds.filter(id => id !== currentUserId);
+      
+      const { data, error } = await supabase
+        .from('partners')
+        .select(`
+          id,
+          username,
+          nickname,
+          partner_type,
+          level,
+          parent_id,
+          balance,
+          invest_balance,
+          oroplay_balance,
+          commission_rolling,
+          commission_losing,
+          casino_rolling_commission,
+          casino_losing_commission,
+          slot_rolling_commission,
+          slot_losing_commission,
+          withdrawal_fee,
+          status,
+          created_at,
+          last_login_at
+        `)
+        .in('id', childIds);
+      
+      if (error) throw error;
+      allPartners = data || [];
+    }
+  }
 
   // 하위 파트너와 사용자 수 집계 + 보유금 실시간 표시
   const partnersWithCounts = await Promise.all(
-    (data || []).map(async (partner) => {
+    allPartners.map(async (partner) => {
+      // 🔍 디버깅: 커미션 값 확인
+      if (partner.username === 'gms12' || partner.username === 'testbu' || partner.username === 'testbon') {
+        console.log(`🔍 [${partner.username}] 원본 커미션 데이터:`, {
+          casino_rolling_commission: partner.casino_rolling_commission,
+          casino_losing_commission: partner.casino_losing_commission,
+          slot_rolling_commission: partner.slot_rolling_commission,
+          slot_losing_commission: partner.slot_losing_commission,
+          commission_rolling: partner.commission_rolling,
+          commission_losing: partner.commission_losing,
+          withdrawal_fee: partner.withdrawal_fee
+        });
+      }
+      
       // 하위 파트너 수 조회
       const { count: childCount } = await supabase
         .from('partners')
