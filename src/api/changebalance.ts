@@ -15,27 +15,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  // POST 요청만 허용
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method Not Allowed. Only POST is supported.' });
+    return;
+  }
+
   try {
+    // body를 문자열로 변환 (이미 파싱되어 있으면 다시 JSON으로)
+    const bodyString = typeof req.body === 'string' 
+      ? req.body 
+      : JSON.stringify(req.body);
+
+    console.log('[Vercel Proxy] /changebalance request:', {
+      method: req.method,
+      body: bodyString
+    });
+
     // Supabase Edge Function으로 프록시 (Authorization 헤더 추가)
     const response = await fetch(`${SUPABASE_URL}/functions/v1/server/changebalance`, {
-      method: req.method,
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        ...Object.fromEntries(
-          Object.entries(req.headers).filter(([key]) => 
-            key.toLowerCase() !== 'host' && 
-            key.toLowerCase() !== 'authorization'
-          )
-        )
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
       },
-      body: req.method !== 'GET' ? JSON.stringify(req.body) : undefined
+      body: bodyString
     });
 
     const data = await response.json();
+    
+    console.log('[Vercel Proxy] /changebalance response:', {
+      status: response.status,
+      data
+    });
+
     res.status(response.status).json(data);
   } catch (error: any) {
-    console.error('Proxy error:', error);
+    console.error('[Vercel Proxy] /changebalance error:', error);
     res.status(500).json({ error: error.message });
   }
 }
