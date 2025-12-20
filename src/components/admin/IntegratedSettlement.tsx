@@ -54,7 +54,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   const [settlementMethod, setSettlementMethod] = useState<'differential' | 'direct_subordinate'>('direct_subordinate');
   const [periodFilter, setPeriodFilter] = useState("today");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const [apiFilter, setApiFilter] = useState<'all' | 'invest' | 'oroplay'>('all');
+  const [apiFilter, setApiFilter] = useState<'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi'>('all');
   const [availableApis, setAvailableApis] = useState<string[]>([]);
   const [summary, setSummary] = useState<SettlementSummary>({
     // 내 수입 - 카지노
@@ -416,7 +416,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
             </div>
             <div className="flex items-center gap-3">
               {user.level <= 2 && (
-                <Select value={apiFilter} onValueChange={(value) => setApiFilter(value as 'all' | 'invest' | 'oroplay')}>
+                <Select value={apiFilter} onValueChange={(value) => setApiFilter(value as 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi')}>
                   <SelectTrigger className="w-[210px] h-12 text-lg">
                     <SelectValue />
                   </SelectTrigger>
@@ -427,6 +427,12 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                     )}
                     {availableApis.includes('oroplay') && (
                       <SelectItem value="oroplay" className="text-lg">{t.settlement.oroplaysOnly}</SelectItem>
+                    )}
+                    {availableApis.includes('familyapi') && (
+                      <SelectItem value="familyapi" className="text-lg">{t.settlement.familyApiOnly}</SelectItem>
+                    )}
+                    {availableApis.includes('honorapi') && (
+                      <SelectItem value="honorapi" className="text-lg">{t.settlement.honorApiOnly}</SelectItem>
                     )}
                   </SelectContent>
                 </Select>

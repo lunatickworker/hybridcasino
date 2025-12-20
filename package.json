@@ -1,5 +1,5 @@
 {
-      "name": "game_v2_693",
+      "name": "game_v2_799",
       "version": "0.1.0",
       "private": true,
       "dependencies": {
@@ -31,7 +31,6 @@
             "@radix-ui/react-toggle-group": "^1.1.2",
             "@radix-ui/react-tooltip": "^1.1.8",
             "@supabase/supabase-js": "*",
-            "@vercel/node": "^2.3.0",
             "@vitejs/plugin-react-swc": "*",
             "class-variance-authority": "^0.7.1",
             "clsx": "*",

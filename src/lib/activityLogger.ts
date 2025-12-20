@@ -388,12 +388,46 @@ export async function logPageView(
  */
 export async function getClientIP(): Promise<string | undefined> {
   try {
-    // 무료 IP 조회 API 사용
-    const response = await fetch('https://api.ipify.org?format=json');
-    const data = await response.json();
-    return data.ip;
+    // ✅ 여러 IP 조회 API를 순차적으로 시도 (fallback)
+    const ipApis = [
+      'https://api.ipify.org?format=json',
+      'https://api.my-ip.io/ip.json',
+      'https://ipapi.co/json/',
+    ];
+
+    for (const apiUrl of ipApis) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3초 타임아웃
+
+        const response = await fetch(apiUrl, {
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        
+        // API마다 응답 형식이 다르므로 처리
+        const ip = data.ip || data.IPv4 || data.query;
+        
+        if (ip && typeof ip === 'string') {
+          console.log('✅ IP 주소 조회 성공:', ip, 'from', apiUrl);
+          return ip;
+        }
+      } catch (err) {
+        // 다음 API 시도
+        continue;
+      }
+    }
+
+    // 모든 API 실패 시
+    console.warn('⚠️ IP 주소 조회 실패 - 모든 API 시도 완료. undefined 반환');
+    return undefined;
   } catch (error) {
-    console.error('IP 주소 조회 실패:', error);
+    console.warn('⚠️ IP 주소 조회 실패:', error);
     return undefined;
   }
 }

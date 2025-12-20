@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Card } from "../ui/card";
+import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
@@ -40,6 +40,17 @@ interface UserSlotProps {
 }
 
 export function UserSlot({ user, onRouteChange }: UserSlotProps) {
+  // Guard against null user
+  if (!user) {
+    return (
+      <Card className="bg-[#1a1f3a] border-purple-900/30 text-white">
+        <CardContent className="p-8 text-center">
+          <p className="text-gray-400">사용자 정보를 불러올 수 없습니다.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
   const [selectedProvider, setSelectedProvider] = useState(""); // ✅ 빈 문자열로 시작
   const [searchQuery, setSearchQuery] = useState("");
   const [games, setGames] = useState<Game[]>([]);
@@ -108,33 +119,11 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     try {
       setLoading(true);
 
-      // ✅ 선택된 제공사의 게임만 로드
-      let query = supabase
-        .from('games')
-        .select(`
-          id,
-          provider_id,
-          name,
-          type,
-          status,
-          image_url,
-          is_featured,
-          priority,
-          rtp,
-          api_type,
-          game_providers!inner(
-            id,
-            name,
-            logo_url
-          )
-        `)
-        .eq('type', 'slot')
-        .eq('status', 'visible')
-        .eq('provider_id', providerId);
-
-      const { data: gamesData, error } = await query.order('priority', { ascending: false });
-
-      if (error) throw error;
+      // ✅ gameApi.getUserVisibleGames 사용 (HonorAPI 지원)
+      const gamesData = await gameApi.getUserVisibleGames({
+        type: 'slot',
+        provider_id: providerId
+      });
 
       console.log(`🎰 [슬롯 게임 로드] Provider ID ${providerId}: ${gamesData?.length || 0}개 게임`);
 
@@ -181,39 +170,17 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     try {
       setLoading(true);
 
-      // ✅ 모든 슬롯 게임 로드 (전체 보기)
-      let query = supabase
-        .from('games')
-        .select(`
-          id,
-          provider_id,
-          name,
-          type,
-          status,
-          image_url,
-          is_featured,
-          priority,
-          rtp,
-          api_type,
-          game_providers(
-            id,
-            name,
-            logo_url
-          )
-        `)
-        .eq('type', 'slot')
-        .eq('status', 'visible');
-
-      const { data: gamesData, error } = await query.order('priority', { ascending: false });
-
-      if (error) throw error;
+      // ✅ gameApi.getUserVisibleGames 사용 (HonorAPI 지원)
+      const gamesData = await gameApi.getUserVisibleGames({
+        type: 'slot'
+      });
 
       console.log(`🎰 [슬롯 게임 전체 로드] 총 ${gamesData?.length || 0}개 게임`);
 
       const formattedGames = gamesData?.map(game => ({
         game_id: game.id,
         provider_id: game.provider_id,
-        provider_name: (game as any).game_providers?.name || 'Unknown',
+        provider_name: game.provider_name || 'Unknown',
         provider_logo: (game as any).game_providers?.logo_url,
         game_name: game.name,
         game_type: game.type,
@@ -258,11 +225,13 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
       if (activeSession?.isActive && activeSession.api_type !== game.api_type) {
         const apiNames = {
           invest: 'Invest API',
-          oroplay: 'OroPlay API'
+          oroplay: 'OroPlay API',
+          familyapi: 'FamilyAPI',
+          honorapi: 'HonorAPI'
         };
         
         toast.error(
-          `${apiNames[activeSession.api_type!]} 게임이 실행 중입니다.\\n` +
+          `${apiNames[activeSession.api_type!] || activeSession.api_type} 게임이 실행 중입니다.\\n` +
           `현재 게임: ${activeSession.game_name}\\n\\n` +
           `다른 API 게임을 실행하려면 현재 게임을 종료해주세요.`,
           { duration: 5000 }

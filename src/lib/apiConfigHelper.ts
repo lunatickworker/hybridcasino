@@ -35,6 +35,13 @@ export interface FamilyApiCredentials {
 }
 
 /**
+ * HonorAPI Credentials 타입
+ */
+export interface HonorApiCredentials {
+  api_key: string;
+}
+
+/**
  * Invest API credentials 조회
  * @param partnerId - 파트너 ID
  * @returns Invest credentials
@@ -218,6 +225,66 @@ export async function getLv1FamilyApiCredentials(partnerId: string): Promise<Fam
   } catch (err) {
     console.error('❌ [API Config] Lv1 FamilyAPI credentials 조회 예외:', err);
     return { api_key: '', token: '', token_expires_at: null };
+  }
+}
+
+/**
+ * HonorAPI credentials 조회
+ * @param partnerId - 파트너 ID
+ * @returns HonorAPI credentials
+ */
+export async function getHonorApiCredentials(partnerId: string): Promise<HonorApiCredentials> {
+  try {
+    const { data, error } = await supabase
+      .from('api_configs')
+      .select('api_key')
+      .eq('partner_id', partnerId)
+      .eq('api_provider', 'honorapi')
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ [API Config] HonorAPI credentials 조회 실패:', error);
+      return { api_key: '' };
+    }
+
+    if (!data) {
+      console.warn('⚠️ [API Config] HonorAPI 레코드 없음:', partnerId);
+      return { api_key: '' };
+    }
+
+    return {
+      api_key: data.api_key || ''
+    };
+  } catch (err) {
+    console.error('❌ [API Config] HonorAPI credentials 조회 예외:', err);
+    return { api_key: '' };
+  }
+}
+
+/**
+ * Lv1 시스템관리자의 HonorAPI credentials 조회
+ * @param partnerId - 현재 파트너 ID (Lv1까지 자동으로 탐색)
+ * @returns Lv1의 HonorAPI credentials
+ */
+export async function getLv1HonorApiCredentials(partnerId: string): Promise<HonorApiCredentials> {
+  try {
+    // Lv1 파트너 찾기
+    const { data: lv1Partner, error: lv1Error } = await supabase
+      .from('partners')
+      .select('id')
+      .eq('level', 1)
+      .limit(1)
+      .maybeSingle();
+
+    if (lv1Error || !lv1Partner) {
+      console.error('❌ [API Config] Lv1 파트너 조회 실패:', lv1Error);
+      return { api_key: '' };
+    }
+
+    return getHonorApiCredentials(lv1Partner.id);
+  } catch (err) {
+    console.error('❌ [API Config] Lv1 HonorAPI credentials 조회 예외:', err);
+    return { api_key: '' };
   }
 }
 
@@ -452,6 +519,54 @@ export async function updateOroplayToken(partnerId: string, token: string, expir
     return true;
   } catch (err) {
     console.error('❌ [API Config] OroPlay token 업데이트 예외:', err);
+    return false;
+  }
+}
+
+/**
+ * HonorAPI 잔액 업데이트
+ * @param partnerId - 파트너 ID
+ * @param balance - 새 잔액
+ * @returns 성공 여부
+ */
+export async function updateHonorApiBalance(partnerId: string, balance: number): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('api_configs')
+      .update({
+        balance: balance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('partner_id', partnerId)
+      .eq('api_provider', 'honorapi');
+
+    if (error) {
+      console.error('❌ [API Config] HonorAPI 잔액 업데이트 실패:', error);
+      return false;
+    }
+    
+    // ✅ Lv1 업데이트 시 Lv2도 동기화
+    const { data: lv2Partners } = await supabase
+      .from('partners')
+      .select('id')
+      .eq('level', 2);
+    
+    if (lv2Partners && lv2Partners.length > 0) {
+      for (const lv2 of lv2Partners) {
+        await supabase
+          .from('partners')
+          .update({
+            honorapi_balance: balance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', lv2.id);
+      }
+      console.log(`✅ [API Config] Lv2 honorapi_balance 동기화 완료: ${balance.toLocaleString()}`);
+    }
+
+    return true;
+  } catch (err) {
+    console.error('❌ [API Config] HonorAPI 잔액 업데이트 예외:', err);
     return false;
   }
 }

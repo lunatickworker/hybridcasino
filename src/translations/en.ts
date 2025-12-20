@@ -1179,6 +1179,8 @@ export const en = {
     allApi: 'All APIs',
     investOnly: 'Invest Only',
     oroplaysOnly: 'OroPlay Only',
+    familyApiOnly: 'FamilyAPI Only',
+    honorApiOnly: 'HonorAPI Only',
     today: 'Today',
     yesterday: 'Yesterday',
     lastWeek: 'Last 7 Days',

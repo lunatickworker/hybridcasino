@@ -52,12 +52,14 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   let investBalance = 0;
   let oroplayBalance = 0;
   let familyapiBalance = 0;
+  let honorapiBalance = 0;
   let balanceLoading = false;
   let balanceError = null;
   let lastSyncTime = null;
   let useInvestApi = false;
   let useOroplayApi = false;
   let useFamilyApi = false;
+  let useHonorApi = false;
   let syncBalance = async () => {};
   
   try {
@@ -66,12 +68,14 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     investBalance = balanceContext.investBalance;
     oroplayBalance = balanceContext.oroplayBalance;
     familyapiBalance = balanceContext.familyapiBalance;
+    honorapiBalance = balanceContext.honorapiBalance;
     balanceLoading = balanceContext.loading;
     balanceError = balanceContext.error;
     lastSyncTime = balanceContext.lastSyncTime;
     useInvestApi = balanceContext.useInvestApi;
     useOroplayApi = balanceContext.useOroplayApi;
     useFamilyApi = balanceContext.useFamilyApi;
+    useHonorApi = balanceContext.useHonorApi;
     syncBalance = balanceContext.syncBalance;
   } catch (error) {
     // ✅ BalanceProvider 외부에서 렌더링되는 경우 (정상 동작 - 로그인 전)
@@ -113,6 +117,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   const [isSyncingInvest, setIsSyncingInvest] = useState(false);
   const [isSyncingOroplay, setIsSyncingOroplay] = useState(false);
   const [isSyncingFamily, setIsSyncingFamily] = useState(false);
+  const [isSyncingHonor, setIsSyncingHonor] = useState(false);
 
   // =====================================================
   // Invest 보유금 수동 동기화 (카드 클릭 시)
@@ -355,6 +360,55 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       toast.error(`FamilyAPI 보유금 동기화 실패: ${error.message}`);
     } finally {
       setIsSyncingFamily(false);
+    }
+  };
+
+  // =====================================================
+  // HonorAPI 보유금 수동 동기화 (카드 클릭 시)
+  // =====================================================
+  const handleSyncHonorBalance = async () => {
+    if (user.level !== 1) {
+      return;
+    }
+
+    setIsSyncingHonor(true);
+    try {
+      console.log('💰 [AdminHeader] HonorAPI 보유금 수동 동기화 시작');
+
+      // Dynamic import
+      const honorApiModule = await import('../../lib/honorApi');
+      const { getLv1HonorApiCredentials, updateHonorApiBalance } = await import('../../lib/apiConfigHelper');
+      
+      // API Key 조회
+      const credentials = await getLv1HonorApiCredentials(user.id);
+      
+      if (!credentials.api_key) {
+        throw new Error('HonorAPI API Key가 설정되지 않았습니다.');
+      }
+      
+      // Agent 정보 조회 (잔고 포함)
+      const agentInfo = await honorApiModule.getAgentInfo(credentials.api_key);
+      
+      const balance = parseFloat(agentInfo.balance) || 0;
+
+      console.log('✅ [AdminHeader] HonorAPI API 응답:', { balance });
+
+      // DB 업데이트 (헬퍼 함수 사용 - Lv2 동기화 포함)
+      const success = await updateHonorApiBalance(user.id, balance);
+      
+      if (!success) {
+        throw new Error('DB 업데이트 실패');
+      }
+
+      // ✅ BalanceContext 상태 갱신
+      await syncBalance();
+
+      toast.success(`HonorAPI 보유금 동기화 완료: ${formatCurrency(balance)}`);
+    } catch (error: any) {
+      console.error('❌ [AdminHeader] HonorAPI 보유금 동기화 실패:', error);
+      toast.error(`HonorAPI 보유금 동기화 실패: ${error.message}`);
+    } finally {
+      setIsSyncingHonor(false);
     }
   };
 
@@ -928,6 +982,24 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     </div>
                   </div>
                 )}
+
+                {/* HonorAPI 보유금 - useHonorApi가 true일 때만 표시 */}
+                {useHonorApi && (
+                  <div 
+                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingHonor ? 'opacity-50' : ''}`}
+                    onClick={handleSyncHonorBalance}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Wallet className="h-6 w-6 text-amber-400" />
+                      <div>
+                        <div className="text-lg text-amber-300 font-medium">Honor 보유금</div>
+                        <div className="text-lg font-bold text-white whitespace-nowrap">
+                          {typeof honorapiBalance === 'number' ? <AnimatedCurrency value={honorapiBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -944,6 +1016,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                         if (useInvestApi && typeof investBalance === 'number') total += investBalance;
                         if (useOroplayApi && typeof oroplayBalance === 'number') total += oroplayBalance;
                         if (useFamilyApi && typeof familyapiBalance === 'number') total += familyapiBalance;
+                        if (useHonorApi && typeof honorapiBalance === 'number') total += honorapiBalance;
                         return <AnimatedCurrency value={total} duration={800} currencySymbol={t.common.currency} />;
                       })()}
                     </div>

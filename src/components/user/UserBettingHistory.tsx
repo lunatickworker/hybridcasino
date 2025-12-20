@@ -11,7 +11,7 @@ interface UserBettingHistoryProps {
   user: {
     id: string;
     username: string;
-  };
+  } | null;
 }
 
 interface BettingRecord {
@@ -33,7 +33,18 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<BettingRecord[]>([]);
-
+  
+  // Guard against null user - AFTER all hooks
+  if (!user) {
+    return (
+      <Card className="bg-[#1a1f3a] border-purple-900/30 text-white">
+        <CardContent className="p-8 text-center">
+          <p className="text-gray-400">사용자 정보를 불러올 수 없습니다.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
   // 날짜 포맷
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-';

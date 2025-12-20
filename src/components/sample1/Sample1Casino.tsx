@@ -45,39 +45,16 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
       const providersData = await gameApi.getUserVisibleProviders({ type: 'casino' });
       setProviders(providersData);
       
-      // 카지노 게임 로드 (카지노 로비 게임만)
-      let query = supabase
-        .from('games')
-        .select(`
-          id,
-          provider_id,
-          name,
-          type,
-          status,
-          image_url,
-          is_featured,
-          priority,
-          api_type,
-          game_providers!inner(
-            id,
-            name,
-            logo_url,
-            status
-          )
-        `)
-        .eq('type', 'casino')
-        .eq('status', 'visible') // 게임 status도 visible만
-        .eq('game_providers.status', 'visible'); // 제공사도 visible이어야 함
-        
-      const { data: gamesData, error } = await query.order('priority', { ascending: false });
-
-      if (error) throw error;
+      // ✅ gameApi.getUserVisibleGames 사용 (HonorAPI 지원)
+      const gamesData = await gameApi.getUserVisibleGames({
+        type: 'casino'
+      });
 
       // 게임 데이터 포맷팅
       const formattedGames = gamesData?.map(game => ({
         game_id: game.id,
         provider_id: game.provider_id,
-        provider_name: (game as any).game_providers?.name || 'Unknown',
+        provider_name: game.provider_name || 'Unknown',
         provider_logo: (game as any).game_providers?.logo_url,
         game_name: game.name,
         game_type: game.type,

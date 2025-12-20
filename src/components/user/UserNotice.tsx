@@ -52,6 +52,18 @@ interface PopupNotice {
 
 export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
   const { t } = useLanguage();
+  
+  // Guard against null user
+  if (!user) {
+    return (
+      <Card className="bg-[#1a1f3a] border-purple-900/30 text-white">
+        <CardContent className="p-8 text-center">
+          <p className="text-gray-400">사용자 정보를 불러올 수 없습니다.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
   const [notices, setNotices] = useState<Notice[]>([]);
   const [filteredNotices, setFilteredNotices] = useState<Notice[]>([]);
   const [searchQuery, setSearchQuery] = useState('');

@@ -122,6 +122,17 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
     confirmPassword: ''
   });
 
+  // Guard against null user - AFTER all hooks
+  if (!user) {
+    return (
+      <Card className="bg-[#1a1f3a] border-purple-900/30 text-white">
+        <CardContent className="p-8 text-center">
+          <p className="text-gray-400">사용자 정보를 불러올 수 없습니다.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
   // 현재 잔고 및 포인트 조회
   const fetchCurrentBalance = async () => {
     try {
@@ -473,19 +484,6 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
 
     return () => subscription.unsubscribe();
   }, [user?.id]);
-
-  // user가 없는 경우
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <XCircle className="w-16 h-16 text-red-400" />
-        <p className="text-lg text-slate-300">{t.user.cannotLoadUserInfo}</p>
-        <Button onClick={() => onRouteChange('/sample1/casino')} className="bg-blue-600 hover:bg-blue-700">
-          {t.user.backToHome}
-        </Button>
-      </div>
-    );
-  }
 
   if (isLoading) {
     return (

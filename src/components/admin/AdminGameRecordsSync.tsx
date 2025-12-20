@@ -19,6 +19,7 @@ export function AdminGameRecordsSync({ user }: AdminGameRecordsSyncProps) {
     invest?: NodeJS.Timeout;
     oroplay?: NodeJS.Timeout;
     familyapi?: NodeJS.Timeout;
+    honorapi?: NodeJS.Timeout;
   }>({});
 
   useEffect(() => {
@@ -96,7 +97,7 @@ export function AdminGameRecordsSync({ user }: AdminGameRecordsSyncProps) {
     console.log('▶️ [AdminGameRecordsSync] 리더로 지정됨, 자동 동기화 시작');
 
     // API별 동기화 함수
-    const syncGameRecords = async (apiType: 'invest' | 'oroplay' | 'familyapi') => {
+    const syncGameRecords = async (apiType: 'invest' | 'oroplay' | 'familyapi' | 'honorapi') => {
       try {
         console.log(`[${apiType}] 동기화 시작 (클라이언트 측)`);
 
@@ -127,10 +128,16 @@ export function AdminGameRecordsSync({ user }: AdminGameRecordsSyncProps) {
       syncGameRecords('familyapi');
     }, 4000);
 
+    // HonorAPI: 4초 간격
+    syncTimers.current.honorapi = setInterval(() => {
+      syncGameRecords('honorapi');
+    }, 4000);
+
     // 즉시 한 번 실행
     syncGameRecords('invest');
     syncGameRecords('oroplay');
     syncGameRecords('familyapi');
+    syncGameRecords('honorapi');
 
     // 정리 함수
     return () => {

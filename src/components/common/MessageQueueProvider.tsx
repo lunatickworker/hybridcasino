@@ -61,7 +61,7 @@ export function useMessageQueue() {
 interface MessageQueueProviderProps {
   children: React.ReactNode;
   userType: 'admin' | 'user';
-  userId: string;
+  userId: string | null;
 }
 
 export const MessageQueueProvider = React.memo(({ children, userType, userId }: MessageQueueProviderProps) => {
@@ -75,7 +75,7 @@ export const MessageQueueProvider = React.memo(({ children, userType, userId }: 
 
   // 대기 중인 메시지 조회 (관리자용)
   const fetchPendingMessages = useCallback(async () => {
-    if (userType !== 'admin') return;
+    if (userType !== 'admin' || !userId) return;
     
     try {
       const { data, error } = await supabase
@@ -94,10 +94,12 @@ export const MessageQueueProvider = React.memo(({ children, userType, userId }: 
       if (error?.message?.includes('Failed to fetch')) return;
       console.error('대기 메시지 조회 실패:', error);
     }
-  }, [userType]);
+  }, [userType, userId]);
 
   // 알림 조회
   const fetchNotifications = useCallback(async () => {
+    if (!userId) return; // userId가 없으면 조회하지 않음
+    
     try {
       const { data, error } = await supabase
         .from('realtime_notifications')

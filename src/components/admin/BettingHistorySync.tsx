@@ -224,7 +224,8 @@ const processSingleOpcode = async (
             win_amount: winAmount,
             balance_before: balanceBefore,
             balance_after: balanceAfter,
-            played_at: playedAt
+            played_at: playedAt,
+            api_type: 'invest'
           });
 
         if (error) {
@@ -331,11 +332,10 @@ const processSingleOpcode = async (
  * 새로고침 버튼 클릭 시 사용
  */
 export async function forceSyncBettingHistory(user: Partner) {
-  console.log('🔄 [BETTING-FORCE-SYNC] OroPlay 베팅 동기화 시작');
+  console.log('🔄 [BETTING-FORCE-SYNC] 베팅 동기화 시작');
 
   try {
-    // ✅ OroPlay API 베팅 동기화만 실행
-    // Lv1 파트너 ID 찾기
+    // ✅ Lv1 파트너 ID 찾기
     let topLevelPartnerId = user.id;
     if (user.level !== 1) {
       // Lv1까지 올라가기
@@ -363,8 +363,11 @@ export async function forceSyncBettingHistory(user: Partner) {
     
     // OroPlay 베팅 동기화 실행
     await syncOroPlayBettingHistory(topLevelPartnerId);
+    
+    // HonorAPI 베팅 동기화 실행
+    await syncHonorApiBettingHistory(topLevelPartnerId);
 
-    console.log('✅ [BETTING-FORCE-SYNC] OroPlay 베팅 동기화 완료');
+    console.log('✅ [BETTING-FORCE-SYNC] 베팅 동기화 완료');
   } catch (error) {
     console.error('❌ [BETTING-FORCE-SYNC] 오류:', error);
     throw error;
@@ -432,11 +435,23 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
         // 게임 정보 조회 (vendor_code와 game_code로 매칭)
         const { data: gameData } = await supabase
           .from('games')
-          .select('id, provider_id')
+          .select('id, provider_id, name')
           .eq('vendor_code', bet.vendorCode)
           .eq('game_code', bet.gameCode)
           .eq('api_type', 'oroplay')
           .maybeSingle();
+        
+        // 제공사 정보 조회
+        let providerName = '';
+        if (gameData?.provider_id) {
+          const { data: providerData } = await supabase
+            .from('game_providers')
+            .select('name')
+            .eq('id', gameData.provider_id)
+            .maybeSingle();
+          
+          providerName = providerData?.name || '';
+        }
         
         const { error } = await supabase
           .from('game_records')
@@ -448,6 +463,8 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
             user_id: userId,
             game_id: gameData?.id || null,
             provider_id: gameData?.provider_id || null,
+            game_title: gameData?.name || null,
+            provider_name: providerName || null,
             bet_amount: bet.betAmount,
             win_amount: bet.winAmount,
             balance_before: bet.beforeBalance,
@@ -482,6 +499,31 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
     
   } catch (error) {
     console.error('❌ [OROPLAY-SYNC] 오류:', error);
+  }
+};
+
+/**
+ * ✅ HonorAPI Betting History Sync
+ */
+const syncHonorApiBettingHistory = async (partnerId: string) => {
+  try {
+    console.log('🎮 [HONORAPI-SYNC] Betting history sync started');
+
+    // HonorAPI 모듈 동적 임포트
+    const honorApiModule = await import('../../lib/honorApi');
+    
+    // 베팅 내역 동기화 실행
+    const result = await honorApiModule.syncHonorApiBettingHistory();
+    
+    if (!result.success) {
+      console.error('❌ [HONORAPI-SYNC] 동기화 실패:', result.error);
+      return;
+    }
+    
+    console.log(`✅ [HONORAPI-SYNC] 완료: ${result.recordsSaved}/${result.recordsProcessed}건 저장`);
+    
+  } catch (error) {
+    console.error('❌ [HONORAPI-SYNC] 오류:', error);
   }
 };
 

@@ -9,6 +9,7 @@ interface BalanceContextType {
   investBalance: number;
   oroplayBalance: number;
   familyapiBalance: number;
+  honorapiBalance: number;
   loading: boolean;
   error: string | null;
   lastSyncTime: Date | null;
@@ -16,6 +17,7 @@ interface BalanceContextType {
   useInvestApi: boolean;  // ✅ API 활성화 상태
   useOroplayApi: boolean; // ✅ API 활성화 상태
   useFamilyApi: boolean;  // ✅ API 활성화 상태
+  useHonorApi: boolean;   // ✅ API 활성화 상태
 }
 
 const BalanceContext = createContext<BalanceContextType | null>(null);
@@ -38,12 +40,14 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
   const [investBalance, setInvestBalance] = useState<number>(0);
   const [oroplayBalance, setOroplayBalance] = useState<number>(0);
   const [familyapiBalance, setFamilyapiBalance] = useState<number>(0);
+  const [honorapiBalance, setHonorapiBalance] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [useInvestApi, setUseInvestApi] = useState<boolean>(true);   // ✅ API 활성화 상태
   const [useOroplayApi, setUseOroplayApi] = useState<boolean>(true); // ✅ API 활성화 상태
   const [useFamilyApi, setUseFamilyApi] = useState<boolean>(true);   // ✅ API 활성화 상태
+  const [useHonorApi, setUseHonorApi] = useState<boolean>(true);     // ✅ API 활성화 상태
   const isSyncingRef = useRef<boolean>(false);
 
   // =====================================================
@@ -117,32 +121,49 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           console.error('❌ [Balance] FamilyAPI api_config 조회 실패:', familyapiError);
         }
 
+        // HonorAPI 잔액 조회
+        const { data: honorapiData, error: honorapiError } = await supabase
+          .from('api_configs')
+          .select('balance, is_active')
+          .eq('partner_id', user.id)
+          .eq('api_provider', 'honorapi')
+          .maybeSingle();
+
+        if (honorapiError) {
+          console.error('❌ [Balance] HonorAPI api_config 조회 실패:', honorapiError);
+        }
+
         const investRaw = investData?.balance;
         const oroRaw = oroplayData?.balance;
         const familyRaw = familyapiData?.balance;
+        const honorRaw = honorapiData?.balance;
         
         const invest = typeof investRaw === 'number' && !isNaN(investRaw) ? investRaw : 0;
         const oro = typeof oroRaw === 'number' && !isNaN(oroRaw) ? oroRaw : 0;
         const family = typeof familyRaw === 'number' && !isNaN(familyRaw) ? familyRaw : 0;
+        const honor = typeof honorRaw === 'number' && !isNaN(honorRaw) ? honorRaw : 0;
         
         // ✅ API 활성화 설정 로드
         const useInvest = investData?.is_active !== false; // 기본값 true
         const useOro = oroplayData?.is_active !== false;   // 기본값 true
         const useFamily = familyapiData?.is_active !== false; // 기본값 true
+        const useHonor = honorapiData?.is_active !== false; // 기본값 true
         
         setInvestBalance(invest);
         setOroplayBalance(oro);
         setFamilyapiBalance(family);
+        setHonorapiBalance(honor);
         setUseInvestApi(useInvest);
         setUseOroplayApi(useOro);
         setUseFamilyApi(useFamily);
+        setUseHonorApi(useHonor);
 
       } else if (user.level === 2) {
-        // Lv2는 partners 테이블에서 invest_balance + oroplay_balance + familyapi_balance 조회
+        // Lv2는 partners 테이블에서 invest_balance + oroplay_balance + familyapi_balance + honorapi_balance 조회
         
         const { data: lv2Data, error: lv2Error } = await supabase
           .from('partners')
-          .select('invest_balance, oroplay_balance, familyapi_balance')
+          .select('invest_balance, oroplay_balance, familyapi_balance, honorapi_balance')
           .eq('id', user.id)
           .single();
         
@@ -150,6 +171,7 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         let invest = 0;
         let oro = 0;
         let family = 0;
+        let honor = 0;
         
         if (lv2Error) {
           console.error('❌ [Balance] Lv2 partners 조회 실패:', lv2Error);
@@ -157,14 +179,17 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           const investRaw = lv2Data?.invest_balance;
           const oroRaw = lv2Data?.oroplay_balance;
           const familyRaw = lv2Data?.familyapi_balance;
+          const honorRaw = lv2Data?.honorapi_balance;
           
           invest = typeof investRaw === 'number' && !isNaN(investRaw) ? investRaw : 0;
           oro = typeof oroRaw === 'number' && !isNaN(oroRaw) ? oroRaw : 0;
           family = typeof familyRaw === 'number' && !isNaN(familyRaw) ? familyRaw : 0;
+          honor = typeof honorRaw === 'number' && !isNaN(honorRaw) ? honorRaw : 0;
           
           setInvestBalance(invest);
           setOroplayBalance(oro);
           setFamilyapiBalance(family);
+          setHonorapiBalance(honor);
         }
         
         // Lv1의 API 설정을 따름
@@ -199,10 +224,19 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
             .eq('partner_id', lv1Config.id)
             .eq('api_provider', 'familyapi')
             .maybeSingle();
+
+          // HonorAPI 활성화 상태
+          const { data: honorapiConfig } = await supabase
+            .from('api_configs')
+            .select('is_active')
+            .eq('partner_id', lv1Config.id)
+            .eq('api_provider', 'honorapi')
+            .maybeSingle();
             
           setUseInvestApi(investConfig?.is_active !== false);
           setUseOroplayApi(oroplayConfig?.is_active !== false);
           setUseFamilyApi(familyapiConfig?.is_active !== false);
+          setUseHonorApi(honorapiConfig?.is_active !== false);
         }
         
       } else {
@@ -210,6 +244,7 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         setInvestBalance(0);
         setOroplayBalance(0);
         setFamilyapiBalance(0);
+        setHonorapiBalance(0);
         
         // ✅ Lv3+도 Lv1의 API 설정을 따름
         const { data: lv1Config } = await supabase
@@ -243,10 +278,19 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
             .eq('partner_id', lv1Config.id)
             .eq('api_provider', 'familyapi')
             .maybeSingle();
+
+          // HonorAPI 활성화 상태
+          const { data: honorapiConfig } = await supabase
+            .from('api_configs')
+            .select('is_active')
+            .eq('partner_id', lv1Config.id)
+            .eq('api_provider', 'honorapi')
+            .maybeSingle();
             
           setUseInvestApi(investConfig?.is_active !== false);
           setUseOroplayApi(oroplayConfig?.is_active !== false);
           setUseFamilyApi(familyapiConfig?.is_active !== false);
+          setUseHonorApi(honorapiConfig?.is_active !== false);
         }
       }
 
@@ -315,6 +359,12 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
     }
 
     try {
+      // ✅ 각 API별 잔고 변수 초기화
+      let newInvestBalance = 0;
+      let newOroBalance = 0;
+      let newFamilyBalance = 0;
+      let newHonorBalance = 0;
+
       // ✅ Invest API: getAllAccountBalances 호출
       console.log('💰 [Balance] Invest API 동기화 시작');
       
@@ -348,7 +398,7 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         if (isManual) {
           toast.info('Invest API가 비활성화되어 있습니다.');
         }
-        setInvestBalance(0);
+        newInvestBalance = 0;
       } else {
         // API 설정 조회
         const apiConfig = await investApiModule.investApi.getApiConfig(partnerId);
@@ -390,35 +440,22 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
 
         // API 응답 파싱
         console.log('✅ [Balance] API 응답:', balanceResponse.data);
-        const newBalance = balanceResponse.data?.balance || 0;
+        newInvestBalance = balanceResponse.data?.balance || 0;
 
         // api_configs 테이블에 Invest 잔고 업데이트 (새 구조: api_provider별)
         await supabase
           .from('api_configs')
           .update({ 
-            balance: newBalance,
+            balance: newInvestBalance,
             updated_at: new Date().toISOString()
           })
           .eq('partner_id', user.id)
           .eq('api_provider', 'invest');
-
-        // ✅ 항상 State 업데이트 (에러 여부 무관)
-        setInvestBalance(newBalance);
-        setBalance(newBalance);  // 🔧 수정: Lv1은 Invest + OroPlay + FamilyAPI 합계
-        setLastSyncTime(new Date());
-        setError(null);
-        
-        // ✅ 수동 동기화일 때만 성공 토스트 표시
-        if (isManual) {
-          toast.success(`보유금 동기화 완료 | Invest: ₩${newBalance.toLocaleString()}`, { duration: 3000 });
-        }
       }
 
       // =====================================================
       // 🔥 OroPlay API 잔고 조회 (GET /agent/balance) - Lv1만
       // =====================================================
-      let oroBalance = 0;
-      
       try {
         // OroPlay API config 조회 (새 구조: api_provider='oroplay')
         const { data: oroConfig } = await supabase
@@ -441,13 +478,13 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         const rawOroBalance = await getAgentBalance(oroToken);
         
         // ✅ NaN 방지: 숫자가 아니거나 NaN이면 0으로 처리
-        oroBalance = typeof rawOroBalance === 'number' && !isNaN(rawOroBalance) ? rawOroBalance : 0;
+        newOroBalance = typeof rawOroBalance === 'number' && !isNaN(rawOroBalance) ? rawOroBalance : 0;
         
         // api_configs 테이블 업데이트 (새 구조: api_provider별)
         const { error: oroUpdateError } = await supabase
           .from('api_configs')
           .update({ 
-            balance: oroBalance,
+            balance: newOroBalance,
             updated_at: new Date().toISOString()
           })
           .eq('partner_id', user.id)
@@ -467,7 +504,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
       }
 
       // FamilyAPI 잔고 동기화 시도
-      let familyBalance = 0;
       try {
         // ✅ familyApi는 dynamic import
         const familyApiModule = await import('../lib/familyApi');
@@ -477,13 +513,13 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           await familyApiModule.getFamilyApiToken(user.id)
         );
         
-        familyBalance = rawFamilyBalance?.credit || 0;
+        newFamilyBalance = rawFamilyBalance?.credit || 0;
         
         // api_configs 테이블 업데이트
         await supabase
           .from('api_configs')
           .update({ 
-            balance: familyBalance,
+            balance: newFamilyBalance,
             updated_at: new Date().toISOString()
           })
           .eq('partner_id', user.id)
@@ -493,16 +529,45 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         console.error('❌ [Balance] FamilyAPI 잔고 조회 실패:', familyErr);
       }
 
+      // HonorAPI 잔고 동기화 시도
+      try {
+        // ✅ honorApi는 dynamic import
+        const honorApiModule = await import('../lib/honorApi');
+        const { getLv1HonorApiCredentials } = await import('../lib/apiConfigHelper');
+        
+        const credentials = await getLv1HonorApiCredentials(user.id);
+        
+        if (credentials?.api_key) {
+          const agentInfo = await honorApiModule.getAgentInfo(credentials.api_key);
+          newHonorBalance = parseFloat(agentInfo.balance) || 0;
+          
+          // api_configs 테이블 업데이트
+          await supabase
+            .from('api_configs')
+            .update({ 
+              balance: newHonorBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('partner_id', user.id)
+            .eq('api_provider', 'honorapi');
+        }
+          
+      } catch (honorErr: any) {
+        console.error('❌ [Balance] HonorAPI 잔고 조회 실패:', honorErr);
+      }
+
       // ✅ 항상 State 업데이트 (에러 여부 무관)
-      setOroplayBalance(oroBalance);
-      setFamilyapiBalance(familyBalance);
-      setBalance(investBalance + oroBalance + familyBalance);  // 🔧 수정: Lv1은 Invest + OroPlay + FamilyAPI 합계
+      setInvestBalance(newInvestBalance);
+      setOroplayBalance(newOroBalance);
+      setFamilyapiBalance(newFamilyBalance);
+      setHonorapiBalance(newHonorBalance);
+      setBalance(newInvestBalance + newOroBalance + newFamilyBalance + newHonorBalance);  // 🔧 수정: Lv1은 Invest + OroPlay + FamilyAPI + HonorAPI 합계
       setLastSyncTime(new Date());
       setError(null);
       
       // ✅ 수동 동기화일 때만 성공 토스트 표시
       if (isManual) {
-        toast.success(`보유금 동기화 완료 | Invest: ₩${investBalance.toLocaleString()} | Oro: ₩${oroBalance.toLocaleString()} | Family: ₩${familyBalance.toLocaleString()}`, { duration: 3000 });
+        toast.success(`보유금 동기화 완료 | Invest: ₩${newInvestBalance.toLocaleString()} | Oro: ₩${newOroBalance.toLocaleString()} | Family: ₩${newFamilyBalance.toLocaleString()} | Honor: ₩${newHonorBalance.toLocaleString()}`, { duration: 3000 });
       }
     } catch (err: any) {
       console.error('❌ [Balance] API 동기화 오류:', err);
@@ -629,6 +694,12 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
             } else if (apiProvider === 'oroplay') {
               console.log('✅ [Realtime] OroPlay 잔고 업데이트:', newBalance);
               setOroplayBalance(newBalance);
+            } else if (apiProvider === 'familyapi') {
+              console.log('✅ [Realtime] FamilyAPI 잔고 업데이트:', newBalance);
+              setFamilyapiBalance(newBalance);
+            } else if (apiProvider === 'honorapi') {
+              console.log('✅ [Realtime] HonorAPI 잔고 업데이트:', newBalance);
+              setHonorapiBalance(newBalance);
             }
             
             // ✅ API 활성화 상태 업데이트
@@ -638,6 +709,10 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
                 setUseInvestApi(isActive);
               } else if (apiProvider === 'oroplay') {
                 setUseOroplayApi(isActive);
+              } else if (apiProvider === 'familyapi') {
+                setUseFamilyApi(isActive);
+              } else if (apiProvider === 'honorapi') {
+                setUseHonorApi(isActive);
               }
             }
             
@@ -663,13 +738,15 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
       investBalance, 
       oroplayBalance, 
       familyapiBalance,
+      honorapiBalance,
       loading, 
       error, 
       lastSyncTime, 
       syncBalance,
       useInvestApi,   // ✅ API 활성화 상태 제공
       useOroplayApi,  // ✅ API 활성화 상태 제공
-      useFamilyApi    // ✅ API 활성화 상태 제공
+      useFamilyApi,   // ✅ API 활성화 상태 제공
+      useHonorApi     // ✅ API 활성화 상태 제공
     }}>
       {children}
     </BalanceContext.Provider>

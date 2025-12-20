@@ -50,6 +50,30 @@ interface SupportMessage {
 
 export function UserSupport({ user, onRouteChange }: UserSupportProps) {
   const { t } = useLanguage();
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [filteredInquiries, setFilteredInquiries] = useState<Inquiry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
+  const [showInquiryDialog, setShowInquiryDialog] = useState(false);
+  const [showNewInquiryDialog, setShowNewInquiryDialog] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [newInquiry, setNewInquiry] = useState({
+    category: '',
+    title: '',
+    content: ''
+  });
+  
+  // Guard against null user - AFTER all hooks
+  if (!user) {
+    return (
+      <Card className="bg-[#1a1f3a] border-purple-900/30 text-white">
+        <CardContent className="p-8 text-center">
+          <p className="text-gray-400">사용자 정보를 불러올 수 없습니다.</p>
+        </CardContent>
+      </Card>
+    );
+  }
   
   const inquiryCategories = [
     { value: 'deposit', label: t.user.depositInquiry },
@@ -63,15 +87,11 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
   
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [filteredMessages, setFilteredMessages] = useState<SupportMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showNewInquiry, setShowNewInquiry] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [expandedMessages, setExpandedMessages] = useState<string[]>([]);
 
   // 새 문의 폼 상태
-  const [newInquiry, setNewInquiry] = useState({
+  const [newInquiryForm, setNewInquiryForm] = useState({
     category: '',
     subject: '',
     content: ''
@@ -129,7 +149,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
   const handleSubmitInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!newInquiry.category || !newInquiry.subject.trim() || !newInquiry.content.trim()) {
+    if (!newInquiryForm.category || !newInquiryForm.subject.trim() || !newInquiryForm.content.trim()) {
       toast.error(t.user.fillAllRequired);
       return;
     }
@@ -142,8 +162,8 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
         sender_id: user.id,
         receiver_type: 'partner',
         receiver_id: user.referrer_id, // 사용자의 상위 파트너에게 전송
-        subject: `[${inquiryCategories.find(cat => cat.value === newInquiry.category)?.label}] ${newInquiry.subject}`,
-        content: newInquiry.content,
+        subject: `[${inquiryCategories.find(cat => cat.value === newInquiryForm.category)?.label}] ${newInquiryForm.subject}`,
+        content: newInquiryForm.content,
         message_type: 'normal',
         status: 'unread'
       };
@@ -166,14 +186,14 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
           target_type: 'message',
           target_id: data.id,
           details: {
-            category: newInquiry.category,
-            subject: newInquiry.subject
+            category: newInquiryForm.category,
+            subject: newInquiryForm.subject
           }
         }]);
 
       // 폼 초기화
-      setNewInquiry({ category: '', subject: '', content: '' });
-      setShowNewInquiry(false);
+      setNewInquiryForm({ category: '', subject: '', content: '' });
+      setShowNewInquiryDialog(false);
 
       // 목록 새로고침
       fetchMessages();
@@ -235,18 +255,18 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
     let filtered = messages;
 
     // 상태 필터
-    if (statusFilter !== 'all') {
+    if (filterStatus !== 'all') {
       filtered = filtered.filter(msg => {
-        if (statusFilter === 'waiting') {
+        if (filterStatus === 'waiting') {
           return msg.sender_id === user.id && msg.status !== 'replied';
         }
-        if (statusFilter === 'replied') {
+        if (filterStatus === 'replied') {
           return msg.replies && msg.replies.length > 0;
         }
-        if (statusFilter === 'unread') {
+        if (filterStatus === 'unread') {
           return msg.receiver_id === user.id && msg.status === 'unread';
         }
-        return msg.status === statusFilter;
+        return msg.status === filterStatus;
       });
     }
 
@@ -338,7 +358,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
 
   useEffect(() => {
     handleFilter();
-  }, [messages, searchQuery, statusFilter]);
+  }, [messages, searchQuery, filterStatus]);
 
   return (
     <div className="space-y-6">
@@ -348,7 +368,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
           <h1 className="text-3xl font-bold text-white mb-2">{t.user.supportTitle}</h1>
           <p className="text-slate-400">{t.user.supportSubtitle}</p>
         </div>
-        <Dialog open={showNewInquiry} onOpenChange={setShowNewInquiry}>
+        <Dialog open={showNewInquiryDialog} onOpenChange={setShowNewInquiryDialog}>
           <DialogTrigger asChild>
             <Button className="bg-green-600 hover:bg-green-700">
               <Plus className="w-4 h-4 mr-2" />
@@ -365,7 +385,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
             <form onSubmit={handleSubmitInquiry} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="category" className="text-slate-300">{t.user.inquiryType} *</Label>
-                <Select value={newInquiry.category} onValueChange={(value) => setNewInquiry(prev => ({ ...prev, category: value }))}>
+                <Select value={newInquiryForm.category} onValueChange={(value) => setNewInquiryForm(prev => ({ ...prev, category: value }))}>
                   <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
                     <SelectValue placeholder={t.user.selectInquiryType} />
                   </SelectTrigger>
@@ -384,8 +404,8 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                 <Input
                   id="subject"
                   placeholder={t.user.enterInquiryTitle}
-                  value={newInquiry.subject}
-                  onChange={(e) => setNewInquiry(prev => ({ ...prev, subject: e.target.value }))}
+                  value={newInquiryForm.subject}
+                  onChange={(e) => setNewInquiryForm(prev => ({ ...prev, subject: e.target.value }))}
                   className="bg-slate-700/50 border-slate-600 text-white"
                 />
               </div>
@@ -395,8 +415,8 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                 <Textarea
                   id="content"
                   placeholder={t.user.enterInquiryContent}
-                  value={newInquiry.content}
-                  onChange={(e) => setNewInquiry(prev => ({ ...prev, content: e.target.value }))}
+                  value={newInquiryForm.content}
+                  onChange={(e) => setNewInquiryForm(prev => ({ ...prev, content: e.target.value }))}
                   className="bg-slate-700/50 border-slate-600 text-white min-h-32"
                 />
               </div>
@@ -405,7 +425,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setShowNewInquiry(false)}
+                  onClick={() => setShowNewInquiryDialog(false)}
                   className="flex-1"
                 >
                   {t.user.cancel}
@@ -448,7 +468,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                 />
               </div>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="w-48 bg-slate-700/50 border-slate-600 text-white">
                 <SelectValue />
               </SelectTrigger>
@@ -574,27 +594,27 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
             <div className="text-center py-12">
               <MessageSquare className="w-16 h-16 text-slate-600 mx-auto mb-4" />
               <h3 className="text-xl font-medium text-white mb-2">
-                {searchQuery || statusFilter !== 'all' ? t.user.noSearchResults : t.user.noInquiries}
+                {searchQuery || filterStatus !== 'all' ? t.user.noSearchResults : t.user.noInquiries}
               </h3>
               <p className="text-slate-400 mb-4">
-                {searchQuery || statusFilter !== 'all'
+                {searchQuery || filterStatus !== 'all'
                   ? t.user.changeSearchCondition 
                   : t.user.askAnytime
                 }
               </p>
-              {(searchQuery || statusFilter !== 'all') ? (
+              {(searchQuery || filterStatus !== 'all') ? (
                 <Button
                   variant="outline"
                   onClick={() => {
                     setSearchQuery('');
-                    setStatusFilter('all');
+                    setFilterStatus('all');
                   }}
                 >
                   {t.user.viewAllInquiries}
                 </Button>
               ) : (
                 <Button
-                  onClick={() => setShowNewInquiry(true)}
+                  onClick={() => setShowNewInquiryDialog(true)}
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <Plus className="w-4 h-4 mr-2" />

@@ -166,14 +166,14 @@ export async function getDescendantUserIds(partnerId: string): Promise<string[]>
  * @param userIds 사용자 ID 배열
  * @param startDate 시작 날짜
  * @param endDate 종료 날짜
- * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay'
+ * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
  * @returns 총 베팅액과 총 손실액
  */
 export async function getBettingStats(
   userIds: string[],
   startDate: string,
   endDate: string,
-  apiFilter: 'all' | 'invest' | 'oroplay' = 'all'
+  apiFilter: 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi' = 'all'
 ): Promise<{ totalBetAmount: number; totalLossAmount: number }> {
   if (userIds.length === 0) {
     return { totalBetAmount: 0, totalLossAmount: 0 };
@@ -211,7 +211,8 @@ export async function getBettingStats(
       if (bettingData && bettingData.length > 0) {
         // ⚡ 한 번의 순회로 두 값 모두 계산
         for (const record of bettingData) {
-          const bet = record.bet_amount || 0;
+          // ✅ bet_amount가 음수로 저장되므로 절대값 사용
+          const bet = Math.abs(record.bet_amount || 0);
           const win = record.win_amount || 0;
           totalBetAmount += bet;
           const loss = bet - win;
@@ -334,7 +335,7 @@ export async function calculatePendingDeposits(
  * @param partner 파트너 정보 (commission_rolling, commission_losing, withdrawal_fee 포함)
  * @param startDate 시작 날짜
  * @param endDate 종료 날짜
- * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay'
+ * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
  * @returns 커미션 상세 정보
  */
 export async function calculatePartnerCommission(
@@ -353,7 +354,7 @@ export async function calculatePartnerCommission(
   },
   startDate: string,
   endDate: string,
-  apiFilter: 'all' | 'invest' | 'oroplay' = 'all'
+  apiFilter: 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi' = 'all'
 ): Promise<PartnerCommissionInfo> {
   try {
     // 모든 하위 사용자 ID 조회
@@ -514,14 +515,14 @@ export async function calculatePartnerCommission(
  * @param parentId 상위 파트너 ID
  * @param startDate 시작 날짜
  * @param endDate 종료 날짜
- * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay'
+ * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
  * @returns 파트너별 커미션 배열
  */
 export async function calculateChildPartnersCommission(
   parentId: string,
   startDate: string,
   endDate: string,
-  apiFilter: 'all' | 'invest' | 'oroplay' = 'all'
+  apiFilter: 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi' = 'all'
 ): Promise<PartnerCommissionInfo[]> {
   try {
     // 직속 하위 파트너 목록 조회 (✅ 카지노/슬롯 커미션 포함)
@@ -579,7 +580,7 @@ export async function calculateChildPartnersCommission(
  * @param commissionRates 내 커미션율 (카지노/슬롯 구분)
  * @param startDate 시작 날짜
  * @param endDate 종료 날짜
- * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay'
+ * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
  * @returns 카지노/슬롯별 롤링/루징/출금 수입과 총합
  */
 export async function calculateMyIncome(
@@ -595,7 +596,7 @@ export async function calculateMyIncome(
   },
   startDate: string,
   endDate: string,
-  apiFilter: 'all' | 'invest' | 'oroplay' = 'all'
+  apiFilter: 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi' = 'all'
 ): Promise<{
   casinoRolling: number;
   casinoLosing: number;
@@ -679,14 +680,14 @@ export async function calculateMyIncome(
  * @param parentId 상위 파트너 ID
  * @param startDate 시작 날짜
  * @param endDate 종료 날짜
- * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay'
+ * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
  * @returns 파트너별 지급 상세 및 총합
  */
 export async function calculatePartnerPayments(
   parentId: string,
   startDate: string,
   endDate: string,
-  apiFilter: 'all' | 'invest' | 'oroplay' = 'all'
+  apiFilter: 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi' = 'all'
 ): Promise<{
   totalCasinoRolling: number;
   totalCasinoLosing: number;
@@ -804,7 +805,7 @@ async function calculatePartnerPayment(
   },
   startDate: string,
   endDate: string,
-  apiFilter: 'all' | 'invest' | 'oroplay' = 'all'
+  apiFilter: 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi' = 'all'
 ): Promise<PartnerPaymentDetail> {
   try {
     // 해당 파트너의 모든 하위 사용자 조회
@@ -886,7 +887,7 @@ async function calculatePartnerPayment(
  * @param commissionRates 내 커미션율
  * @param startDate 시작 날짜
  * @param endDate 종료 날짜
- * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay'
+ * @param apiFilter API 필터 (optional): 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
  * @returns 통합 정산 요약
  */
 export async function calculateIntegratedSettlement(
@@ -902,7 +903,7 @@ export async function calculateIntegratedSettlement(
   },
   startDate: string,
   endDate: string,
-  apiFilter: 'all' | 'invest' | 'oroplay' = 'all'
+  apiFilter: 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi' = 'all'
 ): Promise<SettlementSummary> {
   try {
     // 내 총 수입 계산 (API 필터 적용, 카지노/슬롯 구분)

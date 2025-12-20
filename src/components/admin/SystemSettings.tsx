@@ -116,6 +116,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
   const [useInvestApi, setUseInvestApi] = useState(true);
   const [useOroplayApi, setUseOroplayApi] = useState(true);
   const [useFamilyApi, setUseFamilyApi] = useState(true);
+  const [useHonorApi, setUseHonorApi] = useState(true);
   const [apiSettingsLoading, setApiSettingsLoading] = useState(false);
 
   useEffect(() => {
@@ -491,14 +492,23 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
         .eq('api_provider', 'familyapi')
         .maybeSingle();
 
+      const { data: honorConfig } = await supabase
+        .from('api_configs')
+        .select('is_active')
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'honorapi')
+        .maybeSingle();
+
       setUseInvestApi(investConfig?.is_active ?? false);
       setUseOroplayApi(oroplayConfig?.is_active ?? false);
       setUseFamilyApi(familyConfig?.is_active ?? false);
+      setUseHonorApi(honorConfig?.is_active ?? false);
       
       console.log('✅ API 설정 로드:', { 
         invest: investConfig?.is_active ?? false, 
         oroplay: oroplayConfig?.is_active ?? false,
-        familyapi: familyConfig?.is_active ?? false
+        familyapi: familyConfig?.is_active ?? false,
+        honorapi: honorConfig?.is_active ?? false
       });
     } catch (error) {
       console.error('❌ API 설정 로드 실패:', error);
@@ -513,7 +523,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
     }
 
     // 최소 하나의 API는 활성화되어야 함
-    if (!useInvestApi && !useOroplayApi && !useFamilyApi) {
+    if (!useInvestApi && !useOroplayApi && !useFamilyApi && !useHonorApi) {
       toast.error(t.systemSettings.apiSettingsMinimumOne);
       return;
     }
@@ -547,6 +557,14 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
         .eq('api_provider', 'familyapi');
       updates.push(familyUpdate);
 
+      // honorapi API 업데이트
+      const honorUpdate = supabase
+        .from('api_configs')
+        .update({ is_active: useHonorApi })
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'honorapi');
+      updates.push(honorUpdate);
+
       await Promise.all(updates);
       
       toast.success(t.systemSettings.apiSettingsSaved);
@@ -554,7 +572,8 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
       console.log('✅ API 설정 저장 완료:', {
         invest: useInvestApi,
         oroplay: useOroplayApi,
-        familyapi: useFamilyApi
+        familyapi: useFamilyApi,
+        honorapi: useHonorApi
       });
 
       // 설정 다시 로드
@@ -802,7 +821,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                     <Switch
                       checked={useInvestApi}
                       onCheckedChange={setUseInvestApi}
-                      disabled={apiSettingsLoading || (!useOroplayApi && !useFamilyApi && useInvestApi)}
+                      disabled={apiSettingsLoading || (!useOroplayApi && !useFamilyApi && !useHonorApi && useInvestApi)}
                     />
                   </div>
 
@@ -816,7 +835,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                     <Switch
                       checked={useOroplayApi}
                       onCheckedChange={setUseOroplayApi}
-                      disabled={apiSettingsLoading || (!useInvestApi && !useFamilyApi && useOroplayApi)}
+                      disabled={apiSettingsLoading || (!useInvestApi && !useFamilyApi && !useHonorApi && useOroplayApi)}
                     />
                   </div>
 
@@ -830,7 +849,21 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                     <Switch
                       checked={useFamilyApi}
                       onCheckedChange={setUseFamilyApi}
-                      disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi && useFamilyApi)}
+                      disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi && !useHonorApi && useFamilyApi)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-lg border border-slate-700 bg-slate-800/30">
+                    <div className="space-y-1">
+                      <Label className="text-base">{t.systemSettings.honorApi || 'HonorAPI'}</Label>
+                      <p className="text-sm text-slate-400">
+                        {t.systemSettings.honorApiDescription || 'HonorAPI 카지노/슬롯 게임 통합 솔루션'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={useHonorApi}
+                      onCheckedChange={setUseHonorApi}
+                      disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi && !useFamilyApi && useHonorApi)}
                     />
                   </div>
                 </div>
@@ -884,7 +917,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                 <div className="flex justify-end pt-4">
                   <Button 
                     onClick={saveApiSettings}
-                    disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi && !useFamilyApi)}
+                    disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi && !useFamilyApi && !useHonorApi)}
                     className="flex items-center gap-2"
                   >
                     <Save className="h-4 w-4" />

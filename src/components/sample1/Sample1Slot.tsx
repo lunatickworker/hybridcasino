@@ -72,36 +72,16 @@ export function Sample1Slot({ user }: Sample1SlotProps) {
     try {
       setLoading(true);
       
-      // ✅ /user와 동일한 로직: 게임 status만 체크
-      let query = supabase
-        .from('games')
-        .select(`
-          id,
-          provider_id,
-          name,
-          type,
-          status,
-          image_url,
-          is_featured,
-          priority,
-          api_type,
-          game_providers!inner(
-            id,
-            name
-          )
-        `)
-        .eq('type', 'slot')
-        .eq('status', 'visible')
-        .eq('provider_id', providerId);
-
-      const { data: gamesData, error } = await query.order('priority', { ascending: false });
-
-      if (error) throw error;
+      // ✅ gameApi.getUserVisibleGames 사용 (HonorAPI 지원)
+      const gamesData = await gameApi.getUserVisibleGames({
+        type: 'slot',
+        provider_id: providerId
+      });
 
       const formattedGames = gamesData?.map(game => ({
         game_id: game.id,
         provider_id: game.provider_id,
-        provider_name: (game as any).game_providers?.name || 'Unknown',
+        provider_name: game.provider_name || 'Unknown',
         game_name: game.name,
         game_type: game.type,
         image_url: game.image_url,

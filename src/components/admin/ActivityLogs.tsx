@@ -496,15 +496,15 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
         <div>
           <label className="text-sm text-slate-400 mb-2 block">기간</label>
           <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger>
+            <SelectTrigger className="w-[210px] h-14 text-lg">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="today">오늘</SelectItem>
-              <SelectItem value="yesterday">어제</SelectItem>
-              <SelectItem value="week">최근 7일</SelectItem>
-              <SelectItem value="month">최근 30일</SelectItem>
-              <SelectItem value="all">전체</SelectItem>
+              <SelectItem value="today" className="text-lg">오늘</SelectItem>
+              <SelectItem value="yesterday" className="text-lg">어제</SelectItem>
+              <SelectItem value="week" className="text-lg">최근 7일</SelectItem>
+              <SelectItem value="month" className="text-lg">최근 30일</SelectItem>
+              <SelectItem value="all" className="text-lg">전체</SelectItem>
             </SelectContent>
           </Select>
         </div>

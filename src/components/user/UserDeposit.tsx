@@ -54,7 +54,18 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [quickAmounts] = useState([1000, 3000, 5000, 10000, 30000, 50000, 100000, 300000, 500000, 1000000]);
   const [currentBalance, setCurrentBalance] = useState(0);
-
+  
+  // Guard against null user - AFTER all hooks
+  if (!user) {
+    return (
+      <Card className="bg-[#1a1f3a] border-purple-900/30 text-white">
+        <CardContent className="p-8 text-center">
+          <p className="text-gray-400">사용자 정보를 불러올 수 없습니다.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
   // 입금 내역 조회
   const fetchDepositHistory = async () => {
     if (!user?.id) {
@@ -358,19 +369,6 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
 
     return () => subscription.unsubscribe();
   }, [user?.id]);
-
-  // user가 없는 경우
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <XCircle className="w-16 h-16 text-red-400" />
-        <p className="text-lg text-slate-300">{t.user.loginFailed}</p>
-        <Button onClick={() => window.location.hash = '#/sample1'} className="bg-blue-600 hover:bg-blue-700">
-          {t.user.loginButton}
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

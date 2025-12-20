@@ -37,7 +37,7 @@ interface EnhancedGameManagementProps {
   user: Partner;
 }
 
-type ApiType = "invest" | "oroplay" | "familyapi";
+type ApiType = "invest" | "oroplay" | "familyapi" | "honorapi";
 type GameType = "all" | "casino" | "slot" | "minigame";
 
 // 검색어 debounce를 위한 custom hook
@@ -360,6 +360,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     invest: { label: "Invest API", color: "from-purple-600 to-pink-600" },
     oroplay: { label: "OroPlay API", color: "from-green-600 to-teal-600" },
     familyapi: { label: "Family API", color: "from-blue-600 to-cyan-600" },
+    honorapi: { label: "Honor API", color: "from-red-600 to-rose-600" },
   };
 
   // providers에서 실제 활성화된 API만 추출
@@ -580,6 +581,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       } else if (selectedApi === "familyapi") {
         result = await gameApi.syncFamilyApiGames();
         toast.success(`FamilyAPI 동기화 완료: 신규 ${result.newGames}개, 업데이트 ${result.updatedGames}개`);
+      } else if (selectedApi === "honorapi") {
+        result = await gameApi.syncHonorApiGames();
+        toast.success(`HonorAPI 동기화 완료: 신규 ${result.newGames}개, 업데이트 ${result.updatedGames}개`);
       }
 
       await loadGames();

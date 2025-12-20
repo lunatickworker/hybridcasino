@@ -88,7 +88,8 @@ export async function getBettingStatsByGameType(
 
         // 베팅 데이터 집계
         for (const record of bettingData) {
-          const bet = record.bet_amount || 0;
+          // ✅ bet_amount가 음수로 저장되므로 절대값 사용
+          const bet = Math.abs(record.bet_amount || 0);
           const win = record.win_amount || 0;
           const loss = bet - win;
           

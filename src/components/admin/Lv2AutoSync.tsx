@@ -26,13 +26,13 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
   });
 
   // ✅ 네트워크 오류 재시도 헬퍼 함수
-  const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 2): Promise<Response> => {
+  const fetchWithRetry = async (url: string, options: RequestInit, maxRetries = 3): Promise<Response | null> => {
     let lastError: Error | null = null;
     
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15초 타임아웃
+        const timeoutId = setTimeout(() => controller.abort(), 25000); // 25초 타임아웃
         
         const response = await fetch(url, {
           ...options,
@@ -46,14 +46,16 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
         
         // 마지막 재시도가 아니면 대기 후 재시도
         if (attempt < maxRetries) {
-          const waitTime = Math.pow(2, attempt) * 1000; // 지수 백오프: 1초, 2초
+          const waitTime = Math.min(Math.pow(2, attempt) * 1000, 5000); // 지수 백오프: 1초, 2초, 4초 (최대 5초)
           console.log(`⚠️ [Lv2AutoSync] 재시도 대기 중... (${attempt + 1}/${maxRetries + 1}) - ${waitTime}ms`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
         }
       }
     }
     
-    throw lastError;
+    // 모든 재시도 실패 시 null 반환 (에러를 던지지 않음)
+    console.error(`❌ [Lv2AutoSync] 최대 재시도 횟수 초과:`, lastError?.message);
+    return null;
   };
 
   // API 활성화 상태 조회
@@ -122,7 +124,9 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
           headers,
         });
 
-        if (!investBetsResponse.ok) {
+        if (!investBetsResponse) {
+          console.error('❌ [Lv2AutoSync] Invest 베팅 동기화 실패: 최대 재시도 횟수 초과');
+        } else if (!investBetsResponse.ok) {
           const errorText = await investBetsResponse.text();
           console.error('❌ [Lv2AutoSync] Invest 베팅 동기화 실패:', investBetsResponse.status, errorText);
         } else {
@@ -149,7 +153,9 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
             headers,
           });
 
-          if (!betsResponse.ok) {
+          if (!betsResponse) {
+            console.error('❌ [Lv2AutoSync] OroPlay 베팅 동기화 실패: 최대 재시도 횟수 초과');
+          } else if (!betsResponse.ok) {
             const errorText = await betsResponse.text();
             console.error('❌ [Lv2AutoSync] OroPlay 베팅 동기화 실패:', betsResponse.status, errorText);
           } else {
@@ -166,7 +172,9 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
             headers,
           });
 
-          if (!familyBetsResponse.ok) {
+          if (!familyBetsResponse) {
+            console.error('❌ [Lv2AutoSync] FamilyAPI 베팅 동기화 실패: 최대 재시도 횟수 초과');
+          } else if (!familyBetsResponse.ok) {
             const errorText = await familyBetsResponse.text();
             console.error('❌ [Lv2AutoSync] FamilyAPI 베팅 동기화 실패:', familyBetsResponse.status, errorText);
           } else {
@@ -182,7 +190,9 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
           headers,
         });
 
-        if (!balanceResponse.ok) {
+        if (!balanceResponse) {
+          console.error('❌ [Lv2AutoSync] 보유금 동기화 실패: 최대 재시도 횟수 초과');
+        } else if (!balanceResponse.ok) {
           const errorText = await balanceResponse.text();
           console.error('❌ [Lv2AutoSync] 보유금 동기화 실패:', balanceResponse.status, errorText);
         } else {

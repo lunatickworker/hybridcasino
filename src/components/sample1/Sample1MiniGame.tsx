@@ -66,38 +66,16 @@ export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
     try {
       setLoading(true);
       
-      // ✅ 노출된 게임만 가져오기 (status='visible' 필터 추가)
-      const { data: gamesData, error } = await supabase
-        .from('games')
-        .select(`
-          id,
-          provider_id,
-          name,
-          type,
-          status,
-          image_url,
-          is_featured,
-          priority,
-          api_type,
-          game_providers!inner(
-            id,
-            name,
-            status
-          )
-        `)
-        .eq('provider_id', providerId)
-        .eq('type', 'minigame')
-        .eq('status', 'visible')
-        .eq('game_providers.status', 'visible') // 제공사도 visible이어야 함
-        .order('is_featured', { ascending: false })
-        .order('priority', { ascending: false });
-
-      if (error) throw error;
+      // ✅ gameApi.getUserVisibleGames 사용 (HonorAPI 지원)
+      const gamesData = await gameApi.getUserVisibleGames({
+        type: 'minigame',
+        provider_id: providerId
+      });
 
       const formattedGames = gamesData?.map(game => ({
         game_id: game.id,
         provider_id: game.provider_id,
-        provider_name: (game as any).game_providers?.name || 'Unknown',
+        provider_name: game.provider_name || 'Unknown',
         game_name: game.name,
         game_type: game.type,
         image_url: game.image_url,

@@ -27,6 +27,7 @@ interface BettingRecord {
   provider_id: number;
   game_title?: string;
   provider_name?: string;
+  game_type?: string;
   bet_amount: number;
   win_amount: number;
   balance_before: number;
@@ -235,16 +236,23 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         console.log('📋 첫 번째 레코드:', data[0]);
       }
       
-      // ✅ 게임 및 제공사 정보 가져오기 (별도 쿼리)
-      const gameIds = [...new Set(data?.map(r => r.game_id).filter(Boolean))] as number[];
-      const providerIds = [...new Set(data?.map(r => r.provider_id).filter(Boolean))] as number[];
+      // ✅ game_records 테이블에 이미 game_title, provider_name이 저장되어 있으므로
+      // 별도 조인 없이 바로 사용 (null인 경우에만 fallback으로 games/providers 조회)
       
-      console.log('🎮 고유 게임 ID:', gameIds.length, '개');
-      console.log('🏢 고유 제공사 ID:', providerIds.length, '개');
+      // game_title이나 provider_name이 null인 레코드들을 위한 fallback 조회
+      const recordsNeedingGameInfo = data?.filter(r => !r.game_title && r.game_id) || [];
+      const recordsNeedingProviderInfo = data?.filter(r => !r.provider_name && r.provider_id) || [];
       
-      // 게임 정보 조회
+      const gameIds = [...new Set(recordsNeedingGameInfo.map(r => r.game_id))] as number[];
+      const providerIds = [...new Set(recordsNeedingProviderInfo.map(r => r.provider_id))] as number[];
+      
+      console.log('🎮 Fallback 필요한 게임 ID:', gameIds.length, '개');
+      console.log('🏢 Fallback 필요한 제공사 ID:', providerIds.length, '개');
+      
+      // 게임 정보 조회 (fallback)
       const gameMap = new Map<number, string>();
       if (gameIds.length > 0) {
+        // 일반 games 테이블 조회
         const { data: gamesData } = await supabase
           .from('games')
           .select('id, name')
@@ -253,12 +261,24 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         gamesData?.forEach(game => {
           gameMap.set(game.id, game.name);
         });
-        console.log('✅ 게임 맵 생성:', gameMap.size, '개');
+        
+        // honor_games 테이블도 조회
+        const { data: honorGamesData } = await supabase
+          .from('honor_games')
+          .select('id, name')
+          .in('id', gameIds);
+        
+        honorGamesData?.forEach(game => {
+          gameMap.set(game.id, game.name);
+        });
+        
+        console.log('✅ 게임 맵 생성 (fallback):', gameMap.size, '개');
       }
       
-      // 제공사 정보 조회
+      // 제공사 정보 조회 (fallback)
       const providerMap = new Map<number, string>();
       if (providerIds.length > 0) {
+        // 일반 game_providers 테이블 조회
         const { data: providersData } = await supabase
           .from('game_providers')
           .select('id, name')
@@ -267,14 +287,25 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         providersData?.forEach(provider => {
           providerMap.set(provider.id, provider.name);
         });
-        console.log('✅ 제공사 맵 생성:', providerMap.size, '개');
+        
+        // honor_game_providers 테이블도 조회
+        const { data: honorProvidersData } = await supabase
+          .from('honor_game_providers')
+          .select('id, name')
+          .in('id', providerIds);
+        
+        honorProvidersData?.forEach(provider => {
+          providerMap.set(provider.id, provider.name);
+        });
+        
+        console.log('✅ 제공사 맵 생성 (fallback):', providerMap.size, '개');
       }
       
-      // ✅ 데이터 매핑
+      // ✅ 데이터 매핑 (이미 저장된 값 우선 사용, null인 경우에만 fallback)
       const mappedData = (data || []).map((record: any) => ({
         ...record,
-        game_title: record.game_id ? gameMap.get(record.game_id) || null : null,
-        provider_name: record.provider_id ? providerMap.get(record.provider_id) || null : null
+        game_title: record.game_title || (record.game_id ? gameMap.get(record.game_id) || null : null),
+        provider_name: record.provider_name || (record.provider_id ? providerMap.get(record.provider_id) || null : null)
       }));
       
       console.log('📋 매핑된 첫 레코드:', mappedData[0]);
@@ -293,12 +324,16 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       const csvContent = [
         ['TX ID', t.common.username, t.bettingHistory.gameName, t.bettingHistory.provider, t.bettingHistory.betAmount, t.bettingHistory.winAmount, t.bettingHistory.balanceBefore, t.bettingHistory.balanceAfter, t.bettingHistory.profitLoss, t.bettingHistory.playTime].join(','),
         ...filteredRecords.map(record => {
-          const profitLoss = parseFloat(record.win_amount?.toString() || '0') - parseFloat(record.bet_amount?.toString() || '0');
+          // ✅ 손익 = 잔액 변화 (베팅후잔액 - 베팅전잔액)
+          const profitLoss = parseFloat(record.balance_after?.toString() || '0') - parseFloat(record.balance_before?.toString() || '0');
+          const gameType = record.game_type || 'casino';
+          const gameTypeText = gameType === 'slot' ? '슬롯' : '카지노';
+          
           return [
             record.external_txid,
             record.username,
             record.game_title || `Game ${record.game_id}`,
-            record.provider_name || `Provider ${record.provider_id}`,
+            gameTypeText,
             record.bet_amount,
             record.win_amount,
             record.balance_before,
@@ -307,7 +342,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
             formatKoreanDate(record.played_at)
           ].join(',');
         })
-      ].join('\n');
+      ].join('\\n');
 
       const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
@@ -380,7 +415,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   // ✅ 검색된 데이터 기준으로 통계 계산 (useMemo로 메모이제이션)
   const stats = useMemo(() => {
     if (filteredRecords.length > 0) {
-      const totalBetAmount = filteredRecords.reduce((sum, r) => sum + parseFloat(r.bet_amount?.toString() || '0'), 0);
+      const totalBetAmount = filteredRecords.reduce((sum, r) => sum + Math.abs(parseFloat(r.bet_amount?.toString() || '0')), 0);
       const totalWinAmount = filteredRecords.reduce((sum, r) => sum + parseFloat(r.win_amount?.toString() || '0'), 0);
 
       return {
@@ -416,22 +451,24 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       )
     },
     {
-      key: 'provider',
+      key: 'game_type',
       header: t.bettingHistory.provider,
-      render: (_: any, record: BettingRecord) => (
-        <Badge variant="secondary" className="bg-indigo-500/20 text-indigo-300 border-indigo-400/30 text-lg px-4 py-1.5">
-          {record?.provider_name || 'Evolution'}
-        </Badge>
-      )
+      render: (_: any, record: BettingRecord) => {
+        const gameType = record?.game_type || 'casino';
+        const displayText = gameType === 'slot' ? '슬롯' : '카지노';
+        
+        return (
+          <span className="text-slate-200 text-xl">
+            {displayText}
+          </span>
+        );
+      }
     },
     {
       key: 'bet_amount',
       header: t.bettingHistory.betAmount,
       render: (_: any, record: BettingRecord) => {
-        const amount = Number(record?.bet_amount || 0);
-        if (amount === 0) {
-          return <span className="text-slate-500 text-xl">Betting...</span>;
-        }
+        const amount = Math.abs(Number(record?.bet_amount || 0));
         return <span className="text-orange-400 font-semibold text-xl">₩{amount.toLocaleString()}</span>;
       }
     },
@@ -440,9 +477,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       header: t.bettingHistory.winAmount,
       render: (_: any, record: BettingRecord) => {
         const amount = Number(record?.win_amount || 0);
-        if (amount === 0) {
-          return <span className="text-slate-500 text-xl">Betting...</span>;
-        }
+        if (amount === 0) return <span className="text-slate-500">-</span>;
         return <span className="text-emerald-400 font-semibold text-xl">₩{amount.toLocaleString()}</span>;
       }
     },
@@ -456,20 +491,29 @@ export function BettingHistory({ user }: BettingHistoryProps) {
     {
       key: 'balance_after',
       header: t.bettingHistory.balanceAfter,
-      render: (_: any, record: BettingRecord) => (
-        <span className="text-slate-300 text-xl">₩{Number(record?.balance_after || 0).toLocaleString()}</span>
-      )
+      render: (_: any, record: BettingRecord) => {
+        const balanceBefore = Number(record?.balance_before || 0);
+        const betAmount = Math.abs(Number(record?.bet_amount || 0));
+        const winAmount = Number(record?.win_amount || 0);
+        const balanceAfter = balanceBefore - betAmount + winAmount;
+        
+        return (
+          <span className="text-slate-300 text-xl">₩{balanceAfter.toLocaleString()}</span>
+        );
+      }
     },
     {
       key: 'profit',
       header: t.bettingHistory.profitLoss,
       render: (_: any, record: BettingRecord) => {
         if (!record) return <span>-</span>;
-        const profit = Number(record.win_amount || 0) - Number(record.bet_amount || 0);
+        // ✅ 손익 = -베팅액 + 당첨액
+        const betAmount = Math.abs(Number(record.bet_amount || 0));
+        const winAmount = Number(record.win_amount || 0);
+        const profit = -betAmount + winAmount;
         const profitColor = profit > 0 ? 'text-green-400' : profit < 0 ? 'text-red-400' : 'text-slate-400';
-        const profitBg = profit > 0 ? 'bg-green-500/10' : profit < 0 ? 'bg-red-500/10' : '';
         return (
-          <span className={`${profitColor} ${profitBg} px-3 py-1.5 rounded font-bold text-xl`}>
+          <span className={`${profitColor} font-bold text-xl`}>
             {profit > 0 ? '+' : ''}₩{profit.toLocaleString()}
           </span>
         );
@@ -522,11 +566,11 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex gap-2 items-center w-full md:w-auto flex-wrap">
           <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-[210px] h-14 text-lg">
+            <SelectTrigger className="w-[100px] h-14 text-lg">
               <SelectValue placeholder={t.bettingHistory.periodSelection} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all" className="text-lg">{t.bettingHistory.all}</SelectItem>
+              <SelectItem value="all" className="text-lg">전체</SelectItem>
               <SelectItem value="today" className="text-lg">{t.bettingHistory.today}</SelectItem>
               <SelectItem value="week" className="text-lg">{t.bettingHistory.last7Days}</SelectItem>
               <SelectItem value="month" className="text-lg">{t.bettingHistory.last30Days}</SelectItem>
@@ -537,7 +581,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
             placeholder={t.bettingHistory.searchPlaceholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-[375px] h-14 text-lg"
+            className="w-[260px] h-14 text-lg"
           />
         </div>
 

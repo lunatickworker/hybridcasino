@@ -11,9 +11,11 @@ import { UserLayout } from './components/user/UserLayout';
 import { UserRoutes } from './components/common/UserRoutes';
 import { Sample1Layout } from './components/sample1/Sample1Layout';
 import { Sample1Routes } from './components/sample1/Sample1Routes';
-import { IndoLayout } from './components/indo/IndoLayout';
-import { IndoLogin } from './components/indo/IndoLogin';
-import { IndoRoutes } from './components/indo/IndoRoutes';
+import { BenzLayout } from './components/benz/BenzLayout';
+import { BenzLogin } from './components/benz/BenzLogin';
+import { BenzRoutes } from './components/benz/BenzRoutes';
+import { BenzLoginModal } from './components/benz/BenzLoginModal';
+import { BenzSignupModal } from './components/benz/BenzSignupModal';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { BalanceProvider } from './contexts/BalanceContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
@@ -29,6 +31,7 @@ import { initFavicon } from './utils/favicon';
 function AppContent() {
   const { authState, logout } = useAuth();
   const [, forceUpdate] = useState({});
+  const [benzModals, setBenzModals] = useState({ login: false, signup: false });
 
   // Favicon 초기화 (도메인/라우트별 자동 설정)
   useEffect(() => {
@@ -38,7 +41,7 @@ function AppContent() {
   // 초기 리다이렉트 처리 (useEffect로 이동하여 render phase 오류 방지)
   useEffect(() => {
     if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
-      window.location.hash = '#/user';
+      window.location.hash = '#/benz';
     }
   }, []);
 
@@ -73,13 +76,13 @@ function AppContent() {
   const currentHash = window.location.hash || '#/admin';
   const currentPath = currentHash.substring(1); // # 제거
 
-  const isIndoPage = currentPath.startsWith('/indo');
+  const isBenzPage = currentPath.startsWith('/benz');
   const isUserPage = currentPath.startsWith('/user');
   const isSample1Page = currentPath.startsWith('/sample1');
   const isAdminPage = currentPath.startsWith('/admin');
 
-  // Indo 페이지 라우팅 (기본 도메인)
-  if (isIndoPage) {
+  // Benz 페이지 라우팅 (기본 도메인)
+  if (isBenzPage) {
     const currentRoute = currentPath;
 
     // 사용자 세션 확인
@@ -107,7 +110,7 @@ function AppContent() {
     const handleUserLogout = async () => {
       if (!userSession?.id) {
         localStorage.removeItem('user_session');
-        window.location.hash = '#/indo';
+        window.location.hash = '#/benz';
         forceUpdate({});
         return;
       }
@@ -146,36 +149,66 @@ function AppContent() {
         console.error('로그아웃 처리 오류:', error);
       } finally {
         localStorage.removeItem('user_session');
-        window.location.hash = '#/indo';
+        window.location.hash = '#/benz';
         forceUpdate({});
       }
     };
 
     return (
       <>
-        {!isUserAuthenticated || currentRoute === '/indo/login' ? (
-          <IndoLogin 
-            onLoginSuccess={handleUserLogin}
-            onRouteChange={handleNavigate}
-          />
-        ) : (
-          <WebSocketProvider>
+        <WebSocketProvider>
+          {userSession ? (
             <MessageQueueProvider userType="user" userId={userSession.id}>
-              <IndoLayout 
+              <BenzLayout 
                 user={userSession}
                 currentRoute={currentRoute}
                 onRouteChange={handleNavigate}
                 onLogout={handleUserLogout}
+                onOpenLoginModal={() => setBenzModals({ login: true, signup: false })}
+                onOpenSignupModal={() => setBenzModals({ login: false, signup: true })}
               >
-                <IndoRoutes 
+                <BenzRoutes 
                   currentRoute={currentRoute} 
                   user={userSession}
                   onRouteChange={handleNavigate}
                 />
-              </IndoLayout>
+              </BenzLayout>
             </MessageQueueProvider>
-          </WebSocketProvider>
-        )}
+          ) : (
+            <MessageQueueProvider userType="user" userId={null}>
+              <BenzLayout 
+                user={null}
+                currentRoute={currentRoute}
+                onRouteChange={handleNavigate}
+                onLogout={handleUserLogout}
+                onOpenLoginModal={() => setBenzModals({ login: true, signup: false })}
+                onOpenSignupModal={() => setBenzModals({ login: false, signup: true })}
+              >
+                <BenzRoutes 
+                  currentRoute={currentRoute} 
+                  user={null}
+                  onRouteChange={handleNavigate}
+                />
+              </BenzLayout>
+            </MessageQueueProvider>
+          )}
+        </WebSocketProvider>
+
+        {/* Login Modal */}
+        <BenzLoginModal
+          isOpen={benzModals.login}
+          onClose={() => setBenzModals({ login: false, signup: false })}
+          onLoginSuccess={handleUserLogin}
+          onSwitchToSignup={() => setBenzModals({ login: false, signup: true })}
+        />
+
+        {/* Signup Modal */}
+        <BenzSignupModal
+          isOpen={benzModals.signup}
+          onClose={() => setBenzModals({ login: false, signup: false })}
+          onSwitchToLogin={() => setBenzModals({ login: true, signup: false })}
+        />
+
         <Toaster position="top-right" />
       </>
     );

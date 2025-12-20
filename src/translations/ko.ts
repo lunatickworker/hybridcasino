@@ -1304,6 +1304,8 @@ export const ko = {
     allApi: '전체 API',
     investOnly: 'Invest만',
     oroplaysOnly: 'OroPlay만',
+    familyApiOnly: 'FamilyAPI만',
+    honorApiOnly: 'HonorAPI만',
     today: '오늘',
     yesterday: '어제',
     lastWeek: '최근 7일',

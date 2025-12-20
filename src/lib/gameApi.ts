@@ -11,10 +11,10 @@ export interface GameProvider {
   id: number;
   name: string;
   type: 'slot' | 'casino' | 'minigame';
-  api_type: 'invest' | 'oroplay' | 'familyapi';
+  api_type: 'invest' | 'oroplay' | 'familyapi' | 'honorapi';
   status: 'visible' | 'maintenance' | 'hidden'; // 노출/점검중/비노출
   is_visible: boolean; // 사용자 페이지 노출 여부
-  vendor_code?: string; // OroPlay, FamilyAPI 전용
+  vendor_code?: string; // OroPlay, FamilyAPI, HonorAPI 전용
   logo_url?: string;
   created_at?: string;
   updated_at?: string;
@@ -25,7 +25,7 @@ export interface Game {
   provider_id: number;
   name: string;
   type: 'slot' | 'casino' | 'minigame';
-  api_type: 'invest' | 'oroplay' | 'familyapi';
+  api_type: 'invest' | 'oroplay' | 'familyapi' | 'honorapi';
   status: 'visible' | 'maintenance' | 'hidden';
   is_visible: boolean; // 사용자 페이지 노출 여부
   image_url?: string;
@@ -34,8 +34,8 @@ export interface Game {
   priority?: number;
   rtp?: number;
   play_count?: number;
-  vendor_code?: string; // OroPlay, FamilyAPI 전용
-  game_code?: string; // OroPlay, FamilyAPI 전용
+  vendor_code?: string; // OroPlay, FamilyAPI, HonorAPI 전용
+  game_code?: string; // OroPlay, FamilyAPI, HonorAPI 전용
   created_at?: string;
   updated_at?: string;
   provider_name?: string; // JOIN 시 추가
@@ -194,6 +194,26 @@ export async function syncOroPlayProviders(): Promise<void> {
  */
 export async function syncFamilyApiProviders(): Promise<void> {
   return syncAllProviders(['familyapi']);
+}
+
+/**
+ * HonorAPI 제공사 동기화
+ * HonorAPI는 별도 테이블(honor_game_providers)을 사용하므로 별도 함수로 처리
+ */
+export async function syncHonorApiProviders(): Promise<void> {
+  console.log('🔄 HonorAPI 제공사 동기화 시작...');
+  
+  try {
+    // honorApi의 syncHonorApiGames 함수 호출 (제공사 + 게임 모두 동기화)
+    const { syncHonorApiGames } = await import('./honorApi');
+    const result = await syncHonorApiGames();
+    
+    console.log(`✅ HonorAPI 제공사 동기화 완료: 신규 ${result.newProviders}개, 업데이트 ${result.updatedProviders}개`);
+    console.log(`✅ HonorAPI 게임 동기화 완료: 신규 ${result.newGames}개, 업데이트 ${result.updatedGames}개`);
+  } catch (error) {
+    console.error('❌ HonorAPI 제공사 동기화 실패:', error);
+    throw error;
+  }
 }
 
 /**
@@ -419,17 +439,23 @@ async function fetchProvidersByApi(apiType: 'invest' | 'oroplay' | 'familyapi'):
 }
 
 /**
- * 모든 API 제공사 동기화 (Invest, OroPlay, FamilyAPI)
+ * 모든 API 제공사 동기화 (Invest, OroPlay, FamilyAPI, HonorAPI)
  * @param apiTypes - 동기화할 API 타입 배열 (기본값: 모두)
  */
 export async function syncAllProviders(
-  apiTypes: Array<'invest' | 'oroplay' | 'familyapi'> = ['invest', 'oroplay', 'familyapi']
+  apiTypes: Array<'invest' | 'oroplay' | 'familyapi' | 'honorapi'> = ['invest', 'oroplay', 'familyapi', 'honorapi']
 ): Promise<void> {
   console.log('🔄 제공사 통합 동기화 시작:', apiTypes.join(', '));
 
   for (const apiType of apiTypes) {
     try {
       console.log(`\n🔧 ${apiType.toUpperCase()} 제공사 동기화 중...`);
+      
+      // HonorAPI는 별도 함수로 처리 (별도 테이블 사용)
+      if (apiType === 'honorapi') {
+        await syncHonorApiProviders();
+        continue;
+      }
       
       const providers = await fetchProvidersByApi(apiType);
       
@@ -510,43 +536,136 @@ export async function syncAllProviders(
  * 제공사 목록 조회
  */
 export async function getProviders(filters?: {
-  api_type?: 'invest' | 'oroplay' | 'familyapi';
+  api_type?: 'invest' | 'oroplay' | 'familyapi' | 'honorapi';
   type?: 'slot' | 'casino' | 'minigame';
   status?: 'visible' | 'maintenance' | 'hidden';
   is_visible?: boolean;
   partner_id?: string; // 파트너 ID로 API 활성화 필터링
 }): Promise<GameProvider[]> {
-  let query = supabase
-    .from('game_providers')
-    .select('*')
-    .order('api_type', { ascending: true })
-    .order('type', { ascending: true })
-    .order('name', { ascending: true });
+  let providers: GameProvider[] = [];
 
-  if (filters?.api_type) {
+  // HonorAPI만 조회
+  if (filters?.api_type === 'honorapi') {
+    let query = supabase
+      .from('honor_game_providers')
+      .select('*')
+      .order('type', { ascending: true })
+      .order('name', { ascending: true });
+
+    if (filters?.type) {
+      query = query.eq('type', filters.type);
+    }
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    if (filters?.is_visible !== undefined) {
+      query = query.eq('is_visible', filters.is_visible);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('❌ HonorAPI 제공사 조회 오류:', error);
+      throw error;
+    }
+
+    providers = (data || []).map(p => ({ ...p, api_type: 'honorapi' as const }));
+  } 
+  // api_type 필터가 없으면 모든 테이블에서 조회
+  else if (!filters?.api_type) {
+    // 1. game_providers 테이블에서 조회 (invest, oroplay, familyapi)
+    let query1 = supabase
+      .from('game_providers')
+      .select('*')
+      .order('api_type', { ascending: true })
+      .order('type', { ascending: true })
+      .order('name', { ascending: true });
+
+    if (filters?.type) {
+      query1 = query1.eq('type', filters.type);
+    }
+
+    if (filters?.status) {
+      query1 = query1.eq('status', filters.status);
+    }
+
+    if (filters?.is_visible !== undefined) {
+      query1 = query1.eq('is_visible', filters.is_visible);
+    }
+
+    const { data: data1, error: error1 } = await query1;
+
+    if (error1) {
+      console.error('❌ 제공사 조회 오류:', error1);
+      throw error1;
+    }
+
+    // 2. honor_game_providers 테이블에서 조회
+    let query2 = supabase
+      .from('honor_game_providers')
+      .select('*')
+      .order('type', { ascending: true })
+      .order('name', { ascending: true });
+
+    if (filters?.type) {
+      query2 = query2.eq('type', filters.type);
+    }
+
+    if (filters?.status) {
+      query2 = query2.eq('status', filters.status);
+    }
+
+    if (filters?.is_visible !== undefined) {
+      query2 = query2.eq('is_visible', filters.is_visible);
+    }
+
+    const { data: data2, error: error2 } = await query2;
+
+    if (error2) {
+      console.error('❌ HonorAPI 제공사 조회 오류:', error2);
+      // 에러가 있어도 계속 진행 (honor_game_providers 테이블이 아직 없을 수 있음)
+    }
+
+    // 두 테이블의 결과를 합치기
+    providers = [
+      ...(data1 || []),
+      ...(data2 || []).map(p => ({ ...p, api_type: 'honorapi' as const }))
+    ];
+  }
+  // 특정 API 타입 조회 (invest, oroplay, familyapi)
+  else {
+    let query = supabase
+      .from('game_providers')
+      .select('*')
+      .order('api_type', { ascending: true })
+      .order('type', { ascending: true })
+      .order('name', { ascending: true });
+
     query = query.eq('api_type', filters.api_type);
+
+    if (filters?.type) {
+      query = query.eq('type', filters.type);
+    }
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    if (filters?.is_visible !== undefined) {
+      query = query.eq('is_visible', filters.is_visible);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('❌ 제공사 조회 오류:', error);
+      throw error;
+    }
+
+    providers = data || [];
   }
-
-  if (filters?.type) {
-    query = query.eq('type', filters.type);
-  }
-
-  if (filters?.status) {
-    query = query.eq('status', filters.status);
-  }
-
-  if (filters?.is_visible !== undefined) {
-    query = query.eq('is_visible', filters.is_visible);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('❌ 제공사 조회 오류:', error);
-    throw error;
-  }
-
-  let providers = data || [];
 
   // partner_id가 제공된 경우, 해당 파트너의 Lv1 상위자의 활성화된 API만 필터링
   if (filters?.partner_id) {
@@ -1395,6 +1514,21 @@ function hashFamilyApiLobbyId(vendorCode: string): number {
   return Math.abs(hash % 100000) + 3900000;
 }
 
+/**
+ * HonorAPI 게임 동기화
+ * honor_games 테이블 사용
+ */
+export async function syncHonorApiGames(): Promise<SyncResult> {
+  const { syncHonorApiGames: syncHonor } = await import('./honorApi');
+  const result = await syncHonor();
+  
+  return {
+    newGames: result.newGames,
+    updatedGames: result.updatedGames,
+    totalGames: result.newGames + result.updatedGames
+  };
+}
+
 // ============================================
 // 3. 게임 조회
 // ============================================
@@ -1403,13 +1537,49 @@ function hashFamilyApiLobbyId(vendorCode: string): number {
  * 게임 목록 조회
  */
 export async function getGames(filters?: {
-  api_type?: 'invest' | 'oroplay' | 'familyapi';
+  api_type?: 'invest' | 'oroplay' | 'familyapi' | 'honorapi';
   type?: 'slot' | 'casino' | 'minigame';
   provider_id?: number;
   status?: 'visible' | 'maintenance' | 'hidden';
   is_visible?: boolean;
   search?: string;
 }): Promise<Game[]> {
+  // HonorAPI만 조회하는 경우
+  if (filters?.api_type === 'honorapi') {
+    return getHonorApiGames(filters);
+  }
+
+  // api_type 필터가 없는 경우: games와 honor_games 테이블 모두 조회하여 병합
+  if (!filters?.api_type) {
+    const [normalGames, honorGames] = await Promise.all([
+      getGamesFromTable('games', filters),
+      getHonorApiGames(filters)
+    ]);
+    
+    // 두 결과 병합
+    const mergedGames = [...normalGames, ...honorGames];
+    console.log(`📊 게임 조회 (병합): games=${normalGames.length}개, honor_games=${honorGames.length}개, 총=${mergedGames.length}개`);
+    return mergedGames;
+  }
+
+  // 특정 API만 조회하는 경우 (invest/oroplay/familyapi)
+  return getGamesFromTable('games', filters);
+}
+
+/**
+ * games 테이블에서 게임 목록 조회
+ */
+async function getGamesFromTable(
+  tableName: 'games',
+  filters?: {
+    api_type?: 'invest' | 'oroplay' | 'familyapi';
+    type?: 'slot' | 'casino' | 'minigame';
+    provider_id?: number;
+    status?: 'visible' | 'maintenance' | 'hidden';
+    is_visible?: boolean;
+    search?: string;
+  }
+): Promise<Game[]> {
   // ⚠️ Supabase는 limit(10000)을 설정해도 실제로는 1000개까지만 반환
   // 페이지네이션으로 전체 데이터 가져오기
   const PAGE_SIZE = 1000;
@@ -1483,6 +1653,97 @@ export async function getGames(filters?: {
   return mappedData;
 }
 
+/**
+ * 게임 ID로 테이블 구분 (HonorAPI 게임 ID는 5000000 이상)
+ */
+function isHonorApiGame(gameId: number): boolean {
+  return gameId >= 5000000;
+}
+
+/**
+ * 제공사 ID로 테이블 구분 (HonorAPI 제공사 ID는 5000 이상)
+ */
+function isHonorApiProvider(providerId: number): boolean {
+  return providerId >= 5000;
+}
+
+/**
+ * HonorAPI 게임 목록 조회 (honor_games 테이블)
+ */
+async function getHonorApiGames(filters?: {
+  type?: 'slot' | 'casino' | 'minigame';
+  provider_id?: number;
+  status?: 'visible' | 'maintenance' | 'hidden';
+  is_visible?: boolean;
+  search?: string;
+}): Promise<Game[]> {
+  const PAGE_SIZE = 1000;
+  let allGames: any[] = [];
+  let page = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from('honor_games')
+      .select(`
+        *,
+        honor_game_providers(
+          id,
+          name,
+          type
+        )
+      `)
+      .order('priority', { ascending: false })
+      .order('name', { ascending: true })
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+    if (filters?.type) {
+      query = query.eq('type', filters.type);
+    }
+
+    if (filters?.provider_id) {
+      query = query.eq('provider_id', filters.provider_id);
+    }
+
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+
+    if (filters?.is_visible !== undefined) {
+      query = query.eq('is_visible', filters.is_visible);
+    }
+
+    if (filters?.search) {
+      query = query.ilike('name', `%${filters.search}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('❌ HonorAPI 게임 조회 오류:', error);
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      hasMore = false;
+    } else {
+      allGames = allGames.concat(data);
+      hasMore = data.length === PAGE_SIZE;
+      page++;
+    }
+  }
+
+  const mappedData = allGames.map(game => ({
+    ...game,
+    api_type: 'honorapi' as const,
+    provider_name: game.honor_game_providers?.name || '알 수 없음',
+  }));
+
+  console.log(`📊 HonorAPI 게임 조회: ${mappedData.length}개 (${page}페이지)`, filters);
+
+  return mappedData;
+}
+
 // ============================================
 // 4. 게임 상태 관리 (노출/비노출/점검중)
 // ============================================
@@ -1514,8 +1775,10 @@ export async function updateGameStatus(
   gameId: number,
   status: 'visible' | 'maintenance' | 'hidden'
 ): Promise<void> {
+  const tableName = isHonorApiGame(gameId) ? 'honor_games' : 'games';
+  
   const { error } = await supabase
-    .from('games')
+    .from(tableName)
     .update({
       status,
       // 점검중이나 숨김 상태면 사용자 페이지에서 보이지 않도록
@@ -1529,7 +1792,7 @@ export async function updateGameStatus(
     throw error;
   }
 
-  console.log(`✅ 게임 ${gameId} 상태 업데이트: ${status}`);
+  console.log(`✅ 게임 ${gameId} 상태 업데이트: ${status} (${tableName})`);
 }
 
 /**
@@ -1580,8 +1843,10 @@ export async function bulkUpdateStatus(
  * 게임 추천(Featured) 설정
  */
 export async function updateGameFeatured(gameId: number, isFeatured: boolean): Promise<void> {
+  const tableName = isHonorApiGame(gameId) ? 'honor_games' : 'games';
+  
   const { error } = await supabase
-    .from('games')
+    .from(tableName)
     .update({
       is_featured: isFeatured,
       priority: isFeatured ? 100 : 0,
@@ -1594,7 +1859,7 @@ export async function updateGameFeatured(gameId: number, isFeatured: boolean): P
     throw error;
   }
 
-  console.log(`✅ 게임 ${gameId} 추천 설정: ${isFeatured ? '추천' : '해제'}`);
+  console.log(`✅ 게임 ${gameId} 추천 설정: ${isFeatured ? '추천' : '해제'} (${tableName})`);
 }
 
 // ============================================
@@ -1628,8 +1893,12 @@ export async function updateProviderStatus(
   providerId: number,
   status: 'visible' | 'maintenance' | 'hidden'
 ): Promise<void> {
+  const isHonorApi = isHonorApiProvider(providerId);
+  const providerTable = isHonorApi ? 'honor_game_providers' : 'game_providers';
+  const gameTable = isHonorApi ? 'honor_games' : 'games';
+  
   const { error } = await supabase
-    .from('game_providers')
+    .from(providerTable)
     .update({
       status,
       // 점검중이나 숨김 상태면 사용자 페이지에서 보이지 않도록
@@ -1643,11 +1912,11 @@ export async function updateProviderStatus(
     throw error;
   }
 
-  console.log(`✅ 제공사 ${providerId} 상태 업데이트: ${status}`);
+  console.log(`✅ 제공사 ${providerId} 상태 업데이트: ${status} (${providerTable})`);
 
   // ✅ 제공사 상태 변경 시 해당 제공사의 모든 게임 상태도 동기화
   const { error: gameUpdateError } = await supabase
-    .from('games')
+    .from(gameTable)
     .update({
       status,
       is_visible: status === 'visible',
@@ -1659,7 +1928,7 @@ export async function updateProviderStatus(
     console.error('❌ 제공사 게임 상태 동기화 오류:', gameUpdateError);
     throw gameUpdateError;
   } else {
-    console.log(`✅ 제공사 ${providerId}의 모든 게임 상태 업데이트 완료 (status=${status}, is_visible=${status === 'visible'})`);
+    console.log(`✅ 제공사 ${providerId}의 모든 게임 상태 업데이트 완료 (status=${status}, is_visible=${status === 'visible'}) (${gameTable})`);
   }
 }
 
@@ -1730,6 +1999,7 @@ export async function getUserVisibleProviders(filters?: {
     let providerIdsWithGames: Set<number> | null = null;
     
     if (filters?.type) {
+      // games 테이블 조회
       const { data: gamesData } = await supabase
         .from('games')
         .select('provider_id')
@@ -1737,8 +2007,22 @@ export async function getUserVisibleProviders(filters?: {
         .eq('status', 'visible')
         .eq('is_visible', true);
       
-      providerIdsWithGames = new Set(gamesData?.map(g => g.provider_id) || []);
-      console.log(`📊 [${filters.type}] 게임이 있는 제공사 ID:`, Array.from(providerIdsWithGames));
+      // honor_games 테이블 조회 (HonorAPI)
+      const { data: honorGamesData } = await supabase
+        .from('honor_games')
+        .select('provider_id')
+        .eq('type', filters.type)
+        .eq('status', 'visible')
+        .eq('is_visible', true);
+      
+      // 두 테이블의 provider_id 병합
+      const allProviderIds = [
+        ...(gamesData?.map(g => g.provider_id) || []),
+        ...(honorGamesData?.map(g => g.provider_id) || [])
+      ];
+      
+      providerIdsWithGames = new Set(allProviderIds);
+      console.log(`📊 [${filters.type}] 게임이 있는 제공사 ID (games: ${gamesData?.length || 0}개, honor_games: ${honorGamesData?.length || 0}개):`, Array.from(providerIdsWithGames));
     }
 
     // 4. 제공사 조회 (status='visible' AND is_visible=true)
@@ -1851,15 +2135,48 @@ export async function launchGame(
   console.log('🎮 통합 게임 실행 시작:', { userId, gameId, username });
 
   try {
-    // 1. 게임 정보 조회 (먼저 조회해서 api_type 확인)
-    const { data: game, error: gameError } = await supabase
+    // 1. 게임 정보 조회 (games 또는 honor_games에서)
+    // 먼저 games 테이블 조회
+    let game: any = null;
+    
+    console.log('🔍 게임 ID로 조회 시작:', gameId);
+    
+    const { data: regularGame, error: regularError } = await supabase
       .from('games')
-      .select('*, game_providers!inner(*)')
+      .select('*, game_providers(*)')
       .eq('id', gameId)
-      .single();
+      .maybeSingle();
 
-    if (gameError || !game) {
-      console.error('❌ 게임 정보 조회 실패:', gameError);
+    console.log('📊 games 테이블 조회 결과:', { 
+      found: !!regularGame, 
+      error: regularError 
+    });
+
+    if (regularGame) {
+      game = regularGame;
+      console.log('✅ games 테이블에서 게임 발견');
+    } else {
+      // honor_games 테이블 조회
+      console.log('🔍 honor_games 테이블 조회 시작');
+      const { data: honorGame, error: honorError } = await supabase
+        .from('honor_games')
+        .select('*, honor_game_providers(*)')
+        .eq('id', gameId)
+        .maybeSingle();
+      
+      console.log('📊 honor_games 테이블 조회 결과:', { 
+        found: !!honorGame, 
+        error: honorError 
+      });
+      
+      if (honorGame) {
+        game = honorGame;
+        console.log('✅ honor_games 테이블에서 게임 발견');
+      }
+    }
+
+    if (!game) {
+      console.error('❌ 게임 정보 조회 실패: 게임을 찾을 수 없습니다. gameId:', gameId);
       return {
         success: false,
         error: '게임 정보를 찾을 수 없습니다.'
@@ -1927,6 +2244,8 @@ export async function launchGame(
       return await launchOroPlayGame(topLevelPartnerId, userUsername, game);
     } else if (game.api_type === 'familyapi') {
       return await launchFamilyApiGame(topLevelPartnerId, userUsername, game);
+    } else if (game.api_type === 'honorapi') {
+      return await launchHonorApiGame(topLevelPartnerId, userUsername, game);
     } else {
       console.error('❌ 알 수 없는 API 타입:', game.api_type);
       return {
@@ -2465,6 +2784,328 @@ async function launchFamilyApiGame(
   }
 }
 
+/**
+ * HonorAPI 게임 실행
+ */
+async function launchHonorApiGame(
+  partnerId: string,
+  username: string,
+  game: any
+): Promise<{
+  success: boolean;
+  launch_url?: string;
+  game_url?: string;
+  error?: string;
+}> {
+  console.log('🎮 HonorAPI 게임 실행:', {
+    partnerId,
+    username,
+    gameId: game.id
+  });
+
+  try {
+    // ✅ HonorAPI 활성화 체크
+    const { checkApiActiveByPartnerId } = await import('./apiStatusChecker');
+    const isHonorApiActive = await checkApiActiveByPartnerId(partnerId, 'honorapi');
+    
+    if (!isHonorApiActive) {
+      console.error('❌ HonorAPI가 비활성화되어 있습니다');
+      return {
+        success: false,
+        error: 'HonorAPI가 현재 비활성화되어 있습니다. 관리자에게 문의하세요.'
+      };
+    }
+    
+    // ⭐ 1. 사용자 DB 보유금 조회
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, balance, referrer_id')
+      .eq('username', username)
+      .single();
+
+    if (userError || !userData) {
+      console.error('❌ 사용자 정보 조회 실패:', userError);
+      return {
+        success: false,
+        error: '사용자 정보를 찾을 수 없습니다.'
+      };
+    }
+
+    const userBalance = userData.balance || 0;
+    
+    if (userBalance <= 0) {
+      console.error('❌ 보유금 부족:', userBalance);
+      return {
+        success: false,
+        error: '보유금이 부족합니다. 입금 후 이용해주세요.'
+      };
+    }
+
+    console.log(`💰 [게임 시작] 사용자 GMS 보유금: ${userBalance}원`);
+
+    // ⭐ 2. HonorAPI 설정 조회 (Lv1 partner_id 필요)
+    const topLevelPartnerId = await getTopLevelPartnerId(userData.referrer_id);
+    
+    const { data: apiConfig, error: configError } = await supabase
+      .from('api_configs')
+      .select('partner_id, api_key, balance')
+      .eq('partner_id', topLevelPartnerId)
+      .eq('api_provider', 'honorapi')
+      .single();
+
+    if (configError || !apiConfig?.api_key) {
+      console.error('❌ ❌ HonorAPI 설정 없음:', apiConfig?.api_key);
+      return {
+        success: false,
+        error: 'HonorAPI 설정을 찾을 수 없습니다. 관리자에게 API Key 설정을 요청하세요.'
+      };
+    }
+
+    const apiKey = apiConfig.api_key;
+    console.log('✅ HonorAPI 설정 조회 완료');
+
+    // 3. vendor_code 조회 (honor_game_providers 테이블에서)
+    let vendorCode = game.vendor_code;
+    
+    if (!vendorCode && game.honor_game_providers?.vendor_code) {
+      vendorCode = game.honor_game_providers.vendor_code;
+    }
+    
+    if (!vendorCode && game.provider_id) {
+      // provider_id로 조회
+      const { data: providerData } = await supabase
+        .from('honor_game_providers')
+        .select('vendor_code')
+        .eq('id', game.provider_id)
+        .single();
+      
+      vendorCode = providerData?.vendor_code;
+    }
+    
+    if (!vendorCode) {
+      console.error('❌ vendor_code를 찾을 수 없습니다. 게임 데이터:', game);
+      return {
+        success: false,
+        error: '게임 제공사 정보를 찾을 수 없습니다.'
+      };
+    }
+
+    console.log(`✅ vendor_code 조회 완료: ${vendorCode}`);
+
+    // ⭐ 4. Lv2 파트너의 honorapi_balance 조회 및 검증
+    const { data: directParent } = await supabase
+      .from('partners')
+      .select('id, level, honorapi_balance')
+      .eq('id', userData.referrer_id)
+      .single();
+
+    // ⭐ Lv2 파트너의 honorapi_balance 검증
+    if (directParent?.level === 2) {
+      const lv2Balance = directParent.honorapi_balance || 0;
+      console.log(`📊 [Lv2] HonorAPI 잔고: ${lv2Balance}원`);
+      
+      if (lv2Balance < userBalance) {
+        console.error(`❌ Lv2 HonorAPI 잔고 부족: ${lv2Balance} < ${userBalance}`);
+        return {
+          success: false,
+          error: 'HonorAPI 보유금이 부족합니다.'
+        };
+      }
+    }
+
+    // ⭐ 5. HonorAPI 게임 실행 플로우
+    const honorApi = await import('./honorApi');
+    
+    try {
+      // 5-1. 게임 실행 링크 조회 (자동 유저 생성 포함)
+      console.log(`🎮 [게임 실행] 게임 링크 조회 시작: gameId=${game.id}, vendor=${vendorCode}`);
+      
+      const gameLaunchResult = await honorApi.getGameLaunchLink(
+        apiKey,
+        username,
+        game.external_game_id || game.game_code || game.id.toString(),
+        vendorCode
+      );
+
+      if (!gameLaunchResult.link) {
+        console.error('❌ 게임 실행 링크 조회 실패');
+        return {
+          success: false,
+          error: '게임 URL을 가져올 수 없습니다.'
+        };
+      }
+
+      console.log(`✅ [게임 실행] URL 생성 완료, userCreated: ${gameLaunchResult.userCreated}`);
+
+      // 5-2. 유저 머니 지급 (GMS 보유금을 HonorAPI로 전송)
+      console.log(`💸 [입금] GMS → HonorAPI 유저 머니 지급 시작: ${userBalance}원`);
+      
+      const uuid = crypto.randomUUID(); // 멱등성 보장
+      const addBalanceResult = await honorApi.addUserBalance(
+        apiKey,
+        username,
+        userBalance,
+        uuid
+      );
+
+      console.log(`✅ [입금] HonorAPI 유저 머니 지급 완료: ${addBalanceResult.balance}원, cached: ${addBalanceResult.cached}`);
+
+      // 5-3. GMS 보유금을 0으로 업데이트 (HonorAPI로 이동됨)
+      const { error: balanceUpdateError } = await supabase
+        .from('users')
+        .update({ 
+          balance: 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('username', username);
+
+      if (balanceUpdateError) {
+        console.error('❌ GMS 보유금 업데이트 실패:', balanceUpdateError);
+      } else {
+        console.log(`✅ GMS 보유금 0원으로 업데이트 (HonorAPI로 이동 완료)`);
+      }
+
+      console.log(`✅ [게임 진입] 완료:`);
+      console.log(`   - HonorAPI 잔고: ${addBalanceResult.balance}원 (GMS에서 이동)`);
+      console.log(`   - GMS 잔고: 0원`);
+      
+      return {
+        success: true,
+        launch_url: gameLaunchResult.link,
+        game_url: gameLaunchResult.link
+      };
+
+    } catch (error) {
+      console.error('❌ HonorAPI 게임 실행 중 오류:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '게임 실행 중 오류가 발생했습니다.'
+      };
+    }
+
+  } catch (error) {
+    console.error('❌ HonorAPI 게임 실행 오류:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '게임 실행 중 오류가 발생했습니다.'
+    };
+  }
+}
+
+/**
+ * HonorAPI 게임 종료 및 잔고 회수
+ * 게임 종료 시 HonorAPI 잔고를 GMS로 회수
+ */
+export async function endHonorApiGame(
+  username: string
+): Promise<{
+  success: boolean;
+  recovered_balance?: number;
+  error?: string;
+}> {
+  console.log('🏁 HonorAPI 게임 종료 및 잔고 회수:', { username });
+
+  try {
+    // 1. 사용자 정보 조회
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, referrer_id')
+      .eq('username', username)
+      .single();
+
+    if (userError || !userData) {
+      console.error('❌ 사용자 정보 조회 실패:', userError);
+      return {
+        success: false,
+        error: '사용자 정보를 찾을 수 없습니다.'
+      };
+    }
+
+    // 2. HonorAPI 설정 조회 (Lv1 partner_id 필요)
+    const topLevelPartnerId = await getTopLevelPartnerId(userData.referrer_id);
+    
+    const { data: apiConfig, error: configError } = await supabase
+      .from('api_configs')
+      .select('partner_id, api_key')
+      .eq('partner_id', topLevelPartnerId)
+      .eq('api_provider', 'honorapi')
+      .single();
+
+    if (configError || !apiConfig?.api_key) {
+      console.error('❌ HonorAPI 설정 없음');
+      return {
+        success: false,
+        error: 'HonorAPI 설정을 찾을 수 없습니다.'
+      };
+    }
+
+    const apiKey = apiConfig.api_key;
+
+    // 3. 유저 머니 전체 회수 (HonorAPI → GMS)
+    const honorApi = await import('./honorApi');
+    
+    console.log(`💸 [출금] HonorAPI → GMS 유저 머니 회수 시작`);
+    
+    const uuid = crypto.randomUUID(); // 멱등성 보장
+    const subBalanceResult = await honorApi.subUserBalanceAll(
+      apiKey,
+      username,
+      uuid
+    );
+
+    const recoveredAmount = subBalanceResult.amount || 0;
+    console.log(`✅ [출금] HonorAPI 유저 머니 회수 완료: ${recoveredAmount}원, cached: ${subBalanceResult.cached}`);
+
+    // 4. GMS 보유금 업데이트 (HonorAPI에서 회수한 금액 추가)
+    if (recoveredAmount > 0) {
+      const { error: balanceUpdateError } = await supabase
+        .from('users')
+        .update({ 
+          balance: recoveredAmount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('username', username);
+
+      if (balanceUpdateError) {
+        console.error('❌ GMS 보유금 업데이트 실패:', balanceUpdateError);
+        return {
+          success: false,
+          error: 'GMS 보유금 업데이트 실패'
+        };
+      }
+
+      console.log(`✅ GMS 보유금 업데이트: ${recoveredAmount}원`);
+    } else {
+      // 회수할 금액이 없어도 0원으로 업데이트
+      await supabase
+        .from('users')
+        .update({ 
+          balance: 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('username', username);
+      
+      console.log(`✅ 회수 금액 없음, GMS 보유금: 0원`);
+    }
+
+    console.log(`✅ [게임 종료] 완료:`);
+    console.log(`   - HonorAPI에서 회수: ${recoveredAmount}원`);
+    console.log(`   - GMS 잔고: ${recoveredAmount}원`);
+    
+    return {
+      success: true,
+      recovered_balance: recoveredAmount
+    };
+
+  } catch (error) {
+    console.error('❌ HonorAPI 게임 종료 오류:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '게임 종료 중 오류가 발생했습니다.'
+    };
+  }
+}
+
 // ============================================
 // 8. 게임 세션 관리
 // ============================================
@@ -2474,7 +3115,7 @@ async function launchFamilyApiGame(
  */
 export async function checkActiveSession(userId: string): Promise<{
   isActive: boolean;
-  api_type?: 'invest' | 'oroplay' | 'familyapi';
+  api_type?: 'invest' | 'oroplay' | 'familyapi' | 'honorapi';
   game_name?: string;
   session_id?: number;
   game_id?: number;
@@ -2512,11 +3153,23 @@ export async function checkActiveSession(userId: string): Promise<{
     // 게임 이름 별도 조회
     let gameName = '알 수 없는 게임';
     if (data.game_id) {
-      const { data: gameData } = await supabase
+      // games 테이블 먼저 조회
+      let gameData = await supabase
         .from('games')
         .select('name')
         .eq('id', data.game_id)
-        .single();
+        .maybeSingle()
+        .then(res => res.data);
+      
+      // games에 없으면 honor_games에서 조회
+      if (!gameData) {
+        gameData = await supabase
+          .from('honor_games')
+          .select('name')
+          .eq('id', data.game_id)
+          .maybeSingle()
+          .then(res => res.data);
+      }
       
       if (gameData) {
         gameName = gameData.name;
@@ -2525,7 +3178,7 @@ export async function checkActiveSession(userId: string): Promise<{
 
     return {
       isActive: true,
-      api_type: data.api_type as 'invest' | 'oroplay' | 'familyapi',
+      api_type: data.api_type as 'invest' | 'oroplay' | 'familyapi' | 'honorapi',
       game_name: gameName,
       session_id: data.id,
       game_id: data.game_id,
@@ -2554,22 +3207,61 @@ export async function generateGameLaunchUrl(
   console.log('🎮 게임 실행 URL 생성:', { userId, gameId });
 
   try {
-    // 1. 게임 정보 조회
-    const { data: game, error: gameError } = await supabase
+    // 1. 게임 정보 조회 (games 또는 honor_games에서)
+    let game: any = null;
+    
+    console.log('🔍 [generateGameLaunchUrl] 게임 ID로 조회 시작:', gameId);
+    
+    const { data: regularGame, error: regularError } = await supabase
       .from('games')
       .select(`
         *,
-        game_providers!inner(
+        game_providers(
           name,
           type,
           api_type
         )
       `)
       .eq('id', gameId)
-      .single();
+      .maybeSingle();
 
-    if (gameError || !game) {
-      console.error('❌ 게임 정보 조회 실패:', gameError);
+    console.log('📊 [generateGameLaunchUrl] games 테이블 조회 결과:', { 
+      found: !!regularGame, 
+      error: regularError 
+    });
+
+    if (regularGame) {
+      game = regularGame;
+      console.log('✅ [generateGameLaunchUrl] games 테이블에서 게임 발견');
+    } else {
+      // honor_games 테이블 조회
+      console.log('🔍 [generateGameLaunchUrl] honor_games 테이블 조회 시작');
+      const { data: honorGame, error: honorError } = await supabase
+        .from('honor_games')
+        .select(`
+          *,
+          honor_game_providers(
+            name,
+            type,
+            vendor_code
+          )
+        `)
+        .eq('id', gameId)
+        .maybeSingle();
+      
+      console.log('📊 [generateGameLaunchUrl] honor_games 테이블 조회 결과:', { 
+        found: !!honorGame, 
+        error: honorError 
+      });
+      
+      if (honorGame) {
+        game = honorGame;
+        console.log('✅ [generateGameLaunchUrl] honor_games 테이블에서 게임 발견');
+      }
+    }
+
+    if (!game) {
+      console.error('❌ [generateGameLaunchUrl] 게임 정보 조회 실패: 게임을 찾을 수 없습니다. gameId:', gameId);
       return {
         success: false,
         error: '게임 정보를 찾을 수 없습니다.'
@@ -2741,6 +3433,7 @@ export const gameApi = {
   initializeInvestProviders,
   syncOroPlayProviders,
   syncFamilyApiProviders,
+  syncHonorApiProviders,
   getProviders,
   getUserVisibleProviders,
 
@@ -2749,6 +3442,7 @@ export const gameApi = {
   syncAllInvestGames,
   syncOroPlayGames,
   syncFamilyApiGames,
+  syncHonorApiGames,
 
   // 게임 조회
   getGames,
@@ -2781,7 +3475,7 @@ export const gameApi = {
  */
 export async function syncBalanceOnSessionEnd(
   userId: string,
-  apiType: 'invest' | 'oroplay' | 'familyapi'
+  apiType: 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
 ): Promise<void> {
   try {
     console.log(`🔍 [세션 종료] 시작: userId=${userId}, apiType=${apiType}`);
@@ -2819,7 +3513,7 @@ export async function syncBalanceOnSessionEnd(
     console.log(`✅ [세션 종료] 최상위 파트너 조회 완료: partnerId=${topLevelPartnerId}`);
 
     // ⭐ api_provider 필터 추가
-    const apiProvider = apiType === 'invest' ? 'invest' : apiType === 'oroplay' ? 'oroplay' : 'familyapi';
+    const apiProvider = apiType === 'invest' ? 'invest' : apiType === 'oroplay' ? 'oroplay' : apiType === 'familyapi' ? 'familyapi' : 'honorapi';
     const { data: apiConfig, error: configError } = await supabase
       .from('api_configs')
       .select('*')
@@ -2882,6 +3576,21 @@ export async function syncBalanceOnSessionEnd(
         .single();
       
       currentBalance = userData?.balance || 0;
+    } else if (apiType === 'honorapi') {
+      // ⭐ HonorAPI: getUserInfo로 잔고 조회
+      const honorApi = await import('./honorApi');
+      
+      try {
+        const userInfo = await honorApi.getUserInfo(apiConfig.api_key, user.username);
+        currentBalance = userInfo.balance || 0;
+        console.log(`🔍 [세션 종료] HonorAPI 잔고 조회 결과: ${currentBalance}원`);
+      } catch (error) {
+        console.error('❌ [세션 종료] HonorAPI 잔고 조회 실패:', error);
+        // ⚠️ 조회 실패 시에도 무조건 회수 시도 (subUserBalanceAll)
+        // GMS 잔고를 사용하지 않고, 일단 0으로 설정하고 회수 시도
+        console.warn('⚠️ [세션 종료] HonorAPI 잔고 조회 실패 - 회수 시도로 실제 잔고 확인');
+        currentBalance = 0; // 일단 0으로 설정 (회수 시 실제 금액 확인)
+      }
     }
 
     console.log(`💰 [세션 종료] API 보유금 조회 완료: ${currentBalance}원`);
@@ -2981,6 +3690,33 @@ export async function syncBalanceOnSessionEnd(
       }
     }
 
+    // ⭐ HonorAPI: 무조건 회수 (currentBalance와 관계없이)
+    if (apiType === 'honorapi') {
+      // ✅ HonorAPI: 게임 종료 시 잔고 회수
+      const honorApi = await import('./honorApi');
+      
+      const uuid = crypto.randomUUID(); // 멱등성 보장
+      const subBalanceResult = await honorApi.subUserBalanceAll(
+        apiConfig.api_key,
+        user.username,
+        uuid
+      );
+
+      const recoveredAmount = subBalanceResult.amount || 0;
+      console.log(`✅ [세션 종료] HonorAPI 유저 머니 회수 완료: ${recoveredAmount}원, cached: ${subBalanceResult.cached}`);
+
+      // users.balance를 회수된 금액으로 최종 업데이트
+      await supabase
+        .from('users')
+        .update({ 
+          balance: recoveredAmount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+      
+      console.log(`✅ [세션 종료] users.balance 최종 업데이트: ${recoveredAmount}원`);
+    }
+
     // 7. 세션 종료 상태 전환
     const { error: sessionError } = await supabase
       .from('game_launch_sessions')
@@ -3008,7 +3744,7 @@ export async function syncBalanceOnSessionEnd(
  */
 export async function syncUserBalance(
   userId: string,
-  apiType: 'invest' | 'oroplay' | 'familyapi'
+  apiType: 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
 ): Promise<number> {
   try {
     // 1. 사용자 정보 조회
@@ -3029,7 +3765,7 @@ export async function syncUserBalance(
     }
 
     // ⭐ api_provider 필터 추가
-    const apiProvider = apiType === 'invest' ? 'invest' : apiType === 'oroplay' ? 'oroplay' : 'familyapi';
+    const apiProvider = apiType === 'invest' ? 'invest' : apiType === 'oroplay' ? 'oroplay' : apiType === 'familyapi' ? 'familyapi' : 'honorapi';
     const { data: apiConfig, error: configError } = await supabase
       .from('api_configs')
       .select('*')
@@ -3081,6 +3817,25 @@ export async function syncUserBalance(
         .single();
       
       currentBalance = userData?.balance || 0;
+    } else if (apiType === 'honorapi') {
+      // ⭐ HonorAPI: getUserInfo로 잔고 조회
+      const honorApi = await import('./honorApi');
+      
+      try {
+        const userInfo = await honorApi.getUserInfo(apiConfig.api_key, user.username);
+        currentBalance = userInfo.balance || 0;
+        console.log(`🔍 [출금 페이지] HonorAPI 잔고 조회 결과: ${currentBalance}원`);
+      } catch (error) {
+        console.error('❌ [출금 페이지] HonorAPI 잔고 조회 실패:', error);
+        // 조회 실패 시 GMS 잔고 사용
+        const { data: userData } = await supabase
+          .from('users')
+          .select('balance')
+          .eq('id', userId)
+          .single();
+        
+        currentBalance = userData?.balance || 0;
+      }
     }
 
     console.log(`💰 [출금 페이지] API 보유금 조회 완료: ${currentBalance}원`);

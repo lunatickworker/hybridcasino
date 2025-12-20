@@ -191,7 +191,7 @@ export async function executeIntegratedSettlement(
   startDate: string,
   endDate: string,
   settlementPeriod: string,
-  apiFilter: 'all' | 'invest' | 'oroplay' = 'all'
+  apiFilter: 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi' = 'all'
 ): Promise<SettlementExecutionResult> {
   try {
     // 1. 중복 정산 체크
