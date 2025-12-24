@@ -697,15 +697,14 @@ export async function syncHonorApiBettingHistory(): Promise<{
           .eq('game_code', tx.details.game.id)
           .single();
 
-        // 제공사 정보 조회
-        let providerId = game?.provider_id || null;
+        // 제공사 정보 조회 (HonorAPI 전용)
         let providerName = '';
 
-        if (providerId) {
+        if (game?.provider_id) {
           const { data: provider } = await supabase
             .from('honor_game_providers')
             .select('name')
-            .eq('id', providerId)
+            .eq('id', game.provider_id)
             .single();
           
           providerName = provider?.name || tx.details.game.vendor || '';
@@ -734,7 +733,7 @@ export async function syncHonorApiBettingHistory(): Promise<{
             user_id: user.id,
             username: tx.user.username,
             game_id: game?.id || null,
-            provider_id: providerId,
+            provider_id: null,  // ⚠️ HonorAPI는 별도 provider 테이블 사용 (game_providers FK 제약 회피)
             provider_name: providerName,
             game_title: game?.name || tx.details.game.title || '',
             game_type: game?.type || tx.details.game.type || 'slot',
@@ -1066,3 +1065,140 @@ export async function syncHonorApiGames(): Promise<{
     throw error;
   }
 }
+
+// ============================================
+// Seamless Wallet 헬퍼 함수 (OroPlay와 동일한 구조)
+// ============================================
+
+/**
+ * 게임 시작 시 입금 (Seamless Wallet)
+ * @param apiKey - HonorAPI API Key
+ * @param username - 사용자명
+ * @param amount - 입금 금액
+ * @param uuid - 거래 고유 ID (멱등성 보장)
+ * @returns 성공 여부와 잔고
+ */
+export async function depositBalance(
+  apiKey: string,
+  username: string,
+  amount: number,
+  uuid?: string
+): Promise<{ success: boolean; balance?: number; error?: string }> {
+  try {
+    const result = await addUserBalance(apiKey, username, amount, uuid);
+    return {
+      success: true,
+      balance: result.balance
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    };
+  }
+}
+
+/**
+ * 게임 종료 시 출금 (Seamless Wallet)
+ * @param apiKey - HonorAPI API Key
+ * @param username - 사용자명
+ * @param uuid - 거래 고유 ID (멱등성 보장)
+ * @returns 성공 여부와 회수 금액
+ */
+export async function withdrawBalance(
+  apiKey: string,
+  username: string,
+  uuid?: string
+): Promise<{ success: boolean; balance?: number; error?: string }> {
+  try {
+    const result = await subUserBalanceAll(apiKey, username, uuid);
+    return {
+      success: true,
+      balance: result.amount // 회수된 금액
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    };
+  }
+}
+
+/**
+ * API 응답에서 잔고 추출
+ * @param response - API 응답 객체
+ * @param username - 사용자명 (로그용)
+ * @returns 추출된 잔고
+ */
+export function extractBalanceFromResponse(response: any, username: string): number {
+  // HonorAPI는 balance 필드에 잔고를 반환
+  if (typeof response === 'number') {
+    return response;
+  }
+  
+  // balance 필드가 있으면 사용
+  if (response?.balance !== undefined) {
+    return typeof response.balance === 'number' ? response.balance : parseFloat(response.balance) || 0;
+  }
+  
+  // amount 필드가 있을 수 있음 (출금 응답)
+  if (response?.amount !== undefined) {
+    return typeof response.amount === 'number' ? response.amount : parseFloat(response.amount) || 0;
+  }
+  
+  console.warn('⚠️ [HonorAPI] 잔고 추출 실패, 0 반환:', response);
+  return 0;
+}
+
+/**
+ * Agent 잔고 조회 (OroPlay getAgentBalance와 동일한 시그니처)
+ * @param apiKey - HonorAPI API Key
+ * @returns Agent 잔고
+ */
+export async function getAgentBalance(apiKey: string): Promise<number> {
+  console.log('📊 [HonorAPI] Agent 잔고 조회 API 호출');
+  
+  const agentInfo = await getAgentInfo(apiKey);
+  const balance = parseFloat(agentInfo.balance) || 0;
+  
+  console.log(`✅ [HonorAPI] Agent 잔고: ${balance}`);
+  
+  return balance;
+}
+
+// ============================================
+// 통합 Export 객체 (OroPlay와 동일한 구조)
+// ============================================
+
+export const honorApi = {
+  // Phase 1: 필수 API
+  getAgentInfo,
+  getUserInfo,
+  getGameLaunchLink,
+  addUserBalance,
+  subUserBalance,
+  subUserBalanceAll,
+  getTransactions,
+  
+  // Phase 2: 게임 관리 API
+  getVendorList,
+  getGameList,
+  getLobbyList,
+  
+  // Phase 3: 조직 관리 API
+  getUserList,
+  
+  // Seamless Wallet
+  depositBalance,
+  withdrawBalance,
+  getAgentBalance,
+  
+  // 유틸리티
+  extractBalanceFromResponse,
+  formatUTC,
+  generateUUID,
+  
+  // 동기화
+  syncHonorApiBettingHistory,
+  syncHonorApiGames,
+};

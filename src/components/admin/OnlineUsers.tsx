@@ -94,6 +94,7 @@ interface OnlineSession {
   user_id: string;
   username: string;
   nickname: string;
+  partner_name: string; // 소속명 추가
   game_name: string;
   provider_name: string;
   balance_before: number;
@@ -205,6 +206,16 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       },
     },
     {
+      key: 'partner_name',
+      header: '소속명',
+      sortable: true,
+      render: (value: string, row: OnlineSession) => (
+        <span className={cn("text-slate-300 text-sm", row.status !== 'active' && "opacity-40")}>
+          {value}
+        </span>
+      ),
+    },
+    {
       key: 'username',
       header: t.common.username,
       sortable: true,
@@ -215,42 +226,43 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       ),
     },
     {
-      key: 'balance_before',
-      header: t.onlineUsers.startingBalance,
+      key: 'current_balance',
+      header: '현재 보유금',
       sortable: true,
       render: (value: number, row: OnlineSession) => (
-        <span className={cn("font-mono text-slate-300", row.status !== 'active' && "opacity-40")}>
-          ₩{value.toLocaleString()}
+        <div className="flex items-center gap-3">
+          <AnimatedBalance 
+            value={value} 
+            inactive={row.status !== 'active'}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => syncBalance(row)}
+            disabled={syncingBalance === row.user_id || row.status !== 'active'}
+            className={cn(
+              "text-slate-400 hover:text-slate-200 h-8 w-8 p-0",
+              row.status !== 'active' && "opacity-40 cursor-not-allowed"
+            )}
+          >
+            <RefreshCw className={`w-5 h-5 ${syncingBalance === row.user_id ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      ),
+    },
+    {
+      key: 'ip_address',
+      header: 'IP 주소',
+      sortable: true,
+      render: (value: string, row: OnlineSession) => (
+        <span className={cn("text-slate-300 font-mono text-sm", row.status !== 'active' && "opacity-40")}>
+          {value}
         </span>
       ),
     },
     {
-      key: 'current_balance',
-      header: t.onlineUsers.currentBalance,
-      sortable: true,
-      render: (value: number, row: OnlineSession) => {
-        const diff = value - row.balance_before;
-        const diffColor = diff >= 0 ? 'text-emerald-400' : 'text-red-400';
-        const diffSign = diff >= 0 ? '+' : '';
-        
-        return (
-          <div className="space-y-1">
-            <AnimatedBalance 
-              value={value} 
-              inactive={row.status !== 'active'}
-            />
-            {diff !== 0 && (
-              <div className={cn(`text-xs font-mono ${diffColor}`, row.status !== 'active' && "opacity-40")}>
-                {diffSign}₩{diff.toLocaleString()}
-              </div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
       key: 'device_type',
-      header: t.onlineUsers.deviceType,
+      header: '접속경로',
       render: (value: string, row: OnlineSession) => (
         <Badge 
           variant={value === 'Mobile' ? 'default' : 'secondary'} 
@@ -262,18 +274,8 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       ),
     },
     {
-      key: 'ip_address',
-      header: t.onlineUsers.ipAddress,
-      sortable: true,
-      render: (value: string, row: OnlineSession) => (
-        <span className={cn("text-slate-300 font-mono text-xs", row.status !== 'active' && "opacity-40")}>
-          {value}
-        </span>
-      ),
-    },
-    {
       key: 'launched_at',
-      header: t.onlineUsers.connectionTime,
+      header: '접속 시간',
       render: (value: string, row: OnlineSession) => (
         <span className={cn("text-slate-300", row.status !== 'active' && "opacity-40")}>
           {getSessionTime(value)}
@@ -284,35 +286,21 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       key: 'actions',
       header: t.common.actions,
       render: (_: any, row: OnlineSession) => (
-        <div className="flex items-center gap-2 justify-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => syncBalance(row)}
-            disabled={syncingBalance === row.user_id || row.status !== 'active'}
-            className={cn(
-              "text-slate-400 hover:text-slate-200 h-10 w-10 p-0",
-              row.status !== 'active' && "opacity-40 cursor-not-allowed"
-            )}
-          >
-            <RefreshCw className={`w-6 h-6 ${syncingBalance === row.user_id ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setSelectedSession(row);
-              setShowKickDialog(true);
-            }}
-            disabled={row.status !== 'active'}
-            className={cn(
-              "bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 h-10 w-10 p-0",
-              row.status !== 'active' && "opacity-40 cursor-not-allowed"
-            )}
-          >
-            <Power className="w-6 h-6" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setSelectedSession(row);
+            setShowKickDialog(true);
+          }}
+          disabled={row.status !== 'active'}
+          className={cn(
+            "bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 h-10 w-10 p-0",
+            row.status !== 'active' && "opacity-40 cursor-not-allowed"
+          )}
+        >
+          <Power className="w-6 h-6" />
+        </Button>
       ),
     },
   ], [syncingBalance, t, toggleSessionSelection, selectedSessions]); // ✅ dependencies를 syncingBalance와 t만으로 최소화
@@ -364,7 +352,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           last_activity_at,
           last_bet_at,
           balance_before,
-          users!inner(username, nickname, balance, ip_address, device_info)
+          users!inner(username, nickname, balance, ip_address, device_info, referrer_id)
         `)
         .not('game_id', 'is', null)
         .eq('status', 'active')  // ⭐ ready 상태 제거, active만 조회
@@ -382,6 +370,21 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       const { data, error } = await query;
 
       if (error) throw error;
+
+      // referrer_id로 파트너 정보 조회
+      const referrerIds = [...new Set((data || []).map((s: any) => s.users.referrer_id).filter(Boolean))];
+      let partnersMap: Record<string, any> = {};
+      
+      if (referrerIds.length > 0) {
+        const { data: partnersData } = await supabase
+          .from('partners')
+          .select('id, partner_name')
+          .in('id', referrerIds);
+        
+        if (partnersData) {
+          partnersMap = Object.fromEntries(partnersData.map(p => [p.id, p]));
+        }
+      }
 
       // game_id로 게임 정보 조회
       const gameIds = [...new Set((data || []).map((s: any) => s.game_id).filter(Boolean))];
@@ -440,6 +443,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           user_id: session.users.id,
           username: session.users.username,
           nickname: session.users.nickname || session.users.username,
+          partner_name: session.users.referrer_id ? partnersMap[session.users.referrer_id]?.partner_name || `Partner ${session.users.referrer_id}` : 'Self', // 소속명 추가
           game_name: gameName,
           provider_name: providerName,
           balance_before: Number(session.balance_before) || 0,

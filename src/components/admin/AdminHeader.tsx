@@ -31,6 +31,7 @@ import { getAgentBalance, getOroPlayToken } from "../../lib/oroplayApi";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { getInvestCredentials, updateInvestBalance, updateOroplayBalance } from "../../lib/apiConfigHelper";
 import { getTodayStartUTC, getCachedTimezoneOffset, convertUTCToSystemTime } from "../../utils/timezone";
+import { NotificationsModal } from "./NotificationsModal";
 
 interface AdminHeaderProps {
   user: Partner;
@@ -118,6 +119,23 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   const [isSyncingOroplay, setIsSyncingOroplay] = useState(false);
   const [isSyncingFamily, setIsSyncingFamily] = useState(false);
   const [isSyncingHonor, setIsSyncingHonor] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  // =====================================================
+  // 알림 개수 로드
+  // =====================================================
+  const loadNotificationCount = async () => {
+    try {
+      console.log('🔔 [알림 개수 로드] 현재 관리자 ID:', user.id, '레벨:', user.level);
+      const { getUnreadNotificationCount } = await import('../../lib/notificationHelper');
+      const count = await getUnreadNotificationCount(user.id); // ✅ partnerId 전달
+      console.log('🔔 [알림 개수 로드] 결과:', count);
+      setNotificationCount(count);
+    } catch (error) {
+      console.error('❌ 알림 개수 로드 실패:', error);
+    }
+  };
 
   // =====================================================
   // Invest 보유금 수동 동기화 (카드 클릭 시)
@@ -367,7 +385,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   // HonorAPI 보유금 수동 동기화 (카드 클릭 시)
   // =====================================================
   const handleSyncHonorBalance = async () => {
-    if (user.level !== 1) {
+    if (user.level !== 1 && user.level !== 2) {
       return;
     }
 
@@ -375,12 +393,34 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     try {
       console.log('💰 [AdminHeader] HonorAPI 보유금 수동 동기화 시작');
 
+      // Lv1의 토큰 조회 (Lv2도 Lv1의 API 설정 사용)
+      const { data: lv1Partner, error: lv1Error } = await supabase
+        .from('partners')
+        .select('id')
+        .eq('level', 1)
+        .limit(1)
+        .maybeSingle();
+
+      if (lv1Error || !lv1Partner) {
+        throw new Error('Lv1 파트너를 찾을 수 없습니다.');
+      }
+
+      const partnerId = lv1Partner.id;
+
+      // ✅ HonorAPI 활성화 체크
+      const { checkApiActiveByPartnerId } = await import('../../lib/apiStatusChecker');
+      const isHonorApiActive = await checkApiActiveByPartnerId(partnerId, 'honorapi');
+      if (!isHonorApiActive) {
+        toast.info('HonorAPI가 비활성화되어 있습니다.');
+        return;
+      }
+
       // Dynamic import
       const honorApiModule = await import('../../lib/honorApi');
       const { getLv1HonorApiCredentials, updateHonorApiBalance } = await import('../../lib/apiConfigHelper');
       
       // API Key 조회
-      const credentials = await getLv1HonorApiCredentials(user.id);
+      const credentials = await getLv1HonorApiCredentials(partnerId);
       
       if (!credentials.api_key) {
         throw new Error('HonorAPI API Key가 설정되지 않았습니다.');
@@ -393,11 +433,27 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
       console.log('✅ [AdminHeader] HonorAPI API 응답:', { balance });
 
-      // DB 업데이트 (헬퍼 함수 사용 - Lv2 동기화 포함)
-      const success = await updateHonorApiBalance(user.id, balance);
-      
-      if (!success) {
-        throw new Error('DB 업데이트 실패');
+      // DB 업데이트
+      if (user.level === 1) {
+        // Lv1: 헬퍼 함수 사용 (api_configs + 모든 Lv2 동기화)
+        const success = await updateHonorApiBalance(user.id, balance);
+        
+        if (!success) {
+          throw new Error('DB 업데이트 실패');
+        }
+      } else if (user.level === 2) {
+        // Lv2: partners.honorapi_balance 업데이트 (자기 자신만)
+        const { error: updateError } = await supabase
+          .from('partners')
+          .update({
+            honorapi_balance: balance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
+
+        if (updateError) {
+          throw new Error(`partners 업데이트 실패: ${updateError.message}`);
+        }
       }
 
       // ✅ BalanceContext 상태 갱신
@@ -757,6 +813,26 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       )
       .subscribe();
 
+    // ✅ Realtime 구독 5: notifications 변경 시 알림 개수 업데이트
+    const notificationsChannel = supabase
+      .channel('header_notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications'
+        },
+        (payload) => {
+          console.log('🔔 [헤더 알림] notifications 변경 감지:', payload.eventType);
+          loadNotificationCount(); // 알림 개수 갱신
+        }
+      )
+      .subscribe();
+
+    // 초기 알림 개수 로드
+    loadNotificationCount();
+
     return () => {
       console.log('🔕 헤더 Realtime 구독 해제');
       clearTimeout(midnightTimer);
@@ -764,6 +840,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       supabase.removeChannel(usersChannel);
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(gameSessionsChannel);
+      supabase.removeChannel(notificationsChannel);
     };
   }, [user.id]);
 
@@ -921,299 +998,303 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   };
 
   return (
-    <div className="w-full border-b border-slate-800/50 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900">
-      <div className="px-6 py-3">
-        <div className="flex items-center justify-between">
-          {/* 왼쪽: 통계 카드 */}
-          <div className="flex items-center gap-3">
-            {/* 시스템관리자(1): Invest/Oro/Family 각각 표시 */}
-            {user.level === 1 && (
-              <>
-                {/* Invest 보유금 - useInvestApi가 true일 때만 표시 */}
-                {useInvestApi && (
-                  <div 
-                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingInvest ? 'opacity-50' : ''}`}
-                    onClick={handleSyncInvestBalance}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Wallet className="h-6 w-6 text-blue-400" />
-                      <div>
-                        <div className="text-lg text-blue-300 font-medium">Invest</div>
-                        <div className="text-lg font-bold text-white whitespace-nowrap">
-                          {typeof investBalance === 'number' ? <AnimatedCurrency value={investBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
+    <>
+      <div className="w-full border-b border-slate-800/50 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900">
+        <div className="px-6 py-3">
+          <div className="flex items-center justify-between">
+            {/* 왼쪽: 통계 카드 */}
+            <div className="flex items-center gap-3">
+              {/* 시스템관리자(1): Invest/Oro/Family 각각 표시 */}
+              {user.level === 1 && (
+                <>
+                  {/* Invest 보유금 - useInvestApi가 true일 때만 표시 */}
+                  {useInvestApi && (
+                    <div 
+                      className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingInvest ? 'opacity-50' : ''}`}
+                      onClick={handleSyncInvestBalance}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Wallet className="h-6 w-6 text-blue-400" />
+                        <div>
+                          <div className="text-lg text-blue-300 font-medium">Invest</div>
+                          <div className="text-lg font-bold text-white whitespace-nowrap">
+                            {typeof investBalance === 'number' ? <AnimatedCurrency value={investBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* OroPlay 보유금 - useOroplayApi가 true일 때만 표시 */}
-                {useOroplayApi && (
-                  <div 
-                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingOroplay ? 'opacity-50' : ''}`}
-                    onClick={handleSyncOroplayBalance}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Wallet className="h-6 w-6 text-green-400" />
-                      <div>
-                        <div className="text-lg text-green-300 font-medium">GMS 보유금</div>
-                        <div className="text-lg font-bold text-white whitespace-nowrap">
-                          {typeof oroplayBalance === 'number' ? <AnimatedCurrency value={oroplayBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
+                  {/* OroPlay 보유금 - useOroplayApi가 true일 때만 표시 */}
+                  {useOroplayApi && (
+                    <div 
+                      className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingOroplay ? 'opacity-50' : ''}`}
+                      onClick={handleSyncOroplayBalance}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Wallet className="h-6 w-6 text-green-400" />
+                        <div>
+                          <div className="text-lg text-green-300 font-medium">GMS 보유금</div>
+                          <div className="text-lg font-bold text-white whitespace-nowrap">
+                            {typeof oroplayBalance === 'number' ? <AnimatedCurrency value={oroplayBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* FamilyAPI 보유금 - useFamilyApi가 true일 때만 표시 */}
-                {useFamilyApi && (
-                  <div 
-                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingFamily ? 'opacity-50' : ''}`}
-                    onClick={handleSyncFamilyBalance}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Wallet className="h-6 w-6 text-purple-400" />
-                      <div>
-                        <div className="text-lg text-purple-300 font-medium">Family 보유금</div>
-                        <div className="text-lg font-bold text-white whitespace-nowrap">
-                          {typeof familyapiBalance === 'number' ? <AnimatedCurrency value={familyapiBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
+                  {/* FamilyAPI 보유금 - useFamilyApi가 true일 때만 표시 */}
+                  {useFamilyApi && (
+                    <div 
+                      className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingFamily ? 'opacity-50' : ''}`}
+                      onClick={handleSyncFamilyBalance}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Wallet className="h-6 w-6 text-purple-400" />
+                        <div>
+                          <div className="text-lg text-purple-300 font-medium">Family 보유금</div>
+                          <div className="text-lg font-bold text-white whitespace-nowrap">
+                            {typeof familyapiBalance === 'number' ? <AnimatedCurrency value={familyapiBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* HonorAPI 보유금 - useHonorApi가 true일 때만 표시 */}
-                {useHonorApi && (
-                  <div 
-                    className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingHonor ? 'opacity-50' : ''}`}
-                    onClick={handleSyncHonorBalance}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Wallet className="h-6 w-6 text-amber-400" />
-                      <div>
-                        <div className="text-lg text-amber-300 font-medium">Honor 보유금</div>
-                        <div className="text-lg font-bold text-white whitespace-nowrap">
-                          {typeof honorapiBalance === 'number' ? <AnimatedCurrency value={honorapiBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
+                  {/* HonorAPI 보유금 - useHonorApi가 true일 때만 표시 */}
+                  {useHonorApi && (
+                    <div 
+                      className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 transition-all min-w-[100px] cursor-pointer hover:scale-105 ${balanceLoading ? 'animate-pulse' : ''} ${isSyncingHonor ? 'opacity-50' : ''}`}
+                      onClick={handleSyncHonorBalance}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Wallet className="h-6 w-6 text-amber-400" />
+                        <div>
+                          <div className="text-lg text-amber-300 font-medium">Honor 보유금</div>
+                          <div className="text-lg font-bold text-white whitespace-nowrap">
+                            {typeof honorapiBalance === 'number' ? <AnimatedCurrency value={honorapiBalance} duration={800} currencySymbol={t.common.currency} /> : `${t.common.currency}0`}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              )}
 
-            {/* 대본사(2): 총합만 표시 */}
-            {user.level === 2 && (
-              <div className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}>
+              {/* 대본사(2): 총합만 표시 */}
+              {user.level === 2 && (
+                <div className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <Wallet className="h-6 w-6 text-green-400" />
+                    <div>
+                      <div className="text-lg text-green-300 font-medium">총 보유금</div>
+                      <div className="text-lg font-bold text-white whitespace-nowrap">
+                        {(() => {
+                          let total = 0;
+                          if (useInvestApi && typeof investBalance === 'number') total += investBalance;
+                          if (useOroplayApi && typeof oroplayBalance === 'number') total += oroplayBalance;
+                          if (useFamilyApi && typeof familyapiBalance === 'number') total += familyapiBalance;
+                          if (useHonorApi && typeof honorapiBalance === 'number') total += honorapiBalance;
+                          return <AnimatedCurrency value={total} duration={800} currencySymbol={t.common.currency} />;
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 나머지 레벨(3~6): GMS 보유금 1개만 표시 */}
+              {user.level >= 3 && (
+                <div className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-yellow-500/20 to-amber-500/20 border border-yellow-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <Wallet className="h-6 w-6 text-yellow-400" />
+                    <div>
+                      <div className="text-lg text-yellow-300 font-medium">{t.header.gmsBalance}</div>
+                      <div className="text-lg font-bold text-white">
+                        {balanceLoading ? '...' : <AnimatedCurrency value={balance || 0} duration={800} />}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 총 입금 */}
+              <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 transition-all min-w-[100px]">
                 <div className="flex items-center gap-2">
-                  <Wallet className="h-6 w-6 text-green-400" />
+                  <TrendingUp className="h-6 w-6 text-cyan-400" />
                   <div>
-                    <div className="text-lg text-green-300 font-medium">총 보유금</div>
-                    <div className="text-lg font-bold text-white whitespace-nowrap">
-                      {(() => {
-                        let total = 0;
-                        if (useInvestApi && typeof investBalance === 'number') total += investBalance;
-                        if (useOroplayApi && typeof oroplayBalance === 'number') total += oroplayBalance;
-                        if (useFamilyApi && typeof familyapiBalance === 'number') total += familyapiBalance;
-                        if (useHonorApi && typeof honorapiBalance === 'number') total += honorapiBalance;
-                        return <AnimatedCurrency value={total} duration={800} currencySymbol={t.common.currency} />;
-                      })()}
-                    </div>
+                    <div className="text-lg text-cyan-300 font-medium">{t.header.totalDeposit}</div>
+                    <div className="text-lg font-bold text-white">{formatCurrency(stats.daily_deposit)}</div>
                   </div>
                 </div>
               </div>
-            )}
 
-            {/* 나머지 레벨(3~6): GMS 보유금 1개만 표시 */}
-            {user.level >= 3 && (
-              <div className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-yellow-500/20 to-amber-500/20 border border-yellow-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}>
+              {/* 총 출금 */}
+              <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 transition-all min-w-[100px]">
                 <div className="flex items-center gap-2">
-                  <Wallet className="h-6 w-6 text-yellow-400" />
+                  <TrendingDown className="h-6 w-6 text-orange-400" />
                   <div>
-                    <div className="text-lg text-yellow-300 font-medium">{t.header.gmsBalance}</div>
-                    <div className="text-lg font-bold text-white">
-                      {balanceLoading ? '...' : <AnimatedCurrency value={balance || 0} duration={800} />}
+                    <div className="text-lg text-orange-300 font-medium">{t.header.totalWithdrawal}</div>
+                    <div className="text-lg font-bold text-white">{formatCurrency(stats.daily_withdrawal)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 총 회원 */}
+              <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-slate-500/20 to-gray-500/20 border border-slate-500/30 transition-all min-w-[100px]">
+                <div className="flex items-center gap-2">
+                  <Users className="h-6 w-6 text-slate-400" />
+                  <div>
+                    <div className="text-lg text-slate-300 font-medium">{t.header.totalMembers}</div>
+                    <div className="text-lg font-bold text-white">{formatNumber(totalUsers)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 온라인 */}
+              <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 transition-all min-w-[100px]">
+                <div className="flex items-center gap-2">
+                  <Users className="h-6 w-6 text-emerald-400" />
+                  <div>
+                    <div className="text-lg text-emerald-300 font-medium">{t.header.online}</div>
+                    <div className="text-lg font-bold text-white">{formatNumber(stats.online_users)}{t.onlineUsers.people}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 오른쪽: 4개 실시간 알림 + 종 아이콘 + 프로필 */}
+            <div className="flex items-center gap-2">
+              {/* 가입승인 */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div 
+                      className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
+                      onClick={() => onRouteChange?.('/admin/users')}
+                    >
+                      <div className="text-lg text-cyan-300 font-medium text-center">{t.header.signupApproval}</div>
+                      <div className="text-lg font-bold text-white text-center">{stats.pending_approvals}</div>
                     </div>
-                  </div>
-                </div>
-              </div>
-            )}
+                  </TooltipTrigger>
+                  <TooltipContent>{t.header.signupApproval}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-            {/* 총 입금 */}
-            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 transition-all min-w-[100px]">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-6 w-6 text-cyan-400" />
-                <div>
-                  <div className="text-lg text-cyan-300 font-medium">{t.header.totalDeposit}</div>
-                  <div className="text-lg font-bold text-white">{formatCurrency(stats.daily_deposit)}</div>
-                </div>
-              </div>
-            </div>
+              {/* 고객문의 */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div 
+                      className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
+                      onClick={() => onRouteChange?.('/admin/customer-service')}
+                    >
+                      <div className="text-lg text-purple-300 font-medium text-center">{t.header.customerInquiry}</div>
+                      <div className="text-lg font-bold text-white text-center">{stats.pending_messages}</div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>{t.header.customerInquiry}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-            {/* 총 출금 */}
-            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 transition-all min-w-[100px]">
-              <div className="flex items-center gap-2">
-                <TrendingDown className="h-6 w-6 text-orange-400" />
-                <div>
-                  <div className="text-lg text-orange-300 font-medium">{t.header.totalWithdrawal}</div>
-                  <div className="text-lg font-bold text-white">{formatCurrency(stats.daily_withdrawal)}</div>
-                </div>
-              </div>
-            </div>
+              {/* 입금요청 */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div 
+                      className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
+                      onClick={() => onRouteChange?.('/admin/transactions#deposit-request')}
+                    >
+                      <div className="text-lg text-emerald-300 font-medium text-center">{t.dashboard.pendingDeposits}</div>
+                      <div className="text-lg font-bold text-white text-center">{stats.pending_deposits}</div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>{t.dashboard.pendingDeposits}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-            {/* 총 회원 */}
-            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-slate-500/20 to-gray-500/20 border border-slate-500/30 transition-all min-w-[100px]">
-              <div className="flex items-center gap-2">
-                <Users className="h-6 w-6 text-slate-400" />
-                <div>
-                  <div className="text-lg text-slate-300 font-medium">{t.header.totalMembers}</div>
-                  <div className="text-lg font-bold text-white">{formatNumber(totalUsers)}</div>
-                </div>
-              </div>
-            </div>
+              {/* 출금요청 */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div 
+                      className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
+                      onClick={() => onRouteChange?.('/admin/transactions#withdrawal-request')}
+                    >
+                      <div className="text-lg text-orange-300 font-medium text-center">{t.dashboard.pendingWithdrawals}</div>
+                      <div className="text-lg font-bold text-white text-center">{stats.pending_withdrawals}</div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>{t.dashboard.pendingWithdrawals}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-            {/* 온라인 */}
-            <div className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 transition-all min-w-[100px]">
-              <div className="flex items-center gap-2">
-                <Users className="h-6 w-6 text-emerald-400" />
-                <div>
-                  <div className="text-lg text-emerald-300 font-medium">{t.header.online}</div>
-                  <div className="text-lg font-bold text-white">{formatNumber(stats.online_users)}{t.onlineUsers.people}</div>
-                </div>
-              </div>
-            </div>
-          </div>
+              <div className="w-px h-8 bg-slate-700"></div>
 
-          {/* 오른쪽: 4개 실시간 알림 + 종 아이콘 + 프로필 */}
-          <div className="flex items-center gap-2">
-            {/* 가입승인 */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div 
-                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
-                    onClick={() => onRouteChange?.('/admin/users')}
-                  >
-                    <div className="text-lg text-cyan-300 font-medium text-center">{t.header.signupApproval}</div>
-                    <div className="text-lg font-bold text-white text-center">{stats.pending_approvals}</div>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>{t.header.signupApproval}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+              {/* User Notifications (사용자 페이지 알림) */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="relative h-9 w-9 p-0 hover:bg-slate-700"
+                      onClick={() => setShowNotifications(true)}
+                    >
+                      <Bell className="h-5 w-5 text-slate-300" />
+                      {notificationCount > 0 && (
+                        <Badge className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full text-[10px] bg-blue-600 hover:bg-blue-700 animate-pulse border-0">
+                          {notificationCount > 99 ? '99+' : notificationCount}
+                        </Badge>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>사용자 알림 ({notificationCount})</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
-            {/* 고객문의 */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div 
-                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
-                    onClick={() => onRouteChange?.('/admin/customer-service')}
-                  >
-                    <div className="text-lg text-purple-300 font-medium text-center">{t.header.customerInquiry}</div>
-                    <div className="text-lg font-bold text-white text-center">{stats.pending_messages}</div>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>{t.header.customerInquiry}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+              <div className="w-px h-8 bg-slate-700"></div>
 
-            {/* 입금요청 */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div 
-                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
-                    onClick={() => onRouteChange?.('/admin/transactions#deposit-request')}
-                  >
-                    <div className="text-lg text-emerald-300 font-medium text-center">{t.dashboard.pendingDeposits}</div>
-                    <div className="text-lg font-bold text-white text-center">{stats.pending_deposits}</div>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>{t.dashboard.pendingDeposits}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+              {/* 언어 전환 */}
+              <LanguageSwitcher />
 
-            {/* 출금요청 */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div 
-                    className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
-                    onClick={() => onRouteChange?.('/admin/transactions#withdrawal-request')}
-                  >
-                    <div className="text-lg text-orange-300 font-medium text-center">{t.dashboard.pendingWithdrawals}</div>
-                    <div className="text-lg font-bold text-white text-center">{stats.pending_withdrawals}</div>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>{t.dashboard.pendingWithdrawals}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <div className="w-px h-8 bg-slate-700"></div>
-
-            {/* Bell icon (High betting/winning alerts) */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="relative h-9 w-9 p-0 hover:bg-slate-700"
-                    onClick={handleBettingAlertClick}
-                  >
-                    <Bell className="h-5 w-5 text-slate-300" />
-                    {(bettingAlerts.large_betting + bettingAlerts.high_win + bettingAlerts.suspicious) > 0 && (
-                      <Badge className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full text-[10px] bg-rose-500 hover:bg-rose-600 animate-pulse border-0">
-                        {(bettingAlerts.large_betting + bettingAlerts.high_win + bettingAlerts.suspicious) > 99 
-                          ? '99+' 
-                          : (bettingAlerts.large_betting + bettingAlerts.high_win + bettingAlerts.suspicious)}
-                      </Badge>
-                    )}
+              {/* 사용자 메뉴 */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full hover:bg-slate-700">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-500 text-white font-semibold text-sm">
+                        {user.nickname.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="space-y-1 text-xs">
-                    <p>Large Bets: {bettingAlerts.large_betting}</p>
-                    <p>High Wins: {bettingAlerts.high_win}</p>
-                    <p>Suspicious: {bettingAlerts.suspicious}</p>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
+                  <div className="px-2 py-2 border-b border-slate-700">
+                    <p className="text-xl font-semibold text-slate-100">{user.nickname}</p>
+                    <p className="text-base text-slate-400">{user.username}</p>
+                    <p className="text-base text-slate-500 mt-0.5">관리자 계정</p>
                   </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <div className="w-px h-8 bg-slate-700"></div>
-
-            {/* 언어 전환 */}
-            <LanguageSwitcher />
-
-            {/* 사용자 메뉴 */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full hover:bg-slate-700">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-500 text-white font-semibold text-sm">
-                      {user.nickname.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
-                <div className="px-2 py-2 border-b border-slate-700">
-                  <p className="text-xl font-semibold text-slate-100">{user.nickname}</p>
-                  <p className="text-base text-slate-400">{user.username}</p>
-                  <p className="text-base text-slate-500 mt-0.5">관리자 계정</p>
-                </div>
-                <DropdownMenuItem onClick={handleLogout} className="text-rose-400 cursor-pointer hover:bg-slate-700">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  로그아웃
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <DropdownMenuItem onClick={handleLogout} className="text-rose-400 cursor-pointer hover:bg-slate-700">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    로그아웃
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* 알림 모달 - Portal로 body에 렌더링 */}
+      <NotificationsModal 
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        onNotificationCountChange={setNotificationCount}
+        currentPartnerId={user.id}
+      />
+    </>
   );
 }

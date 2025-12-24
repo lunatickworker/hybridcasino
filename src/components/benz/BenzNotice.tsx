@@ -19,10 +19,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import { supabase } from "../../lib/supabase";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { toast } from "sonner@2.0.3";
-import { useLanguage } from "../../contexts/LanguageContext";
+import { toast } from "sonner";
 
-interface UserNoticeProps {
+interface BenzNoticeProps {
   user: any;
   onRouteChange?: (route: string) => void;
 }
@@ -50,9 +49,7 @@ interface PopupNotice {
   hide_today?: boolean;
 }
 
-export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
-  const { t } = useLanguage();
-  
+export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
   // Guard against null user
   if (!user) {
     return (
@@ -123,7 +120,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
       setCurrentPage(page);
     } catch (error) {
       console.error('공지사항 조회 오류:', error);
-      toast.error(t.user.noticeLoadFailed);
+      toast.error('공지사항을 불러오는데 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
@@ -293,7 +290,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
           {/* 팝업 공지사항 */}
           {popupNotices.map((popup) => (
             <div key={popup.id} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-              <Card className="w-full max-w-md lg:max-w-lg bg-slate-800 border-slate-700 rounded-none relative">
+              <Card className="w-full max-w-md lg:max-w-lg bg-[#1a1f3a] border-purple-900/30 relative">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg text-white pr-8">{popup.title}</CardTitle>
@@ -312,7 +309,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                     className="text-slate-300 text-sm max-h-60 overflow-y-auto"
                     dangerouslySetInnerHTML={{ __html: popup.content }}
                   />
-                  <div className="flex items-center justify-between pt-4 border-t border-slate-700">
+                  <div className="flex items-center justify-between pt-4 border-t border-purple-900/30">
                     <span className="text-xs text-slate-500">
                       {formatDateTime(popup.created_at)}
                     </span>
@@ -321,15 +318,16 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                         variant="outline"
                         size="sm"
                         onClick={() => closePopup(popup.id, true)}
+                        className="border-purple-900/30 hover:bg-purple-900/20"
                       >
-                        {t.common.close}
+                        오늘 하루 보지 않기
                       </Button>
                       <Button
                         size="sm"
                         onClick={() => closePopup(popup.id)}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
                       >
-                        {t.common.confirm}
+                        확인
                       </Button>
                     </div>
                   </div>
@@ -348,26 +346,26 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
           </div>
 
           {/* 검색 */}
-          <Card className="bg-slate-800/50 border-slate-700 rounded-none mb-6">
+          <Card className="bg-[#1a1f3a] border-purple-900/30 mb-6">
             <CardContent className="p-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
                 <Input
-                  placeholder={t.user.searchPlaceholder}
+                  placeholder="공지사항 검색..."
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
-                  className="pl-10 bg-slate-700/50 border-slate-600 text-white text-base h-12"
+                  className="pl-10 bg-[#0f1433] border-purple-900/30 text-white text-base h-12"
                 />
               </div>
             </CardContent>
           </Card>
 
           {/* 공지사항 목록 */}
-          <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+          <Card className="bg-[#1a1f3a] border-purple-900/30">
             <CardHeader>
               <CardTitle className="flex items-center text-white text-2xl">
-                <Bell className="w-6 h-6 mr-3 text-blue-400" />
-                {t.user.noticeTitle} ({filteredNotices.length})
+                <Bell className="w-6 h-6 mr-3 text-purple-400" />
+                공지사항 ({filteredNotices.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -385,12 +383,12 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                     return (
                       <div 
                         key={notice.id} 
-                        className="p-5 bg-slate-700/30 rounded-none hover:bg-slate-700/50 transition-colors border border-slate-700/50"
+                        className="p-5 bg-[#0f1433] hover:bg-[#151a3f] transition-colors border border-purple-900/30"
                       >
                         <div className="flex items-start gap-3">
                           {/* 읽음 상태 표시 */}
                           <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                            notice.is_read ? 'bg-slate-500' : 'bg-blue-400'
+                            notice.is_read ? 'bg-slate-500' : 'bg-purple-400'
                           }`} />
                           
                           <div className="flex-1 min-w-0">
@@ -401,17 +399,17 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                                   {notice.is_pinned && (
                                     <Badge className="bg-red-500 text-white text-xs px-2 py-1">
                                       <Pin className="w-3 h-3 mr-1" />
-                                      {t.common.pinned || '고정'}
+                                      고정
                                     </Badge>
                                   )}
                                   {notice.is_popup && (
                                     <Badge className="bg-purple-500 text-white text-xs px-2 py-1">
-                                      {t.bannerManagement.popup}
+                                      팝업
                                     </Badge>
                                   )}
                                 </div>
                                 <h3 
-                                  className={`font-semibold cursor-pointer hover:text-blue-400 transition-colors text-lg ${
+                                  className={`font-semibold cursor-pointer hover:text-purple-400 transition-colors text-lg ${
                                     notice.is_read ? 'text-slate-300' : 'text-white'
                                   }`}
                                   onClick={() => handleNoticeClick(notice)}
@@ -423,7 +421,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => toggleNoticeExpansion(notice.id)}
-                                className="flex-shrink-0 w-8 h-8 p-0"
+                                className="flex-shrink-0 w-8 h-8 p-0 text-purple-400 hover:text-purple-300"
                               >
                                 {isExpanded ? (
                                   <ChevronUp className="w-5 h-5" />
@@ -444,7 +442,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                                 {notice.view_count.toLocaleString()}
                               </span>
                               {notice.partners?.nickname && (
-                                <span>{t.user.admin}: {notice.partners.nickname}</span>
+                                <span>관리자: {notice.partners.nickname}</span>
                               )}
                             </div>
 
@@ -452,7 +450,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                             <Collapsible open={isExpanded} onOpenChange={() => toggleNoticeExpansion(notice.id)}>
                               <CollapsibleContent>
                                 <div 
-                                  className="text-slate-300 text-base mt-4 p-4 bg-slate-600/30 rounded-none border-l-4 border-blue-500"
+                                  className="text-slate-300 text-base mt-4 p-4 bg-[#0a0f2a] border-l-4 border-purple-500"
                                   dangerouslySetInnerHTML={{ __html: notice.content }}
                                 />
                               </CollapsibleContent>
@@ -477,9 +475,9 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                         size="sm"
                         onClick={() => fetchNotices(currentPage - 1)}
                         disabled={currentPage <= 1}
-                        className="border-slate-600 hover:bg-slate-700/50 text-white"
+                        className="border-purple-900/30 hover:bg-purple-900/20 text-white"
                       >
-                        {t.common.previous}
+                        이전
                       </Button>
                       <span className="flex items-center px-4 text-slate-300 text-base">
                         {currentPage} / {totalPages}
@@ -489,9 +487,9 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                         size="sm"
                         onClick={() => fetchNotices(currentPage + 1)}
                         disabled={currentPage >= totalPages}
-                        className="border-slate-600 hover:bg-slate-700/50 text-white"
+                        className="border-purple-900/30 hover:bg-purple-900/20 text-white"
                       >
-                        {t.common.next}
+                        다음
                       </Button>
                     </div>
                   )}
@@ -500,21 +498,21 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                 <div className="text-center py-20">
                   <Bell className="w-16 h-16 text-slate-600 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-white mb-2">
-                    {searchQuery ? t.user.noSearchResults : t.user.noNotices}
+                    {searchQuery ? '검색 결과가 없습니다' : '등록된 공지사항이 없습니다'}
                   </h3>
                   <p className="text-slate-400 mb-4">
                     {searchQuery 
-                      ? t.user.changeSearchCondition 
-                      : t.user.checkLater
+                      ? '다른 검색어로 시도해보세요' 
+                      : '새로운 공지사항이 등록되면 알려드리겠습니다'
                     }
                   </p>
                   {searchQuery && (
                     <Button
                       variant="outline"
                       onClick={() => handleSearch('')}
-                      className="border-slate-600 hover:bg-slate-700/50 text-white"
+                      className="border-purple-900/30 hover:bg-purple-900/20 text-white"
                     >
-                      {t.user.viewAllInquiries}
+                      전체 보기
                     </Button>
                   )}
                 </div>
@@ -526,13 +524,13 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
 
       {/* 공지사항 상세 다이얼로그 */}
       <Dialog open={showNoticeDialog} onOpenChange={setShowNoticeDialog}>
-        <DialogContent className="max-w-2xl bg-slate-800 border-slate-700 text-white max-h-[80vh] overflow-y-auto rounded-none">
+        <DialogContent className="max-w-2xl bg-[#1a1f3a] border-purple-900/30 text-white max-h-[80vh] overflow-y-auto">
           {selectedNotice && (
             <>
               <DialogHeader>
                 <DialogTitle className="text-2xl">{selectedNotice.title}</DialogTitle>
                 <DialogDescription className="text-slate-400">
-                  {t.user.noticeSubtitle}
+                  중요한 공지사항입니다
                 </DialogDescription>
                 <div className="flex items-center gap-4 text-sm text-slate-400 pt-2">
                   <span className="flex items-center gap-1">
@@ -544,7 +542,7 @@ export function UserNotice({ user, onRouteChange }: UserNoticeProps) {
                     {selectedNotice.view_count.toLocaleString()}
                   </span>
                   {selectedNotice.partners?.nickname && (
-                    <span>{t.user.admin}: {selectedNotice.partners.nickname}</span>
+                    <span>관리자: {selectedNotice.partners.nickname}</span>
                   )}
                 </div>
               </DialogHeader>

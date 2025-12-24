@@ -8,11 +8,12 @@ import { Label } from "../../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Badge } from "../../ui/badge";
 import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle } from "../AdminDialog";
-import { Key, DollarSign } from "lucide-react";
+import { Key, DollarSign, Gamepad2 } from "lucide-react";
 import { Partner } from "./types";
 import { useLanguage } from "../../../contexts/LanguageContext";
 import { toast } from "sonner@2.0.3";
 import { supabase } from "../../../lib/supabase";
+import { GameAccessSelectorSimple } from "../GameAccessSelectorSimple";
 
 interface PartnerFormDialogProps {
   open: boolean;
@@ -58,30 +59,89 @@ export function PartnerFormDialog({
     casino_losing_commission: 0,
     slot_rolling_commission: 0,
     slot_losing_commission: 0,
-    withdrawal_fee: 0
+    withdrawal_fee: 0,
+    game_access: [] as any[], // Lv6/Lv7 게임 접근 권한
   });
+
+  const [parentApis, setParentApis] = useState<string[]>([]); // 상위 Lv2의 selected_apis
+  const [partnerLevel, setPartnerLevel] = useState<number>(0); // 파트너 레벨
 
   // 파트너 데이터 로드 (수정 모드)
   useEffect(() => {
     if (mode === 'edit' && partner) {
-      setFormData({
-        username: partner.username,
-        nickname: partner.nickname,
-        password: "",
-        partner_type: partner.partner_type,
-        parent_id: partner.parent_id || "",
-        opcode: "",
-        secret_key: "",
-        api_token: "",
-        casino_rolling_commission: partner.casino_rolling_commission || partner.commission_rolling || 0,
-        casino_losing_commission: partner.casino_losing_commission || partner.commission_losing || 0,
-        slot_rolling_commission: partner.slot_rolling_commission || partner.commission_rolling || 0,
-        slot_losing_commission: partner.slot_losing_commission || partner.commission_losing || 0,
-        withdrawal_fee: partner.withdrawal_fee || 0
-      });
+      loadPartnerData();
     }
     // ✅ 생성 모드일 때는 resetForm 호출하지 않음 (마지막 입력값 유지)
   }, [mode, partner, open]);
+
+  // 파트너 데이터 로드 (수정 모드)
+  const loadPartnerData = async () => {
+    if (!partner) return;
+
+    setFormData({
+      username: partner.username,
+      nickname: partner.nickname,
+      password: "",
+      partner_type: partner.partner_type,
+      parent_id: partner.parent_id || "",
+      opcode: "",
+      secret_key: "",
+      api_token: "",
+      casino_rolling_commission: partner.casino_rolling_commission || partner.commission_rolling || 0,
+      casino_losing_commission: partner.casino_losing_commission || partner.commission_losing || 0,
+      slot_rolling_commission: partner.slot_rolling_commission || partner.commission_rolling || 0,
+      slot_losing_commission: partner.slot_losing_commission || partner.commission_losing || 0,
+      withdrawal_fee: partner.withdrawal_fee || 0,
+      game_access: [] as any[],
+    });
+    setPartnerLevel(partner.level || 0);
+
+    // Lv6/Lv7인 경우 게임 접근 권한 로드
+    if (partner.level >= 6) {
+      try {
+        // 기존 게임 접근 권한 로드
+        const { data: gameAccess } = await supabase
+          .from('partner_game_access')
+          .select('*')
+          .eq('partner_id', partner.id);
+
+        if (gameAccess) {
+          setFormData(prev => ({ ...prev, game_access: gameAccess }));
+        }
+
+        // 상위 Lv2의 selected_apis 로드
+        let currentParentId = partner.parent_id;
+        let lv2Partner = null;
+
+        for (let i = 0; i < 10; i++) {
+          if (!currentParentId) break;
+
+          const { data: parentData } = await supabase
+            .from('partners')
+            .select('id, level, parent_id, selected_apis')
+            .eq('id', currentParentId)
+            .single();
+
+          if (!parentData) break;
+
+          if (parentData.level === 2) {
+            lv2Partner = parentData;
+            break;
+          }
+
+          currentParentId = parentData.parent_id;
+        }
+
+        if (lv2Partner && lv2Partner.selected_apis) {
+          setParentApis(lv2Partner.selected_apis as string[]);
+        } else {
+          setParentApis([]);
+        }
+      } catch (error) {
+        console.error('게임 접근 권한 로드 실패:', error);
+      }
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -97,7 +157,8 @@ export function PartnerFormDialog({
       casino_losing_commission: 0,
       slot_rolling_commission: 0,
       slot_losing_commission: 0,
-      withdrawal_fee: 0
+      withdrawal_fee: 0,
+      game_access: [] as any[], // Lv6/Lv7 게임 접근 권한
     });
     setHierarchyWarning("");
     setParentCommission(null);
@@ -141,7 +202,7 @@ export function PartnerFormDialog({
           commission_rolling: formData.casino_rolling_commission,
           commission_losing: formData.casino_losing_commission,
           withdrawal_fee: formData.withdrawal_fee,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         };
 
         // 비밀번호가 입력된 경우에만 업데이트
@@ -155,6 +216,35 @@ export function PartnerFormDialog({
           .eq('id', partner.id);
 
         if (error) throw error;
+
+        // Lv6/Lv7인 경우 게임 접근 권한 업데이트
+        if (partner.level >= 6) {
+          // 기존 데이터 삭제
+          await supabase
+            .from('partner_game_access')
+            .delete()
+            .eq('partner_id', partner.id);
+
+          // 새 데이터 추가
+          if (formData.game_access && formData.game_access.length > 0) {
+            const gameAccessData = formData.game_access.map(access => ({
+              partner_id: partner.id,
+              api_provider: access.api_provider,
+              game_provider_id: access.game_provider_id,
+              game_id: access.game_id,
+              access_type: access.access_type,
+            }));
+
+            const { error: gameAccessError } = await supabase
+              .from('partner_game_access')
+              .insert(gameAccessData);
+
+            if (gameAccessError) {
+              console.error('게임 접근 권한 업데이트 실패:', gameAccessError);
+              toast.error('게임 접근 권한 업데이트에 실패했습니다.');
+            }
+          }
+        }
 
         toast.success(t.partnerManagement.partnerUpdatedSuccess);
         
@@ -453,6 +543,9 @@ export function PartnerFormDialog({
               </p>
             </div>
           </div>
+
+          {/* Lv6/Lv7 게임 접근 권한 - 제거됨 */}
+          {/* 파트너 계층관리 페이지에서만 설정 가능 */}
         </div>
 
         <DialogFooter>

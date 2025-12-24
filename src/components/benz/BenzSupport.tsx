@@ -24,10 +24,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import { supabase } from "../../lib/supabase";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { toast } from "sonner@2.0.3";
-import { useLanguage } from "../../contexts/LanguageContext";
+import { toast } from "sonner";
 
-interface UserSupportProps {
+interface BenzSupportProps {
   user: any;
   onRouteChange: (route: string) => void;
 }
@@ -48,22 +47,7 @@ interface SupportMessage {
   replies?: SupportMessage[];
 }
 
-export function UserSupport({ user, onRouteChange }: UserSupportProps) {
-  const { t } = useLanguage();
-  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
-  const [filteredInquiries, setFilteredInquiries] = useState<Inquiry[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
-  const [showInquiryDialog, setShowInquiryDialog] = useState(false);
-  const [showNewInquiryDialog, setShowNewInquiryDialog] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [newInquiry, setNewInquiry] = useState({
-    category: '',
-    title: '',
-    content: ''
-  });
-  
+export function BenzSupport({ user, onRouteChange }: BenzSupportProps) {
   // Guard against null user - AFTER all hooks
   if (!user) {
     return (
@@ -76,17 +60,21 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
   }
   
   const inquiryCategories = [
-    { value: 'deposit', label: t.user.depositInquiry },
-    { value: 'withdrawal', label: t.user.withdrawalInquiry },
-    { value: 'game', label: t.user.gameInquiry },
-    { value: 'account', label: t.user.accountInquiry },
-    { value: 'bonus', label: t.user.bonusInquiry },
+    { value: 'deposit', label: '입금문의' },
+    { value: 'withdrawal', label: '출금문의' },
+    { value: 'game', label: '게임문의' },
+    { value: 'account', label: '계정문의' },
+    { value: 'bonus', label: '보너스문의' },
     { value: 'account_number', label: '계좌문의' }
   ];
   
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [filteredMessages, setFilteredMessages] = useState<SupportMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [showNewInquiryDialog, setShowNewInquiryDialog] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<string[]>([]);
 
   // 새 문의 폼 상태
@@ -95,9 +83,6 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
     subject: '',
     content: ''
   });
-
-  // 답글 폼 상태
-  const [replyContent, setReplyContent] = useState<{ [key: string]: string }>({});
 
   // 문의 내역 조회
   const fetchMessages = async () => {
@@ -138,7 +123,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
       setFilteredMessages(messagesWithReplies);
     } catch (error) {
       console.error('문의 내역 조회 오류:', error);
-      toast.error(t.user.inquiryLoadFailed);
+      toast.error('문의 내역을 불러오는데 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
@@ -149,7 +134,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
     e.preventDefault();
 
     if (!newInquiryForm.category || !newInquiryForm.subject.trim() || !newInquiryForm.content.trim()) {
-      toast.error(t.user.fillAllRequired);
+      toast.error('모든 필수 항목을 입력해주세요.');
       return;
     }
 
@@ -197,10 +182,10 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
       // 목록 새로고침
       fetchMessages();
 
-      toast.success(t.user.inquirySubmitted);
+      toast.success('문의가 성공적으로 등록되었습니다.');
     } catch (error: any) {
       console.error('문의 등록 오류:', error);
-      toast.error(error.message || t.user.inquirySubmitFailed);
+      toast.error(error.message || '문의 등록에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -289,14 +274,14 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
           color: 'bg-green-500', 
           textColor: 'text-green-400', 
           icon: CheckCircle, 
-          label: t.user.repliedStatus
+          label: '답변완료'
         };
       } else {
         return { 
           color: 'bg-yellow-500', 
           textColor: 'text-yellow-400', 
           icon: Clock, 
-          label: t.user.waitingStatus
+          label: '답변대기'
         };
       }
     } else {
@@ -306,14 +291,14 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
           color: 'bg-blue-500', 
           textColor: 'text-blue-400', 
           icon: MessageCircle, 
-          label: t.user.newReplyStatus
+          label: '새 답변'
         };
       } else {
         return { 
           color: 'bg-slate-500', 
           textColor: 'text-slate-400', 
           icon: MessageCircle, 
-          label: t.user.replyStatus
+          label: '답변'
         };
       }
     }
@@ -347,7 +332,7 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
       }, (payload) => {
         if (payload.eventType === 'INSERT') {
           fetchMessages();
-          toast.info(t.user.newReplyArrived);
+          toast.info('새로운 답변이 도착했습니다.');
         }
       })
       .subscribe();
@@ -374,31 +359,31 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
             </div>
             <Dialog open={showNewInquiryDialog} onOpenChange={setShowNewInquiryDialog}>
               <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700 h-12 px-6 text-base">
+                <Button className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 h-12 px-6 text-base">
                   <Plus className="w-5 h-5 mr-2" />
-                  {t.user.newInquiry}
+                  새 문의 작성
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl bg-slate-800 border-slate-700 text-white rounded-none" style={{
+              <DialogContent className="max-w-2xl bg-[#1a1f3a] border-purple-900/30 text-white" style={{
                 backdropFilter: 'blur(8px)',
-                backgroundColor: 'rgba(30, 41, 59, 0.95)'
+                backgroundColor: 'rgba(26, 31, 58, 0.95)'
               }}>
                 <DialogHeader>
-                  <DialogTitle className="text-2xl">{t.user.writeInquiry}</DialogTitle>
+                  <DialogTitle className="text-2xl">문의 작성하기</DialogTitle>
                   <DialogDescription className="text-slate-400 text-base">
-                    {t.user.inquiryWriteDesc}
+                    문의하실 내용을 자세히 작성해주시면 빠르게 답변드리겠습니다.
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmitInquiry} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="category" className="text-slate-300 text-base">{t.user.inquiryType} *</Label>
+                    <Label htmlFor="category" className="text-slate-300 text-base">문의 유형 *</Label>
                     <Select value={newInquiryForm.category} onValueChange={(value) => setNewInquiryForm(prev => ({ ...prev, category: value }))}>
-                      <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white h-12 text-base rounded-none">
-                        <SelectValue placeholder={t.user.selectInquiryType} />
+                      <SelectTrigger className="bg-[#0f1433] border-purple-900/30 text-white h-12 text-base">
+                        <SelectValue placeholder="문의 유형을 선택해주세요" />
                       </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700 rounded-none">
+                      <SelectContent className="bg-[#1a1f3a] border-purple-900/30">
                         {inquiryCategories.map((category) => (
-                          <SelectItem key={category.value} value={category.value}>
+                          <SelectItem key={category.value} value={category.value} className="text-white">
                             {category.label}
                           </SelectItem>
                         ))}
@@ -407,24 +392,24 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="subject" className="text-slate-300 text-base">{t.user.inquiryTitle} *</Label>
+                    <Label htmlFor="subject" className="text-slate-300 text-base">제목 *</Label>
                     <Input
                       id="subject"
-                      placeholder={t.user.enterInquiryTitle}
+                      placeholder="문의 제목을 입력해주세요"
                       value={newInquiryForm.subject}
                       onChange={(e) => setNewInquiryForm(prev => ({ ...prev, subject: e.target.value }))}
-                      className="bg-slate-700/50 border-slate-600 text-white h-12 text-base rounded-none"
+                      className="bg-[#0f1433] border-purple-900/30 text-white h-12 text-base"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="content" className="text-slate-300 text-base">{t.user.inquiryContent} *</Label>
+                    <Label htmlFor="content" className="text-slate-300 text-base">내용 *</Label>
                     <Textarea
                       id="content"
-                      placeholder={t.user.enterInquiryContent}
+                      placeholder="문의 내용을 자세히 입력해주세요"
                       value={newInquiryForm.content}
                       onChange={(e) => setNewInquiryForm(prev => ({ ...prev, content: e.target.value }))}
-                      className="bg-slate-700/50 border-slate-600 text-white min-h-32 text-base rounded-none"
+                      className="bg-[#0f1433] border-purple-900/30 text-white min-h-32 text-base"
                     />
                   </div>
 
@@ -433,24 +418,24 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                       type="button"
                       variant="outline"
                       onClick={() => setShowNewInquiryDialog(false)}
-                      className="flex-1 h-12 text-base border-slate-600 hover:bg-slate-700/50 text-white rounded-none"
+                      className="flex-1 h-12 text-base border-purple-900/30 hover:bg-purple-900/20 text-white"
                     >
-                      {t.user.cancel}
+                      취소
                     </Button>
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="flex-1 bg-green-600 hover:bg-green-700 h-12 text-base rounded-none"
+                      className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 h-12 text-base"
                     >
                       {isSubmitting ? (
                         <>
                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                          {t.user.requesting}
+                          처리 중...
                         </>
                       ) : (
                         <>
                           <Send className="w-4 h-4 mr-2" />
-                          {t.user.submit}
+                          제출
                         </>
                       )}
                     </Button>
@@ -461,29 +446,29 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
           </div>
 
           {/* 필터 및 검색 */}
-          <Card className="bg-slate-800/50 border-slate-700 rounded-none mb-6">
+          <Card className="bg-[#1a1f3a] border-purple-900/30 mb-6">
             <CardContent className="p-4">
               <div className="flex flex-col lg:flex-row gap-4">
                 <div className="flex-1">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
                     <Input
-                      placeholder={t.user.searchPlaceholder}
+                      placeholder="문의 내역 검색..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 bg-slate-700/50 border-slate-600 text-white h-12 text-base"
+                      className="pl-10 bg-[#0f1433] border-purple-900/30 text-white h-12 text-base"
                     />
                   </div>
                 </div>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-48 bg-slate-700/50 border-slate-600 text-white h-12 text-base rounded-none">
+                  <SelectTrigger className="w-48 bg-[#0f1433] border-purple-900/30 text-white h-12 text-base">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700 rounded-none">
-                    <SelectItem value="all">{t.common.all}</SelectItem>
-                    <SelectItem value="waiting">{t.user.waitingReply}</SelectItem>
-                    <SelectItem value="replied">{t.user.repliedStatus}</SelectItem>
-                    <SelectItem value="unread">{t.customerSupport.unread}</SelectItem>
+                  <SelectContent className="bg-[#1a1f3a] border-purple-900/30">
+                    <SelectItem value="all" className="text-white">전체</SelectItem>
+                    <SelectItem value="waiting" className="text-white">답변대기</SelectItem>
+                    <SelectItem value="replied" className="text-white">답변완료</SelectItem>
+                    <SelectItem value="unread" className="text-white">읽지않음</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -491,11 +476,11 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
           </Card>
 
           {/* 문의 목록 */}
-          <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+          <Card className="bg-[#1a1f3a] border-purple-900/30">
             <CardHeader>
               <CardTitle className="flex items-center text-white text-2xl">
-                <MessageSquare className="w-6 h-6 mr-3 text-blue-400" />
-                {t.user.inquiryHistory} ({filteredMessages.length})
+                <MessageSquare className="w-6 h-6 mr-3 text-purple-400" />
+                문의 내역 ({filteredMessages.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -514,13 +499,13 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                     const isExpanded = expandedMessages.includes(message.id);
                     
                     return (
-                      <div key={message.id} className="p-5 bg-slate-700/30 rounded-none border border-slate-700/50">
+                      <div key={message.id} className="p-5 bg-[#0f1433] border border-purple-900/30">
                         <Collapsible open={isExpanded} onOpenChange={() => toggleMessageExpansion(message.id)}>
                           <CollapsibleTrigger asChild>
-                            <div className="flex items-start justify-between cursor-pointer hover:bg-slate-700/50 p-2 -m-2 rounded-none">
+                            <div className="flex items-start justify-between cursor-pointer hover:bg-[#151a3f] p-2 -m-2">
                               <div className="flex items-start gap-3 flex-1 min-w-0">
                                 <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                                  message.receiver_id === user.id && message.status === 'unread' ? 'bg-blue-400' : 'bg-slate-500'
+                                  message.receiver_id === user.id && message.status === 'unread' ? 'bg-purple-400' : 'bg-slate-500'
                                 }`} />
                                 
                                 <div className="flex-1 min-w-0">
@@ -530,8 +515,8 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                                       {statusInfo.label}
                                     </Badge>
                                     {message.replies && message.replies.length > 0 && (
-                                      <Badge variant="outline" className="text-sm border-slate-600">
-                                        {message.replies.length}{t.user.repliesCount}
+                                      <Badge variant="outline" className="text-sm border-purple-900/30 text-purple-400">
+                                        {message.replies.length}개 답변
                                       </Badge>
                                     )}
                                   </div>
@@ -543,12 +528,12 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                                     </span>
                                     <span className="flex items-center gap-1">
                                       <User className="w-4 h-4" />
-                                      {message.sender_id === user.id ? t.user.myInquiry : t.user.adminReply}
+                                      {message.sender_id === user.id ? '내 문의' : '관리자 답변'}
                                     </span>
                                   </div>
                                 </div>
                               </div>
-                              <Button variant="ghost" size="sm" className="flex-shrink-0 w-8 h-8 p-0">
+                              <Button variant="ghost" size="sm" className="flex-shrink-0 w-8 h-8 p-0 text-purple-400 hover:text-purple-300">
                                 {isExpanded ? (
                                   <ChevronUp className="w-5 h-5" />
                                 ) : (
@@ -561,11 +546,11 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                           <CollapsibleContent>
                             <div className="mt-4 space-y-4">
                               {/* 원본 메시지 */}
-                              <div className="p-4 bg-slate-600/30 rounded-none border-l-4 border-blue-500">
+                              <div className="p-4 bg-[#0a0f2a] border-l-4 border-purple-500">
                                 <div className="flex items-center gap-2 mb-3">
-                                  <User className="w-5 h-5 text-blue-400" />
-                                  <span className="text-base font-semibold text-blue-400">
-                                    {message.sender_id === user.id ? user.nickname : t.user.admin}
+                                  <User className="w-5 h-5 text-purple-400" />
+                                  <span className="text-base font-semibold text-purple-400">
+                                    {message.sender_id === user.id ? user.nickname : '관리자'}
                                   </span>
                                   <span className="text-sm text-slate-400">
                                     {formatDateTime(message.created_at)}
@@ -578,11 +563,11 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
 
                               {/* 답글들 */}
                               {message.replies && message.replies.map((reply) => (
-                                <div key={reply.id} className="p-4 bg-slate-600/30 rounded-none border-l-4 border-green-500 ml-8">
+                                <div key={reply.id} className="p-4 bg-[#0a0f2a] border-l-4 border-green-500 ml-8">
                                   <div className="flex items-center gap-2 mb-3">
                                     <User className="w-5 h-5 text-green-400" />
                                     <span className="text-base font-semibold text-green-400">
-                                      {reply.sender_id === user.id ? user.nickname : t.user.admin}
+                                      {reply.sender_id === user.id ? user.nickname : '관리자'}
                                     </span>
                                     <span className="text-sm text-slate-400">
                                       {formatDateTime(reply.created_at)}
@@ -604,12 +589,12 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                 <div className="text-center py-20">
                   <MessageSquare className="w-16 h-16 text-slate-600 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-white mb-2">
-                    {searchQuery || filterStatus !== 'all' ? t.user.noSearchResults : t.user.noInquiries}
+                    {searchQuery || filterStatus !== 'all' ? '검색 결과가 없습니다' : '등록된 문의 내역이 없습니다'}
                   </h3>
                   <p className="text-slate-400 mb-4">
                     {searchQuery || filterStatus !== 'all'
-                      ? t.user.changeSearchCondition 
-                      : t.user.askAnytime
+                      ? '다른 검색 조건으로 시도해보세요' 
+                      : '궁금하신 사항이 있으시면 언제든지 문의해주세요'
                     }
                   </p>
                   {(searchQuery || filterStatus !== 'all') ? (
@@ -619,17 +604,17 @@ export function UserSupport({ user, onRouteChange }: UserSupportProps) {
                         setSearchQuery('');
                         setFilterStatus('all');
                       }}
-                      className="border-slate-600 hover:bg-slate-700/50 text-white"
+                      className="border-purple-900/30 hover:bg-purple-900/20 text-white"
                     >
-                      {t.user.viewAllInquiries}
+                      전체 문의 보기
                     </Button>
                   ) : (
                     <Button
                       onClick={() => setShowNewInquiryDialog(true)}
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
                     >
                       <Plus className="w-4 h-4 mr-2" />
-                      {t.user.firstInquiry}
+                      첫 문의 작성하기
                     </Button>
                   )}
                 </div>

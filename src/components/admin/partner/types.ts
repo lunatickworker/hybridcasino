@@ -26,6 +26,8 @@ export interface Partner {
   // Lv1(시스템관리자)용 API별 잔고
   invest_balance?: number;
   oroplay_balance?: number;
+  // Lv2(대본사) 선택 API 목록
+  selected_apis?: string[];
 }
 
 export const partnerTypeColors = {

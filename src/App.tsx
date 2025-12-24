@@ -1,4 +1,4 @@
-// ✅ CRITICAL: 콘솔 필터를 가장 먼저 로드 (GoTrueClient 경고 억제)
+// CRITICAL: 콘솔 필터를 가장 먼저 로드 (GoTrueClient 경고 억제)
 import './lib/consoleFilter';
 
 import { useState, useEffect } from 'react';
@@ -301,9 +301,27 @@ function AppContent() {
     return (
       <>
         {!isUserAuthenticated ? (
-          <UserLogin onLoginSuccess={(user) => {
+          <UserLogin onLoginSuccess={async (user) => {
             localStorage.setItem('user_session', JSON.stringify(user));
-            window.location.hash = '#/user/casino';
+            
+            // 🆕 접근 가능한 게임 타입 확인 후 리다이렉트
+            try {
+              const { gameApi } = await import('./lib/gameApi');
+              const accessibleTypes = await gameApi.getUserAccessibleGameTypes(user.id);
+              
+              if (accessibleTypes.length > 0) {
+                // 접근 가능한 첫 번째 게임 타입으로 이동
+                const firstType = accessibleTypes[0];
+                window.location.hash = `#/user/${firstType}`;
+              } else {
+                // 게임 접근 권한이 없으면 입금 페이지로
+                window.location.hash = '#/user/deposit';
+              }
+            } catch (error) {
+              console.error('게임 타입 확인 실패:', error);
+              window.location.hash = '#/user/casino'; // 폴백
+            }
+            
             forceUpdate({});
           }} />
         ) : (

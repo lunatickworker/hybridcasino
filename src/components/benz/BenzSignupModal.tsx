@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { 
   Eye, 
   EyeOff, 
@@ -15,8 +15,6 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
-import { generateUUID } from '../../lib/utils';
-import { ImageWithFallback } from '../figma/ImageWithFallback';
 
 interface BenzSignupModalProps {
   isOpen: boolean;
@@ -95,7 +93,7 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
     if (error) setError(null);
   };
 
-  // 닉네임 중복 체크
+  // 닉네임 중복 체크 (직접 SELECT)
   const checkNickname = async (nickname: string) => {
     if (!nickname.trim()) {
       setNicknameCheck({ status: 'idle', message: '' });
@@ -147,28 +145,33 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
     onClose();
   };
 
+  // 회원가입 처리
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // 유효성 검사
+    
+    // 필수 필드 검증
     if (!registerData.username.trim()) {
       setError('아이디를 입력해주세요.');
       return;
     }
+    
     if (!registerData.nickname.trim()) {
       setError('닉네임을 입력해주세요.');
       return;
     }
+    
     if (nicknameCheck.status !== 'available') {
-      setError('닉네임 중복 확인이 필요합니다.');
+      setError('닉네임 중복 확인을 완료해주세요.');
       return;
     }
-    if (!registerData.password || registerData.password.length < 4) {
-      setError('비밀번호는 4자리 이상이어야 합니다.');
+    
+    if (!registerData.password.trim()) {
+      setError('비밀번호를 입력해주세요.');
       return;
     }
+    
     if (!registerData.referrer_username.trim()) {
-      setError('추천인 아이디를 입력해주세요.');
+      setError('추천인을 입력해주세요.');
       return;
     }
 
@@ -176,9 +179,25 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
     setError(null);
 
     try {
-      console.log('📝 회원가입 시도:', registerData.username.trim());
+      // 1단계: 추천인 확인 (partners 테이블에서 조회)
+      const { data: referrerData, error: referrerError } = await supabase
+        .from('partners')
+        .select('id')
+        .eq('username', registerData.referrer_username.trim())
+        .maybeSingle();
 
-      // 아이디 중복 확인
+      if (referrerError) {
+        console.error('추천인 조회 에러:', referrerError);
+        setError('추천인 조회 중 오류가 발생했습니다.');
+        return;
+      }
+
+      if (!referrerData) {
+        setError('존재하지 않는 추천인입니다.');
+        return;
+      }
+
+      // 2단계: 아이디 중복 체크 (users + partners 테이블)
       const { data: existingUser } = await supabase
         .from('users')
         .select('id')
@@ -190,64 +209,64 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
         return;
       }
 
-      // referrer_id 조회 (필수)
-      const { data: referrer } = await supabase
+      const { data: existingPartner } = await supabase
         .from('partners')
         .select('id')
-        .eq('username', registerData.referrer_username.trim())
-        .eq('status', 'active')
+        .eq('username', registerData.username.trim())
         .maybeSingle();
 
-      if (!referrer) {
-        setError('존재하지 않는 추천인 아이디입니다.');
+      if (existingPartner) {
+        setError('이미 사용 중인 아이디입니다. (파트너 계정과 중복)');
         return;
       }
-      const referrerId = referrer.id;
 
-      // 신규 사용자 등록
-      const newUserId = generateUUID();
-      const { error: insertError } = await supabase
+      // 3단계: 로컬 DB에 사용자 생성 (직접 INSERT)
+      const { data: newUser, error: insertError } = await supabase
         .from('users')
         .insert([{
-          id: newUserId,
           username: registerData.username.trim(),
           nickname: registerData.nickname.trim(),
-          password_hash: registerData.password,
+          password_hash: registerData.password, // 283 트리거에서 자동 암호화
           email: registerData.email.trim() || null,
           phone: registerData.phone.trim() || null,
-          bank_name: registerData.bank_name,
-          bank_account: registerData.bank_account.trim(),
-          bank_holder: registerData.bank_holder.trim(),
-          referrer_id: referrerId,
+          bank_name: registerData.bank_name || null,
+          bank_account: registerData.bank_account.trim() || null,
+          bank_holder: registerData.bank_holder.trim() || null,
+          referrer_id: referrerData.id,
           status: 'pending',
           balance: 0,
-          points: 0,
-          vip_level: 1,
-          is_online: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }]);
+          points: 0
+        }])
+        .select('id, username')
+        .single();
 
       if (insertError) {
-        console.error('회원가입 오류:', insertError);
-        setError('회원가입 중 오류가 발생했습니다.');
+        if (insertError.code === '23505') { // Unique violation
+          if (insertError.message.includes('username')) {
+            setError('이미 사용 중인 아이디입니다.');
+          } else if (insertError.message.includes('nickname')) {
+            setError('이미 사용 중인 닉네임입니다.');
+          } else {
+            setError('중복된 정보가 있습니다.');
+          }
+        } else {
+          setError(insertError.message || '회원가입에 실패했습니다.');
+        }
         return;
       }
 
-      // activity_logs 기록
-      await supabase.from('activity_logs').insert([{
-        actor_type: 'user',
-        actor_id: newUserId,
-        action: 'register',
-        details: { 
-          username: registerData.username.trim(),
-          register_time: new Date().toISOString() 
-        }
-      }]);
+      if (!newUser) {
+        setError('회원가입 처리 중 오류가 발생했습니다.');
+        return;
+      }
 
-      toast.success('회원가입이 완료되었습니다. 관리자 승인 후 로그인 가능합니다.');
+      // 4단계: 회원가입 완료 (API 계정은 관리자 승인 시 생성)
+      // 정책 변경: 관리자 승인 전까지 게임 불가이므로 회원가입 시 API 계정 생성 불필요
+      console.log('✅ 회원가입 완료. API 계정은 관리자 승인 시 생성됩니다.');
       
-      // 폼 초기화 및 로그인 모달로 전환
+      toast.success('회원가입이 완료되었습니다! 관리자 승인 후 게임을 이용할 수 있습니다.');
+
+      // 회원가입 폼 초기화
       setRegisterData({
         username: '',
         nickname: '',
@@ -260,11 +279,14 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
         referrer_username: ''
       });
       setNicknameCheck({ status: 'idle', message: '' });
-      onSwitchToLogin();
       
+      // 로그인 모달로 전환
+      onSwitchToLogin();
+
     } catch (error: any) {
       console.error('회원가입 오류:', error);
-      setError('회원가입 중 오류가 발생했습니다.');
+      setError(error.message || '회원가입 중 오류가 발생했습니다.');
+      toast.error('회원가입에 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
@@ -273,14 +295,24 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      {/* Background Logo */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
+        <img
+          src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
+          alt="BENZ CASINO Background"
+          className="w-auto h-[40vh] md:h-[50vh] object-contain opacity-10"
+          style={{
+            filter: 'blur(2px)'
+          }}
+        />
+      </div>
+
       <div 
-        className="relative overflow-hidden border border-purple-900/30 shadow-2xl"
+        className="relative z-10 overflow-hidden border border-purple-900/30 shadow-2xl w-full max-w-6xl bg-gradient-to-br from-[#0a0e27] to-[#1a1f4a]"
         style={{ 
-          width: 'min(90vw, 920px)', 
           maxHeight: '90vh',
-          background: '#0f1433',
-          fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif'
+          overflowY: 'auto'
         }}
       >
         {/* Close Button */}
@@ -292,24 +324,24 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
         </button>
 
         {/* Two Column Layout */}
-        <div className="flex h-full">
+        <div className="flex flex-col md:flex-row h-full">
           {/* Left Side - Title & Description */}
-          <div className="w-2/5 p-10 flex flex-col justify-between bg-[#0a0d1f] border-r border-purple-900/20">
-            <div className="mt-6">
-              <div className="flex items-center gap-3 mb-6">
-                <UserPlus className="w-8 h-8 text-purple-400" />
-                <h3 className="text-4xl text-white font-semibold">회원가입</h3>
+          <div className="w-full md:w-2/5 p-6 md:p-10 flex flex-col justify-between bg-[#0a0d1f] md:border-r border-purple-900/20">
+            <div className="mt-4 md:mt-6">
+              <div className="flex items-center gap-3 mb-4 md:mb-6">
+                <UserPlus className="w-6 h-6 md:w-8 md:h-8 text-purple-400" />
+                <h3 className="text-2xl md:text-4xl text-white font-semibold">회원가입</h3>
               </div>
-              <p className="text-lg text-gray-300 leading-relaxed mb-3">
+              <p className="text-base md:text-lg text-gray-300 leading-relaxed mb-2 md:mb-3">
                 회원가입 시 모든항목을 정확하게 기재하시기 바랍니다.
               </p>
-              <p className="text-lg text-gray-300 leading-relaxed">
+              <p className="text-base md:text-lg text-gray-300 leading-relaxed">
                 회원데이터는 안전한 서버에 안전하게 보관됩니다.
               </p>
             </div>
 
             {/* 회원가입 버튼과 로그인 링크 */}
-            <div className="space-y-5 mb-6">
+            <div className="space-y-4 md:space-y-5 mb-4 md:mb-6 mt-6 md:mt-0">
               <Button
                 type="submit"
                 form="signup-form"
@@ -349,7 +381,7 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
           </div>
 
           {/* Right Side - Signup Form */}
-          <div className="w-3/5 p-10 overflow-y-auto bg-[#0f1433]">
+          <div className="w-full md:w-3/5 p-10 overflow-y-auto bg-[#0f1433]">
             <form id="signup-form" onSubmit={handleRegister} className="space-y-8">
               {error && (
                 <Alert variant="destructive" className="bg-red-950/20 border-red-900/50 py-3 rounded-none">

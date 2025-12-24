@@ -365,13 +365,23 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
 
   // providers에서 실제 활성화된 API만 추출
   const availableApis = useMemo(() => {
-    const uniqueApiTypes = [...new Set(providers.map(p => p.api_type))];
+    // Lv2 권한자의 경우 selected_apis 필터링 적용
+    let filteredProviders = providers;
+    
+    if (user.level === 2 && user.selected_apis && Array.isArray(user.selected_apis) && user.selected_apis.length > 0) {
+      // selected_apis에 포함된 API만 필터링
+      filteredProviders = providers.filter(p => 
+        user.selected_apis.includes(p.api_type as string)
+      );
+    }
+    
+    const uniqueApiTypes = [...new Set(filteredProviders.map(p => p.api_type))];
     return uniqueApiTypes.map(apiType => ({
       value: apiType,
       label: apiMetadata[apiType]?.label || apiType.toUpperCase(),
       color: apiMetadata[apiType]?.color || "from-blue-600 to-cyan-600",
     }));
-  }, [providers]);
+  }, [providers, user.level, user.selected_apis]);
 
   // API별 사용 가능한 게임 타입
   const getAvailableGameTypes = (api: ApiType) => {

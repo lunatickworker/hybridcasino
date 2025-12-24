@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Filter, Download, Upload, Edit, Trash2, Eye, DollarSign, UserX, UserCheck, X, Check, Clock, Bell, Users, Activity, RefreshCw, AlertCircle } from "lucide-react";
+import { Plus, Search, Filter, Download, Upload, Edit, Trash2, Eye, DollarSign, UserX, UserCheck, X, Check, Clock, Bell, Users, Activity, RefreshCw, AlertCircle, Gamepad2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -22,6 +22,7 @@ import { retryApiAccountCreation, createApiAccounts } from "../../lib/apiAccount
 import { UserDetailModal } from "./UserDetailModal";
 import { MetricCard } from "./MetricCard";
 import { ForceTransactionModal } from "./ForceTransactionModal";
+import { StoreGameAccessModal } from "./StoreGameAccessModal";
 import { 
   useHierarchyAuth, 
   useHierarchicalData, 
@@ -118,6 +119,8 @@ export function UserManagement() {
   const [forceTransactionTarget, setForceTransactionTarget] = useState<any>(null);
   const [deleteUser, setDeleteUser] = useState<any>(null);
   const [detailUser, setDetailUser] = useState<any>(null);
+  const [showGameAccessModal, setShowGameAccessModal] = useState(false);
+  const [gameAccessTargetUser, setGameAccessTargetUser] = useState<any>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [processingUserId, setProcessingUserId] = useState<string | null>(null);
   const [createUserLoading, setCreateUserLoading] = useState(false);
@@ -703,7 +706,7 @@ export function UserManagement() {
       }
 
       console.log('✅ DB 회원 생성 완료:', newUser);
-      toast.loading(`[3/5] 외부 API 계정 생성 중... (${userData.username})`, { id: 'create-user' });
+      // toast.loading(`[3/5] 외부 API 계정 생성 중... (${userData.username})`, { id: 'create-user' }); // 숨김 처리
       
       // 2. 관리자가 직접 생성하는 경우 바로 API 계정 생성 (승인 과정 없음)
       console.log('🌐 외부 API 계정 생성 시작 (Invest + OroPlay)');
@@ -712,22 +715,25 @@ export function UserManagement() {
         newUser.id,
         userData.username,
         authState.user?.id || '',
-        'create-user' // toastId 전달
+        undefined // toastId 전달하지 않음 (토스트 숨김)
       );
 
       console.log('🔍 API 계정 생성 결과:', apiResult);
 
-      // API 계정 생성이 완전 실패한 경우 경고만 표시 (사용자는 이미 생성됨)
-      if (apiResult.status === 'error') {
-        toast.error(`⚠️ API 계정 생성 실패: ${apiResult.errorMessage}`, { id: 'create-user', duration: 10000 });
-        console.error('❌ 외부 API 계정 생성 실패:', apiResult.errorMessage);
-      } else if (apiResult.status === 'partial') {
-        toast.warning(`⚠️ 일부 API만 생성됨 (Invest: ${apiResult.investCreated ? '✅' : '❌'} / OroPlay: ${apiResult.oroplayCreated ? '✅' : '❌'})`, { id: 'create-user', duration: 8000 });
-        console.warn('⚠️ 부분 성공:', apiResult);
-      } else {
-        toast.success(`[5/5] ✅ 회원 ${userData.username} 생성 완료! (Invest ✅ / OroPlay ✅)`, { id: 'create-user', duration: 5000 });
-        console.log('✅ 모든 API 계정 생성 성공');
-      }
+      // API 계정 생성 결과 토스트 모두 숨김 처리
+      // if (apiResult.status === 'error') {
+      //   toast.error(`⚠️ API 계정 생성 실패: ${apiResult.errorMessage}`, { id: 'create-user', duration: 10000 });
+      //   console.error('❌ 외부 API 계정 생성 실패:', apiResult.errorMessage);
+      // } else if (apiResult.status === 'partial') {
+      //   toast.warning(`⚠️ 일부 API만 생성됨 (Invest: ${apiResult.investCreated ? '✅' : '❌'} / OroPlay: ${apiResult.oroplayCreated ? '✅' : '❌'})`, { id: 'create-user', duration: 8000 });
+      //   console.warn('⚠️ 부분 성공:', apiResult);
+      // } else {
+      //   toast.success(`[5/5] ✅ 회원 ${userData.username} 생성 완료! (Invest ✅ / OroPlay ✅)`, { id: 'create-user', duration: 5000 });
+      //   console.log('✅ 모든 API 계정 생성 성공');
+      // }
+      
+      // 간단한 성공 메시지만 표시
+      toast.success(`✅ 회원 ${userData.username} 생성 완료!`, { id: 'create-user', duration: 3000 });
       
       await fetchUsers();
     } catch (error: any) {
@@ -1762,6 +1768,21 @@ export function UserManagement() {
             >
               <DollarSign className="h-6 w-6" />
             </Button>
+            {/* Lv2만 사용자 게임 설정 가능 */}
+            {authState.user?.level === 2 && (
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => {
+                  setGameAccessTargetUser(row);
+                  setShowGameAccessModal(true);
+                }}
+                className="bg-purple-500/10 border-purple-500/50 text-purple-400 hover:bg-purple-500/20 h-10 w-10 p-0"
+                title="게임 설정"
+              >
+                <Gamepad2 className="h-6 w-6" />
+              </Button>
+            )}
             <Button 
               size="sm" 
               variant="outline" 
@@ -2309,6 +2330,22 @@ export function UserManagement() {
           setDetailUser(null);
         }}
       />
+
+      {/* 사용자 게임 접근 권한 설정 모달 (Lv2 전용) */}
+      {gameAccessTargetUser && (
+        <StoreGameAccessModal
+          open={showGameAccessModal}
+          onOpenChange={setShowGameAccessModal}
+          userId={gameAccessTargetUser.id}
+          storeName={gameAccessTargetUser.username}
+          partnerLevel={7}
+          onSuccess={() => {
+            toast.success('게임 설정이 저장되었습니다.');
+            setShowGameAccessModal(false);
+            setGameAccessTargetUser(null);
+          }}
+        />
+      )}
     </div>
   );
 }

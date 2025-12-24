@@ -494,583 +494,609 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 헤더 */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">{t.user.myInfo}</h1>
-          <p className="text-slate-400">{t.user.checkAccountInfo}</p>
+    <div className="min-h-screen text-white p-4 md:p-6 pb-20 md:pb-6" style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif' }}>
+      <div className="flex gap-6 justify-center">
+        {/* 컨텐츠 영역 - 입금/출금과 동일한 너비 */}
+        <div className="flex-1 w-full md:max-w-[70%]">
+          {/* 제목 */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-1.5 h-8 bg-gradient-to-b from-purple-400 to-pink-500"></div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">{t.user.myInfo}</h1>
+            </div>
+            <p className="text-gray-400 ml-6">{t.user.checkAccountInfo}</p>
+          </div>
+
+          {/* 사용자 정보 카드 */}
+          <Card className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 border-blue-600/50 rounded-none mb-6">
+            <CardContent className="p-6">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <User className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-3 mb-1">
+                      <h2 className="text-2xl font-bold text-white">{user.nickname}</h2>
+                      <Badge className={`${vipBadge.color} text-white px-3 py-1`}>
+                        <Crown className="w-4 h-4 mr-1" />
+                        {vipBadge.label}
+                      </Badge>
+                    </div>
+                    <p className="text-slate-300">@{user.username}</p>
+                    <p className="text-slate-400 text-sm">
+                      {t.user.joinedDate} {formatDateTime(user.created_at)}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-400 flex items-center justify-center gap-2">
+                      {showBalance ? (
+                        <AnimatedCurrency value={currentBalance} duration={800} currencySymbol={t.common.currencySymbol} />
+                      ) : (
+                        '••••••••'
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowBalance(!showBalance)}
+                        className="w-6 h-6 p-0"
+                      >
+                        {showBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                    <div className="text-sm text-slate-400">{t.user.balance}</div>
+                  </div>
+                  <div className="text-center">
+                    {currentPoints > 0 ? (
+                      <Button
+                        variant="ghost"
+                        className="flex flex-col items-center p-2 h-auto hover:bg-yellow-500/10 transition-colors"
+                        onClick={() => setShowPointConvertDialog(true)}
+                      >
+                        <div className="text-2xl font-bold text-yellow-400 flex items-center gap-2">
+                          {formatCurrency(currentPoints)}P
+                          <ArrowUpRight className="w-4 h-4" />
+                        </div>
+                        <div className="text-sm text-slate-400">{t.user.points} {t.user.clickToConvert}</div>
+                      </Button>
+                    ) : (
+                      <>
+                        <div className="text-2xl font-bold text-yellow-400">
+                          {formatCurrency(currentPoints)}P
+                        </div>
+                        <div className="text-sm text-slate-400">포인트</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 통계 카드 */}
+          {userStats && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+                <CardContent className="p-4 text-center">
+                  <TrendingUp className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                  <div className="text-lg font-bold text-white">{t.common.currencySymbol}{formatCurrency(userStats.total_deposits)}</div>
+                  <div className="text-sm text-slate-400">{t.user.totalDeposits}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+                <CardContent className="p-4 text-center">
+                  <TrendingDown className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+                  <div className="text-lg font-bold text-white">{t.common.currencySymbol}{formatCurrency(userStats.total_withdrawals)}</div>
+                  <div className="text-sm text-slate-400">{t.user.totalWithdrawals}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+                <CardContent className="p-4 text-center">
+                  <Gamepad2 className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+                  <div className="text-lg font-bold text-white">{userStats.game_count.toLocaleString()}</div>
+                  <div className="text-sm text-slate-400">{t.user.gameCount}</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+                <CardContent className="p-4 text-center">
+                  <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
+                  <div className="text-lg font-bold text-white">{userStats.win_rate.toFixed(1)}%</div>
+                  <div className="text-sm text-slate-400">{t.user.winRate}</div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* 탭 메뉴 */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-5 bg-slate-800/50 rounded-none border border-purple-900/30">
+              <TabsTrigger 
+                value="info" 
+                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white px-2 py-3"
+              >
+                <User className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden md:inline text-sm">{t.user.basicInfoTab}</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="transactions" 
+                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white px-2 py-3"
+              >
+                <CreditCard className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden md:inline text-sm">{t.user.transactionHistoryTab}</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="points" 
+                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white px-2 py-3"
+              >
+                <Coins className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden md:inline text-sm">{t.user.pointHistoryTab}</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="games" 
+                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white px-2 py-3"
+              >
+                <Gamepad2 className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden md:inline text-sm">{t.user.bettingHistoryTab}</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="settings" 
+                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white px-2 py-3"
+              >
+                <Settings className="w-4 h-4 flex-shrink-0" />
+                <span className="hidden md:inline text-sm">{t.user.settingsTab}</span>
+              </TabsTrigger>
+            </TabsList>
+
+            {/* 기본정보 탭 */}
+            <TabsContent value="info">
+              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-white">{t.user.basicInfoTitle}</CardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (isEditing) {
+                          setEditableInfo({
+                            nickname: user.nickname || '',
+                            bank_name: user.bank_name || '',
+                            bank_account: user.bank_account || '',
+                            bank_holder: user.bank_holder || ''
+                          });
+                          setIsEditing(false);
+                        } else {
+                          setIsEditing(true);
+                        }
+                      }}
+                    >
+                      {isEditing ? (
+                        <>
+                          <X className="w-4 h-4 mr-2" />
+                          {t.user.cancel}
+                        </>
+                      ) : (
+                        <>
+                          <Edit className="w-4 h-4 mr-2" />
+                          {t.user.edit}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">{t.user.userId}</Label>
+                      <Input
+                        value={user.username}
+                        disabled
+                        className="bg-slate-700/50 border-slate-600 text-slate-400"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">{t.user.nickname}</Label>
+                      <Input
+                        value={editableInfo.nickname}
+                        onChange={(e) => setEditableInfo(prev => ({ ...prev, nickname: e.target.value }))}
+                        disabled={!isEditing}
+                        className="bg-slate-700/50 border-slate-600 text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">{t.user.bankName}</Label>
+                      <Select
+                        value={editableInfo.bank_name}
+                        onValueChange={(value) => setEditableInfo(prev => ({ ...prev, bank_name: value }))}
+                        disabled={!isEditing}
+                      >
+                        <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                          <SelectValue placeholder={t.user.selectBank} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700">
+                          {['KB국민은행', '신한은행', '우리은행', '하나은행', '농협은행', 'IBK기업은행'].map((bank) => (
+                            <SelectItem key={bank} value={bank}>{bank}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">{t.user.accountNumber}</Label>
+                      <Input
+                        value={editableInfo.bank_account}
+                        onChange={(e) => setEditableInfo(prev => ({ ...prev, bank_account: e.target.value }))}
+                        disabled={!isEditing}
+                        className="bg-slate-700/50 border-slate-600 text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">{t.user.accountHolder}</Label>
+                      <Input
+                        value={editableInfo.bank_holder}
+                        onChange={(e) => setEditableInfo(prev => ({ ...prev, bank_holder: e.target.value }))}
+                        disabled={!isEditing}
+                        className="bg-slate-700/50 border-slate-600 text-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-300">{t.user.vipGrade}</Label>
+                      <div className="flex items-center gap-2">
+                        <Badge className={`${vipBadge.color} text-white px-3 py-1`}>
+                          <Crown className="w-4 h-4 mr-1" />
+                          {vipBadge.label}
+                        </Badge>
+                        <span className="text-slate-400 text-sm">{t.user.level} {user.vip_level || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {isEditing && (
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button
+                        onClick={handleUpdateInfo}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        {t.user.save}
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 입출금내역 탭 */}
+            <TabsContent value="transactions">
+              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+                <CardHeader>
+                  <CardTitle className="text-white">{t.user.transactionHistory}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {transactions.length > 0 ? (
+                    <div className="space-y-4">
+                      {transactions.map((transaction) => {
+                        const statusInfo = getStatusInfo(transaction.status);
+                        const StatusIcon = statusInfo.icon;
+                        const isDeposit = transaction.transaction_type === 'deposit';
+                        
+                        return (
+                          <div key={transaction.id} className="p-4 bg-slate-700/30 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {isDeposit ? (
+                                  <ArrowUpRight className="w-5 h-5 text-green-400" />
+                                ) : (
+                                  <ArrowDownLeft className="w-5 h-5 text-blue-400" />
+                                )}
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-medium text-white">
+                                      {isDeposit ? t.user.deposit : t.user.withdrawal}
+                                    </span>
+                                    <Badge className={`${statusInfo.color} text-white text-xs`}>
+                                      <StatusIcon className="w-3 h-3 mr-1" />
+                                      {statusInfo.label}
+                                    </Badge>
+                                  </div>
+                                  <div className="text-sm text-slate-400">
+                                    {formatDateTime(transaction.created_at)}
+                                  </div>
+                                  {transaction.bank_name && (
+                                    <div className="text-sm text-slate-500">
+                                      {transaction.bank_name} {transaction.bank_account}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className={`text-lg font-bold ${isDeposit ? 'text-green-400' : 'text-blue-400'}`}>
+                                  {isDeposit ? '+' : '-'}{t.common.currencySymbol}{formatCurrency(transaction.amount)}
+                                </div>
+                                <div className="text-sm text-slate-400">
+                                  {t.user.balance}: {t.common.currencySymbol}{formatCurrency(transaction.balance_after)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <CreditCard className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                      <p className="text-slate-400">{t.user.noTransactionHistory}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 포인트내역 탭 */}
+            <TabsContent value="points">
+              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-white">{t.user.pointHistory}</CardTitle>
+                    {currentPoints > 0 && (
+                      <Button
+                        onClick={() => convertPointsToBalance(currentPoints)}
+                        size="sm"
+                        className="bg-yellow-600 hover:bg-yellow-700"
+                      >
+                        <Coins className="w-4 h-4 mr-2" />
+                        전체 전환 ({formatCurrency(currentPoints)}P)
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {pointTransactions.length > 0 ? (
+                    <div className="space-y-4">
+                      {pointTransactions.map((transaction) => {
+                        const isEarn = transaction.transaction_type === 'earn';
+                        const isConvert = transaction.transaction_type === 'convert_to_balance';
+                        
+                        return (
+                          <div key={transaction.id} className="p-4 bg-slate-700/30 rounded-lg">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <Coins className={`w-5 h-5 ${isEarn ? 'text-yellow-400' : isConvert ? 'text-blue-400' : 'text-slate-400'}`} />
+                                <div>
+                                  <div className="font-medium text-white mb-1">
+                                    {transaction.transaction_type === 'earn' && '포인트 적립'}
+                                    {transaction.transaction_type === 'use' && '포인트 사용'}
+                                    {transaction.transaction_type === 'convert_to_balance' && '잔고 전환'}
+                                    {transaction.transaction_type === 'admin_adjustment' && '관리자 조정'}
+                                  </div>
+                                  <div className="text-sm text-slate-400">
+                                    {formatDateTime(transaction.created_at)}
+                                  </div>
+                                  {transaction.memo && (
+                                    <div className="text-sm text-slate-500">
+                                      {transaction.memo}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className={`text-lg font-bold ${isEarn ? 'text-yellow-400' : 'text-slate-400'}`}>
+                                  {isEarn ? '+' : '-'}{formatCurrency(transaction.amount)}P
+                                </div>
+                                <div className="text-sm text-slate-400">
+                                  포인트: {formatCurrency(transaction.points_after)}P
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Coins className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                      <p className="text-slate-400">포인트 내역이 없습니다</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 베팅내역 탭 */}
+            <TabsContent value="games">
+              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+                <CardHeader>
+                  <CardTitle className="text-white text-xl">베팅 내역</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {gameRecords.length > 0 ? (
+                    <div className="space-y-4">
+                      {gameRecords.map((record) => {
+                        const betAmount = Math.abs(parseFloat(record.bet_amount)); // ✅ 베팅 금액은 양수로
+                        const winAmount = parseFloat(record.win_amount) || 0;
+                        // ✅ 손익 = 당첨금액 - 베팅금액
+                        const profit = winAmount - betAmount;
+                        const isWin = profit > 0;
+                        
+                        return (
+                          <div key={record.id} className="p-4 bg-slate-700/30 rounded-none">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <Gamepad2 className="w-5 h-5 text-purple-400" />
+                                <div>
+                                  <div className="font-medium text-white mb-1">
+                                    {record.game_title || '알 수 없는 게임'}
+                                  </div>
+                                  <div className="text-sm text-slate-400">
+                                    {formatDateTime(record.played_at)}
+                                  </div>
+                                  <div className="text-sm text-slate-500">
+                                    {record.provider_name || '제공사 정보 없음'}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm text-slate-400 mb-1">
+                                  베팅: {t.common.currencySymbol}{formatCurrency(betAmount)}
+                                </div>
+                                {winAmount > 0 && (
+                                  <div className="text-sm text-slate-400 mb-1">
+                                    당첨: {t.common.currencySymbol}{formatCurrency(winAmount)}
+                                  </div>
+                                )}
+                                <div className={`font-bold ${isWin ? 'text-green-400' : 'text-red-400'}`}>
+                                  {isWin ? '+' : ''}{t.common.currencySymbol}{formatCurrency(profit)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Gamepad2 className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                      <p className="text-slate-400">베팅 내역이 없습니다</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 설정 탭 */}
+            <TabsContent value="settings">
+              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+                <CardHeader>
+                  <CardTitle className="text-white">계정 설정</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start">
+                        <Settings className="w-4 h-4 mr-2" />
+                        비밀번호 변경
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="bg-slate-800 border-slate-700 text-white">
+                      <DialogHeader>
+                        <DialogTitle>비밀번호 변경</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-slate-300">현재 비밀번호</Label>
+                          <Input
+                            type="password"
+                            value={passwordChange.currentPassword}
+                            onChange={(e) => setPasswordChange(prev => ({ ...prev, currentPassword: e.target.value }))}
+                            className="bg-slate-700/50 border-slate-600 text-white"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-slate-300">새 비밀번호</Label>
+                          <Input
+                            type="password"
+                            value={passwordChange.newPassword}
+                            onChange={(e) => setPasswordChange(prev => ({ ...prev, newPassword: e.target.value }))}
+                            className="bg-slate-700/50 border-slate-600 text-white"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-slate-300">새 비밀번호 확인</Label>
+                          <Input
+                            type="password"
+                            value={passwordChange.confirmPassword}
+                            onChange={(e) => setPasswordChange(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                            className="bg-slate-700/50 border-slate-600 text-white"
+                          />
+                        </div>
+                        <Alert className="border-yellow-600 bg-yellow-900/20">
+                          <AlertDescription className="text-yellow-300">
+                            비밀번호는 6자리 이상이어야 합니다.
+                          </AlertDescription>
+                        </Alert>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => setShowPasswordDialog(false)}
+                            className="flex-1"
+                          >
+                            취소
+                          </Button>
+                          <Button
+                            onClick={handlePasswordChange}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700"
+                            disabled={!passwordChange.currentPassword || !passwordChange.newPassword || !passwordChange.confirmPassword}
+                          >
+                            변경
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          {/* 포인트 전환 확인 다이얼로그 */}
+          <Dialog open={showPointConvertDialog} onOpenChange={setShowPointConvertDialog}>
+            <DialogContent className="bg-slate-800 border-slate-700 text-white">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-yellow-400" />
+                  포인트 → 보유금 전환
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-700/30 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-yellow-400 mb-2">
+                      {formatCurrency(currentPoints)}P
+                    </div>
+                    <div className="text-sm text-slate-400 mb-4">
+                      전환할 포인트
+                    </div>
+                    <div className="text-lg font-bold text-green-400">
+                      {t.common.currencySymbol}{formatCurrency(currentPoints)}
+                    </div>
+                    <div className="text-sm text-slate-400">
+                      전환 후 추가될 보유금
+                    </div>
+                  </div>
+                </div>
+                
+                <Alert className="border-blue-600 bg-blue-900/20">
+                  <AlertDescription className="text-blue-300">
+                    포인트를 보유금으로 전환하면 되돌릴 수 없습니다. 전환하시겠습니까?
+                  </AlertDescription>
+                </Alert>
+                
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowPointConvertDialog(false)}
+                    className="flex-1"
+                  >
+                    취소
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      convertPointsToBalance(currentPoints);
+                      setShowPointConvertDialog(false);
+                    }}
+                    className="flex-1 bg-yellow-600 hover:bg-yellow-700"
+                  >
+                    <ArrowUpRight className="w-4 h-4 mr-2" />
+                    전환하기
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
-
-      {/* 사용자 정보 카드 */}
-      <Card className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 border-blue-600/50">
-        <CardContent className="p-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                <User className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <div className="flex items-center gap-3 mb-1">
-                  <h2 className="text-2xl font-bold text-white">{user.nickname}</h2>
-                  <Badge className={`${vipBadge.color} text-white px-3 py-1`}>
-                    <Crown className="w-4 h-4 mr-1" />
-                    {vipBadge.label}
-                  </Badge>
-                </div>
-                <p className="text-slate-300">@{user.username}</p>
-                <p className="text-slate-400 text-sm">
-                  {t.user.joinedDate} {formatDateTime(user.created_at)}
-                </p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-6">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-400 flex items-center justify-center gap-2">
-                  {showBalance ? (
-                    <AnimatedCurrency value={currentBalance} duration={800} currencySymbol={t.common.currencySymbol} />
-                  ) : (
-                    '••••••••'
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowBalance(!showBalance)}
-                    className="w-6 h-6 p-0"
-                  >
-                    {showBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </Button>
-                </div>
-                <div className="text-sm text-slate-400">{t.user.balance}</div>
-              </div>
-              <div className="text-center">
-                {currentPoints > 0 ? (
-                  <Button
-                    variant="ghost"
-                    className="flex flex-col items-center p-2 h-auto hover:bg-yellow-500/10 transition-colors"
-                    onClick={() => setShowPointConvertDialog(true)}
-                  >
-                    <div className="text-2xl font-bold text-yellow-400 flex items-center gap-2">
-                      {formatCurrency(currentPoints)}P
-                      <ArrowUpRight className="w-4 h-4" />
-                    </div>
-                    <div className="text-sm text-slate-400">{t.user.points} {t.user.clickToConvert}</div>
-                  </Button>
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold text-yellow-400">
-                      {formatCurrency(currentPoints)}P
-                    </div>
-                    <div className="text-sm text-slate-400">포인트</div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 통계 카드 */}
-      {userStats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-4 text-center">
-              <TrendingUp className="w-8 h-8 text-green-400 mx-auto mb-2" />
-              <div className="text-lg font-bold text-white">{t.common.currencySymbol}{formatCurrency(userStats.total_deposits)}</div>
-              <div className="text-sm text-slate-400">{t.user.totalDeposits}</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-4 text-center">
-              <TrendingDown className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-              <div className="text-lg font-bold text-white">{t.common.currencySymbol}{formatCurrency(userStats.total_withdrawals)}</div>
-              <div className="text-sm text-slate-400">{t.user.totalWithdrawals}</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-4 text-center">
-              <Gamepad2 className="w-8 h-8 text-purple-400 mx-auto mb-2" />
-              <div className="text-lg font-bold text-white">{userStats.game_count.toLocaleString()}</div>
-              <div className="text-sm text-slate-400">{t.user.gameCount}</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardContent className="p-4 text-center">
-              <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-              <div className="text-lg font-bold text-white">{userStats.win_rate.toFixed(1)}%</div>
-              <div className="text-sm text-slate-400">{t.user.winRate}</div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* 탭 메뉴 */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5 bg-slate-800/50">
-          <TabsTrigger value="info" className="flex items-center gap-2">
-            <User className="w-4 h-4" />
-            {t.user.basicInfoTab}
-          </TabsTrigger>
-          <TabsTrigger value="transactions" className="flex items-center gap-2">
-            <CreditCard className="w-4 h-4" />
-            {t.user.transactionHistoryTab}
-          </TabsTrigger>
-          <TabsTrigger value="points" className="flex items-center gap-2">
-            <Coins className="w-4 h-4" />
-            {t.user.pointHistoryTab}
-          </TabsTrigger>
-          <TabsTrigger value="games" className="flex items-center gap-2">
-            <Gamepad2 className="w-4 h-4" />
-            {t.user.bettingHistoryTab}
-          </TabsTrigger>
-          <TabsTrigger value="settings" className="flex items-center gap-2">
-            <Settings className="w-4 h-4" />
-            {t.user.settingsTab}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* 기본정보 탭 */}
-        <TabsContent value="info">
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-white">{t.user.basicInfoTitle}</CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (isEditing) {
-                      setEditableInfo({
-                        nickname: user.nickname || '',
-                        bank_name: user.bank_name || '',
-                        bank_account: user.bank_account || '',
-                        bank_holder: user.bank_holder || ''
-                      });
-                      setIsEditing(false);
-                    } else {
-                      setIsEditing(true);
-                    }
-                  }}
-                >
-                  {isEditing ? (
-                    <>
-                      <X className="w-4 h-4 mr-2" />
-                      {t.user.cancel}
-                    </>
-                  ) : (
-                    <>
-                      <Edit className="w-4 h-4 mr-2" />
-                      {t.user.edit}
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-slate-300">{t.user.userId}</Label>
-                  <Input
-                    value={user.username}
-                    disabled
-                    className="bg-slate-700/50 border-slate-600 text-slate-400"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">{t.user.nickname}</Label>
-                  <Input
-                    value={editableInfo.nickname}
-                    onChange={(e) => setEditableInfo(prev => ({ ...prev, nickname: e.target.value }))}
-                    disabled={!isEditing}
-                    className="bg-slate-700/50 border-slate-600 text-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">{t.user.bankName}</Label>
-                  <Select
-                    value={editableInfo.bank_name}
-                    onValueChange={(value) => setEditableInfo(prev => ({ ...prev, bank_name: value }))}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
-                      <SelectValue placeholder={t.user.selectBank} />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-800 border-slate-700">
-                      {['KB국민은행', '신한은행', '우리은행', '하나은행', '농협은행', 'IBK기업은행'].map((bank) => (
-                        <SelectItem key={bank} value={bank}>{bank}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">{t.user.accountNumber}</Label>
-                  <Input
-                    value={editableInfo.bank_account}
-                    onChange={(e) => setEditableInfo(prev => ({ ...prev, bank_account: e.target.value }))}
-                    disabled={!isEditing}
-                    className="bg-slate-700/50 border-slate-600 text-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">{t.user.accountHolder}</Label>
-                  <Input
-                    value={editableInfo.bank_holder}
-                    onChange={(e) => setEditableInfo(prev => ({ ...prev, bank_holder: e.target.value }))}
-                    disabled={!isEditing}
-                    className="bg-slate-700/50 border-slate-600 text-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-300">{t.user.vipGrade}</Label>
-                  <div className="flex items-center gap-2">
-                    <Badge className={`${vipBadge.color} text-white px-3 py-1`}>
-                      <Crown className="w-4 h-4 mr-1" />
-                      {vipBadge.label}
-                    </Badge>
-                    <span className="text-slate-400 text-sm">{t.user.level} {user.vip_level || 0}</span>
-                  </div>
-                </div>
-              </div>
-
-              {isEditing && (
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button
-                    onClick={handleUpdateInfo}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    {t.user.save}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 입출금내역 탭 */}
-        <TabsContent value="transactions">
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white">{t.user.transactionHistory}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {transactions.length > 0 ? (
-                <div className="space-y-4">
-                  {transactions.map((transaction) => {
-                    const statusInfo = getStatusInfo(transaction.status);
-                    const StatusIcon = statusInfo.icon;
-                    const isDeposit = transaction.transaction_type === 'deposit';
-                    
-                    return (
-                      <div key={transaction.id} className="p-4 bg-slate-700/30 rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            {isDeposit ? (
-                              <ArrowUpRight className="w-5 h-5 text-green-400" />
-                            ) : (
-                              <ArrowDownLeft className="w-5 h-5 text-blue-400" />
-                            )}
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-white">
-                                  {isDeposit ? t.user.deposit : t.user.withdrawal}
-                                </span>
-                                <Badge className={`${statusInfo.color} text-white text-xs`}>
-                                  <StatusIcon className="w-3 h-3 mr-1" />
-                                  {statusInfo.label}
-                                </Badge>
-                              </div>
-                              <div className="text-sm text-slate-400">
-                                {formatDateTime(transaction.created_at)}
-                              </div>
-                              {transaction.bank_name && (
-                                <div className="text-sm text-slate-500">
-                                  {transaction.bank_name} {transaction.bank_account}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className={`text-lg font-bold ${isDeposit ? 'text-green-400' : 'text-blue-400'}`}>
-                              {isDeposit ? '+' : '-'}{t.common.currencySymbol}{formatCurrency(transaction.amount)}
-                            </div>
-                            <div className="text-sm text-slate-400">
-                              {t.user.balance}: {t.common.currencySymbol}{formatCurrency(transaction.balance_after)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <CreditCard className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                  <p className="text-slate-400">{t.user.noTransactionHistory}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 포인트내역 탭 */}
-        <TabsContent value="points">
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-white">{t.user.pointHistory}</CardTitle>
-                {currentPoints > 0 && (
-                  <Button
-                    onClick={() => convertPointsToBalance(currentPoints)}
-                    size="sm"
-                    className="bg-yellow-600 hover:bg-yellow-700"
-                  >
-                    <Coins className="w-4 h-4 mr-2" />
-                    전체 전환 ({formatCurrency(currentPoints)}P)
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {pointTransactions.length > 0 ? (
-                <div className="space-y-4">
-                  {pointTransactions.map((transaction) => {
-                    const isEarn = transaction.transaction_type === 'earn';
-                    const isConvert = transaction.transaction_type === 'convert_to_balance';
-                    
-                    return (
-                      <div key={transaction.id} className="p-4 bg-slate-700/30 rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Coins className={`w-5 h-5 ${isEarn ? 'text-yellow-400' : isConvert ? 'text-blue-400' : 'text-slate-400'}`} />
-                            <div>
-                              <div className="font-medium text-white mb-1">
-                                {transaction.transaction_type === 'earn' && '포인트 적립'}
-                                {transaction.transaction_type === 'use' && '포인트 사용'}
-                                {transaction.transaction_type === 'convert_to_balance' && '잔고 전환'}
-                                {transaction.transaction_type === 'admin_adjustment' && '관리자 조정'}
-                              </div>
-                              <div className="text-sm text-slate-400">
-                                {formatDateTime(transaction.created_at)}
-                              </div>
-                              {transaction.memo && (
-                                <div className="text-sm text-slate-500">
-                                  {transaction.memo}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className={`text-lg font-bold ${isEarn ? 'text-yellow-400' : 'text-slate-400'}`}>
-                              {isEarn ? '+' : '-'}{formatCurrency(transaction.amount)}P
-                            </div>
-                            <div className="text-sm text-slate-400">
-                              포인트: {formatCurrency(transaction.points_after)}P
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Coins className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                  <p className="text-slate-400">포인트 내역이 없습니다</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 베팅내역 탭 */}
-        <TabsContent value="games">
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white">베팅 내역</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {gameRecords.length > 0 ? (
-                <div className="space-y-4">
-                  {gameRecords.map((record) => {
-                    const isWin = parseFloat(record.win_amount) > parseFloat(record.bet_amount);
-                    const profit = parseFloat(record.win_amount) - parseFloat(record.bet_amount);
-                    
-                    return (
-                      <div key={record.id} className="p-4 bg-slate-700/30 rounded-lg">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <Gamepad2 className="w-5 h-5 text-purple-400" />
-                            <div>
-                              <div className="font-medium text-white mb-1">
-                                {record.game_title || '알 수 없는 게임'}
-                              </div>
-                              <div className="text-sm text-slate-400">
-                                {formatDateTime(record.played_at)}
-                              </div>
-                              <div className="text-sm text-slate-500">
-                                {record.provider_name || '제공사 정보 없음'}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm text-slate-400 mb-1">
-                              베팅: {t.common.currencySymbol}{formatCurrency(parseFloat(record.bet_amount))}
-                            </div>
-                            <div className="text-sm text-slate-400 mb-1">
-                              당첨: {t.common.currencySymbol}{formatCurrency(parseFloat(record.win_amount))}
-                            </div>
-                            <div className={`font-bold ${isWin ? 'text-green-400' : 'text-red-400'}`}>
-                              {isWin ? '+' : ''}{t.common.currencySymbol}{formatCurrency(profit)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Gamepad2 className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-                  <p className="text-slate-400">베팅 내역이 없습니다</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 설정 탭 */}
-        <TabsContent value="settings">
-          <Card className="bg-slate-800/50 border-slate-700">
-            <CardHeader>
-              <CardTitle className="text-white">계정 설정</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start">
-                    <Settings className="w-4 h-4 mr-2" />
-                    비밀번호 변경
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-slate-800 border-slate-700 text-white">
-                  <DialogHeader>
-                    <DialogTitle>비밀번호 변경</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-slate-300">현재 비밀번호</Label>
-                      <Input
-                        type="password"
-                        value={passwordChange.currentPassword}
-                        onChange={(e) => setPasswordChange(prev => ({ ...prev, currentPassword: e.target.value }))}
-                        className="bg-slate-700/50 border-slate-600 text-white"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-slate-300">새 비밀번호</Label>
-                      <Input
-                        type="password"
-                        value={passwordChange.newPassword}
-                        onChange={(e) => setPasswordChange(prev => ({ ...prev, newPassword: e.target.value }))}
-                        className="bg-slate-700/50 border-slate-600 text-white"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-slate-300">새 비밀번호 확인</Label>
-                      <Input
-                        type="password"
-                        value={passwordChange.confirmPassword}
-                        onChange={(e) => setPasswordChange(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                        className="bg-slate-700/50 border-slate-600 text-white"
-                      />
-                    </div>
-                    <Alert className="border-yellow-600 bg-yellow-900/20">
-                      <AlertDescription className="text-yellow-300">
-                        비밀번호는 6자리 이상이어야 합니다.
-                      </AlertDescription>
-                    </Alert>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowPasswordDialog(false)}
-                        className="flex-1"
-                      >
-                        취소
-                      </Button>
-                      <Button
-                        onClick={handlePasswordChange}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700"
-                        disabled={!passwordChange.currentPassword || !passwordChange.newPassword || !passwordChange.confirmPassword}
-                      >
-                        변경
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* 포인트 전환 확인 다이얼로그 */}
-      <Dialog open={showPointConvertDialog} onOpenChange={setShowPointConvertDialog}>
-        <DialogContent className="bg-slate-800 border-slate-700 text-white">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Coins className="w-5 h-5 text-yellow-400" />
-              포인트 → 보유금 전환
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="p-4 bg-slate-700/30 rounded-lg">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-400 mb-2">
-                  {formatCurrency(currentPoints)}P
-                </div>
-                <div className="text-sm text-slate-400 mb-4">
-                  전환할 포인트
-                </div>
-                <div className="text-lg font-bold text-green-400">
-                  {t.common.currencySymbol}{formatCurrency(currentPoints)}
-                </div>
-                <div className="text-sm text-slate-400">
-                  전환 후 추가될 보유금
-                </div>
-              </div>
-            </div>
-            
-            <Alert className="border-blue-600 bg-blue-900/20">
-              <AlertDescription className="text-blue-300">
-                포인트를 보유금으로 전환하면 되돌릴 수 없습니다. 전환하시겠습니까?
-              </AlertDescription>
-            </Alert>
-            
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowPointConvertDialog(false)}
-                className="flex-1"
-              >
-                취소
-              </Button>
-              <Button
-                onClick={() => {
-                  convertPointsToBalance(currentPoints);
-                  setShowPointConvertDialog(false);
-                }}
-                className="flex-1 bg-yellow-600 hover:bg-yellow-700"
-              >
-                <ArrowUpRight className="w-4 h-4 mr-2" />
-                전환하기
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -86,8 +86,11 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
     try {
       setLoading(true);
       
-      // ✅ 1. 제공사만 먼저 빠르게 로드
-      const providersData = await gameApi.getUserVisibleProviders({ type: 'slot' });
+      // ✅ 1. 제공사만 먼저 빠르게 로드 (userId 전달)
+      const providersData = await gameApi.getUserVisibleProviders({ 
+        type: 'slot',
+        userId: user.id // 🆕 사용자 ID 전달
+      });
       
       if (isMountedRef.current) {
         setProviders(providersData);
@@ -122,7 +125,8 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
       // ✅ gameApi.getUserVisibleGames 사용 (HonorAPI 지원)
       const gamesData = await gameApi.getUserVisibleGames({
         type: 'slot',
-        provider_id: providerId
+        provider_id: providerId,
+        userId: user.id // 🆕 사용자 ID 전달
       });
 
       console.log(`🎰 [슬롯 게임 로드] Provider ID ${providerId}: ${gamesData?.length || 0}개 게임`);
@@ -172,7 +176,8 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
 
       // ✅ gameApi.getUserVisibleGames 사용 (HonorAPI 지원)
       const gamesData = await gameApi.getUserVisibleGames({
-        type: 'slot'
+        type: 'slot',
+        userId: user.id // 🆕 사용자 ID 전달
       });
 
       console.log(`🎰 [슬롯 게임 전체 로드] 총 ${gamesData?.length || 0}개 게임`);

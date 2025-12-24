@@ -50,6 +50,7 @@ export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: User
   const isMountedRef = useRef(true);
   const { language, setLanguage, t } = useLanguage();
 
+  // ⭐ 메뉴는 항상 표시 (partner_game_access 필터링 안 함)
   const menuItems = [
     { path: '/user/casino', label: t.user.casino, icon: Gamepad2 },
     { path: '/user/slot', label: t.user.slot, icon: Coins },

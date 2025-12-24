@@ -152,6 +152,25 @@ export const fetchPartners = async (currentUserId: string, userLevel: number) =>
         oroplayBalance = partner.oroplay_balance || 0;
       }
 
+      // Lv2의 경우 selected_apis 조회 (컬럼이 없으면 무시)
+      let selectedApis: string[] | undefined = undefined;
+      if (partner.level === 2 && isSystemAdmin) {
+        try {
+          const { data: apiData } = await supabase
+            .from('partners')
+            .select('selected_apis')
+            .eq('id', partner.id)
+            .maybeSingle();
+          
+          if (apiData?.selected_apis) {
+            selectedApis = apiData.selected_apis;
+          }
+        } catch (error) {
+          // selected_apis 컬럼이 없으면 무시
+          console.log('selected_apis 컬럼 없음 (무시)');
+        }
+      }
+
       return {
         ...partner,
         parent_nickname: partner.parent?.nickname || '-',
@@ -159,7 +178,8 @@ export const fetchPartners = async (currentUserId: string, userLevel: number) =>
         user_count: userCount || 0,
         balance: partner.level === 1 || partner.level === 2 ? 0 : (partner.balance || 0),
         invest_balance: investBalance,
-        oroplay_balance: oroplayBalance
+        oroplay_balance: oroplayBalance,
+        selected_apis: selectedApis
       };
     })
   );

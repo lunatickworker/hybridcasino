@@ -85,8 +85,11 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     try {
       setLoading(true);
       
-      // ✅ 1. 제공사만 먼저 빠르게 로드
-      const providersData = await gameApi.getUserVisibleProviders({ type: 'minigame' });
+      // ✅ 1. 제공사만 먼저 빠르게 로드 (userId 전달)
+      const providersData = await gameApi.getUserVisibleProviders({ 
+        type: 'minigame',
+        userId: user.id // 🆕 사용자 ID 전달
+      });
       
       if (isMountedRef.current) {
         setProviders(providersData);
@@ -121,7 +124,8 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
       // ✅ gameApi.getUserVisibleGames 사용 (HonorAPI 지원)
       const gamesData = await gameApi.getUserVisibleGames({
         type: 'minigame',
-        provider_id: providerId
+        provider_id: providerId,
+        userId: user.id // 🆕 사용자 ID 전달
       });
 
       console.log(`🎮 [미니게임 로드] Provider ID ${providerId}: ${gamesData?.length || 0}개 게임`);
@@ -170,7 +174,8 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
 
       // ✅ gameApi.getUserVisibleGames 사용 (HonorAPI 지원)
       const gamesData = await gameApi.getUserVisibleGames({
-        type: 'minigame'
+        type: 'minigame',
+        userId: user.id // 🆕 사용자 ID 전달
       });
 
       console.log(`🎮 [미니게임 전체 로드] 총 ${gamesData?.length || 0}개 게임`);

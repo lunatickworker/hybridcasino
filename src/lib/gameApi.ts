@@ -1938,17 +1938,105 @@ export async function updateProviderStatus(
 
 /**
  * 사용자에게 노출할 게임만 조회
+ * ✅ Lv7 사용자의 partner_game_access 체크 추가
  */
 export async function getUserVisibleGames(filters?: {
   type?: 'slot' | 'casino' | 'minigame';
   provider_id?: number;
   search?: string;
+  userId?: string; // 🆕 사용자 ID 추가
 }): Promise<Game[]> {
-  return getGames({
-    ...filters,
+  // 기본 게임 조회
+  const allGames = await getGames({
+    type: filters?.type,
+    provider_id: filters?.provider_id,
+    search: filters?.search,
     is_visible: true,
     status: 'visible',
   });
+
+  // 🆕 userId가 있으면 partner_game_access로 필터링
+  if (filters?.userId) {
+    const { data: userData } = await supabase
+      .from('users')
+      .select('referrer_id')
+      .eq('id', filters.userId)
+      .maybeSingle();
+    
+    const userPartnerId = userData?.referrer_id;
+    
+    console.log('👤 [getUserVisibleGames] userId:', filters.userId, '→ referrer_id:', userPartnerId);
+    
+    // ⭐ Lv7 사용자는 반드시 partner_id가 있어야 함
+    if (!userPartnerId) {
+      console.log('⚠️ [partner_game_access] partner_id 없음 - 빈 목록 반환');
+      return [];
+    }
+    
+    // ⭐ 먼저 사용자 개별 설정 확인 (user_id)
+    const { data: userGameAccess } = await supabase
+      .from('partner_game_access')
+      .select('api_provider, game_provider_id, game_id, access_type')
+      .eq('user_id', filters.userId);
+    
+    // ⭐ 사용자 개별 설정이 없으면 매장 설정 확인 (partner_id)
+    const { data: storeGameAccess } = await supabase
+      .from('partner_game_access')
+      .select('api_provider, game_provider_id, game_id, access_type')
+      .eq('partner_id', userPartnerId)
+      .is('user_id', null);
+    
+    // ⭐ 사용자 개별 설정이 있으면 우선, 없으면 매장 설정 사용
+    const gameAccess = (userGameAccess && userGameAccess.length > 0) 
+      ? userGameAccess 
+      : storeGameAccess;
+    
+    console.log('🔍 [partner_game_access] 사용자 개별 설정:', userGameAccess?.length || 0);
+    console.log('🔍 [partner_game_access] 매장 설정:', storeGameAccess?.length || 0);
+    console.log('🔍 [partner_game_access] 최종 사용:', gameAccess?.length || 0);
+    
+    if (gameAccess && gameAccess.length > 0) {
+      // ⭐ 필터링 로직
+      const filteredGames = allGames.filter(game => {
+        // 1) API 전체 선택된 경우
+        const apiAccess = gameAccess.find(
+          access =>
+            access.api_provider === game.api_type &&
+            access.access_type === 'api'
+        );
+        if (apiAccess) return true;
+
+        // 2) 제공사 전체 선택된 경우
+        const providerAccess = gameAccess.find(
+          access =>
+            access.api_provider === game.api_type &&
+            access.game_provider_id === String(game.provider_id) &&
+            access.access_type === 'provider'
+        );
+        if (providerAccess) return true;
+
+        // 3) 개별 게임 선택된 경우
+        const gameIdAccess = gameAccess.find(
+          access =>
+            access.api_provider === game.api_type &&
+            access.game_provider_id === String(game.provider_id) &&
+            access.game_id === String(game.id) &&
+            access.access_type === 'game'
+        );
+        if (gameIdAccess) return true;
+
+        return false;
+      });
+
+      console.log(`🔐 [partner_game_access] 게임 필터링: ${allGames.length}개 → ${filteredGames.length}개`);
+      return filteredGames;
+    } else {
+      console.log('⚠️ [partner_game_access] 설정된 게임 접근 권한이 없습니다. 빈 목록 반환');
+      return [];
+    }
+  }
+
+  return allGames;
 }
 
 // getUserVisibleProviders 함수 패치
@@ -1958,16 +2046,37 @@ export async function getUserVisibleGames(filters?: {
  * 사용자에게 노출할 제공사만 조회
  * ✅ Lv1의 api_configs.is_active도 함께 체크
  * ✅ 누락된 제공사 자동 생성
+ * ✅ Lv7 사용자의 partner_game_access 체크 추가
  */
 export async function getUserVisibleProviders(filters?: {
   api_type?: 'invest' | 'oroplay' | 'familyapi';
   type?: 'slot' | 'casino' | 'minigame';
+  userId?: string; // 🆕 사용자 ID 추가
 }): Promise<GameProvider[]> {
   try {
     console.log('🔍 [getUserVisibleProviders] 시작, filters:', filters);
     
     // 0. 누락된 제공사 자동 생성 (게임은 있지만 제공사가 없는 경우)
     await ensureMissingProviders();
+
+    // 🆕 0-1. userId가 있으면 partner_id 조회
+    let userPartnerId: string | null = null;
+    if (filters?.userId) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('referrer_id')
+        .eq('id', filters.userId)
+        .maybeSingle();
+      
+      userPartnerId = userData?.referrer_id || null;
+      console.log('👤 [getUserVisibleProviders] userId:', filters.userId, '→ referrer_id:', userPartnerId);
+      
+      // ⭐ Lv7 사용자는 반드시 partner_id가 있어야 함
+      if (!userPartnerId) {
+        console.log('⚠️ [partner_game_access] partner_id 없음 - 빈 목록 반환');
+        return [];
+      }
+    }
 
     // 1. Lv1 파트너 ID 조회
     const { data: lv1Partner } = await supabase
@@ -2051,6 +2160,68 @@ export async function getUserVisibleProviders(filters?: {
       filteredProviders = filteredProviders.filter(p => providerIdsWithGames!.has(p.id));
       console.log(`📊 [${filters.type}] 게임이 있는 제공사로 필터링: ${filteredProviders.length}개`);
     }
+
+    // 🆕 7. partner_game_access로 제공사 필터링 (Lv7 사용자)
+    if (userPartnerId) {
+      // ⭐ 먼저 사용자 개별 설정 확인 (user_id)
+      const { data: userGameAccess } = await supabase
+        .from('partner_game_access')
+        .select('api_provider, game_provider_id, game_id, access_type')
+        .eq('user_id', filters.userId!);
+      
+      // ⭐ 사용자 개별 설정이 없으면 매장 설정 확인 (partner_id)
+      const { data: storeGameAccess } = await supabase
+        .from('partner_game_access')
+        .select('api_provider, game_provider_id, game_id, access_type')
+        .eq('partner_id', userPartnerId)
+        .is('user_id', null);
+      
+      // ⭐ 사용자 개별 설정이 있으면 우선, 없으면 매장 설정 사용
+      const gameAccess = (userGameAccess && userGameAccess.length > 0) 
+        ? userGameAccess 
+        : storeGameAccess;
+      
+      console.log('🔍 [partner_game_access] 사용자 개별 설정:', userGameAccess?.length || 0);
+      console.log('🔍 [partner_game_access] 매장 설정:', storeGameAccess?.length || 0);
+      console.log('🔍 [partner_game_access] 최종 사용:', gameAccess?.length || 0);
+      
+      if (gameAccess && gameAccess.length > 0) {
+        // ⭐ access_type='api'가 있는지 확인
+        const hasApiAccess = gameAccess.some(access => access.access_type === 'api');
+        
+        if (hasApiAccess) {
+          // API 전체 접근 권한이 있는 경우: 해당 API의 제공사 모두 허용
+          const allowedApis = new Set(
+            gameAccess
+              .filter(access => access.access_type === 'api')
+              .map(access => access.api_provider)
+          );
+          
+          filteredProviders = filteredProviders.filter(p => allowedApis.has(p.api_type));
+          console.log(`🔐 [partner_game_access] API 전체 접근 - 허용된 API: ${Array.from(allowedApis).join(', ')}`);
+          console.log(`🔐 [partner_game_access] 필터링 후 제공사: ${filteredProviders.length}개`);
+        } else {
+          // provider 또는 game 레벨 접근 권한만 있는 경우: 제공사 ID 기준 필터링
+          const allowedProviderIds = new Set<number>();
+          
+          gameAccess.forEach(access => {
+            if (access.access_type === 'provider' && access.game_provider_id) {
+              allowedProviderIds.add(Number(access.game_provider_id));
+            } else if (access.access_type === 'game' && access.game_provider_id) {
+              // game 접근 권한도 제공사는 보여줘야 함 (게임 필터링은 나중에)
+              allowedProviderIds.add(Number(access.game_provider_id));
+            }
+          });
+          
+          filteredProviders = filteredProviders.filter(p => allowedProviderIds.has(p.id));
+          console.log(`🔐 [partner_game_access] 제공사 레벨 접근 - 허용된 제공사 ID: ${Array.from(allowedProviderIds).join(', ')}`);
+          console.log(`🔐 [partner_game_access] 필터링 후 제공사: ${filteredProviders.length}개`);
+        }
+      } else {
+        console.log('⚠️ [partner_game_access] 설정된 게임 접근 권한이 없습니다. 빈 목록 반환');
+        return [];
+      }
+    }
     
     console.log(`📊 [사용자 제공사] 전체: ${providers.length}개 → 활성화된 API: ${filteredProviders.length}개`);
     console.log('📋 필터링된 제공사:', filteredProviders.map(p => ({
@@ -2074,22 +2245,58 @@ export async function getUserVisibleProviders(filters?: {
 
 /**
  * referrer_id를 따라 최상위(Lv1) 파트너 ID를 찾는 함수
+ * 네트워크 재시도 로직 포함
  */
-async function getTopLevelPartnerId(partnerId: string): Promise<string | null> {
+async function getTopLevelPartnerId(partnerId: string, retryCount = 0): Promise<string | null> {
+  const maxRetries = 3;
+  const retryDelay = 1000; // 1초
+  
   try {
     let currentPartnerId = partnerId;
     let iterations = 0;
     const maxIterations = 10; // 무한 루프 방지
 
     while (iterations < maxIterations) {
-      const { data: partner, error } = await supabase
-        .from('partners')
-        .select('id, parent_id, level, username')
-        .eq('id', currentPartnerId)
-        .single();
+      let partner = null;
+      let error = null;
+      
+      // 재시도 로직
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const result = await supabase
+            .from('partners')
+            .select('id, parent_id, level, username')
+            .eq('id', currentPartnerId)
+            .single();
+          
+          partner = result.data;
+          error = result.error;
+          
+          if (!error && partner) {
+            break; // 성공하면 재시도 루프 탈출
+          }
+          
+          if (attempt < maxRetries) {
+            console.warn(`⚠️ 파트너 조회 재시도 ${attempt + 1}/${maxRetries}:`, error?.message);
+            await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
+          }
+        } catch (fetchError) {
+          console.error(`❌ 파트너 조회 네트워크 오류 (시도 ${attempt + 1}):`, fetchError);
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
+          } else {
+            error = fetchError;
+          }
+        }
+      }
 
       if (error || !partner) {
-        console.error('❌ 파트너 조회 실패:', error);
+        console.error('❌ 파트너 조회 실패 (모든 재시도 완료):', {
+          message: error?.message || 'Unknown error',
+          details: JSON.stringify(error),
+          hint: error?.hint,
+          code: error?.code
+        });
         return null;
       }
 
@@ -2191,7 +2398,7 @@ export async function launchGame(
       game_code: game.game_code
     });
 
-    // 2. 사용자 정보 조회
+    // 2. 사용자 정보 조회 (referrer_id 포함)
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('username, referrer_id')
@@ -2207,6 +2414,105 @@ export async function launchGame(
     }
 
     const userUsername = username || user.username;
+    const userPartnerId = user.referrer_id; // Lv6 매장 ID
+
+    // ⭐ 2-1. partner_game_access 검증 (Lv6 매장 또는 Lv7 사용자)
+    if (userPartnerId) {
+      console.log('🔐 [partner_game_access] 게임 접근 권한 검증 시작:', {
+        userId,
+        referrer_id: userPartnerId,
+        gameId,
+        game_name: game.name
+      });
+
+      // ⭐ 먼저 사용자 개별 설정 확인 (user_id)
+      const { data: userGameAccess } = await supabase
+        .from('partner_game_access')
+        .select('api_provider, game_provider_id, game_id, access_type')
+        .eq('user_id', userId);
+      
+      // ⭐ 사용자 개별 설정이 없으면 매장 설정 확인 (partner_id)
+      const { data: storeGameAccess } = await supabase
+        .from('partner_game_access')
+        .select('api_provider, game_provider_id, game_id, access_type')
+        .eq('partner_id', userPartnerId)
+        .is('user_id', null);
+      
+      // ⭐ 사용자 개별 설정이 있으면 우선, 없으면 매장 설정 사용
+      const gameAccess = (userGameAccess && userGameAccess.length > 0) 
+        ? userGameAccess 
+        : storeGameAccess;
+      
+      console.log('🔍 [partner_game_access] 사용자 개별 설정:', userGameAccess?.length || 0);
+      console.log('🔍 [partner_game_access] 매장 설정:', storeGameAccess?.length || 0);
+      console.log('🔍 [partner_game_access] 최종 사용:', gameAccess?.length || 0);
+
+      if (!gameAccess || gameAccess.length === 0) {
+        console.error('❌ [partner_game_access] 게임 접근 권한이 설정되지 않았습니다.');
+        return {
+          success: false,
+          error: '게임 접근 권한이 없습니다. 매장 관리자에게 문의하세요.'
+        };
+      }
+
+      // 게임 접근 권한 확인
+      let hasAccess = false;
+
+      // 1) API 전체 접근 허용된 경우 (최우선)
+      const apiAccess = gameAccess.find(
+        access =>
+          access.api_provider === game.api_type &&
+          access.access_type === 'api'
+      );
+      if (apiAccess) {
+        hasAccess = true;
+        console.log('✅ [partner_game_access] API 접근 허용:', game.api_type);
+      }
+
+      // 2) 제공사 전체 접근 허용된 경우
+      if (!hasAccess) {
+        const providerAccess = gameAccess.find(
+          access =>
+            access.game_provider_id === String(game.provider_id) &&
+            access.access_type === 'provider'
+        );
+        if (providerAccess) {
+          hasAccess = true;
+          console.log('✅ [partner_game_access] 제공사 접근 허용:', game.provider_id);
+        }
+      }
+
+      // 3) 특정 게임 ID로 접근 허용된 경우
+      if (!hasAccess) {
+        const gameIdAccess = gameAccess.find(
+          access => 
+            access.game_provider_id === String(game.provider_id) &&
+            access.game_id === String(gameId) && 
+            access.access_type === 'game'
+        );
+        if (gameIdAccess) {
+          hasAccess = true;
+          console.log('✅ [partner_game_access] 게임 ID 접근 허용:', gameId);
+        }
+      }
+
+      if (!hasAccess) {
+        console.error('❌ [partner_game_access] 게임 접근 권한 없음:', {
+          gameId,
+          game_name: game.name,
+          provider_id: game.provider_id,
+          api_type: game.api_type
+        });
+        return {
+          success: false,
+          error: '이 게임에 접근할 수 없습니다. 매장에서 허용된 게임이 아닙니다.'
+        };
+      }
+
+      console.log('✅ [partner_game_access] 게임 접근 권한 확인 완료');
+    } else {
+      console.log('ℹ️ [partner_game_access] partner_id 없음 - 검증 건너뜀 (파트너 계정)');
+    }
 
     // 3. Lv1 파트너 ID 찾기 (referrer_id를 따라 최상위까지 올라감)
     const topLevelPartnerId = await getTopLevelPartnerId(user.referrer_id);
@@ -2819,7 +3125,7 @@ async function launchHonorApiGame(
     // ⭐ 1. 사용자 DB 보유금 조회
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('id, balance, referrer_id')
+      .select('id, username, balance, referrer_id')
       .eq('username', username)
       .single();
 
@@ -2905,10 +3211,27 @@ async function launchHonorApiGame(
       console.log(`📊 [Lv2] HonorAPI 잔고: ${lv2Balance}원`);
       
       if (lv2Balance < userBalance) {
-        console.error(`❌ Lv2 HonorAPI 잔고 부족: ${lv2Balance} < ${userBalance}`);
+        console.error(`❌ Lv2 잔고 부족: ${lv2Balance} < ${userBalance}`);
+        
+        // 관리자 알림 생성
+        try {
+          const { createAdminNotification } = await import('./notificationHelper');
+          await createAdminNotification({
+            user_id: userData.id,
+            username: userData.username,
+            user_login_id: username,
+            partner_id: userData.referrer_id, // ✅ 사용자의 소속 관리자 ID
+            message: '관리자에게 문의해주세요.',
+            log_message: `Lv2 HonorAPI 잔고 부족: ${lv2Balance}원 < 사용자 보유금 ${userBalance}원`,
+            notification_type: 'balance_insufficient'
+          });
+        } catch (notifError) {
+          console.error('❌ 알림 생성 실패:', notifError);
+        }
+        
         return {
           success: false,
-          error: 'HonorAPI 보유금이 부족합니다.'
+          error: '관리자에게 문의해주세요.'
         };
       }
     }
@@ -3426,6 +3749,87 @@ export async function generateGameLaunchUrl(
   }
 }
 
+// ============================================
+// 8. 사용자 게임 접근 권한 확인
+// ============================================
+
+/**
+ * 사용자가 접근 가능한 게임 타입 확인
+ * @param userId - 사용자 ID
+ * @returns 접근 가능한 게임 타입 배열 ['casino', 'slot', 'minigame']
+ */
+export async function getUserAccessibleGameTypes(userId: string): Promise<('casino' | 'slot' | 'minigame')[]> {
+  try {
+    // 1. 사용자의 partner_id 조회
+    const { data: userData } = await supabase
+      .from('users')
+      .select('partner_id')
+      .eq('id', userId)
+      .maybeSingle();
+    
+    if (!userData?.partner_id) {
+      console.warn('⚠️ [getUserAccessibleGameTypes] partner_id 없음');
+      return [];
+    }
+
+    // 2. partner_game_access 조회
+    const { data: gameAccess } = await supabase
+      .from('partner_game_access')
+      .select('api_provider, game_provider_id, game_id, access_type')
+      .eq('partner_id', userData.partner_id);
+    
+    if (!gameAccess || gameAccess.length === 0) {
+      console.warn('⚠️ [getUserAccessibleGameTypes] 게임 접근 권한 없음');
+      return [];
+    }
+
+    // 3. 접근 가능한 제공사/게임의 타입 확인
+    const accessibleTypes = new Set<'casino' | 'slot' | 'minigame'>();
+
+    for (const access of gameAccess) {
+      if (access.access_type === 'provider') {
+        // 제공사 전체 접근 - 제공사 타입 조회
+        const providerTableName = access.api_provider === 'honorapi' 
+          ? 'honor_game_providers' 
+          : 'game_providers';
+        
+        const { data: provider } = await supabase
+          .from(providerTableName)
+          .select('type')
+          .eq('id', Number(access.game_provider_id))
+          .eq('api_type', access.api_provider)
+          .maybeSingle();
+        
+        if (provider?.type) {
+          accessibleTypes.add(provider.type as 'casino' | 'slot' | 'minigame');
+        }
+      } else if (access.access_type === 'game' && access.game_id) {
+        // 개별 게임 접근 - 게임 타입 조회
+        const gameTableName = access.api_provider === 'honorapi' 
+          ? 'honor_games' 
+          : 'games';
+        
+        const { data: game } = await supabase
+          .from(gameTableName)
+          .select('type')
+          .eq('id', Number(access.game_id))
+          .maybeSingle();
+        
+        if (game?.type) {
+          accessibleTypes.add(game.type as 'casino' | 'slot' | 'minigame');
+        }
+      }
+    }
+
+    const result = Array.from(accessibleTypes);
+    console.log(`🎮 [getUserAccessibleGameTypes] 사용자 ${userId}: ${result.join(', ')}`);
+    return result;
+  } catch (error) {
+    console.error('❌ [getUserAccessibleGameTypes] 오류:', error);
+    return [];
+  }
+}
+
 // Export all functions
 export const gameApi = {
   // 제공사 관리
@@ -3447,6 +3851,7 @@ export const gameApi = {
   // 게임 조회
   getGames,
   getUserVisibleGames,
+  getUserAccessibleGameTypes, // 🆕 사용자 접근 가능 게임 타입 확인
 
   // 게임 상태 관리
   updateGameVisibility,
@@ -3463,6 +3868,9 @@ export const gameApi = {
   launchGame,
   generateGameLaunchUrl,
   checkActiveSession,
+  
+  // 세션 관리
+  syncBalanceOnSessionEnd,
 };
 
 // ============================================
@@ -3595,26 +4003,36 @@ export async function syncBalanceOnSessionEnd(
 
     console.log(`💰 [세션 종료] API 보유금 조회 완료: ${currentBalance}원`);
 
-    // 4. users.balance 업데이트 (DB 먼저 업데이트)
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ 
-        balance: currentBalance,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId);
-
-    if (updateError) {
-      console.error('❌ [세션 종료] users.balance 업데이트 실패:', updateError);
-      console.error('   - userId:', userId);
-      console.error('   - currentBalance:', currentBalance);
-      console.error('   - error details:', JSON.stringify(updateError));
-      // ⚠️ 세션 종료는 계속 진행 (세션이 active 상태로 남지 않도록)
-    } else {
-      console.log(`✅ [세션 종료] users.balance 업데이트 완료: ${currentBalance}원`);
+    // 4. API 출금 호출 먼저 실행 (잔액이 있는 경우만)
+    let finalBalance = currentBalance; // 최종 반영할 잔고
+    
+    // ⚠️ 음수 잔고 방지 (데이터 무결성 보호)
+    if (currentBalance < 0) {
+      console.error(`⚠️ [세션 종료] 비정상 음수 잔고 감지! currentBalance=${currentBalance}원`);
+      console.error(`   - userId: ${userId}, username: ${user.username}, apiType: ${apiType}`);
+      console.error(`   - 잔고를 0원으로 보정합니다.`);
+      
+      // 관리자 알림을 위한 로그 기록
+      try {
+        await supabase.from('activity_logs').insert([{
+          actor_type: 'system',
+          actor_id: userId,
+          action: 'negative_balance_detected',
+          details: {
+            username: user.username,
+            apiType,
+            detectedBalance: currentBalance,
+            correctedBalance: 0
+          }
+        }]);
+      } catch (err) {
+        console.error('활동 로그 기록 실패:', err);
+      }
+      
+      currentBalance = 0;
+      finalBalance = 0;
     }
-
-    // 5. API 출금 호출 (잔액이 있는 경우만)
+    
     if (currentBalance > 0) {
       if (apiType === 'invest') {
         const withdrawResult = await investApi.withdrawBalance(
@@ -3627,10 +4045,11 @@ export async function syncBalanceOnSessionEnd(
 
         if (!withdrawResult.success) {
           console.error('❌ Invest API 출금 실패:', withdrawResult.error);
+          // 출금 실패 시 현재 잔고 유지
         } else {
           console.log(`✅ [세션 종료] Invest API 출금 완료: ${currentBalance}원`);
           
-          // 6. ⭐ api_configs.balance 업데이트 (통합 컬럼 사용)
+          // 5. ⭐ api_configs.balance 업데이트 (통합 컬럼 사용)
           const { error: balanceError } = await supabase
             .from('api_configs')
             .update({
@@ -3664,8 +4083,9 @@ export async function syncBalanceOnSessionEnd(
             
             // ⭐ 실제 출금된 금액 사용 (API 응답값)
             const withdrawnAmount = withdrawResult.balance || currentBalance;
+            finalBalance = withdrawnAmount; // 실제 출금된 금액으로 업데이트
             
-            // 6. ⭐ api_configs.balance 업데이트 (통합 컬럼 사용)
+            // 5. ⭐ api_configs.balance 업데이트 (통합 컬럼 사용)
             const { error: balanceError } = await supabase
               .from('api_configs')
               .update({
@@ -3687,6 +4107,8 @@ export async function syncBalanceOnSessionEnd(
         // callback을 통해 실시간으로 잔고가 관리되므로, 게임 종료 시 별도 처리 불필요
         console.log('ℹ️ [FamilyAPI Seamless] 게임 종료 - withdrawal 호출 생략');
         console.log('ℹ️ [FamilyAPI Seamless] 잔고는 callback을 통해 실시간으로 관리되었습니다.');
+        // FamilyAPI는 이미 callback으로 users.balance가 업데이트되었으므로, 
+        // 현재 DB 값을 그대로 사용 (finalBalance = currentBalance)
       }
     }
 
@@ -3704,17 +4126,76 @@ export async function syncBalanceOnSessionEnd(
 
       const recoveredAmount = subBalanceResult.amount || 0;
       console.log(`✅ [세션 종료] HonorAPI 유저 머니 회수 완료: ${recoveredAmount}원, cached: ${subBalanceResult.cached}`);
-
-      // users.balance를 회수된 금액으로 최종 업데이트
-      await supabase
-        .from('users')
-        .update({ 
-          balance: recoveredAmount,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId);
       
-      console.log(`✅ [세션 종료] users.balance 최종 업데이트: ${recoveredAmount}원`);
+      // ⭐ 회수된 금액을 그대로 사용 (음수일 리 없음 - API가 실제 회수한 양수 금액)
+      finalBalance = Math.abs(recoveredAmount); // 절대값으로 보장
+      
+      // ⭐ api_configs.balance 업데이트 (회수한 금액을 GMS 머니로 반환)
+      if (recoveredAmount > 0) {
+        const { error: balanceError } = await supabase
+          .from('api_configs')
+          .update({
+            balance: (apiConfig.balance || 0) + recoveredAmount,
+            updated_at: new Date().toISOString()
+          })
+          .eq('partner_id', topLevelPartnerId)
+          .eq('api_provider', 'honorapi');
+
+        if (balanceError) {
+          console.error('❌ HonorAPI 잔고 업데이트 실패:', balanceError);
+        } else {
+          console.log(`✅ [세션 종료] api_configs.balance 업데이트 완료: +${recoveredAmount}원`);
+        }
+      }
+    }
+
+    // ⚠️ 최종 잔고 음수 방지 (모든 API 처리 후 재확인)
+    // ⚠️ 단, 이미 API에서 회수한 금액은 양수이므로, 여기서는 로그만 남기고 그대로 사용
+    if (finalBalance < 0) {
+      console.error(`⚠️ [세션 종료] 최종 잔고가 음수입니다! finalBalance=${finalBalance}원`);
+      console.error(`   - userId: ${userId}, username: ${user.username}, apiType: ${apiType}`);
+      
+      // ⚠️ API가 음수를 반환하는 경우는 비정상이므로, 절대값으로 보정
+      const correctedBalance = Math.abs(finalBalance);
+      console.error(`   - API에서 회수한 금액을 절대값으로 보정: ${correctedBalance}원`);
+      
+      // 관리자 알림을 위한 로그 기록
+      try {
+        await supabase.from('activity_logs').insert([{
+          actor_type: 'system',
+          actor_id: userId,
+          action: 'negative_final_balance_detected',
+          details: {
+            username: user.username,
+            apiType,
+            detectedBalance: finalBalance,
+            correctedBalance: correctedBalance
+          }
+        }]);
+      } catch (err) {
+        console.error('활동 로그 기록 실패:', err);
+      }
+      
+      finalBalance = correctedBalance;
+    }
+
+    // 6. users.balance 최종 업데이트 (API 출금/회수 완료 후)
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ 
+        balance: finalBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('❌ [세션 종료] users.balance 업데이트 실패:', updateError);
+      console.error('   - userId:', userId);
+      console.error('   - finalBalance:', finalBalance);
+      console.error('   - error details:', JSON.stringify(updateError));
+      // ⚠️ 세션 종료는 계속 진행 (세션이 active 상태로 남지 않도록)
+    } else {
+      console.log(`✅ [세션 종료] users.balance 업데이트 완료: ${finalBalance}원`);
     }
 
     // 7. 세션 종료 상태 전환

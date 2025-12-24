@@ -45,7 +45,7 @@ export const transferBalanceToPartner = async ({
       }
     }
     // ✅ Lv3~7: GMS 머니(balance) 검증
-    else if (currentPartnerData.level >= 3) {
+    else if (currentPartnerData.level >= 3 && currentPartnerData.level <= 7) {
       if (currentPartnerData.balance < amount) {
         throw new Error(`SENDER_BALANCE_INSUFFICIENT:${currentPartnerData.balance}`);
       }

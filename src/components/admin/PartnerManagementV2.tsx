@@ -1,25 +1,24 @@
 import { PartnerTransferDialog } from "./partner/PartnerTransferDialog";
 import { PartnerFormDialog } from "./partner/PartnerFormDialog";
+import { MetricCard } from "./MetricCard";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { usePartnerManagement } from "./partner/usePartnerManagement";
 import { Partner } from "./partner/types";
 import { handleForceTransaction as executeForceTransaction } from "./partner/handleForceTransaction";
 import { useState } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useBalance } from "../../contexts/BalanceContext";
-import { ChevronDown, ChevronRight, Building2, Users, Edit, DollarSign, ArrowDown, Download, Plus, Search, Eye, Shield, TrendingUp, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Building2, Users, Edit, DollarSign, ArrowDown, Download, Plus, Search, Eye, Shield, TrendingUp, Trash2, Gamepad2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
-import { MetricCard } from "./MetricCard";
-import { ForceTransactionModal } from "./ForceTransactionModal";
-import { HierarchyTransactionModal } from "./HierarchyTransactionModal";
-import { LoadingSpinner } from "../common/LoadingSpinner";
 import { toast } from "sonner";
 import { supabase } from "../../lib/supabase";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
+import { StoreGameAccessModal } from "./StoreGameAccessModal";
 
 const partnerTypeColors = {
   system_admin: 'bg-purple-500',
@@ -104,15 +103,14 @@ export function PartnerManagementV2() {
     nickname?: string;
   } | null>(null);
   
-  // 계층 입출금 모달 state
-  const [showHierarchyTransactionModal, setShowHierarchyTransactionModal] = useState(false);
-  const [hierarchyTransactionType, setHierarchyTransactionType] = useState<'deposit' | 'withdrawal'>('deposit');
-  const [hierarchyTransactionTarget, setHierarchyTransactionTarget] = useState<Partner | null>(null);
-  
   // 삭제 확인 다이얼로그 state
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteTargetPartner, setDeleteTargetPartner] = useState<Partner | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // 매장 게임 설정 모달 state
+  const [showGameAccessModal, setShowGameAccessModal] = useState(false);
+  const [gameAccessTargetStore, setGameAccessTargetStore] = useState<Partner | null>(null);
   
   const [systemDefaultCommission] = useState({
     rolling: 0.5,
@@ -318,6 +316,23 @@ export function PartnerManagementV2() {
               )}
             </div>
 
+            {/* Lv2 API 선택 정보 - Lv1만 조회 가능 */}
+            {authState.user?.level === 1 && partner.level === 2 && partner.selected_apis && (
+              <div className="min-w-[200px] flex-shrink-0">
+                <div className="flex flex-wrap gap-1.5">
+                  {partner.selected_apis.map((api: string) => (
+                    <Badge 
+                      key={api}
+                      variant="outline" 
+                      className="bg-purple-500/15 text-purple-300 border-purple-500/40 text-xs px-2 py-1"
+                    >
+                      {api.toUpperCase()}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* 커미션 정보 - Casino/Slot 분리 */}
             <div className="min-w-[320px] flex-shrink-0">
               <div className="flex flex-col gap-2">
@@ -379,151 +394,66 @@ export function PartnerManagementV2() {
           <div className="flex items-center justify-center gap-2 w-[320px] flex-shrink-0">
             {/* 입출금 버튼 - 상위 권한자는 모든 하위 조직에 대해 입출금 가능 */}
             {authState.user && authState.user.level < partner.level && partner.id !== authState.user.id && (() => {
-              // Lv1 -> Lv2 (head_office, API 호출)
-              if (authState.user.level === 1 && partner.partner_type === 'head_office') {
-                return (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setForceTransactionTarget(partner);
-                        setForceTransactionType('deposit');
-                        setShowForceTransactionModal(true);
-                      }}
-                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0 h-10 w-10 p-0"
-                      title="입금 (API 호출)"
-                    >
-                      <DollarSign className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setForceTransactionTarget(partner);
-                        setForceTransactionType('withdrawal');
-                        setShowForceTransactionModal(true);
-                      }}
-                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0 h-10 w-10 p-0"
-                      title="출금 (API 호출)"
-                    >
-                      <ArrowDown className="h-5 w-5" />
-                    </Button>
-                  </>
-                );
-              }
-              // Lv2 -> Lv3 직속 본사 (API 호출)
-              else if (authState.user.level === 2 && partner.partner_type === 'main_office' && partner.parent_id === authState.user.id) {
-                return (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setForceTransactionTarget(partner);
-                        setForceTransactionType('deposit');
-                        setShowForceTransactionModal(true);
-                      }}
-                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0 h-10 w-10 p-0"
-                      title="입금 (API 호출)"
-                    >
-                      <DollarSign className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setForceTransactionTarget(partner);
-                        setForceTransactionType('withdrawal');
-                        setShowForceTransactionModal(true);
-                      }}
-                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0 h-10 w-10 p-0"
-                      title="출금 (API 호출)"
-                    >
-                      <ArrowDown className="h-5 w-5" />
-                    </Button>
-                  </>
-                );
-              }
-              // 직속 하위 (Lv3~7, GMS 머니)
-              else if (partner.parent_id === authState.user.id && partner.partner_type !== 'head_office' && partner.partner_type !== 'main_office') {
-                return (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setTransferTargetPartner(partner);
-                        setTransferMode('deposit');
-                        setShowTransferDialog(true);
-                      }}
-                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0 h-10 w-10 p-0"
-                      title="보유금 지급 (GMS 머니)"
-                    >
-                      <DollarSign className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setTransferTargetPartner(partner);
-                        setTransferMode('withdrawal');
-                        setShowTransferDialog(true);
-                      }}
-                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0 h-10 w-10 p-0"
-                      title="보유금 회수 (GMS 머니)"
-                    >
-                      <ArrowDown className="h-5 w-5" />
-                    </Button>
-                  </>
-                );
-              }
-              // 나머지 모든 하위 조직 (계층 입출금)
-              else {
-                return (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setHierarchyTransactionTarget(partner);
-                        setHierarchyTransactionType('deposit');
-                        setShowHierarchyTransactionModal(true);
-                      }}
-                      className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0 h-10 w-10 p-0"
-                      title="하위 파트너 입금"
-                    >
-                      <DollarSign className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setHierarchyTransactionTarget(partner);
-                        setHierarchyTransactionType('withdrawal');
-                        setShowHierarchyTransactionModal(true);
-                      }}
-                      className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0 h-10 w-10 p-0"
-                      title="하위 파트너 출금"
-                    >
-                      <ArrowDown className="h-5 w-5" />
-                    </Button>
-                  </>
-                );
-              }
+              // ✅ 모든 레벨에서 PartnerTransferDialog 사용으로 통일
+              return (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setTransferTargetPartner(partner);
+                      setTransferMode('deposit');
+                      setShowTransferDialog(true);
+                    }}
+                    className="bg-green-500/10 border-green-500/50 text-green-400 hover:bg-green-500/20 flex-shrink-0 h-10 w-10 p-0"
+                    title="보유금 지급"
+                  >
+                    <DollarSign className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setTransferTargetPartner(partner);
+                      setTransferMode('withdrawal');
+                      setShowTransferDialog(true);
+                    }}
+                    className="bg-orange-500/10 border-orange-500/50 text-orange-400 hover:bg-orange-500/20 flex-shrink-0 h-10 w-10 p-0"
+                    title="보유금 회수"
+                  >
+                    <ArrowDown className="h-5 w-5" />
+                  </Button>
+                </>
+              );
             })()}
             
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setSelectedPartner(partner);
-                setShowEditDialog(true);
-              }}
+              onClick={() => handleEditPartner(partner)}
               className="bg-blue-500/10 border-blue-500/50 text-blue-400 hover:bg-blue-500/20 flex-shrink-0 h-10 w-10 p-0"
+              title="수정"
             >
               <Edit className="h-5 w-5" />
             </Button>
+            
+            {/* Lv1은 Lv2 게임 설정, Lv2는 Lv6 게임 설정, Lv6은 Lv7 게임 설정 가능 */}
+            {((authState.user?.level === 1 && partner.level === 2) ||
+              (authState.user?.level === 2 && partner.level === 6) || 
+              (authState.user?.level === 6 && partner.level === 7)) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setGameAccessTargetStore(partner);
+                  setShowGameAccessModal(true);
+                }}
+                className="bg-purple-500/10 border-purple-500/50 text-purple-400 hover:bg-purple-500/20 flex-shrink-0 h-10 w-10 p-0"
+                title="게임 설정"
+              >
+                <Gamepad2 className="h-5 w-5" />
+              </Button>
+            )}
             
             <Button
               variant="outline"
@@ -651,6 +581,12 @@ export function PartnerManagementV2() {
     } finally {
       setDeleteLoading(false);
     }
+  };
+
+  // 파트너 수정 핸들러
+  const handleEditPartner = (partner: Partner) => {
+    setSelectedPartner(partner);
+    setShowEditDialog(true);
   };
 
   if (loading) {
@@ -1079,33 +1015,6 @@ export function PartnerManagementV2() {
         </TabsContent>
       </Tabs>
 
-      {/* ForceTransactionModal */}
-      <ForceTransactionModal
-        open={showForceTransactionModal}
-        onOpenChange={setShowForceTransactionModal}
-        type={forceTransactionType}
-        targetType="partner"
-        selectedTarget={forceTransactionTarget ? {
-          id: forceTransactionTarget.id,
-          username: forceTransactionTarget.username,
-          nickname: forceTransactionTarget.nickname,
-          balance: forceTransactionTarget.level === 2
-            ? ((forceTransactionTarget.invest_balance || 0) + (forceTransactionTarget.oroplay_balance || 0) + (forceTransactionTarget.familyapi_balance || 0))
-            : (forceTransactionTarget.balance || 0),
-          level: forceTransactionTarget.level,
-          invest_balance: forceTransactionTarget.invest_balance || 0,
-          oroplay_balance: forceTransactionTarget.oroplay_balance || 0
-        } : null}
-        onSubmit={handleForceTransaction}
-        onTypeChange={setForceTransactionType}
-        currentUserLevel={authState.user?.level}
-        currentUserBalance={currentUserBalance}
-        currentUserInvestBalance={currentUserInvestBalance}
-        currentUserOroplayBalance={currentUserOroplayBalance}
-        currentUserFamilyapiBalance={currentUserFamilyapiBalance}
-        useGmsMoney={authState.user?.level === 2 && forceTransactionTarget?.partner_type === 'main_office'}
-      />
-
       {/* PartnerTransferDialog (GMS 머니) */}
       <PartnerTransferDialog
         open={showTransferDialog}
@@ -1119,6 +1028,9 @@ export function PartnerManagementV2() {
         setTransferMemo={setTransferMemo}
         transferLoading={transferLoading}
         currentUserId={authState.user?.id || ''}
+        currentUserBalance={currentUserBalance}
+        currentUserInvestBalance={currentUserInvestBalance}
+        currentUserOroplayBalance={currentUserOroplayBalance}
         onSuccess={handleTransferSuccess}
         onWebSocketUpdate={(data) => {
           if (sendMessage && connected) {
@@ -1126,24 +1038,6 @@ export function PartnerManagementV2() {
           }
         }}
       />
-
-      {/* 계층 입출금 모달 */}
-      {hierarchyTransactionTarget && authState.user && (
-        <HierarchyTransactionModal
-          open={showHierarchyTransactionModal}
-          onClose={() => {
-            setShowHierarchyTransactionModal(false);
-            setHierarchyTransactionTarget(null);
-          }}
-          type={hierarchyTransactionType}
-          targetPartner={hierarchyTransactionTarget}
-          currentUser={authState.user}
-          onSuccess={() => {
-            fetchPartners();
-            syncBalance();
-          }}
-        />
-      )}
 
       {/* 파트너 생성 다이얼로그 */}
       <PartnerFormDialog
@@ -1202,6 +1096,22 @@ export function PartnerManagementV2() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 매장 게임 설정 모달 */}
+      {gameAccessTargetStore && (
+        <StoreGameAccessModal
+          open={showGameAccessModal}
+          onOpenChange={setShowGameAccessModal}
+          storeId={gameAccessTargetStore.id}
+          storeName={gameAccessTargetStore.nickname}
+          partnerLevel={gameAccessTargetStore.level}
+          onSuccess={() => {
+            toast.success('게임 설정이 저장되었습니다.');
+            setShowGameAccessModal(false);
+            setGameAccessTargetStore(null);
+          }}
+        />
+      )}
     </div>
   );
 }

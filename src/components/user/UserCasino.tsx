@@ -88,8 +88,11 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
     try {
       setLoading(true);
       
-      // ✅ 1. 제공사만 먼저 빠르게 로드
-      const providersData = await gameApi.getUserVisibleProviders({ type: 'casino' });
+      // ✅ 1. 제공사만 먼저 빠르게 로드 (userId 전달)
+      const providersData = await gameApi.getUserVisibleProviders({ 
+        type: 'casino',
+        userId: user.id // 🆕 사용자 ID 전달
+      });
       
       if (isMountedRef.current) {
         setProviders(providersData);
@@ -124,7 +127,8 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
       // ✅ gameApi.getUserVisibleGames 사용 (HonorAPI 지원)
       const gamesData = await gameApi.getUserVisibleGames({
         type: 'casino',
-        provider_id: providerId
+        provider_id: providerId,
+        userId: user.id // 🆕 사용자 ID 전달
       });
 
       console.log(`🎰 [카지노 게임 로드] Provider ID ${providerId}: ${gamesData?.length || 0}개 게임`);

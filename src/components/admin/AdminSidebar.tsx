@@ -425,9 +425,10 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
               }
             }
           }}
+          style={{ fontSize: '1.152rem' }} // text-xl (1.25rem)의 96% = 1.2rem
           className={cn(
             "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200",
-            "text-xl group relative",
+            "group relative",
             depth === 0 ? "w-full" : "w-[calc(100%-12px)]", // 서브메뉴는 오른쪽 여백 추가
             isActive
               ? "bg-slate-800/80 text-white border border-blue-500/30 shadow-sm"

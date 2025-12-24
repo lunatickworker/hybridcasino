@@ -8,11 +8,33 @@ import {
   LogOut,
   Wallet,
   Coins,
-  Menu
+  Menu,
+  ArrowRightLeft,
+  Mail,
+  UserX,
+  Home,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Gift,
+  UserPlus,
+  X,
+  Gamepad2,
+  Bell,
+  HelpCircle,
+  Star,
+  Crown,
+  MessageSquare,
+  CreditCard,
+  History,
+  ArrowUpDown
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Alert, AlertDescription } from "../ui/alert";
+import { ImageWithFallback } from "../figma/ImageWithFallback";
 import { supabase } from "../../lib/supabase";
 import { AnimatedCurrency, AnimatedPoints } from "../common/AnimatedNumber";
+import { toast } from "sonner";
 
 interface BenzHeaderProps {
   user: any;
@@ -35,6 +57,10 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
     points: propsPoints || 0 
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [showPointConvertDialog, setShowPointConvertDialog] = useState(false);
+  const [showMessagesDialog, setShowMessagesDialog] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Props로 받은 balance가 변경되면 업데이트
   useEffect(() => {
@@ -43,105 +69,627 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
     }
   }, [propsBalance, propsPoints]);
 
-  return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-[#0f1433] border-b border-purple-900/30" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
-      <div className="flex items-center justify-between px-6 h-20">
-        {/* Logo */}
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => onRouteChange('/benz')}
-            className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent"
-          >
-            BENZ CASINO
-          </button>
-        </div>
+  // 읽지 않은 메시지 조회
+  useEffect(() => {
+    if (!user) return;
 
-        {/* Search */}
-        <div className="flex-1 max-w-md mx-8">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <Input
-              placeholder="게임 검색..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-11 bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500 h-12 text-base"
-            />
+    const fetchUnreadMessages = async () => {
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('receiver_id', user.id)
+        .eq('status', 'unread');
+      
+      setUnreadMessages(count || 0);
+    };
+
+    fetchUnreadMessages();
+
+    // 실시간 구독
+    const subscription = supabase
+      .channel('user_messages')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'messages',
+        filter: `receiver_id=eq.${user.id}`
+      }, () => {
+        fetchUnreadMessages();
+      })
+      .subscribe();
+
+    return () => subscription.unsubscribe();
+  }, [user]);
+
+  // 포인트를 GMS 머니로 전환
+  const convertPointsToBalance = async () => {
+    if (balance.points <= 0) {
+      toast.error('전환할 포인트가 없습니다.');
+      return;
+    }
+
+    try {
+      const pointsToConvert = balance.points;
+
+      // 포인트 차감 및 잔고 증가
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ 
+          points: 0,
+          balance: balance.balance + pointsToConvert
+        })
+        .eq('id', user.id);
+
+      if (userError) throw userError;
+
+      // 포인트 거래 기록
+      await supabase
+        .from('point_transactions')
+        .insert([{
+          user_id: user.id,
+          transaction_type: 'convert_to_balance',
+          amount: pointsToConvert,
+          points_before: balance.points,
+          points_after: 0,
+          memo: '포인트를 GMS 머니로 전환'
+        }]);
+
+      // 잔고 거래 기록
+      await supabase
+        .from('transactions')
+        .insert([{
+          user_id: user.id,
+          transaction_type: 'point_conversion',
+          amount: pointsToConvert,
+          status: 'completed',
+          balance_before: balance.balance,
+          balance_after: balance.balance + pointsToConvert,
+          memo: '포인트 전환'
+        }]);
+
+      // 활동 로그 기록
+      await supabase
+        .from('activity_logs')
+        .insert([{
+          actor_type: 'user',
+          actor_id: user.id,
+          action: 'point_conversion',
+          target_type: 'transaction',
+          details: {
+            points: pointsToConvert,
+            converted_amount: pointsToConvert
+          }
+        }]);
+
+      setBalance({ balance: balance.balance + pointsToConvert, points: 0 });
+      setShowPointConvertDialog(false);
+      toast.success(`${pointsToConvert.toLocaleString()}P를 GMS 머니로 전환했습니다.`);
+    } catch (error: any) {
+      console.error('포인트 전환 오류:', error);
+      toast.error(error.message || '포인트 전환에 실패했습니다.');
+    }
+  };
+
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString();
+  };
+
+  return (
+    <>
+      {/* Desktop Header */}
+      <header className="hidden md:block fixed top-0 left-0 right-0 z-50 bg-[#0f1433] border-b border-purple-900/30" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+        <div className="flex items-center justify-between px-6 h-20">
+          {/* Logo */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => onRouteChange('/benz')}
+              className="hover:opacity-80 transition-opacity"
+            >
+              <ImageWithFallback
+                src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
+                alt="BENZ CASINO"
+                className="h-16 w-auto object-contain"
+                style={{
+                  filter: 'drop-shadow(0 0 15px rgba(168, 85, 247, 0.5)) drop-shadow(0 0 30px rgba(236, 72, 153, 0.3))'
+                }}
+              />
+            </button>
+          </div>
+
+          {/* User Info */}
+          <div className="flex items-center gap-3">
+            {user ? (
+              <>
+                {/* 닉네임 */}
+                <div className="px-4 py-2 bg-[#1a1f3a] rounded-lg border border-purple-900/30">
+                  <span className="text-orange-400 font-semibold text-base">{user.nickname}님</span>
+                </div>
+
+                {/* 보유머니 */}
+                <div className="px-4 py-2 bg-[#1a1f3a] rounded-lg border border-purple-900/30 flex items-center gap-2">
+                  <span className="text-gray-400 text-sm">보유머니 :</span>
+                  <span className="text-orange-400 font-bold text-base">
+                    <AnimatedCurrency value={balance.balance} duration={800} />
+                  </span>
+                  <span className="text-gray-400 text-sm">원</span>
+                </div>
+
+                {/* 포인트 (클릭 가능) */}
+                <button
+                  onClick={() => setShowPointConvertDialog(true)}
+                  className="px-4 py-2 bg-[#1a1f3a] rounded-lg border border-purple-900/30 flex items-center gap-2 hover:bg-purple-900/20 transition-colors"
+                >
+                  <span className="text-gray-400 text-sm">포인트 :</span>
+                  <span className="text-green-400 font-bold text-base">
+                    <AnimatedPoints value={balance.points} duration={800} />
+                  </span>
+                </button>
+
+                {/* 쪽지 */}
+                <Button 
+                  variant="outline"
+                  onClick={() => onRouteChange('/benz/support')}
+                  className="border-purple-900/30 text-gray-300 hover:bg-purple-900/20 text-sm h-10 px-4 relative"
+                >
+                  <Mail className="w-4 h-4 mr-1" />
+                  쪽지 {unreadMessages > 0 && <span className="text-orange-400 ml-1">{unreadMessages}</span>}
+                  {unreadMessages > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center">
+                      {unreadMessages}
+                    </span>
+                  )}
+                </Button>
+
+                {/* 로그아웃 */}
+                <Button 
+                  onClick={onLogout}
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-sm h-10 px-5"
+                >
+                  로그아웃
+                </Button>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button 
+                  onClick={onOpenLoginModal}
+                  variant="outline"
+                  className="border-purple-500 text-purple-400 hover:bg-purple-900/30 text-base h-11 px-5"
+                >
+                  로그인
+                </Button>
+                <Button 
+                  onClick={onOpenSignupModal}
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-base h-11 px-5"
+                >
+                  회원가입
+                </Button>
+              </div>
+            )}
           </div>
         </div>
+      </header>
 
-        {/* User Info */}
-        <div className="flex items-center gap-4">
-          {user ? (
-            <>
-              {/* Balance */}
-              <div className="flex items-center gap-3 px-5 py-3 bg-[#1a1f3a] rounded-lg border border-purple-900/30">
-                <div className="flex items-center gap-2">
-                  <Wallet className="w-5 h-5 text-purple-400" />
-                  <div className="text-right">
-                    <div className="text-sm text-gray-400">보유금</div>
-                    <div className="text-base font-bold text-white">
-                      <AnimatedCurrency value={balance.balance} duration={800} />
+      {/* Mobile Header */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-[#0f1433] border-b border-purple-900/30" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+        <div className="flex items-center justify-between px-4 h-16">
+          {/* Logo */}
+          <button
+            onClick={() => onRouteChange('/benz')}
+            className="hover:opacity-80 transition-opacity"
+          >
+            <ImageWithFallback
+              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
+              alt="BENZ CASINO"
+              className="h-10 w-auto object-contain"
+              style={{
+                filter: 'drop-shadow(0 0 10px rgba(168, 85, 247, 0.5)) drop-shadow(0 0 20px rgba(236, 72, 153, 0.3))'
+              }}
+            />
+          </button>
+
+          {/* Right Actions */}
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                <Button 
+                  onClick={onLogout}
+                  size="sm"
+                  variant="outline"
+                  className="border-purple-500 text-purple-400 hover:bg-purple-900/30 h-9 px-3"
+                >
+                  로그아웃
+                </Button>
+                <Button
+                  onClick={() => setShowMobileMenu(true)}
+                  size="sm"
+                  className="bg-transparent hover:bg-purple-900/20 h-9 w-9 p-0 border-none"
+                >
+                  <Menu className="w-5 h-5 text-purple-400" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  onClick={onOpenLoginModal}
+                  size="sm"
+                  variant="outline"
+                  className="border-purple-500 text-purple-400 hover:bg-purple-900/30 h-9 px-3"
+                >
+                  로그인
+                </Button>
+                <Button
+                  onClick={() => setShowMobileMenu(true)}
+                  size="sm"
+                  className="bg-transparent hover:bg-purple-900/20 h-9 w-9 p-0 border-none"
+                >
+                  <Menu className="w-5 h-5 text-purple-400" />
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Menu Sidebar */}
+      {showMobileMenu && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/60 z-[60] md:hidden"
+            onClick={() => setShowMobileMenu(false)}
+          />
+          
+          {/* Sidebar */}
+          <div className="fixed top-0 right-0 bottom-0 w-80 bg-[#0f1433] z-[70] md:hidden overflow-y-auto">
+            <div className="p-6">
+              {/* Close Button */}
+              <button
+                onClick={() => setShowMobileMenu(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              {/* User Info */}
+              {user && (
+                <div className="mb-4 space-y-2">
+                  <div className="text-lg text-orange-400 font-bold">{user.nickname}님</div>
+                  
+                  <div className="space-y-2">
+                    <div className="p-2.5 bg-[#1a1f3a] rounded-lg border border-purple-900/30">
+                      <div className="text-xs text-gray-400 mb-0.5">보유머니</div>
+                      <div className="text-lg text-orange-400 font-bold">
+                        <AnimatedCurrency value={balance.balance} duration={800} /> 원
+                      </div>
                     </div>
+                    
+                    <button
+                      onClick={() => {
+                        setShowPointConvertDialog(true);
+                        setShowMobileMenu(false);
+                      }}
+                      className="w-full p-2.5 bg-[#1a1f3a] rounded-lg border border-purple-900/30 hover:bg-purple-900/20 transition-colors"
+                    >
+                      <div className="text-xs text-gray-400 mb-0.5">포인트</div>
+                      <div className="text-lg text-green-400 font-bold">
+                        <AnimatedPoints value={balance.points} duration={800} /> P
+                      </div>
+                    </button>
                   </div>
                 </div>
-                <div className="w-px h-10 bg-purple-900/30"></div>
-                <div className="flex items-center gap-2">
-                  <Coins className="w-5 h-5 text-green-400" />
-                  <div className="text-right">
-                    <div className="text-sm text-gray-400">포인트</div>
-                    <div className="text-base font-bold text-green-400">
-                      <AnimatedPoints value={balance.points} duration={800} />
+              )}
+
+              {/* Menu Items */}
+              <nav className="space-y-2">
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase mb-3 px-2">메뉴</h3>
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => {
+                        if (!user) {
+                          setShowMobileMenu(false);
+                          onOpenLoginModal?.();
+                          return;
+                        }
+                        onRouteChange('/benz');
+                        setShowMobileMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                    >
+                      <Gift className="w-5 h-5 text-purple-400" />
+                      <span className="text-white">보너스 혜택</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (!user) {
+                          setShowMobileMenu(false);
+                          onOpenLoginModal?.();
+                          return;
+                        }
+                        onRouteChange('/benz/featured');
+                        setShowMobileMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                    >
+                      <Star className="w-5 h-5 text-yellow-400" />
+                      <span className="text-white">추천게임</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (!user) {
+                          setShowMobileMenu(false);
+                          onOpenLoginModal?.();
+                          return;
+                        }
+                        onRouteChange('/benz/casino');
+                        setShowMobileMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                    >
+                      <Gamepad2 className="w-5 h-5 text-purple-400" />
+                      <span className="text-white">카지노</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (!user) {
+                          setShowMobileMenu(false);
+                          onOpenLoginModal?.();
+                          return;
+                        }
+                        onRouteChange('/benz/slot');
+                        setShowMobileMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                    >
+                      <Coins className="w-5 h-5 text-yellow-400" />
+                      <span className="text-white">슬롯</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (!user) {
+                          setShowMobileMenu(false);
+                          onOpenLoginModal?.();
+                          return;
+                        }
+                        onRouteChange('/benz/minigame');
+                        setShowMobileMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                    >
+                      <Crown className="w-5 h-5 text-orange-400" />
+                      <span className="text-white">미니게임</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (!user) {
+                          setShowMobileMenu(false);
+                          onOpenLoginModal?.();
+                          return;
+                        }
+                        onRouteChange('/benz/notice');
+                        setShowMobileMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                    >
+                      <Bell className="w-5 h-5 text-blue-400" />
+                      <span className="text-white">공지사항</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        if (!user) {
+                          setShowMobileMenu(false);
+                          onOpenLoginModal?.();
+                          return;
+                        }
+                        onRouteChange('/benz/support');
+                        setShowMobileMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                    >
+                      <MessageSquare className="w-5 h-5 text-green-400" />
+                      <span className="text-white">고객센터</span>
+                    </button>
+                  </div>
+                </div>
+
+                {user && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-400 uppercase mb-3 px-2">회원</h3>
+                    <div className="space-y-1">
+                      <button
+                        onClick={() => {
+                          onRouteChange('/benz/deposit');
+                          setShowMobileMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                      >
+                        <CreditCard className="w-5 h-5 text-green-400" />
+                        <span className="text-white">입금신청</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          onRouteChange('/benz/withdraw');
+                          setShowMobileMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                      >
+                        <ArrowUpDown className="w-5 h-5 text-red-400" />
+                        <span className="text-white">출금신청</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          onRouteChange('/benz/betting-history');
+                          setShowMobileMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                      >
+                        <History className="w-5 h-5 text-blue-400" />
+                        <span className="text-white">베팅내역</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          onRouteChange('/benz/profile');
+                          setShowMobileMenu(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                      >
+                        <User className="w-5 h-5 text-purple-400" />
+                        <span className="text-white">내 정보</span>
+                      </button>
                     </div>
+                  </div>
+                )}
+              </nav>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0f1433] border-t border-purple-900/30" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+        <div className="flex items-center justify-around h-16">
+          {/* 홈 */}
+          <button
+            onClick={() => onRouteChange('/benz')}
+            className="flex flex-col items-center justify-center flex-1 h-full hover:bg-purple-900/20 transition-colors"
+          >
+            <Home className="w-6 h-6 text-purple-400 mb-1" />
+            <span className="text-xs text-gray-400">홈</span>
+          </button>
+
+          {/* 입금 */}
+          <button
+            onClick={() => {
+              if (!user) {
+                onOpenLoginModal?.();
+                return;
+              }
+              onRouteChange('/benz/deposit');
+            }}
+            className="flex flex-col items-center justify-center flex-1 h-full hover:bg-purple-900/20 transition-colors"
+          >
+            <ArrowUpCircle className="w-6 h-6 text-green-400 mb-1" />
+            <span className="text-xs text-gray-400">입금</span>
+          </button>
+
+          {/* 출금 */}
+          <button
+            onClick={() => {
+              if (!user) {
+                onOpenLoginModal?.();
+                return;
+              }
+              onRouteChange('/benz/withdraw');
+            }}
+            className="flex flex-col items-center justify-center flex-1 h-full hover:bg-purple-900/20 transition-colors"
+          >
+            <ArrowDownCircle className="w-6 h-6 text-red-400 mb-1" />
+            <span className="text-xs text-gray-400">출금</span>
+          </button>
+
+          {/* 포인트 */}
+          <button
+            onClick={() => {
+              if (!user) {
+                onOpenLoginModal?.();
+                return;
+              }
+              setShowPointConvertDialog(true);
+            }}
+            className="flex flex-col items-center justify-center flex-1 h-full hover:bg-purple-900/20 transition-colors"
+          >
+            <Gift className="w-6 h-6 text-yellow-400 mb-1" />
+            <span className="text-xs text-gray-400">포인트</span>
+          </button>
+
+          {/* 회원가입 */}
+          <button
+            onClick={() => {
+              if (user) {
+                onRouteChange('/benz/profile');
+              } else {
+                onOpenSignupModal?.();
+              }
+            }}
+            className="flex flex-col items-center justify-center flex-1 h-full hover:bg-purple-900/20 transition-colors"
+          >
+            <UserPlus className="w-6 h-6 text-pink-400 mb-1" />
+            <span className="text-xs text-gray-400">{user ? '내정보' : '회원가입'}</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* 포인트 전환 다이얼로그 */}
+      <Dialog open={showPointConvertDialog} onOpenChange={setShowPointConvertDialog}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white rounded-none max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <ArrowRightLeft className="w-6 h-6 text-green-400" />
+              포인트 → GMS 머니 전환
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-base">
+              포인트를 GMS 머니로 전환합니다
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="p-6 bg-slate-700/30 rounded-none border border-slate-700/50">
+              <div className="text-center space-y-4">
+                <div>
+                  <div className="text-sm text-slate-400 mb-2">전환할 포인트</div>
+                  <div className="text-3xl font-bold text-green-400">
+                    {formatCurrency(balance.points)}P
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-center">
+                  <ArrowRightLeft className="w-8 h-8 text-purple-400" />
+                </div>
+                
+                <div>
+                  <div className="text-sm text-slate-400 mb-2">전환 후 GMS 머니</div>
+                  <div className="text-3xl font-bold text-orange-400">
+                    {formatCurrency(balance.points)} 원
                   </div>
                 </div>
               </div>
-
-              {/* User Menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2 text-white hover:bg-purple-900/30 text-base h-12 px-4">
-                    <User className="w-5 h-5" />
-                    <span>{user.nickname}</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-52 bg-[#1a1f3a] border-purple-900/30" align="end">
-                  <DropdownMenuItem 
-                    onClick={() => onRouteChange('/benz/profile')}
-                    className="text-gray-300 hover:text-white hover:bg-purple-900/30 cursor-pointer text-base py-3"
-                  >
-                    <User className="w-5 h-5 mr-2" />
-                    내 정보
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-purple-900/30" />
-                  <DropdownMenuItem 
-                    onClick={onLogout}
-                    className="text-red-400 hover:text-red-300 hover:bg-red-900/20 cursor-pointer text-base py-3"
-                  >
-                    <LogOut className="w-5 h-5 mr-2" />
-                    로그아웃
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Button 
-                onClick={onOpenLoginModal}
+            </div>
+            
+            <Alert className="border-blue-600 bg-blue-900/20 rounded-none">
+              <AlertDescription className="text-blue-300 text-base">
+                💡 포인트를 GMS 머니로 전환하면 되돌릴 수 없습니다.<br/>
+                전환하시겠습니까?
+              </AlertDescription>
+            </Alert>
+            
+            <div className="flex gap-3">
+              <Button
                 variant="outline"
-                className="border-purple-500 text-purple-400 hover:bg-purple-900/30 text-base h-11 px-5"
+                onClick={() => setShowPointConvertDialog(false)}
+                className="flex-1 border-slate-600 hover:bg-slate-700/50 text-white h-12 text-base rounded-none"
               >
-                로그인
+                취소
               </Button>
-              <Button 
-                onClick={onOpenSignupModal}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-base h-11 px-5"
+              <Button
+                onClick={convertPointsToBalance}
+                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 h-12 text-base rounded-none"
+                disabled={balance.points <= 0}
               >
-                회원가입
+                <ArrowRightLeft className="w-5 h-5 mr-2" />
+                전환하기
               </Button>
             </div>
-          )}
-        </div>
-      </div>
-    </header>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

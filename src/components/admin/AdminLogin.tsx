@@ -34,7 +34,7 @@ export function AdminLogin({ onLoginSuccess }: AdminLoginProps) {
       const result = await login(username.trim(), password);
       
       if (result.success) {
-        toast.success(t.login.loginSuccess);
+        // toast.success(t.login.loginSuccess); // ✅ 토스트 메시지 제거
         onLoginSuccess();
       } else {
         toast.error(result.error || t.login.loginFailed);

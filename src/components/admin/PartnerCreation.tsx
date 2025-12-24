@@ -10,13 +10,21 @@ import { DataTableLarge } from "../common/DataTableLarge";
 import { 
   UserPlus, Save, Eye, EyeOff, Building2, 
   Database, Shield, Trash2, Edit, RefreshCw, 
-  AlertCircle, Users 
+  AlertCircle, Users, Gamepad2, CreditCard
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { Partner } from "../../types";
 import { supabase } from "../../lib/supabase";
 import { createApiAccounts } from "../../lib/apiAccountManager";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { GameAccessSelector } from "./GameAccessSelector";
+
+interface GameAccess {
+  api_provider: string;
+  game_provider_id?: string;
+  game_id?: string;
+  access_type: 'provider' | 'game';
+}
 
 interface PartnerFormData {
   username: string;
@@ -38,6 +46,8 @@ interface PartnerFormData {
   contact_info: string;
   selected_parent_id?: string; // Lv1이 Lv3~Lv6 생성 시 소속 파트너 선택
   timezone_offset?: number; // LV2 대본사의 타임존 오프셋
+  selected_apis?: string[]; // Lv2 생성 시 사용할 API 선택
+  game_access?: GameAccess[]; // Lv6/Lv7 생성 시 게임 접근 권한
 }
 
 interface PartnerCreationProps {
@@ -48,6 +58,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
   const { t } = useLanguage();
   const [partners, setPartners] = useState<Partner[]>([]);
   const [availableParents, setAvailableParents] = useState<Partner[]>([]); // 소속 파트너 목록
+  const [parentApis, setParentApis] = useState<string[]>([]); // 상위 파트너의 selected_apis
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -71,7 +82,17 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     bank_holder: '',
     contact_info: '',
     timezone_offset: 9, // 기본값 명시적으로 설정
+    selected_apis: [], // API 선택 초기값
+    game_access: [], // 게임 접근 권한 초기값
   });
+
+  // 사용 가능한 API 목록
+  const availableApis = [
+    { value: 'invest', label: 'Invest API', description: '인베스트 게임 API' },
+    { value: 'oroplay', label: 'OroPlay API', description: '오로플레이 게임 API' },
+    { value: 'familyapi', label: 'Family API', description: '패밀리 게임 API' },
+    { value: 'honorapi', label: 'Honor API', description: '아너 게임 API' },
+  ];
 
   const partnerTypes = useMemo(() => [
     { value: 'head_office', label: t.partnerCreation.partnerTypes.head_office, level: 2 },
@@ -161,6 +182,48 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       if (selectedType) {
         setFormData(prev => ({ ...prev, level: selectedType.level }));
       }
+    }
+
+    // Lv6/Lv7 생성 시 상위 Lv2의 selected_apis 자동 로드
+    if (field === 'partner_type' && (value === 'store' || value === 'user')) {
+      loadParentApis();
+    }
+  };
+
+  // 상위 Lv2의 selected_apis 로드
+  const loadParentApis = async () => {
+    try {
+      // 현재 사용자에서 Lv2까지 추적
+      let currentParentId = user.parent_id || user.id;
+      let lv2Partner = null;
+
+      // Lv2를 찾을 때까지 상위로 추적
+      for (let i = 0; i < 10; i++) {
+        const { data: parent } = await supabase
+          .from('partners')
+          .select('id, level, parent_id, selected_apis')
+          .eq('id', currentParentId)
+          .single();
+
+        if (!parent) break;
+
+        if (parent.level === 2) {
+          lv2Partner = parent;
+          break;
+        }
+
+        if (!parent.parent_id) break;
+        currentParentId = parent.parent_id;
+      }
+
+      if (lv2Partner && lv2Partner.selected_apis) {
+        setParentApis(lv2Partner.selected_apis as string[]);
+      } else {
+        setParentApis([]);
+      }
+    } catch (error) {
+      console.error('상위 파트너 API 로드 실패:', error);
+      setParentApis([]);
     }
   };
 
@@ -295,9 +358,51 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         }
       }
 
+      // 5. LV2(대본사) 생성 시 선택한 API 추가
+      if (formData.partner_type === 'head_office' && formData.selected_apis && formData.selected_apis.length > 0) {
+        const apiConfigData = formData.selected_apis.map(api => ({
+          partner_id: newPartner.id,
+          api_provider: api,
+          credentials: {},
+          balance: 0,
+          is_active: true,
+        }));
+
+        const { error: apiConfigError } = await supabase
+          .from('api_configs')
+          .insert(apiConfigData);
+
+        if (apiConfigError) {
+          console.warn('⚠️ [파트너 생성] API config 생성 실패 (무시):', apiConfigError);
+        } else {
+          console.log('✅ [파트너 생성] API config 생성 완료:', newPartner.id);
+        }
+      }
+
+      // 6. LV6/LV7 생성 시 게임 접근 권한 추가
+      if (formData.game_access && formData.game_access.length > 0) {
+        const gameAccessData = formData.game_access.map(access => ({
+          partner_id: newPartner.id,
+          api_provider: access.api_provider,
+          game_provider_id: access.game_provider_id,
+          game_id: access.game_id,
+          access_type: access.access_type,
+        }));
+
+        const { error: gameAccessError } = await supabase
+          .from('partner_game_access')
+          .insert(gameAccessData);
+
+        if (gameAccessError) {
+          console.warn('⚠️ [파트너 생성] 게임 접근 권한 생성 실패 (무시):', gameAccessError);
+        } else {
+          console.log('✅ [파트너 생성] 게임 접근 권한 생성 완료:', newPartner.id);
+        }
+      }
+
       toast.success(t.partnerCreation.createSuccess, { id: toastId });
       
-      // 6. 폼 초기화
+      // 7. 폼 초기화
       setFormData({
         username: '',
         nickname: '',
@@ -318,6 +423,8 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         contact_info: '',
         selected_parent_id: undefined,
         timezone_offset: 9, // 기본값 명시적으로 설정
+        selected_apis: [], // API 선택 초기값
+        game_access: [], // 게임 접근 권한 초기값
       });
       
       await loadPartners();
@@ -588,50 +695,89 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
             )}
 
             {/* LV2(대본사) 생성 시 타임존 설정 */}
-            {formData.partner_type === 'head_office' && (
-              <div className="space-y-2">
-                <Label htmlFor="timezone_offset" className="text-lg">{t.partnerCreation.timezoneOffset || "타임존 설정"}</Label>
-                <Select 
-                  value={String(formData.timezone_offset ?? 9)} 
-                  onValueChange={(value) => handleInputChange('timezone_offset', parseInt(value, 10))}
-                >
-                  <SelectTrigger className="text-lg py-6" id="timezone_offset">
-                    <SelectValue placeholder={t.partnerCreation.selectTimezone || "타임존 선택"} />
-                  </SelectTrigger>
-                  <SelectContent className="text-lg max-h-[300px]">
-                    <SelectItem value="9" className="text-lg py-3">UTC+9 (KST)</SelectItem>
-                    <SelectItem value="-12" className="text-lg py-3">UTC-12</SelectItem>
-                    <SelectItem value="-11" className="text-lg py-3">UTC-11</SelectItem>
-                    <SelectItem value="-10" className="text-lg py-3">UTC-10</SelectItem>
-                    <SelectItem value="-9" className="text-lg py-3">UTC-9</SelectItem>
-                    <SelectItem value="-8" className="text-lg py-3">UTC-8</SelectItem>
-                    <SelectItem value="-7" className="text-lg py-3">UTC-7</SelectItem>
-                    <SelectItem value="-6" className="text-lg py-3">UTC-6</SelectItem>
-                    <SelectItem value="-5" className="text-lg py-3">UTC-5</SelectItem>
-                    <SelectItem value="-4" className="text-lg py-3">UTC-4</SelectItem>
-                    <SelectItem value="-3" className="text-lg py-3">UTC-3</SelectItem>
-                    <SelectItem value="-2" className="text-lg py-3">UTC-2</SelectItem>
-                    <SelectItem value="-1" className="text-lg py-3">UTC-1</SelectItem>
-                    <SelectItem value="0" className="text-lg py-3">UTC+0</SelectItem>
-                    <SelectItem value="1" className="text-lg py-3">UTC+1</SelectItem>
-                    <SelectItem value="2" className="text-lg py-3">UTC+2</SelectItem>
-                    <SelectItem value="3" className="text-lg py-3">UTC+3</SelectItem>
-                    <SelectItem value="4" className="text-lg py-3">UTC+4</SelectItem>
-                    <SelectItem value="5" className="text-lg py-3">UTC+5</SelectItem>
-                    <SelectItem value="6" className="text-lg py-3">UTC+6</SelectItem>
-                    <SelectItem value="7" className="text-lg py-3">UTC+7</SelectItem>
-                    <SelectItem value="8" className="text-lg py-3">UTC+8</SelectItem>
-                    <SelectItem value="10" className="text-lg py-3">UTC+10</SelectItem>
-                    <SelectItem value="11" className="text-lg py-3">UTC+11</SelectItem>
-                    <SelectItem value="12" className="text-lg py-3">UTC+12</SelectItem>
-                    <SelectItem value="13" className="text-lg py-3">UTC+13</SelectItem>
-                    <SelectItem value="14" className="text-lg py-3">UTC+14</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-base text-muted-foreground">
-                  {t.partnerCreation.timezoneDescription || "대본사의 기준 타임존을 설정합니다. 통계 및 시간 표시에 적용됩니다."}
-                </p>
-              </div>
+            {formData.partner_type === 'head_office' && user.level === 1 && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="timezone_offset" className="text-lg">{t.partnerCreation.timezoneOffset || "타임존 설정"}</Label>
+                  <Select 
+                    value={String(formData.timezone_offset ?? 9)} 
+                    onValueChange={(value) => handleInputChange('timezone_offset', parseInt(value, 10))}
+                  >
+                    <SelectTrigger className="text-lg py-6" id="timezone_offset">
+                      <SelectValue placeholder={t.partnerCreation.selectTimezone || "타임존 선택"} />
+                    </SelectTrigger>
+                    <SelectContent className="text-lg max-h-[300px]">
+                      <SelectItem value="9" className="text-lg py-3">UTC+9 (KST)</SelectItem>
+                      <SelectItem value="-12" className="text-lg py-3">UTC-12</SelectItem>
+                      <SelectItem value="-11" className="text-lg py-3">UTC-11</SelectItem>
+                      <SelectItem value="-10" className="text-lg py-3">UTC-10</SelectItem>
+                      <SelectItem value="-9" className="text-lg py-3">UTC-9</SelectItem>
+                      <SelectItem value="-8" className="text-lg py-3">UTC-8</SelectItem>
+                      <SelectItem value="-7" className="text-lg py-3">UTC-7</SelectItem>
+                      <SelectItem value="-6" className="text-lg py-3">UTC-6</SelectItem>
+                      <SelectItem value="-5" className="text-lg py-3">UTC-5</SelectItem>
+                      <SelectItem value="-4" className="text-lg py-3">UTC-4</SelectItem>
+                      <SelectItem value="-3" className="text-lg py-3">UTC-3</SelectItem>
+                      <SelectItem value="-2" className="text-lg py-3">UTC-2</SelectItem>
+                      <SelectItem value="-1" className="text-lg py-3">UTC-1</SelectItem>
+                      <SelectItem value="0" className="text-lg py-3">UTC+0</SelectItem>
+                      <SelectItem value="1" className="text-lg py-3">UTC+1</SelectItem>
+                      <SelectItem value="2" className="text-lg py-3">UTC+2</SelectItem>
+                      <SelectItem value="3" className="text-lg py-3">UTC+3</SelectItem>
+                      <SelectItem value="4" className="text-lg py-3">UTC+4</SelectItem>
+                      <SelectItem value="5" className="text-lg py-3">UTC+5</SelectItem>
+                      <SelectItem value="6" className="text-lg py-3">UTC+6</SelectItem>
+                      <SelectItem value="7" className="text-lg py-3">UTC+7</SelectItem>
+                      <SelectItem value="8" className="text-lg py-3">UTC+8</SelectItem>
+                      <SelectItem value="10" className="text-lg py-3">UTC+10</SelectItem>
+                      <SelectItem value="11" className="text-lg py-3">UTC+11</SelectItem>
+                      <SelectItem value="12" className="text-lg py-3">UTC+12</SelectItem>
+                      <SelectItem value="13" className="text-lg py-3">UTC+13</SelectItem>
+                      <SelectItem value="14" className="text-lg py-3">UTC+14</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-base text-muted-foreground">
+                    {t.partnerCreation.timezoneDescription || "대본사의 기준 타임존을 설정합니다. 통계 및 시간 표시에 적용됩니다."}
+                  </p>
+                </div>
+
+                {/* API 선택 */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-5 w-5 text-blue-400" />
+                    <Label className="text-lg">사용할 API 선택</Label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 bg-slate-800/30 rounded-lg border border-slate-700">
+                    {availableApis.map((api) => (
+                      <label
+                        key={api.value}
+                        className="flex items-start gap-3 p-3 rounded-md border border-slate-600 hover:border-blue-500 hover:bg-slate-700/30 cursor-pointer transition-all"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.selected_apis?.includes(api.value) || false}
+                          onChange={(e) => {
+                            const currentApis = formData.selected_apis || [];
+                            const newApis = e.target.checked
+                              ? [...currentApis, api.value]
+                              : currentApis.filter(a => a !== api.value);
+                            handleInputChange('selected_apis', newApis);
+                          }}
+                          className="mt-1 h-4 w-4 rounded border-slate-400 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900"
+                        />
+                        <div className="flex-1">
+                          <div className="text-sm font-medium text-slate-200">{api.label}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">{api.description}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-sm text-slate-400 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>선택된 API만 api_configs 테이블에 추가됩니다. 나중에 수정할 수 있습니다.</span>
+                  </p>
+                </div>
+              </>
             )}
 
             {/* Lv2(대본사) 생성 시 안내 메시지 */}
@@ -737,43 +883,42 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
               </div>
             </div>
 
-            <div className="space-y-4">
+            {/* 은행 정보 */}
+            <div className="space-y-6 pt-6 border-t border-slate-700">
               <div className="flex items-center gap-2">
-                <Shield className="h-6 w-6" />
+                <CreditCard className="h-6 w-6" />
                 <span className="text-lg font-medium">{t.partnerCreation.bankInfo}</span>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="bank_name" className="text-lg">{t.partnerCreation.bankName}</Label>
+
+              <div className="grid grid-cols-3 gap-6">
+                <div>
+                  <label className="block mb-3 text-lg">{t.partnerCreation.bankName}</label>
                   <Input
-                    id="bank_name"
+                    type="text"
+                    className="bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 text-lg h-12"
+                    placeholder={t.partnerCreation.bankNamePlaceholder}
                     value={formData.bank_name}
                     onChange={(e) => handleInputChange('bank_name', e.target.value)}
-                    placeholder={t.partnerCreation.bankNamePlaceholder}
-                    className="text-lg py-6"
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bank_account" className="text-lg">{t.partnerCreation.bankAccount}</Label>
+                <div>
+                  <label className="block mb-3 text-lg">{t.partnerCreation.bankAccount}</label>
                   <Input
-                    id="bank_account"
+                    type="text"
+                    className="bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 text-lg h-12"
+                    placeholder={t.partnerCreation.bankAccountPlaceholder}
                     value={formData.bank_account}
                     onChange={(e) => handleInputChange('bank_account', e.target.value)}
-                    placeholder={t.partnerCreation.bankAccountPlaceholder}
-                    className="text-lg py-6"
                   />
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bank_holder" className="text-lg">{t.partnerCreation.bankHolder}</Label>
+                <div>
+                  <label className="block mb-3 text-lg">{t.partnerCreation.bankHolder}</label>
                   <Input
-                    id="bank_holder"
+                    type="text"
+                    className="bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 text-lg h-12"
+                    placeholder={t.partnerCreation.bankHolderPlaceholder}
                     value={formData.bank_holder}
                     onChange={(e) => handleInputChange('bank_holder', e.target.value)}
-                    placeholder={t.partnerCreation.bankHolderPlaceholder}
-                    className="text-lg py-6"
                   />
                 </div>
               </div>
@@ -790,6 +935,9 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                 className="text-lg"
               />
             </div>
+
+            {/* LV6/LV7 생성 시 게임 접근 권한 선택 - 제거됨 */}
+            {/* 파트너 계층관리 페이지에서만 설정 가능 */}
 
             <div className="flex justify-end pt-4">
               <Button

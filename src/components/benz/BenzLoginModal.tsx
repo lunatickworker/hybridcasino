@@ -172,17 +172,24 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div 
-        className="relative overflow-hidden border border-purple-900/30 shadow-2xl"
-        style={{ 
-          width: 'min(90vw, 750px)', 
-          aspectRatio: '16 / 9',
-          maxHeight: '90vh',
-          background: '#0f1433',
-          fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif'
-        }}
-      >
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      {/* Background Logo */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
+        <ImageWithFallback
+          src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
+          alt="BENZ CASINO Background"
+          className="w-auto h-[40vh] md:h-[50vh] object-contain opacity-10"
+          style={{
+            filter: 'blur(2px)'
+          }}
+        />
+      </div>
+
+      <div className="relative z-10 bg-gradient-to-br from-[#0a0e27] to-[#1a1f4a] w-full max-w-4xl shadow-2xl border-2 overflow-hidden" style={{
+        borderColor: 'rgba(168, 85, 247, 0.3)',
+        maxHeight: '90vh',
+        overflowY: 'auto'
+      }}>
         {/* Close Button */}
         <button
           onClick={handleClose}
@@ -191,18 +198,18 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex h-full">
-          {/* Left Side - Game Image (50%) */}
-          <div className="w-1/2 relative overflow-hidden">
+        <div className="flex flex-col md:flex-row h-full">
+          {/* Left Side - Game Image (모바일에서 숨김) */}
+          <div className="hidden md:block md:w-1/2 relative overflow-hidden">
             <ImageWithFallback
-              src="https://images.unsplash.com/photo-1567225299676-9ebaa1d8b28f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYXNpbm8lMjBnYW1pbmclMjBuaWdodHxlbnwxfHx8fDE3NjYwNjMwNTh8MA&ixlib=rb-4.1.0&q=80&w=1080"
-              alt="Casino Gaming"
+              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/loginmodal.png"
+              alt="Benz Casino"
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-900/60 via-pink-900/50 to-purple-900/60 flex items-center justify-center">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-transparent to-pink-900/30 flex items-end justify-center pb-8">
               <div className="text-center px-6">
-                <h2 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-200 mb-2" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>
-                  First
+                <h2 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-500 to-purple-600 mb-2" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>
+                  Benz
                 </h2>
                 <p className="text-base text-gray-200">
                   최고의 카지노 경험
@@ -211,14 +218,14 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
             </div>
           </div>
 
-          {/* Right Side - Login Form (50%) */}
-          <div className="w-1/2 p-8 flex flex-col justify-center bg-[#0f1433]">
+          {/* Right Side - Login Form */}
+          <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col justify-center bg-[#0f1433]">
             <div className="max-w-sm mx-auto w-full">
-              <div className="text-center mb-8">
-                <h3 className="text-3xl text-white font-semibold">로그인</h3>
+              <div className="text-center mb-6 md:mb-8">
+                <h3 className="text-2xl md:text-3xl text-white font-semibold">로그인</h3>
               </div>
 
-              <form onSubmit={handleLogin} className="space-y-3.5">
+              <form onSubmit={handleLogin} className="space-y-3 md:space-y-3.5">
                 {error && (
                   <Alert variant="destructive" className="bg-red-950/20 border-red-900/50 py-2.5 rounded-none">
                     <AlertDescription className="text-red-400 text-base">{error}</AlertDescription>

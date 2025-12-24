@@ -324,7 +324,7 @@ export function IndoLayout({ user, currentRoute, onRouteChange, onLogout, childr
           
           if (!newUser.is_online) {
             console.log('🚪 [Indo 온라인 상태] 강제 로그아웃 감지');
-            toast.error('다른 기기에서 로그인되어 로그아웃됩니다.');
+            // toast.error('다른 기기에서 로그인되어 로그아웃됩니다.'); // ✅ 토스트 메시지 제거
             setTimeout(() => {
               onLogout();
             }, 1000);

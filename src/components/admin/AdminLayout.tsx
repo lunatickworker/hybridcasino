@@ -56,7 +56,7 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
       {/* ✅ 관리자 페이지 열려있을 때 자동 게임 기록 동기화 (모든 레벨) */}
       <AdminGameRecordsSync user={user} />
       
-      <div className="h-screen flex w-full overflow-hidden bg-[#0a0e1a]">
+      <div className="h-screen flex w-full overflow-hidden bg-[#0a0e1a] min-w-[1200px]">
         <div className={cn(
           "fixed left-0 top-0 h-screen transition-all duration-300 z-40",
           "bg-[#0f1419]/95 backdrop-blur-xl border-r border-slate-700/50 shadow-xl",
@@ -84,8 +84,8 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
             />
           </header>
           
-          <main className="flex-1 p-6 overflow-y-auto bg-[#0a0e1a]">
-            <div className="max-w-[1600px] mx-auto space-y-6">
+          <main className="flex-1 p-6 overflow-y-auto bg-[#0a0e1a] admin-scrollbar">
+            <div className="max-w-[1600px] mx-auto space-y-6 min-w-[1000px]">
               {children}
             </div>
           </main>

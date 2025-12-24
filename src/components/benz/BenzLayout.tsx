@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { BenzHeader } from "./BenzHeader";
 import { BenzSidebar } from "./BenzSidebar";
+import { BenzMessagePopup } from "./BenzMessagePopup";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { getUserBalanceWithConfig } from "../../lib/investApi";
@@ -23,12 +24,25 @@ interface UserBalance {
 export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpenLoginModal, onOpenSignupModal, children }: BenzLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userBalance, setUserBalance] = useState<UserBalance>({ balance: 0, points: 0 });
+  const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' && window.innerWidth >= 768);
   const syncingSessionsRef = useRef<Set<number>>(new Set());
   const autoLogoutTimerRef = useRef<NodeJS.Timeout>();
   const sessionChannelRef = useRef<any>(null);
   const onlineChannelRef = useRef<any>(null);
   const balanceChannelRef = useRef<any>(null);
   const isMountedRef = useRef(true);
+
+  // ==========================================================================
+  // 화면 크기 감지
+  // ==========================================================================
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // ==========================================================================
   // 보유금 조회 함수
@@ -335,8 +349,6 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   useEffect(() => {
     if (!user?.id) return;
 
-    console.log('⏰ [Benz 자동 로그아웃] 시작');
-
     const checkAutoLogout = async () => {
       try {
         const { data: userData, error } = await supabase
@@ -354,8 +366,6 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         const elapsedMinutes = (now.getTime() - startedAt.getTime()) / 1000 / 60;
 
         if (elapsedMinutes >= 30) {
-          console.log('🚪 [Benz 자동 로그아웃] 30분 경과');
-          
           await supabase
             .from('users')
             .update({ is_online: false })
@@ -371,7 +381,6 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
     autoLogoutTimerRef.current = setInterval(checkAutoLogout, 10000);
 
     return () => {
-      console.log('⏰ [Benz 자동 로그아웃] 종료');
       if (autoLogoutTimerRef.current) {
         clearInterval(autoLogoutTimerRef.current);
       }
@@ -383,8 +392,6 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   // ==========================================================================
   useEffect(() => {
     if (!user?.id) return;
-
-    console.log('🟢 [Benz 온라인 상태] 구독 시작:', user.id);
 
     onlineChannelRef.current = supabase
       .channel(`benz_online_status_${user.id}`)
@@ -400,8 +407,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           const { new: newUser } = payload as any;
           
           if (!newUser.is_online) {
-            console.log('🚪 [Benz 온라인 상태] 강제 로그아웃 감지');
-            toast.error('다른 기기에서 로그인되어 로그아웃됩니다.');
+            // toast.error('다른 기기에서 로그인되어 로그아웃됩니다.'); // ✅ 토스트 메시지 제거
             setTimeout(() => {
               onLogout();
             }, 1000);
@@ -411,7 +417,6 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
       .subscribe();
 
     return () => {
-      console.log('🟢 [Benz 온라인 상태] 구독 종료');
       if (onlineChannelRef.current) {
         supabase.removeChannel(onlineChannelRef.current);
         onlineChannelRef.current = null;
@@ -435,6 +440,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
       <div className="flex pt-20">
         {/* Sidebar */}
         <BenzSidebar 
+          user={user}
           currentRoute={currentRoute}
           onRouteChange={onRouteChange}
           isOpen={sidebarOpen}
@@ -442,14 +448,20 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         />
         
         {/* Main Content */}
-        <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
-          <div className="p-6">
+        <main 
+          className="flex-1 transition-all duration-300 overflow-x-hidden md:pl-0"
+          style={{
+            marginLeft: isDesktop && sidebarOpen ? '256px' : '0'
+          }}
+        >
+          <div className="p-6 max-w-full">
             {children}
           </div>
         </main>
       </div>
 
       {/* TODO: 배너 팝업 및 메시지 팝업 추가 예정 */}
+      {user?.id && <BenzMessagePopup userId={user.id} />}
     </div>
   );
 }
