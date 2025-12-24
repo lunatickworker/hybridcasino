@@ -183,12 +183,12 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
           <div className="flex items-center gap-4">
             <button
               onClick={() => onRouteChange('/benz')}
-              className="hover:opacity-80 transition-opacity"
+              className="hover:opacity-80 transition-opacity mt-6"
             >
               <ImageWithFallback
                 src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
                 alt="BENZ CASINO"
-                className="h-16 w-auto object-contain"
+                className="h-24 w-auto object-contain"
                 style={{
                   filter: 'drop-shadow(0 0 15px rgba(168, 85, 247, 0.5)) drop-shadow(0 0 30px rgba(236, 72, 153, 0.3))'
                 }}
@@ -197,30 +197,30 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
           </div>
 
           {/* User Info */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {user ? (
               <>
                 {/* 닉네임 */}
-                <div className="px-4 py-2 bg-[#1a1f3a] rounded-lg border border-purple-900/30">
-                  <span className="text-orange-400 font-semibold text-base">{user.nickname}님</span>
+                <div>
+                  <span className="text-orange-400 font-semibold text-xl">{user.nickname}님</span>
                 </div>
 
                 {/* 보유머니 */}
-                <div className="px-4 py-2 bg-[#1a1f3a] rounded-lg border border-purple-900/30 flex items-center gap-2">
-                  <span className="text-gray-400 text-sm">보유머니 :</span>
-                  <span className="text-orange-400 font-bold text-base">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 text-base">보유머니 :</span>
+                  <span className="text-orange-400 font-bold text-xl">
                     <AnimatedCurrency value={balance.balance} duration={800} />
                   </span>
-                  <span className="text-gray-400 text-sm">원</span>
+                  <span className="text-gray-400 text-base">원</span>
                 </div>
 
                 {/* 포인트 (클릭 가능) */}
                 <button
                   onClick={() => setShowPointConvertDialog(true)}
-                  className="px-4 py-2 bg-[#1a1f3a] rounded-lg border border-purple-900/30 flex items-center gap-2 hover:bg-purple-900/20 transition-colors"
+                  className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                 >
-                  <span className="text-gray-400 text-sm">포인트 :</span>
-                  <span className="text-green-400 font-bold text-base">
+                  <span className="text-gray-400 text-base">포인트 :</span>
+                  <span className="text-green-400 font-bold text-xl">
                     <AnimatedPoints value={balance.points} duration={800} />
                   </span>
                 </button>
@@ -229,9 +229,9 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                 <Button 
                   variant="outline"
                   onClick={() => onRouteChange('/benz/support')}
-                  className="border-purple-900/30 text-gray-300 hover:bg-purple-900/20 text-sm h-10 px-4 relative"
+                  className="border-purple-900/30 text-gray-300 hover:bg-purple-900/20 text-base h-10 px-4 relative"
                 >
-                  <Mail className="w-4 h-4 mr-1" />
+                  <Mail className="w-5 h-5 mr-1" />
                   쪽지 {unreadMessages > 0 && <span className="text-orange-400 ml-1">{unreadMessages}</span>}
                   {unreadMessages > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center">
@@ -243,7 +243,7 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                 {/* 로그아웃 */}
                 <Button 
                   onClick={onLogout}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-sm h-10 px-5"
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-base h-10 px-5"
                 >
                   로그아웃
                 </Button>
@@ -280,7 +280,7 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
             <ImageWithFallback
               src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
               alt="BENZ CASINO"
-              className="h-10 w-auto object-contain"
+              className="h-15 w-auto object-contain"
               style={{
                 filter: 'drop-shadow(0 0 10px rgba(168, 85, 247, 0.5)) drop-shadow(0 0 20px rgba(236, 72, 153, 0.3))'
               }}

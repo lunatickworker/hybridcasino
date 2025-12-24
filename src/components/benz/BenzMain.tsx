@@ -561,25 +561,20 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   }
                   onRouteChange('/benz/casino');
                 }}
-                className="relative bg-transparent border-2 hover:bg-purple-900/20 text-white px-8 py-4 md:px-8 md:py-4 px-6 py-3 transition-all duration-300 overflow-hidden group"
+                className="relative border-2 text-white px-8 py-4 md:px-8 md:py-4 px-6 py-3 transition-all duration-300 overflow-hidden group"
                 style={{
-                  borderColor: '#a855f7',
-                  boxShadow: '0 0 20px rgba(168, 85, 247, 0.6), 0 0 40px rgba(236, 72, 153, 0.4), inset 0 0 10px rgba(168, 85, 247, 0.2)'
+                  background: 'linear-gradient(135deg, #a855f7, #ec4899)',
+                  borderColor: '#a855f7'
                 }}
               >
-                {/* 네온 글로우 배경 효과 */}
+                {/* 호버 시 밝아지는 효과 */}
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{
-                  background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(236, 72, 153, 0.15))',
-                  boxShadow: 'inset 0 0 20px rgba(168, 85, 247, 0.3)'
+                  background: 'linear-gradient(135deg, #c084fc, #f472b6)'
                 }}></div>
                 
                 <div className="relative flex items-center gap-2">
-                  <Play className="w-5 h-5 md:w-5 md:h-5 w-4 h-4" style={{
-                    filter: 'drop-shadow(0 0 8px rgba(168, 85, 247, 0.8))'
-                  }} />
-                  <span className="font-black" style={{
-                    textShadow: '0 0 10px rgba(168, 85, 247, 0.8), 0 0 20px rgba(236, 72, 153, 0.6)'
-                  }}>게임 시작하기</span>
+                  <Play className="w-5 h-5 md:w-5 md:h-5 w-4 h-4" />
+                  <span className="font-black text-white">게임 시작하기</span>
                 </div>
               </Button>
             </div>
@@ -600,7 +595,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
           </div>
           <button
             onClick={() => onRouteChange('/benz/casino')}
-            className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+            className="text-base text-purple-400 hover:text-purple-300 transition-colors"
           >
             전체보기 →
           </button>
@@ -661,14 +656,43 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                       {/* 호버 오버레이 */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                       
-                      {/* 제공사명 */}
-                      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/95 via-black/80 to-transparent z-30">
-                        <p className="font-black text-lg text-center text-white" style={{
-                          textShadow: '0 0 20px rgba(236, 72, 153, 0.8), 0 2px 10px rgba(0, 0, 0, 1)'
-                        }}>
-                          {provider.name_ko || provider.name}
-                        </p>
-                      </div>
+                      {/* 제공사명 또는 로고 */}
+                      {(() => {
+                        const logoMap: { [key: number]: string } = {
+                          1: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/evolution%20(1).png',
+                          2: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/pragmatic.png',
+                          3: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/dream.png',
+                          4: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/wmcasino.png',
+                          5: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/asian.png',
+                          6: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/sexycasino.png',
+                          7: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/dowin.png',
+                          8: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/oriental.png',
+                          9: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/vivo.png',
+                          10: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/ezugi.png',
+                          11: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/playtech.png',
+                          12: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/bota.png',
+                        };
+
+                        const logoUrl = logoMap[provider.id];
+
+                        return logoUrl ? (
+                          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/95 via-black/80 to-transparent z-30 flex items-center justify-center">
+                            <ImageWithFallback
+                              src={logoUrl}
+                              alt={provider.name}
+                              className="h-24 w-auto object-contain"
+                            />
+                          </div>
+                        ) : (
+                          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/95 via-black/80 to-transparent z-30">
+                            <p className="font-black text-lg text-center text-white" style={{
+                              textShadow: '0 0 20px rgba(236, 72, 153, 0.8), 0 2px 10px rgba(0, 0, 0, 1)'
+                            }}>
+                              {provider.name_ko || provider.name}
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </motion.div>
                 </div>
@@ -702,7 +726,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
           </div>
           <button
             onClick={() => onRouteChange('/benz/slot')}
-            className="text-sm text-pink-400 hover:text-pink-300 transition-colors"
+            className="text-base text-pink-400 hover:text-pink-300 transition-colors"
           >
             전체보기 →
           </button>
@@ -773,14 +797,49 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                       {/* 호버 오버레이 */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20"></div>
                       
-                      {/* 제공사명 */}
-                      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/95 via-black/80 to-transparent z-30">
-                        <p className="font-black text-lg text-center text-white" style={{
-                          textShadow: '0 0 20px rgba(236, 72, 153, 0.8), 0 2px 10px rgba(0, 0, 0, 1)'
-                        }}>
-                          {provider.name}
-                        </p>
-                      </div>
+                      {/* 제공사명 또는 로고 */}
+                      {(() => {
+                        const slotLogoMap: { [key: number]: string } = {
+                          101: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/blue.png',
+                          102: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/booming.png',
+                          103: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/btg.png',
+                          104: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/habanero.png',
+                          105: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/mirogaming.png',
+                          106: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/netent.png',
+                          107: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/pans.png',
+                          108: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/playgo.png',
+                          109: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/playstar.png',
+                          110: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/redtiger.png',
+                          111: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/skywind.png',
+                          112: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/slotname/rela.png',
+                        };
+
+                        const logoUrl = slotLogoMap[provider.id];
+                        
+                        // 101, 102, 103, 105, 108, 110번은 검은 배경, 나머지는 흰색 배경
+                        const isDarkBackground = [101, 102, 103, 105, 108, 110].includes(provider.id);
+                        const bgGradient = isDarkBackground 
+                          ? 'from-black/95 via-black/80 to-transparent'
+                          : 'from-white/95 via-white/80 to-transparent';
+
+                        return logoUrl ? (
+                          <div className={`absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t ${bgGradient} z-30 flex items-center justify-center`}>
+                            <ImageWithFallback
+                              src={logoUrl}
+                              alt={provider.name}
+                              className="h-24 w-auto object-contain"
+                            />
+                          </div>
+                        ) : (
+                          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/95 via-black/80 to-transparent z-30">
+                            <p className="font-black text-lg text-center text-white" style={{
+                              textShadow: '0 0 20px rgba(236, 72, 153, 0.8), 0 2px 10px rgba(0, 0, 0, 1)'
+                            }}>
+                              {provider.name}
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </motion.div>
                 </div>
