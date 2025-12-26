@@ -56,6 +56,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [apiFilter, setApiFilter] = useState<'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi'>('all');
   const [availableApis, setAvailableApis] = useState<string[]>([]);
+  // ✅ 최신 파트너 정보를 저장하는 state 추가
+  const [currentPartner, setCurrentPartner] = useState<Partner>(user);
   const [summary, setSummary] = useState<SettlementSummary>({
     // 내 수입 - 카지노
     myCasinoRollingIncome: 0,
@@ -109,7 +111,26 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     totalHouseProfit: 0
   });
 
+  // ✅ 최신 파트너 정보 로드
+  const loadCurrentPartner = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('partners')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setCurrentPartner(data as Partner);
+      }
+    } catch (error) {
+      console.error('파트너 정보 로드 실패:', error);
+    }
+  };
+
   useEffect(() => {
+    loadCurrentPartner(); // ✅ 파트너 정보 먼저 로드
     loadSettlementMethod();
     loadAvailableApis();
     loadIntegratedSettlement();
@@ -263,13 +284,13 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       const settlement = await calculateIntegratedSettlement(
         user.id,
         {
-          rolling: user.commission_rolling,
-          losing: user.commission_losing,
-          casino_rolling: user.casino_rolling_commission ?? 0,
-          casino_losing: user.casino_losing_commission ?? 0,
-          slot_rolling: user.slot_rolling_commission ?? 0,
-          slot_losing: user.slot_losing_commission ?? 0,
-          withdrawal: user.withdrawal_fee
+          rolling: currentPartner.commission_rolling,
+          losing: currentPartner.commission_losing,
+          casino_rolling: currentPartner.casino_rolling_commission ?? 0,
+          casino_losing: currentPartner.casino_losing_commission ?? 0,
+          slot_rolling: currentPartner.slot_rolling_commission ?? 0,
+          slot_losing: currentPartner.slot_losing_commission ?? 0,
+          withdrawal: currentPartner.withdrawal_fee
         },
         start,
         end,
@@ -645,7 +666,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-slate-800/50 rounded-lg">
                   <div className="text-slate-400 text-xl mb-2">
-                    카지노 (롤링: {user.casino_rolling_commission ?? 0}% / 루징: {user.casino_losing_commission ?? 0}%)
+                    카지노 (롤링: {currentPartner.casino_rolling_commission ?? 0}% / 루징: {currentPartner.casino_losing_commission ?? 0}%)
                   </div>
                   <div className="space-y-1">
                     <div className="flex justify-between text-xl">
@@ -660,7 +681,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
                   <div className="text-slate-400 text-xl mb-2">
-                    슬롯 (롤링: {user.slot_rolling_commission ?? 0}% / 루징: {user.slot_losing_commission ?? 0}%)
+                    슬롯 (롤링: {currentPartner.slot_rolling_commission ?? 0}% / 루징: {currentPartner.slot_losing_commission ?? 0}%)
                   </div>
                   <div className="space-y-1">
                     <div className="flex justify-between text-xl">
@@ -675,7 +696,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
                   <div className="text-slate-400 text-xl mb-2">
-                    환전 수수료 ({user.withdrawal_fee ?? 0}%)
+                    환전 수수료 ({currentPartner.withdrawal_fee ?? 0}%)
                   </div>
                   <div className="text-3xl text-emerald-400">
                     ₩{summary.myWithdrawalIncome.toLocaleString()}
@@ -758,17 +779,17 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                       </>
                     )}
                   </div>
-                  {user.level >= 3 && (
-                    <div className="text-lg text-slate-400 mt-2">
-                      커미션 총합: ₩{(summary.myCasinoRollingIncome + summary.myCasinoLosingIncome + summary.mySlotRollingIncome + summary.mySlotLosingIncome).toLocaleString()}
-                    </div>
-                  )}
+                  {/* ✅ 모든 레벨에서 커미션 총합 표시 */}
+                  <div className="text-lg text-slate-400 mt-2">
+                    커미션 총합: ₩{(summary.myCasinoRollingIncome + summary.myCasinoLosingIncome + summary.mySlotRollingIncome + summary.mySlotLosingIncome).toLocaleString()}
+                  </div>
                 </div>
                 <div className={cn(
                   "text-4xl",
                   summary.netTotalProfit > 0 ? "text-emerald-400" : "text-red-400"
                 )}>
-                  ₩{(detailedStats.depositWithdrawalDiff + detailedStats.totalHouseProfit + summary.myTotalIncome - summary.partnerTotalPayments).toLocaleString()}
+                  {/* ✅ 소수점 절사 */}
+                  ₩{Math.floor(detailedStats.depositWithdrawalDiff + detailedStats.totalHouseProfit + summary.myTotalIncome - summary.partnerTotalPayments).toLocaleString()}
                 </div>
               </div>
             </div>
