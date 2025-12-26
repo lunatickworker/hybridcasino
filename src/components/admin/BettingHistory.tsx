@@ -447,19 +447,16 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       key: 'game_title',
       header: t.bettingHistory.gameName,
       render: (_: any, record: BettingRecord) => (
-        <span className="text-slate-200 text-xl">{record?.game_title || `Korean Speed Baccarat A`}</span>
+        <span className="text-slate-200 text-xl">{record?.game_title || `Game ${record.game_id}`}</span>
       )
     },
     {
-      key: 'game_type',
+      key: 'provider_name',
       header: t.bettingHistory.provider,
       render: (_: any, record: BettingRecord) => {
-        const gameType = record?.game_type || 'casino';
-        const displayText = gameType === 'slot' ? '슬롯' : '카지노';
-        
         return (
           <span className="text-slate-200 text-xl">
-            {displayText}
+            {record?.provider_name || `Provider ${record.provider_id}`}
           </span>
         );
       }

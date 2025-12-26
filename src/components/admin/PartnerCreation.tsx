@@ -40,10 +40,6 @@ interface PartnerFormData {
   slot_rolling_commission: number;
   slot_losing_commission: number;
   withdrawal_fee: number;
-  bank_name: string;
-  bank_account: string;
-  bank_holder: string;
-  contact_info: string;
   selected_parent_id?: string; // Lv1이 Lv3~Lv6 생성 시 소속 파트너 선택
   timezone_offset?: number; // LV2 대본사의 타임존 오프셋
   selected_apis?: string[]; // Lv2 생성 시 사용할 API 선택
@@ -58,6 +54,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
   const { t } = useLanguage();
   const [partners, setPartners] = useState<Partner[]>([]);
   const [availableParents, setAvailableParents] = useState<Partner[]>([]); // 소속 파트너 목록
+  const [upperLevelPartners, setUpperLevelPartners] = useState<Partner[]>([]); // 상위 레벨 파트너 목록
   const [parentApis, setParentApis] = useState<string[]>([]); // 상위 파트너의 selected_apis
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -70,17 +67,14 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     partner_type: 'head_office',
     parent_id: user.id,
     level: 2,
-    commission_rolling: 0.5,
-    commission_losing: 5.0,
-    casino_rolling_commission: 0.5,
-    casino_losing_commission: 5.0,
-    slot_rolling_commission: 0.5,
-    slot_losing_commission: 5.0,
-    withdrawal_fee: 1.0,
-    bank_name: '',
-    bank_account: '',
-    bank_holder: '',
-    contact_info: '',
+    commission_rolling: 0,
+    commission_losing: 0,
+    casino_rolling_commission: 0,
+    casino_losing_commission: 0,
+    slot_rolling_commission: 0,
+    slot_losing_commission: 0,
+    withdrawal_fee: 0,
+    selected_parent_id: undefined,
     timezone_offset: 9, // 기본값 명시적으로 설정
     selected_apis: [], // API 선택 초기값
     game_access: [], // 게임 접근 권한 초기값
@@ -118,6 +112,46 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     if (user.partner_type === 'system_admin') {
       loadAvailableParents();
     }
+    // 초기 상위 파트너 목록 로드 (대본사 생성 기본값)
+    loadUpperLevelPartners(2);
+
+    // ✅ Supabase Realtime 구독 - partners 테이블 변경사항 실시간 감지
+    const partnersSubscription = supabase
+      .channel('partners-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE 모두 감지
+          schema: 'public',
+          table: 'partners'
+        },
+        (payload) => {
+          console.log('🔔 Partners 테이블 변경 감지:', payload);
+          
+          // 깜박임 없이 데이터만 업데이트
+          setPartners((currentPartners) => {
+            if (payload.eventType === 'INSERT') {
+              // 새 파트너 추가
+              return [payload.new as Partner, ...currentPartners];
+            } else if (payload.eventType === 'UPDATE') {
+              // 파트너 정보 업데이트 (보유금 변경 포함)
+              return currentPartners.map((p) =>
+                p.id === payload.new.id ? { ...p, ...(payload.new as Partner) } : p
+              );
+            } else if (payload.eventType === 'DELETE') {
+              // 파트너 삭제
+              return currentPartners.filter((p) => p.id !== payload.old.id);
+            }
+            return currentPartners;
+          });
+        }
+      )
+      .subscribe();
+
+    // Cleanup - 구독 해제
+    return () => {
+      partnersSubscription.unsubscribe();
+    };
   }, []);
 
   const loadPartners = async () => {
@@ -176,17 +210,57 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
   const handleInputChange = (field: keyof PartnerFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
-    // 파트너 타입 변경 시 레벨 자동 설정
+    // 파트너 타입 변경 시 레벨 자동 설정 및 상위 레벨 파트너 로드
     if (field === 'partner_type') {
       const selectedType = partnerTypes.find(type => type.value === value);
       if (selectedType) {
-        setFormData(prev => ({ ...prev, level: selectedType.level }));
+        setFormData(prev => ({ ...prev, level: selectedType.level, parent_id: '' }));
+        // 상위 레벨 파트너 목록 로드
+        loadUpperLevelPartners(selectedType.level);
       }
     }
 
     // Lv6/Lv7 생성 시 상위 Lv2의 selected_apis 자동 로드
     if (field === 'partner_type' && (value === 'store' || value === 'user')) {
       loadParentApis();
+    }
+  };
+
+  // 상위 레벨 파트너 목록 로드
+  const loadUpperLevelPartners = async (selectedLevel: number) => {
+    try {
+      // 선택된 레벨의 상위 레벨 계산 (예: Lv3 선택 시 Lv2 파트너 목록)
+      const upperLevel = selectedLevel - 1;
+      
+      if (upperLevel < 1) {
+        setUpperLevelPartners([]);
+        return;
+      }
+
+      // 시스템 관리자(Lv1) 포함 조회
+      if (upperLevel === 1) {
+        const { data } = await supabase
+          .from('partners')
+          .select('id, username, nickname, partner_type, level')
+          .eq('level', 1)
+          .eq('status', 'active')
+          .order('created_at', { ascending: true });
+        
+        setUpperLevelPartners(data || []);
+      } else {
+        // Lv2 이상 파트너 조회
+        const { data } = await supabase
+          .from('partners')
+          .select('id, username, nickname, partner_type, level')
+          .eq('level', upperLevel)
+          .eq('status', 'active')
+          .order('created_at', { ascending: true });
+        
+        setUpperLevelPartners(data || []);
+      }
+    } catch (error) {
+      console.error('상위 레벨 파트너 로드 실패:', error);
+      setUpperLevelPartners([]);
     }
   };
 
@@ -241,12 +315,10 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       return false;
     }
     
-    // Lv1이 Lv3~Lv6 생성 시 소속 파트너 선택 필수
-    if (user.partner_type === 'system_admin' && formData.partner_type !== 'head_office') {
-      if (!formData.selected_parent_id) {
-        toast.error(t.partnerCreation.selectParent);
-        return false;
-      }
+    // 상위 파트너 선택 필수
+    if (!formData.parent_id || formData.parent_id.trim() === '') {
+      toast.error('상위 파트너를 선택해주세요.');
+      return false;
     }
     
     return true;
@@ -307,10 +379,6 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         slot_rolling_commission: formData.slot_rolling_commission,
         slot_losing_commission: formData.slot_losing_commission,
         withdrawal_fee: formData.withdrawal_fee,
-        bank_name: formData.bank_name,
-        bank_account: formData.bank_account,
-        bank_holder: formData.bank_holder,
-        contact_info: formData.contact_info ? JSON.parse(`{"memo": "${formData.contact_info}"}`) : null,
         status: 'active',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -410,17 +478,13 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         partner_type: 'head_office',
         parent_id: user.id,
         level: 2,
-        commission_rolling: 0.5,
-        commission_losing: 5.0,
-        casino_rolling_commission: 0.5,
-        casino_losing_commission: 5.0,
-        slot_rolling_commission: 0.5,
-        slot_losing_commission: 5.0,
-        withdrawal_fee: 1.0,
-        bank_name: '',
-        bank_account: '',
-        bank_holder: '',
-        contact_info: '',
+        commission_rolling: 0,
+        commission_losing: 0,
+        casino_rolling_commission: 0,
+        casino_losing_commission: 0,
+        slot_rolling_commission: 0,
+        slot_losing_commission: 0,
+        withdrawal_fee: 0,
         selected_parent_id: undefined,
         timezone_offset: 9, // 기본값 명시적으로 설정
         selected_apis: [], // API 선택 초기값
@@ -529,7 +593,23 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       title: t.partnerCreation.balance,
       cell: (partner: Partner) => (
         <div className="text-right font-mono">
-          {new Intl.NumberFormat('ko-KR').format(partner.balance || 0)}{t.partnerCreation.won}
+          {(() => {
+            // ✅ Lv1, Lv2: 활성화된 API 잔고 합산
+            if (partner.level === 1 || partner.level === 2) {
+              const selectedApis = partner.selected_apis || [];
+              let total = 0;
+              
+              // 활성화된 API들의 잔고만 합산
+              if (selectedApis.includes('invest')) total += (partner.invest_balance || 0);
+              if (selectedApis.includes('oroplay')) total += (partner.oroplay_balance || 0);
+              if (selectedApis.includes('familyapi')) total += (partner.familyapi_balance || 0);
+              if (selectedApis.includes('honorapi')) total += (partner.honorapi_balance || 0);
+              
+              return new Intl.NumberFormat('ko-KR').format(total);
+            }
+            // Lv3~7: GMS 머니 (balance)
+            return new Intl.NumberFormat('ko-KR').format(partner.balance || 0);
+          })()}{t.partnerCreation.won}
         </div>
       ),
     },
@@ -657,6 +737,31 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                       ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="upper_partner" className="text-lg">상위 파트너</Label>
+                <Select 
+                  value={formData.parent_id || ''} 
+                  onValueChange={(value) => handleInputChange('parent_id', value)}
+                  disabled={upperLevelPartners.length === 0}
+                >
+                  <SelectTrigger className="text-lg py-6">
+                    <SelectValue placeholder={upperLevelPartners.length === 0 ? '파트너 등급을 먼저 선택하세요' : '상위 파트너 선택'} />
+                  </SelectTrigger>
+                  <SelectContent className="text-lg">
+                    {upperLevelPartners.map((partner) => (
+                      <SelectItem key={partner.id} value={partner.id} className="text-lg py-3">
+                        {partner.nickname || partner.username} ({getPartnerLevelText(partner.level)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {upperLevelPartners.length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    레벨 {formData.level - 1} 파트너 목록입니다.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -797,12 +902,24 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                       id="casino_rolling_commission"
                       type="number"
                       step="0.1"
-                      value={formData.casino_rolling_commission}
+                      value={formData.casino_rolling_commission === 0 ? '' : formData.casino_rolling_commission}
                       onChange={(e) => {
+                        if (e.target.value === '') {
+                          handleInputChange('casino_rolling_commission', 0);
+                          return;
+                        }
                         const value = parseFloat(e.target.value);
-                        handleInputChange('casino_rolling_commission', isNaN(value) ? 0 : value);
+                        if (!isNaN(value)) {
+                          handleInputChange('casino_rolling_commission', value);
+                        }
                       }}
-                      placeholder="0.5"
+                      onBlur={(e) => {
+                        let value = parseFloat(e.target.value);
+                        if (isNaN(value) || value < 0) value = 0;
+                        if (value > 100) value = 100;
+                        handleInputChange('casino_rolling_commission', value);
+                      }}
+                      placeholder="0"
                       className="text-lg py-6"
                     />
                   </div>
@@ -813,12 +930,24 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                       id="casino_losing_commission"
                       type="number"
                       step="0.1"
-                      value={formData.casino_losing_commission}
+                      value={formData.casino_losing_commission === 0 ? '' : formData.casino_losing_commission}
                       onChange={(e) => {
+                        if (e.target.value === '') {
+                          handleInputChange('casino_losing_commission', 0);
+                          return;
+                        }
                         const value = parseFloat(e.target.value);
-                        handleInputChange('casino_losing_commission', isNaN(value) ? 0 : value);
+                        if (!isNaN(value)) {
+                          handleInputChange('casino_losing_commission', value);
+                        }
                       }}
-                      placeholder="5.0"
+                      onBlur={(e) => {
+                        let value = parseFloat(e.target.value);
+                        if (isNaN(value) || value < 0) value = 0;
+                        if (value > 100) value = 100;
+                        handleInputChange('casino_losing_commission', value);
+                      }}
+                      placeholder="0"
                       className="text-lg py-6"
                     />
                   </div>
@@ -835,12 +964,24 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                       id="slot_rolling_commission"
                       type="number"
                       step="0.1"
-                      value={formData.slot_rolling_commission}
+                      value={formData.slot_rolling_commission === 0 ? '' : formData.slot_rolling_commission}
                       onChange={(e) => {
+                        if (e.target.value === '') {
+                          handleInputChange('slot_rolling_commission', 0);
+                          return;
+                        }
                         const value = parseFloat(e.target.value);
-                        handleInputChange('slot_rolling_commission', isNaN(value) ? 0 : value);
+                        if (!isNaN(value)) {
+                          handleInputChange('slot_rolling_commission', value);
+                        }
                       }}
-                      placeholder="0.5"
+                      onBlur={(e) => {
+                        let value = parseFloat(e.target.value);
+                        if (isNaN(value) || value < 0) value = 0;
+                        if (value > 100) value = 100;
+                        handleInputChange('slot_rolling_commission', value);
+                      }}
+                      placeholder="0"
                       className="text-lg py-6"
                     />
                   </div>
@@ -851,12 +992,24 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                       id="slot_losing_commission"
                       type="number"
                       step="0.1"
-                      value={formData.slot_losing_commission}
+                      value={formData.slot_losing_commission === 0 ? '' : formData.slot_losing_commission}
                       onChange={(e) => {
+                        if (e.target.value === '') {
+                          handleInputChange('slot_losing_commission', 0);
+                          return;
+                        }
                         const value = parseFloat(e.target.value);
-                        handleInputChange('slot_losing_commission', isNaN(value) ? 0 : value);
+                        if (!isNaN(value)) {
+                          handleInputChange('slot_losing_commission', value);
+                        }
                       }}
-                      placeholder="5.0"
+                      onBlur={(e) => {
+                        let value = parseFloat(e.target.value);
+                        if (isNaN(value) || value < 0) value = 0;
+                        if (value > 100) value = 100;
+                        handleInputChange('slot_losing_commission', value);
+                      }}
+                      placeholder="0"
                       className="text-lg py-6"
                     />
                   </div>
@@ -871,69 +1024,22 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                     id="withdrawal_fee"
                     type="number"
                     step="0.1"
-                    value={formData.withdrawal_fee}
+                    value={formData.withdrawal_fee === 0 ? '' : formData.withdrawal_fee}
                     onChange={(e) => {
+                      if (e.target.value === '') {
+                        handleInputChange('withdrawal_fee', 0);
+                        return;
+                      }
                       const value = parseFloat(e.target.value);
-                      handleInputChange('withdrawal_fee', isNaN(value) ? 0 : value);
+                      if (!isNaN(value)) {
+                        handleInputChange('withdrawal_fee', value);
+                      }
                     }}
-                    placeholder="1.0"
+                    placeholder="0"
                     className="text-lg py-6"
                   />
                 </div>
               </div>
-            </div>
-
-            {/* 은행 정보 */}
-            <div className="space-y-6 pt-6 border-t border-slate-700">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-6 w-6" />
-                <span className="text-lg font-medium">{t.partnerCreation.bankInfo}</span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-6">
-                <div>
-                  <label className="block mb-3 text-lg">{t.partnerCreation.bankName}</label>
-                  <Input
-                    type="text"
-                    className="bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 text-lg h-12"
-                    placeholder={t.partnerCreation.bankNamePlaceholder}
-                    value={formData.bank_name}
-                    onChange={(e) => handleInputChange('bank_name', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block mb-3 text-lg">{t.partnerCreation.bankAccount}</label>
-                  <Input
-                    type="text"
-                    className="bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 text-lg h-12"
-                    placeholder={t.partnerCreation.bankAccountPlaceholder}
-                    value={formData.bank_account}
-                    onChange={(e) => handleInputChange('bank_account', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block mb-3 text-lg">{t.partnerCreation.bankHolder}</label>
-                  <Input
-                    type="text"
-                    className="bg-slate-800/50 border-slate-600 text-white placeholder-slate-400 text-lg h-12"
-                    placeholder={t.partnerCreation.bankHolderPlaceholder}
-                    value={formData.bank_holder}
-                    onChange={(e) => handleInputChange('bank_holder', e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="contact_info" className="text-lg">{t.partnerCreation.contactInfo}</Label>
-              <Textarea
-                id="contact_info"
-                value={formData.contact_info}
-                onChange={(e) => handleInputChange('contact_info', e.target.value)}
-                placeholder={t.partnerCreation.contactInfoPlaceholder}
-                rows={3}
-                className="text-lg"
-              />
             </div>
 
             {/* LV6/LV7 생성 시 게임 접근 권한 선택 - 제거됨 */}

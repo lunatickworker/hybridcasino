@@ -858,12 +858,12 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                   <table className="w-full">
                     <thead className="border-b border-white/10">
                       <tr className="bg-white/5">
-                        <th className="px-4 py-3.5 text-left text-sm">게임</th>
-                        <th className="px-4 py-3.5 text-left text-sm">프로바이더</th>
-                        <th className="px-4 py-3.5 text-left text-sm">일시</th>
-                        <th className="px-4 py-3.5 text-right text-sm">베팅</th>
-                        <th className="px-4 py-3.5 text-right text-sm">당첨</th>
-                        <th className="px-4 py-3.5 text-right text-sm">손익</th>
+                        <th className="px-5 py-4.5 text-left text-base font-semibold">게임</th>
+                        <th className="px-5 py-4.5 text-left text-base font-semibold">프로바이더</th>
+                        <th className="px-5 py-4.5 text-left text-base font-semibold">일시</th>
+                        <th className="px-5 py-4.5 text-right text-base font-semibold">베팅</th>
+                        <th className="px-5 py-4.5 text-right text-base font-semibold">당첨</th>
+                        <th className="px-5 py-4.5 text-right text-base font-semibold">손익</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -873,34 +873,34 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                         
                         return (
                           <tr key={bet.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                            <td className="px-4 py-3">
+                            <td className="px-5 py-4">
                               <div className="flex items-center gap-2">
-                                <div className={`p-1.5 rounded-lg ${
+                                <div className={`p-2 rounded-lg ${
                                   isWin ? 'bg-green-500/20' : 'bg-red-500/20'
                                 }`}>
-                                  <Gamepad2 className={`h-4 w-4 ${
+                                  <Gamepad2 className={`h-5 w-5 ${
                                     isWin ? 'text-green-400' : 'text-red-400'
                                   }`} />
                                 </div>
-                                <span className="text-sm">
+                                <span className="text-base font-medium">
                                   {bet.game_title || `게임 ID: ${bet.game_id}`}
                                 </span>
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-muted-foreground text-sm">
+                            <td className="px-5 py-4 text-muted-foreground text-base">
                               {bet.provider_name || `프로바이더 ${bet.provider_id}`}
                             </td>
-                            <td className="px-4 py-3 text-muted-foreground text-sm">
+                            <td className="px-5 py-4 text-muted-foreground text-base">
                               {formatDateTime(bet.played_at)}
                             </td>
-                            <td className="px-4 py-3 text-right font-mono text-sm">
+                            <td className="px-5 py-4 text-right font-mono text-base font-medium">
                               {formatCurrency(bet.bet_amount || 0)}
                             </td>
-                            <td className="px-4 py-3 text-right font-mono text-sm">
+                            <td className="px-5 py-4 text-right font-mono text-base font-medium">
                               {formatCurrency(bet.win_amount || 0)}
                             </td>
-                            <td className="px-4 py-3 text-right">
-                              <span className={`font-mono text-base ${
+                            <td className="px-5 py-4 text-right">
+                              <span className={`font-mono text-lg font-semibold ${
                                 isWin ? 'text-green-400' : 'text-red-400'
                               }`}>
                                 {profit >= 0 ? '+' : ''}{formatCurrency(profit)}

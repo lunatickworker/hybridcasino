@@ -94,7 +94,7 @@ interface OnlineSession {
   user_id: string;
   username: string;
   nickname: string;
-  partner_name: string; // 소속명 추가
+  partner_username: string; // ⭐ 소속명을 아이디로 변경
   game_name: string;
   provider_name: string;
   balance_before: number;
@@ -104,6 +104,7 @@ interface OnlineSession {
   launched_at: string;
   last_activity_at: string;
   status: string;
+  api_type?: string; // ⭐ API 타입 추가 (보유금 동기화용)
 }
 
 interface OnlineUsersProps {
@@ -206,7 +207,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       },
     },
     {
-      key: 'partner_name',
+      key: 'partner_username',
       header: '소속명',
       sortable: true,
       render: (value: string, row: OnlineSession) => (
@@ -223,6 +224,17 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
         <span className={cn("text-slate-200", row.status !== 'active' && "opacity-40")}>
           {value}
         </span>
+      ),
+    },
+    {
+      key: 'game_info',
+      header: '게임명 / 제공사',
+      sortable: false,
+      render: (_: any, row: OnlineSession) => (
+        <div className={cn("flex flex-col gap-1", row.status !== 'active' && "opacity-40")}>
+          <span className="text-slate-200 text-sm">{row.game_name}</span>
+          <span className="text-slate-400 text-xs">{row.provider_name}</span>
+        </div>
       ),
     },
     {
@@ -378,7 +390,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       if (referrerIds.length > 0) {
         const { data: partnersData } = await supabase
           .from('partners')
-          .select('id, partner_name')
+          .select('id, username')  // ⭐ username 조회 (아이디 표시용)
           .in('id', referrerIds);
         
         if (partnersData) {
@@ -443,7 +455,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           user_id: session.users.id,
           username: session.users.username,
           nickname: session.users.nickname || session.users.username,
-          partner_name: session.users.referrer_id ? partnersMap[session.users.referrer_id]?.partner_name || `Partner ${session.users.referrer_id}` : 'Self', // 소속명 추가
+          partner_username: session.users.referrer_id ? partnersMap[session.users.referrer_id]?.username || `Partner ${session.users.referrer_id}` : 'Self', // 소속명 추가
           game_name: gameName,
           provider_name: providerName,
           balance_before: Number(session.balance_before) || 0,
@@ -453,6 +465,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           launched_at: session.launched_at,
           last_activity_at: session.last_activity_at,
           status: session.status,
+          api_type: session.api_type, // ⭐ API 타입 추가
         };
       });
 

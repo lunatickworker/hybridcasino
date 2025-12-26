@@ -36,6 +36,11 @@ export interface Partner {
   api_token?: string;
   commission_rolling: number;
   commission_losing: number;
+  // 카지노/슬롯 커미션 분리
+  casino_rolling_commission?: number;
+  casino_losing_commission?: number;
+  slot_rolling_commission?: number;
+  slot_losing_commission?: number;
   withdrawal_fee: number;
   last_login_at?: string;
   created_at: string;

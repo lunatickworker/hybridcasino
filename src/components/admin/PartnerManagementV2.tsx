@@ -8,7 +8,7 @@ import { handleForceTransaction as executeForceTransaction } from "./partner/han
 import { useState } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useBalance } from "../../contexts/BalanceContext";
-import { ChevronDown, ChevronRight, Building2, Users, Edit, DollarSign, ArrowDown, Download, Plus, Search, Eye, Shield, TrendingUp, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Building2, Users, Edit, DollarSign, ArrowDown, Download, Plus, Search, Eye, Shield, TrendingUp, Trash2, UserPlus } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -298,15 +298,40 @@ export function PartnerManagementV2() {
             {/* 보유금 */}
             <div className="min-w-[80px] text-right flex-shrink-0">
               <span className="font-mono text-cyan-400 text-xl">
-                {/* ✅ Lv1, Lv2: invest + oroplay 합산, Lv3~7: balance */}
+                {/* ✅ Lv1, Lv2: 활성화된 API 잔고 합산, Lv3~7: balance */}
                 {partner.level === 1 || partner.level === 2
-                  ? ((partner.invest_balance || 0) + (partner.oroplay_balance || 0)).toLocaleString()
+                  ? (() => {
+                      const selectedApis = partner.selected_apis || [];
+                      let total = 0;
+                      
+                      // 활성화된 API들의 잔고만 합산
+                      if (selectedApis.includes('invest')) total += (partner.invest_balance || 0);
+                      if (selectedApis.includes('oroplay')) total += (partner.oroplay_balance || 0);
+                      if (selectedApis.includes('familyapi')) total += (partner.familyapi_balance || 0);
+                      if (selectedApis.includes('honorapi')) total += (partner.honorapi_balance || 0);
+                      
+                      return total.toLocaleString();
+                    })()
                   : partner.balance.toLocaleString()}원
               </span>
-              {/* Lv1, Lv2 API별 잔고 툴팁 표시 */}
-              {(partner.level === 1 || partner.level === 2) && (
+              {/* Lv1, Lv2 활성화된 API별 잔고 툴팁 표시 */}
+              {(partner.level === 1 || partner.level === 2) && partner.selected_apis && partner.selected_apis.length > 0 && (
                 <div className="text-sm text-slate-400 mt-1">
-                  (I:{(partner.invest_balance || 0).toLocaleString()} + O:{(partner.oroplay_balance || 0).toLocaleString()})
+                  ({partner.selected_apis.map((api: string) => {
+                    const balances: Record<string, number> = {
+                      invest: partner.invest_balance || 0,
+                      oroplay: partner.oroplay_balance || 0,
+                      familyapi: partner.familyapi_balance || 0,
+                      honorapi: partner.honorapi_balance || 0
+                    };
+                    const apiLabels: Record<string, string> = {
+                      invest: 'I',
+                      oroplay: 'O',
+                      familyapi: 'F',
+                      honorapi: 'H'
+                    };
+                    return `${apiLabels[api]}:${balances[api].toLocaleString()}`;
+                  }).join(' + ')})
                 </div>
               )}
             </div>
@@ -741,7 +766,16 @@ export function PartnerManagementV2() {
         <TabsContent value="hierarchy" className="space-y-4">
           <Card className="bg-slate-900/40 border-slate-700/50 backdrop-blur">
             <CardHeader>
-              <CardTitle className="text-white text-2xl">{t.partnerManagement.hierarchyManagementTitle}</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white text-2xl">{t.partnerManagement.hierarchyManagementTitle}</CardTitle>
+                <Button 
+                  onClick={() => window.location.hash = '#/admin/partner-creation'}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-lg px-6 py-3 h-auto"
+                >
+                  <UserPlus className="h-6 w-6 mr-2" />
+                  파트너 생성
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-4 mb-6">

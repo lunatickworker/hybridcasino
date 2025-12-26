@@ -3586,98 +3586,55 @@ export async function generateGameLaunchUrl(
   sessionId?: number;
   error?: string;
 }> {
-  console.log('🎮 게임 실행 URL 생성:', { userId, gameId });
-
   try {
-    // 1. 게임 정보 조회 (games 또는 honor_games에서)
-    let game: any = null;
-    
-    console.log('🔍 [generateGameLaunchUrl] 게임 ID로 조회 시작:', gameId);
-    
-    const { data: regularGame, error: regularError } = await supabase
-      .from('games')
-      .select(`
-        *,
-        game_providers(
-          name,
-          type,
-          api_type
-        )
-      `)
-      .eq('id', gameId)
-      .maybeSingle();
+    // ⭐ 병렬 처리 1: 게임 정보 + 사용자 정보 동시 조회
+    const [gameResult, userResult] = await Promise.all([
+      // 게임 정보 조회
+      (async () => {
+        const { data: regularGame } = await supabase
+          .from('games')
+          .select('*, game_providers(name, type, api_type)')
+          .eq('id', gameId)
+          .maybeSingle();
 
-    console.log('📊 [generateGameLaunchUrl] games 테이블 조회 결과:', { 
-      found: !!regularGame, 
-      error: regularError 
-    });
+        if (regularGame) return regularGame;
 
-    if (regularGame) {
-      game = regularGame;
-      console.log('✅ [generateGameLaunchUrl] games 테이블에서 게임 발견');
-    } else {
-      // honor_games 테이블 조회
-      console.log('🔍 [generateGameLaunchUrl] honor_games 테이블 조회 시작');
-      const { data: honorGame, error: honorError } = await supabase
-        .from('honor_games')
-        .select(`
-          *,
-          honor_game_providers(
-            name,
-            type,
-            vendor_code
-          )
-        `)
-        .eq('id', gameId)
-        .maybeSingle();
-      
-      console.log('📊 [generateGameLaunchUrl] honor_games 테이블 조회 결과:', { 
-        found: !!honorGame, 
-        error: honorError 
-      });
-      
-      if (honorGame) {
-        game = honorGame;
-        console.log('✅ [generateGameLaunchUrl] honor_games 테이블에서 게임 발견');
-      }
-    }
+        const { data: honorGame } = await supabase
+          .from('honor_games')
+          .select('*, honor_game_providers(name, type, vendor_code)')
+          .eq('id', gameId)
+          .maybeSingle();
+
+        return honorGame;
+      })(),
+      // 사용자 정보 조회
+      supabase
+        .from('users')
+        .select('username, referrer_id, balance')
+        .eq('id', userId)
+        .single()
+    ]);
+
+    const game = gameResult;
+    const { data: user, error: userError } = userResult;
 
     if (!game) {
-      console.error('❌ [generateGameLaunchUrl] 게임 정보 조회 실패: 게임을 찾을 수 없습니다. gameId:', gameId);
-      return {
-        success: false,
-        error: '게임 정보를 찾을 수 없습니다.'
-      };
+      return { success: false, error: '게임 정보를 찾을 수 없습니다.' };
     }
-
-    // 2. 사용자 정보 조회
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('username, referrer_id, balance')
-      .eq('id', userId)
-      .single();
 
     if (userError || !user) {
-      console.error('❌ 사용자 정보 조회 실패:', userError);
-      return {
-        success: false,
-        error: '사용자 정보를 찾을 수 없습니다.'
-      };
+      return { success: false, error: '사용자 정보를 찾을 수 없습니다.' };
     }
 
-    // 3. Lv1 파트너 ID 찾기 (referrer_id를 따라 최상위까지 올라감)
+    // ⭐ 병렬 처리 2: 최상위 파트너 조회
     const topLevelPartnerId = await getTopLevelPartnerId(user.referrer_id);
     
     if (!topLevelPartnerId) {
-      console.error('❌ 최상위 파트너를 찾을 수 없습니다.');
-      return {
-        success: false,
-        error: '파트너 정보를 찾을 수 없습니다.'
-      };
+      return { success: false, error: '파트너 정보를 찾을 수 없습니다.' };
     }
 
-    // 4. ⭐ Lv1 파트너의 API 설정 조회 (api_provider 필터 추가)
-    const apiProvider = game.api_type === 'invest' ? 'invest' : game.api_type === 'oroplay' ? 'oroplay' : 'familyapi';
+    // API 설정 조회
+    const apiProvider = game.api_type === 'invest' ? 'invest' : game.api_type === 'oroplay' ? 'oroplay' : game.api_type === 'honorapi' ? 'honorapi' : 'familyapi';
     const { data: apiConfig, error: configError } = await supabase
       .from('api_configs')
       .select('opcode, client_id, client_secret, api_key')
@@ -3686,45 +3643,23 @@ export async function generateGameLaunchUrl(
       .single();
 
     if (configError || !apiConfig) {
-      console.error('❌ API 설정 조회 실패:', configError);
-      return {
-        success: false,
-        error: 'API 설정을 찾을 수 없습니다.'
-      };
+      return { success: false, error: 'API 설정을 찾을 수 없습니다.' };
     }
 
-    // API 타입에 따라 적절한 credential 선택
+    // API 타입별 credential 검증 (간소화)
     let opcode: string | null = null;
     
     if (game.api_type === 'invest') {
       opcode = apiConfig.opcode;
-      if (!opcode) {
-        console.error('❌ Invest API opcode가 설정되지 않았습니다.');
-        return {
-          success: false,
-          error: 'Invest API 설정이 완료되지 않았습니다.'
-        };
-      }
+      if (!opcode) return { success: false, error: 'Invest API 설정이 완료되지 않았습니다.' };
     } else if (game.api_type === 'oroplay') {
-      // OroPlay는 client_id를 opcode 필드에 저장
       opcode = apiConfig.client_id;
-      if (!opcode || !apiConfig.client_secret) {
-        console.error('❌ OroPlay API credential이 설정되지 않았습니다.');
-        return {
-          success: false,
-          error: 'OroPlay API 설정이 완료되지 않았습니다.'
-        };
-      }
+      if (!opcode || !apiConfig.client_secret) return { success: false, error: 'OroPlay API 설정이 완료되지 않았습니다.' };
     } else if (game.api_type === 'familyapi') {
-      // ⭐ FamilyAPI는 opcode를 사용하지 않음! API Key만 필요
-      if (!apiConfig.api_key) {
-        console.error('❌ FamilyAPI API Key가 설정되지 않았습니다.');
-        return {
-          success: false,
-          error: 'FamilyAPI 설정이 완료되지 않았습니다.'
-        };
-      }
-      // opcode는 null로 설정 (FamilyAPI는 사용하지 않음)
+      if (!apiConfig.api_key) return { success: false, error: 'FamilyAPI 설정이 완료되지 않았습니다.' };
+      opcode = null;
+    } else if (game.api_type === 'honorapi') {
+      if (!apiConfig.api_key) return { success: false, error: 'HonorAPI 설정이 완료되지 않았습니다.' };
       opcode = null;
     }
 
@@ -3945,9 +3880,7 @@ export async function syncBalanceOnSessionEnd(
   apiType: 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
 ): Promise<void> {
   try {
-    console.log(`🔍 [세션 종료] 시작: userId=${userId}, apiType=${apiType}`);
-    
-    // 1. 사용자 정보 조회
+    // ⭐ 병렬 처리: 사용자 정보 조회
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('username, referrer_id')
@@ -3955,31 +3888,15 @@ export async function syncBalanceOnSessionEnd(
       .single();
 
     if (userError || !user) {
-      console.error('❌ [세션 종료] 사용자 정보 조회 실패:', {
-        userId,
-        error: userError,
-        errorMessage: userError?.message,
-        errorCode: userError?.code
-      });
       throw new Error(`사용자 정보 조회 실패: ${userError?.message || '사용자 없음'}`);
     }
 
-    console.log(`✅ [세션 종료] 사용자 정보 조회 완료: username=${user.username}`);
-
-    // 2. 최상위 파트너(Lv1) API 설정 조회
+    // ⭐ 병렬 처리: 최상위 파트너 + API 설정 조회
     const topLevelPartnerId = await getTopLevelPartnerId(user.referrer_id);
     if (!topLevelPartnerId) {
-      console.error('❌ [세션 종료] 최상위 파트너 조회 실패:', {
-        userId,
-        username: user.username,
-        referrer_id: user.referrer_id
-      });
       throw new Error('최상위 파트너 조회 실패');
     }
 
-    console.log(`✅ [세션 종료] 최상위 파트너 조회 완료: partnerId=${topLevelPartnerId}`);
-
-    // ⭐ api_provider 필터 추가
     const apiProvider = apiType === 'invest' ? 'invest' : apiType === 'oroplay' ? 'oroplay' : apiType === 'familyapi' ? 'familyapi' : 'honorapi';
     const { data: apiConfig, error: configError } = await supabase
       .from('api_configs')
@@ -3989,21 +3906,10 @@ export async function syncBalanceOnSessionEnd(
       .single();
 
     if (configError || !apiConfig) {
-      console.error('❌ [세션 종료] API 설정 조회 실패:', {
-        userId,
-        username: user.username,
-        topLevelPartnerId,
-        apiProvider,
-        error: configError,
-        errorMessage: configError?.message,
-        errorCode: configError?.code
-      });
       throw new Error(`API 설정 조회 실패: ${configError?.message || 'API 설정 없음'}`);
     }
 
-    console.log(`✅ [세션 종료] API 설정 조회 완료: apiProvider=${apiProvider}`);
-
-    // 3. API에서 보유금 조회
+    // API에서 보유금 조회
     let currentBalance = 0;
     
     if (apiType === 'invest') {

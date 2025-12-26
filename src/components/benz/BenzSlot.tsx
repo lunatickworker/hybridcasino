@@ -61,6 +61,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   const [loading, setLoading] = useState(true);
   const [gamesLoading, setGamesLoading] = useState(false);
   const [launchingGameId, setLaunchingGameId] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false); // 🆕 백그라운드 프로세스 상태
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -75,22 +76,14 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
     try {
       setLoading(true);
       
-      // ⭐ getUserVisibleProviders 사용 (/user(vip)와 동일한 로직)
-      // - Lv1의 api_configs.is_active 체크
-      // - game_providers + honor_game_providers 모두 조회
-      // - is_visible=true, status='visible'인 제공사만
-      // - partner_game_access로 필터링
       const providersData = await gameApi.getUserVisibleProviders({ 
         type: 'slot', 
         userId: user?.id 
       });
       
-      console.log(`📊 [슬롯] 제공사 조회: ${providersData.length}개`);
-      // ⭐ FALLBACK 제거: partner_game_access가 비어있으면 빈 배열 표시
       setProviders(providersData);
     } catch (error) {
       console.error('❌ 제공사 로드 오류:', error);
-      // ⭐ 에러 시에도 빈 배열
       setProviders([]);
     } finally {
       setLoading(false);
@@ -98,6 +91,12 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   };
 
   const handleProviderClick = async (provider: GameProvider) => {
+    // 🆕 백그라운드 프로세스 중 클릭 방지
+    if (isProcessing) {
+      toast.error('잠시 후 다시 시도해주세요.');
+      return;
+    }
+
     try {
       setGamesLoading(true);
       setSelectedProvider(provider);
@@ -105,7 +104,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       const gamesData = await gameApi.getUserVisibleGames({
         type: 'slot',
         provider_id: provider.id,
-        userId: user.id // 🆕 userId 추가
+        userId: user.id
       });
 
       setGames(gamesData || []);
@@ -118,14 +117,27 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   };
 
   const handleBackToProviders = () => {
+    // 🆕 백그라운드 프로세스 중 클릭 방지
+    if (isProcessing) {
+      toast.error('잠시 후 다시 시도해주세요.');
+      return;
+    }
+
     setSelectedProvider(null);
     setGames([]);
   };
 
   const handleGameClick = async (game: Game) => {
+    // 🆕 백그라운드 프로세스 중 클릭 방지
+    if (isProcessing) {
+      toast.error('잠시 후 다시 시도해주세요.');
+      return;
+    }
+
     if (launchingGameId === game.id) return;
 
     setLaunchingGameId(game.id);
+    setIsProcessing(true); // 🆕 프로세스 시작
     
     try {
       const activeSession = await gameApi.checkActiveSession(user.id);
@@ -147,6 +159,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
         );
         
         setLaunchingGameId(null);
+        setIsProcessing(false); // 🆕 프로세스 종료
         return;
       }
 
@@ -252,6 +265,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
         }
         
         setLaunchingGameId(null);
+        setIsProcessing(false); // 🆕 프로세스 종료
         return;
       }
       
@@ -345,6 +359,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       toast.error('게임 실행에 실패했습니다.');
     } finally {
       setLaunchingGameId(null);
+      setIsProcessing(false); // 🆕 프로세스 종료
     }
   };
 

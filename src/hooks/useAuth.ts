@@ -76,6 +76,17 @@ export function useAuthProvider() {
 
       // ✅ DB에서 조회한 실제 데이터만 사용 (RPC는 배열 반환)
       const partnerData = loginData[0];
+      
+      // 🔍 DEBUG: 실제 DB에서 가져온 데이터 확인
+      console.log('🔍 partnerData 원본:', partnerData);
+      console.log('🔍 카지노/슬롯 커미션 확인:', {
+        casino_rolling: partnerData.casino_rolling_commission,
+        casino_losing: partnerData.casino_losing_commission,
+        slot_rolling: partnerData.slot_rolling_commission,
+        slot_losing: partnerData.slot_losing_commission,
+        withdrawal_fee: partnerData.withdrawal_fee
+      });
+      
       const systemAdminUser: Partner = {
         id: partnerData.id,
         username: partnerData.username,
@@ -90,6 +101,10 @@ export function useAuthProvider() {
         api_token: partnerData.api_token || undefined,
         commission_rolling: partnerData.commission_rolling,
         commission_losing: partnerData.commission_losing,
+        casino_rolling_commission: partnerData.casino_rolling_commission,
+        casino_losing_commission: partnerData.casino_losing_commission,
+        slot_rolling_commission: partnerData.slot_rolling_commission,
+        slot_losing_commission: partnerData.slot_losing_commission,
         withdrawal_fee: partnerData.withdrawal_fee,
         last_login_at: partnerData.last_login_at,
         created_at: partnerData.created_at,

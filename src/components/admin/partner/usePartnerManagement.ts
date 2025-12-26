@@ -257,8 +257,16 @@ export const usePartnerManagement = () => {
           const newInvestBalance = (payload.new as any).invest_balance || 0;
           const oldOroplayBalance = (payload.old as any).oroplay_balance || 0;
           const newOroplayBalance = (payload.new as any).oroplay_balance || 0;
+          const oldFamilyapiBalance = (payload.old as any).familyapi_balance || 0;
+          const newFamilyapiBalance = (payload.new as any).familyapi_balance || 0;
+          const oldHonorapiBalance = (payload.old as any).honorapi_balance || 0;
+          const newHonorapiBalance = (payload.new as any).honorapi_balance || 0;
           
-          const hasBalanceChange = oldInvestBalance !== newInvestBalance || oldOroplayBalance !== newOroplayBalance;
+          const hasBalanceChange = 
+            oldInvestBalance !== newInvestBalance || 
+            oldOroplayBalance !== newOroplayBalance ||
+            oldFamilyapiBalance !== newFamilyapiBalance ||
+            oldHonorapiBalance !== newHonorapiBalance;
           
           if (!hasBalanceChange) return;
           
@@ -268,7 +276,9 @@ export const usePartnerManagement = () => {
             
             console.log(`💰 Lv2 보유금 변경 (partner_id: ${partnerId}):`, {
               invest_balance: newInvestBalance,
-              oroplay_balance: newOroplayBalance
+              oroplay_balance: newOroplayBalance,
+              familyapi_balance: newFamilyapiBalance,
+              honorapi_balance: newHonorapiBalance
             });
             
             return prev.map(p => {
@@ -276,7 +286,9 @@ export const usePartnerManagement = () => {
                 return {
                   ...p,
                   invest_balance: newInvestBalance,
-                  oroplay_balance: newOroplayBalance
+                  oroplay_balance: newOroplayBalance,
+                  familyapi_balance: newFamilyapiBalance,
+                  honorapi_balance: newHonorapiBalance
                 };
               }
               return p;

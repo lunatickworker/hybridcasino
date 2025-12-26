@@ -644,7 +644,9 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
               <h3 className="text-xl mb-3 text-slate-300">내 커미션 수입</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-xl mb-2">카지노</div>
+                  <div className="text-slate-400 text-xl mb-2">
+                    카지노 (롤링: {user.casino_rolling_commission ?? 0}% / 루징: {user.casino_losing_commission ?? 0}%)
+                  </div>
                   <div className="space-y-1">
                     <div className="flex justify-between text-xl">
                       <span className="text-slate-400">롤링:</span>
@@ -657,7 +659,9 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-xl mb-2">슬롯</div>
+                  <div className="text-slate-400 text-xl mb-2">
+                    슬롯 (롤링: {user.slot_rolling_commission ?? 0}% / 루징: {user.slot_losing_commission ?? 0}%)
+                  </div>
                   <div className="space-y-1">
                     <div className="flex justify-between text-xl">
                       <span className="text-slate-400">롤링:</span>
@@ -670,7 +674,9 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                   </div>
                 </div>
                 <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-xl mb-2">환전 수수료</div>
+                  <div className="text-slate-400 text-xl mb-2">
+                    환전 수수료 ({user.withdrawal_fee ?? 0}%)
+                  </div>
                   <div className="text-3xl text-emerald-400">
                     ₩{summary.myWithdrawalIncome.toLocaleString()}
                   </div>
@@ -679,45 +685,47 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
               </div>
             </div>
 
-            {/* 하위 파트너 지급 (요약만) */}
-            <div>
-              <h3 className="text-xl mb-3 text-slate-300">하위 파트너 지급</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-xl mb-2">카지노</div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xl">
-                      <span className="text-slate-400">롤링:</span>
-                      <span className="text-red-400">₩{summary.partnerCasinoRollingPayments.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-xl">
-                      <span className="text-slate-400">루징:</span>
-                      <span className="text-red-400">₩{summary.partnerCasinoLosingPayments.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-xl mb-2">슬롯</div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xl">
-                      <span className="text-slate-400">롤링:</span>
-                      <span className="text-red-400">₩{summary.partnerSlotRollingPayments.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-xl">
-                      <span className="text-slate-400">루징:</span>
-                      <span className="text-red-400">₩{summary.partnerSlotLosingPayments.toLocaleString()}</span>
+            {/* 하위 파트너 지급 (요약만) - Lv6은 숨김 */}
+            {user.level !== 6 && (
+              <div>
+                <h3 className="text-xl mb-3 text-slate-300">하위 파트너 지급</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-slate-800/50 rounded-lg">
+                    <div className="text-slate-400 text-xl mb-2">카지노</div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xl">
+                        <span className="text-slate-400">롤링:</span>
+                        <span className="text-red-400">₩{summary.partnerCasinoRollingPayments.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-xl">
+                        <span className="text-slate-400">루징:</span>
+                        <span className="text-red-400">₩{summary.partnerCasinoLosingPayments.toLocaleString()}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="p-4 bg-slate-800/50 rounded-lg">
-                  <div className="text-slate-400 text-xl mb-2">환전 수수료</div>
-                  <div className="text-3xl text-red-400">
-                    ₩{summary.partnerWithdrawalPayments.toLocaleString()}
+                  <div className="p-4 bg-slate-800/50 rounded-lg">
+                    <div className="text-slate-400 text-xl mb-2">슬롯</div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xl">
+                        <span className="text-slate-400">롤링:</span>
+                        <span className="text-red-400">₩{summary.partnerSlotRollingPayments.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-xl">
+                        <span className="text-slate-400">루징:</span>
+                        <span className="text-red-400">₩{summary.partnerSlotLosingPayments.toLocaleString()}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-lg text-slate-500 mt-1">총 지급: ₩{summary.partnerTotalPayments.toLocaleString()}</div>
+                  <div className="p-4 bg-slate-800/50 rounded-lg">
+                    <div className="text-slate-400 text-xl mb-2">환전 수수료</div>
+                    <div className="text-3xl text-red-400">
+                      ₩{summary.partnerWithdrawalPayments.toLocaleString()}
+                    </div>
+                    <div className="text-lg text-slate-500 mt-1">총 지급: ₩{summary.partnerTotalPayments.toLocaleString()}</div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* 최종 순수익 */}
             <div className="mt-6 p-6 bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-lg border border-purple-500/30">
@@ -725,11 +733,36 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                 <div>
                   <div className="text-slate-400 text-xl mb-1">최종 순수익</div>
                   <div className="text-lg text-slate-500">
-                    입출금 차액 (₩{detailedStats.depositWithdrawalDiff.toLocaleString()}) 
-                    + 게임 손익 (₩{detailedStats.totalHouseProfit.toLocaleString()})
-                    + 커미션 수입 (₩{summary.myTotalIncome.toLocaleString()})
-                    - 하위 지급 (₩{summary.partnerTotalPayments.toLocaleString()})
+                    {user.level === 6 ? (
+                      // Lv6: 하위 지급 없음
+                      <>
+                        입출금 차액 (₩{detailedStats.depositWithdrawalDiff.toLocaleString()}) 
+                        + 게임 손익 (₩{detailedStats.totalHouseProfit.toLocaleString()})
+                        + 커미션 수입 (₩{summary.myTotalIncome.toLocaleString()})
+                      </>
+                    ) : user.level >= 3 ? (
+                      // Lv3~Lv5: 모든 항목 표시
+                      <>
+                        입출금 차액 (₩{detailedStats.depositWithdrawalDiff.toLocaleString()}) 
+                        + 게임 손익 (₩{detailedStats.totalHouseProfit.toLocaleString()})
+                        + 커미션 수입 (₩{summary.myTotalIncome.toLocaleString()})
+                        - 하위 지급 (₩{summary.partnerTotalPayments.toLocaleString()})
+                      </>
+                    ) : (
+                      // Lv1~Lv2: 기존대로
+                      <>
+                        입출금 차액 (₩{detailedStats.depositWithdrawalDiff.toLocaleString()}) 
+                        + 게임 손익 (₩{detailedStats.totalHouseProfit.toLocaleString()})
+                        + 커미션 수입 (₩{summary.myTotalIncome.toLocaleString()})
+                        - 하위 지급 (₩{summary.partnerTotalPayments.toLocaleString()})
+                      </>
+                    )}
                   </div>
+                  {user.level >= 3 && (
+                    <div className="text-lg text-slate-400 mt-2">
+                      커미션 총합: ₩{(summary.myCasinoRollingIncome + summary.myCasinoLosingIncome + summary.mySlotRollingIncome + summary.mySlotLosingIncome).toLocaleString()}
+                    </div>
+                  )}
                 </div>
                 <div className={cn(
                   "text-4xl",
