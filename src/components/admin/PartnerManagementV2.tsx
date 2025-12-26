@@ -8,7 +8,7 @@ import { handleForceTransaction as executeForceTransaction } from "./partner/han
 import { useState } from "react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useBalance } from "../../contexts/BalanceContext";
-import { ChevronDown, ChevronRight, Building2, Users, Edit, DollarSign, ArrowDown, Download, Plus, Search, Eye, Shield, TrendingUp, Trash2, Gamepad2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Building2, Users, Edit, DollarSign, ArrowDown, Download, Plus, Search, Eye, Shield, TrendingUp, Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -18,7 +18,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "../../lib/supabase";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog";
-import { StoreGameAccessModal } from "./StoreGameAccessModal";
 
 const partnerTypeColors = {
   system_admin: 'bg-purple-500',
@@ -107,10 +106,6 @@ export function PartnerManagementV2() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteTargetPartner, setDeleteTargetPartner] = useState<Partner | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  
-  // 매장 게임 설정 모달 state
-  const [showGameAccessModal, setShowGameAccessModal] = useState(false);
-  const [gameAccessTargetStore, setGameAccessTargetStore] = useState<Partner | null>(null);
   
   const [systemDefaultCommission] = useState({
     rolling: 0.5,
@@ -436,24 +431,6 @@ export function PartnerManagementV2() {
             >
               <Edit className="h-5 w-5" />
             </Button>
-            
-            {/* Lv1은 Lv2 게임 설정, Lv2는 Lv6 게임 설정, Lv6은 Lv7 게임 설정 가능 */}
-            {((authState.user?.level === 1 && partner.level === 2) ||
-              (authState.user?.level === 2 && partner.level === 6) || 
-              (authState.user?.level === 6 && partner.level === 7)) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setGameAccessTargetStore(partner);
-                  setShowGameAccessModal(true);
-                }}
-                className="bg-purple-500/10 border-purple-500/50 text-purple-400 hover:bg-purple-500/20 flex-shrink-0 h-10 w-10 p-0"
-                title="게임 설정"
-              >
-                <Gamepad2 className="h-5 w-5" />
-              </Button>
-            )}
             
             <Button
               variant="outline"
@@ -1096,22 +1073,6 @@ export function PartnerManagementV2() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* 매장 게임 설정 모달 */}
-      {gameAccessTargetStore && (
-        <StoreGameAccessModal
-          open={showGameAccessModal}
-          onOpenChange={setShowGameAccessModal}
-          storeId={gameAccessTargetStore.id}
-          storeName={gameAccessTargetStore.nickname}
-          partnerLevel={gameAccessTargetStore.level}
-          onSuccess={() => {
-            toast.success('게임 설정이 저장되었습니다.');
-            setShowGameAccessModal(false);
-            setGameAccessTargetStore(null);
-          }}
-        />
-      )}
     </div>
   );
 }

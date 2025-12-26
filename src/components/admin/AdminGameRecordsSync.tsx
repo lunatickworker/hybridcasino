@@ -43,13 +43,6 @@ export function AdminGameRecordsSync({ user }: AdminGameRecordsSyncProps) {
         const sortedSessions = sessions.sort();
         const leaderId = sortedSessions[0];
         const amILeader = leaderId === user.id.toString();
-        
-        console.log('🔄 [AdminGameRecordsSync] Presence 상태:', {
-          sessions: sortedSessions,
-          leader: leaderId,
-          myId: user.id.toString(),
-          isLeader: amILeader
-        });
 
         setIsLeader(amILeader);
       })
@@ -90,20 +83,14 @@ export function AdminGameRecordsSync({ user }: AdminGameRecordsSyncProps) {
         if (timer) clearInterval(timer);
       });
       syncTimers.current = {};
-      console.log('⏸️ [AdminGameRecordsSync] 리더가 아니므로 동기화 중지');
       return;
     }
-
-    console.log('▶️ [AdminGameRecordsSync] 리더로 지정됨, 자동 동기화 시작');
 
     // API별 동기화 함수
     const syncGameRecords = async (apiType: 'invest' | 'oroplay' | 'familyapi' | 'honorapi') => {
       try {
-        console.log(`[${apiType}] 동기화 시작 (클라이언트 측)`);
-
         // ⚠️ Edge Function 호출 대신 에러만 로깅 (실제 동기화는 BettingHistorySync에서 처리)
         // Edge Function이 로컬 환경에서 동작하지 않으므로 로그만 출력
-        console.log(`ℹ️ [${apiType}] Edge Function 동기화는 프로덕션에서만 작동합니다.`);
         
         // 로컬 환경에서는 BettingHistorySync 컴포넌트가 동기화를 담당
         // 프로덕션에서는 Edge Function + Cron Job으로 동작

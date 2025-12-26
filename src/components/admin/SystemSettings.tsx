@@ -119,6 +119,9 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
   const [useHonorApi, setUseHonorApi] = useState(true);
   const [apiSettingsLoading, setApiSettingsLoading] = useState(false);
 
+  // API 동기화 상태
+  const [syncingApi, setSyncingApi] = useState<string | null>(null);
+
   useEffect(() => {
     loadSettings();
     loadSystemInfo();
@@ -515,6 +518,53 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
     }
   };
 
+  // API 제공사 초기화 및 게임 동기화
+  const handleInitializeAndSyncApi = async (apiType: string) => {
+    if (user.level !== 1) {
+      toast.error('Lv1 권한이 필요합니다.');
+      return;
+    }
+
+    try {
+      setSyncingApi(apiType);
+      const { gameApi } = await import('../../lib/gameApi');
+
+      // ✅ 각 API별로 독립적인 제공사 및 게임 동기화
+      toast.info(`${apiType.toUpperCase()} 제공사 및 게임 동기화 중...`);
+      
+      let result;
+      if (apiType === 'invest') {
+        // ✅ Invest: 제공사 초기화 + 게임 동기화
+        await gameApi.initializeInvestProviders();
+        result = await gameApi.syncAllInvestGames();
+        const totalAdded = result.results.reduce((sum: number, r: any) => sum + r.newGames, 0);
+        const totalUpdated = result.results.reduce((sum: number, r: any) => sum + r.updatedGames, 0);
+        toast.success(`Invest 동기화 완료: 신규 ${totalAdded}개, 업데이트 ${totalUpdated}개`);
+      } else if (apiType === 'oroplay') {
+        // ✅ OroPlay: 제공사 동기화 + 게임 동기화
+        await gameApi.syncOroPlayProviders();
+        result = await gameApi.syncOroPlayGames();
+        toast.success(`OroPlay 동기화 완료: 신규 ${result.newGames}개, 업데이트 ${result.updatedGames}개`);
+      } else if (apiType === 'familyapi') {
+        // ✅ FamilyAPI: 제공사 동기화 + 게임 동기화
+        await gameApi.syncFamilyApiProviders();
+        result = await gameApi.syncFamilyApiGames();
+        toast.success(`FamilyAPI 동기화 완료: 신규 ${result.newGames}개, 업데이트 ${result.updatedGames}개`);
+      } else if (apiType === 'honorapi') {
+        // ✅ HonorAPI: 제공사 및 게임 통합 동기화
+        result = await gameApi.syncHonorApiGames();
+        toast.success(`HonorAPI 동기화 완료: 제공사 ${result.newProviders}개, 게임 신규 ${result.newGames}개`);
+      }
+
+      toast.success(`${apiType.toUpperCase()} 제공사 및 게임 동기화가 완료되었습니다.`);
+    } catch (error) {
+      console.error(`❌ ${apiType} 동기화 실패:`, error);
+      toast.error(`${apiType.toUpperCase()} 동기화 중 오류가 발생했습니다.`);
+    } finally {
+      setSyncingApi(null);
+    }
+  };
+
   // API 활성화 설정 저장 (Lv1 전용)
   const saveApiSettings = async () => {
     if (user.level !== 1) {
@@ -811,60 +861,148 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 rounded-lg border border-slate-700 bg-slate-800/30">
-                    <div className="space-y-1">
-                      <Label className="text-base">{t.systemSettings.investApi}</Label>
-                      <p className="text-sm text-slate-400">
-                        {t.systemSettings.investApiDescription}
-                      </p>
+                  <div className="p-4 rounded-lg border border-slate-700 bg-slate-800/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1 flex-1">
+                        <Label className="text-base">{t.systemSettings.investApi}</Label>
+                        <p className="text-sm text-slate-400">
+                          {t.systemSettings.investApiDescription}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={useInvestApi}
+                        onCheckedChange={setUseInvestApi}
+                        disabled={apiSettingsLoading || (!useOroplayApi && !useFamilyApi && !useHonorApi && useInvestApi)}
+                      />
                     </div>
-                    <Switch
-                      checked={useInvestApi}
-                      onCheckedChange={setUseInvestApi}
-                      disabled={apiSettingsLoading || (!useOroplayApi && !useFamilyApi && !useHonorApi && useInvestApi)}
-                    />
+                    {useInvestApi && (
+                      <Button
+                        onClick={() => handleInitializeAndSyncApi('invest')}
+                        disabled={syncingApi !== null}
+                        className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90"
+                        size="sm"
+                      >
+                        {syncingApi === 'invest' ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            제공사 및 게임 동기화 중...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            제공사 및 게임 동기화
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-lg border border-slate-700 bg-slate-800/30">
-                    <div className="space-y-1">
-                      <Label className="text-base">{t.systemSettings.oroplayApi}</Label>
-                      <p className="text-sm text-slate-400">
-                        {t.systemSettings.oroplayApiDescription}
-                      </p>
+                  <div className="p-4 rounded-lg border border-slate-700 bg-slate-800/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1 flex-1">
+                        <Label className="text-base">{t.systemSettings.oroplayApi}</Label>
+                        <p className="text-sm text-slate-400">
+                          {t.systemSettings.oroplayApiDescription}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={useOroplayApi}
+                        onCheckedChange={setUseOroplayApi}
+                        disabled={apiSettingsLoading || (!useInvestApi && !useFamilyApi && !useHonorApi && useOroplayApi)}
+                      />
                     </div>
-                    <Switch
-                      checked={useOroplayApi}
-                      onCheckedChange={setUseOroplayApi}
-                      disabled={apiSettingsLoading || (!useInvestApi && !useFamilyApi && !useHonorApi && useOroplayApi)}
-                    />
+                    {useOroplayApi && (
+                      <Button
+                        onClick={() => handleInitializeAndSyncApi('oroplay')}
+                        disabled={syncingApi !== null}
+                        className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:opacity-90"
+                        size="sm"
+                      >
+                        {syncingApi === 'oroplay' ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            제공사 및 게임 동기화 중...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            제공사 및 게임 동기화
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-lg border border-slate-700 bg-slate-800/30">
-                    <div className="space-y-1">
-                      <Label className="text-base">{t.systemSettings.familyApi || 'FamilyAPI'}</Label>
-                      <p className="text-sm text-slate-400">
-                        {t.systemSettings.familyApiDescription || 'FamilyAPI 슬롯/카지노 게임 제공사'}
-                      </p>
+                  <div className="p-4 rounded-lg border border-slate-700 bg-slate-800/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1 flex-1">
+                        <Label className="text-base">{t.systemSettings.familyApi || 'FamilyAPI'}</Label>
+                        <p className="text-sm text-slate-400">
+                          {t.systemSettings.familyApiDescription || 'FamilyAPI 슬롯/카지노 게임 제공사'}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={useFamilyApi}
+                        onCheckedChange={setUseFamilyApi}
+                        disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi && !useHonorApi && useFamilyApi)}
+                      />
                     </div>
-                    <Switch
-                      checked={useFamilyApi}
-                      onCheckedChange={setUseFamilyApi}
-                      disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi && !useHonorApi && useFamilyApi)}
-                    />
+                    {useFamilyApi && (
+                      <Button
+                        onClick={() => handleInitializeAndSyncApi('familyapi')}
+                        disabled={syncingApi !== null}
+                        className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:opacity-90"
+                        size="sm"
+                      >
+                        {syncingApi === 'familyapi' ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            제공사 및 게임 동기화 중...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            제공사 및 게임 동기화
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-lg border border-slate-700 bg-slate-800/30">
-                    <div className="space-y-1">
-                      <Label className="text-base">{t.systemSettings.honorApi || 'HonorAPI'}</Label>
-                      <p className="text-sm text-slate-400">
-                        {t.systemSettings.honorApiDescription || 'HonorAPI 카지노/슬롯 게임 통합 솔루션'}
-                      </p>
+                  <div className="p-4 rounded-lg border border-slate-700 bg-slate-800/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1 flex-1">
+                        <Label className="text-base">{t.systemSettings.honorApi || 'HonorAPI'}</Label>
+                        <p className="text-sm text-slate-400">
+                          {t.systemSettings.honorApiDescription || 'HonorAPI 카지노/슬롯 게임 통합 솔루션'}
+                        </p>
+                      </div>
+                      <Switch
+                        checked={useHonorApi}
+                        onCheckedChange={setUseHonorApi}
+                        disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi && !useFamilyApi && useHonorApi)}
+                      />
                     </div>
-                    <Switch
-                      checked={useHonorApi}
-                      onCheckedChange={setUseHonorApi}
-                      disabled={apiSettingsLoading || (!useInvestApi && !useOroplayApi && !useFamilyApi && useHonorApi)}
-                    />
+                    {useHonorApi && (
+                      <Button
+                        onClick={() => handleInitializeAndSyncApi('honorapi')}
+                        disabled={syncingApi !== null}
+                        className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:opacity-90"
+                        size="sm"
+                      >
+                        {syncingApi === 'honorapi' ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                            제공사 및 게임 동기화 중...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            제공사 및 게임 동기화
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
 

@@ -175,23 +175,36 @@ async function proxyCall<T = any>(
     }
 
     try {
+      console.log(`📡 [HonorAPI] Proxy 호출 시작 (attempt ${attempt + 1}/${retries + 1}):`, {
+        url: config.url,
+        method: config.method,
+        proxyUrl: PROXY_URL
+      });
+
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      const timeoutId = setTimeout(() => {
+        console.warn('⏰ [HonorAPI] 타임아웃 발생 (30초)');
+        controller.abort();
+      }, 30000); // 60초 → 30초로 단축
+
+      const fetchBody = {
+        ...config,
+        headers: {
+          ...config.headers,
+          'Authorization': `Bearer ${apiKey}`,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      };
+
+      console.log('📤 [HonorAPI] Fetch 요청 전송 중...');
 
       const response = await fetch(PROXY_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          ...config,
-          headers: {
-            ...config.headers,
-            'Authorization': `Bearer ${apiKey}`,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        }),
+        body: JSON.stringify(fetchBody),
         signal: controller.signal
       });
 
@@ -228,12 +241,17 @@ async function proxyCall<T = any>(
           console.warn('⚠️ api_sync_logs 기록 실패:', logError);
         }
 
-        // 401: 인증 실패
+        // 401: 인증 실패 - 재시도 없이 즉시 실패
         if (response.status === 401) {
           throw new Error('인증 실패: Bearer Token이 유효하지 않습니다.');
         }
 
-        // 5xx 오류는 재시도, 4xx 오류는 즉시 반환
+        // 429: Rate Limit - 재시도 없이 즉시 실패
+        if (response.status === 429) {
+          throw new Error(`API 호출 실패 (${response.status}): ${errorText}`);
+        }
+
+        // 5xx 오류는 재시도, 나머지 4xx 오류는 즉시 반환
         if (response.status >= 500 && attempt < retries) {
           lastError = new Error(`서버 오류 (${response.status}): ${errorText}`);
           continue;
@@ -243,6 +261,7 @@ async function proxyCall<T = any>(
       }
 
       // 응답 데이터 파싱
+      console.log('📄 [HonorAPI] 응답 읽기 시작...');
       const responseText = await response.text();
 
       if (attempt === 0) {
@@ -290,6 +309,13 @@ async function proxyCall<T = any>(
 
     } catch (error: any) {
       lastError = error;
+
+      console.error('❌ [HonorAPI] Catch 블록:', {
+        errorName: error.name,
+        errorMessage: error.message,
+        attempt: attempt + 1,
+        maxRetries: retries + 1
+      });
 
       if (error.name === 'AbortError') {
         console.error('❌ [HonorAPI] API 호출 타임아웃');
@@ -522,6 +548,9 @@ export async function getTransactions(
     perPage: perPage.toString()
   });
 
+  console.log(`🔍 [HonorAPI] API URL: ${HONORAPI_BASE_URL}/transactions?${params.toString()}`);
+  console.log(`🔑 [HonorAPI] API Key: ${apiKey.substring(0, 10)}...`);
+
   const result = await proxyCall<{ data: Transaction[] }>({
     url: `${HONORAPI_BASE_URL}/transactions?${params.toString()}`,
     method: 'GET'
@@ -634,27 +663,41 @@ export async function syncHonorApiBettingHistory(): Promise<{
     const credentials = await getLv1HonorApiCredentials();
 
     if (!credentials) {
+      console.error('❌ [HonorAPI] credentials를 찾을 수 없습니다.');
       throw new Error('HonorAPI credentials를 찾을 수 없습니다.');
     }
 
     const { api_key } = credentials;
+    
+    if (!api_key) {
+      console.error('❌ [HonorAPI] api_key가 없습니다.');
+      throw new Error('HonorAPI api_key가 설정되지 않았습니다.');
+    }
+    
+    console.log('✅ [HonorAPI] Credentials 확인 완료');
 
-    // 현재 시각 기준 1시간 전부터 현재까지 조회 (UTC)
+    // ✅ 24시간 전부터 현재까지 조회 (OroPlay와 동일)
     const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24시간 전
 
-    const startTime = formatUTC(oneHourAgo);
+    const startTime = formatUTC(dayAgo);
     const endTime = formatUTC(now);
 
-    console.log(`📅 [HonorAPI] 조회 기간: ${startTime} ~ ${endTime} (UTC)`);
+    console.log(`📅 [HonorAPI] 조회 기간: ${startTime} ~ ${endTime} (UTC, 최근 24시간)`);
 
     // 트랜잭션 조회
-    const result = await getTransactions(api_key, startTime, endTime, 1, 1000);
-    const transactions = result.data || [];
-
-    console.log(`📊 [HonorAPI] 트랜잭션 조회 완료: ${transactions.length}건`);
+    let transactions: Transaction[] = [];
+    try {
+      const result = await getTransactions(api_key, startTime, endTime, 1, 1000);
+      transactions = result.data || [];
+      console.log(`📊 [HonorAPI] 트랜잭션 조회 완료: ${transactions.length}건`);
+    } catch (txError) {
+      console.error('❌ [HonorAPI] 트랜잭션 조회 실패:', txError);
+      throw txError;
+    }
 
     if (transactions.length === 0) {
+      console.log('ℹ️ [HonorAPI] 조회된 트랜잭션이 없습니다.');
       return {
         success: true,
         recordsProcessed: 0,
@@ -707,7 +750,11 @@ export async function syncHonorApiBettingHistory(): Promise<{
             .eq('id', game.provider_id)
             .single();
           
-          providerName = provider?.name || tx.details.game.vendor || '';
+          // ⭐ DB에 제공사 이름이 있으면 사용, 없으면 API 응답값 (vendor) 사용
+          providerName = provider?.name || tx.details.game.vendor || 'Unknown Provider';
+        } else {
+          // ⭐ game이 없을 경우, API 응답값 (vendor) 사용
+          providerName = tx.details.game.vendor || 'Unknown Provider';
         }
 
         // 같은 라운드의 win 트랜잭션 찾기
@@ -734,8 +781,8 @@ export async function syncHonorApiBettingHistory(): Promise<{
             username: tx.user.username,
             game_id: game?.id || null,
             provider_id: null,  // ⚠️ HonorAPI는 별도 provider 테이블 사용 (game_providers FK 제약 회피)
-            provider_name: providerName,
-            game_title: game?.name || tx.details.game.title || '',
+            provider_name: providerName,  // ⭐ 항상 유효한 값 보장
+            game_title: game?.name || tx.details.game.title || tx.details.game.id || 'Unknown',  // ⭐ fallback 추가
             game_type: game?.type || tx.details.game.type || 'slot',
             bet_amount: betAmount,
             win_amount: winAmount,
@@ -843,211 +890,338 @@ export async function syncHonorApiGames(): Promise<{
   try {
     // 1. 벤더 목록 조회
     const vendorList = await getVendorList(api_key);
-    console.log(`📋 [HonorAPI] 벤더 목록 조회 성공: ${Object.keys(vendorList).length}개`);
+    console.log(`📋 [HonorAPI] 벤더 리스트: ${Object.keys(vendorList).length}개`);
 
-    // 2. 각 벤더별로 처리
-    for (const [vendorName, vendorData] of Object.entries(vendorList)) {
-      console.log(`🔄 [HonorAPI] 벤더 처리: ${vendorName} (${vendorData.name})`);
+    // 2. 배치 처리 (동시에 5개씩만 처리) ⚡
+    const vendorEntries = Object.entries(vendorList);
+    const BATCH_SIZE = 5; // 동시에 5개씩만 처리
+    
+    console.log(`🔄 [HonorAPI] 배치 처리 시작 (배치 크기: ${BATCH_SIZE})`);
 
-      // 3. 해당 벤더의 게임 목록 조회 (제공사 타입 결정을 위해 먼저 게임 조회)
-      try {
-        const games = await getGameList(api_key, vendorName);
-        console.log(`📋 [HonorAPI] ${vendorData.name} 게임 목록: ${games.length}개`);
+    for (let i = 0; i < vendorEntries.length; i += BATCH_SIZE) {
+      const batch = vendorEntries.slice(i, i + BATCH_SIZE);
+      console.log(`📦 [HonorAPI] 배치 ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(vendorEntries.length / BATCH_SIZE)}: ${batch.map(([name]) => name).join(', ')}`);
 
-        if (games.length === 0) {
-          console.log(`⚠️ [HonorAPI] ${vendorData.name}: 게임이 없어 건너뜁니다.`);
-          continue;
+      const vendorPromises = batch.map(async ([vendorName, vendorData]) => {
+        console.log(`🔄 [HonorAPI] 벤더 처리: ${vendorName} (${vendorData.name})`);
+
+        // 3. 해당 벤더의 게임 목록 조회
+        try {
+          const games = await getGameList(api_key, vendorName);
+          console.log(`📋 [HonorAPI] ${vendorData.name} 게임 목록: ${games.length}개`);
+
+          if (games.length === 0) {
+            console.log(`⚠️ [HonorAPI] ${vendorData.name}: 게임이 없어 건너뜁니다.`);
+            return { newProviders: 0, updatedProviders: 0, newGames: 0, updatedGames: 0 };
+          }
+
+          // 벤더 타입 결정: 게임 type 필드를 기반으로 결정
+          const casinoGameTypes = ['baccarat', 'blackjack', 'roulette', 'sicbo', 'dragontiger', 'poker', 'wheel'];
+          const hasCasinoGames = games.some(g => casinoGameTypes.includes(g.type.toLowerCase()));
+          const vendorType: 'slot' | 'casino' = hasCasinoGames ? 'casino' : 'slot';
+
+          console.log(`🎮 [HonorAPI] ${vendorData.name} 타입: ${vendorType}`);
+
+          // honor_game_providers에 벤더 저장/업데이트
+          const { data: existingProvider } = await supabase
+            .from('honor_game_providers')
+            .select('id')
+            .eq('name', vendorData.name)
+            .single();
+
+          let providerId: number;
+          let localNewProviders = 0;
+          let localUpdatedProviders = 0;
+
+          if (existingProvider) {
+            // 기존 제공사 업데이트
+            await supabase
+              .from('honor_game_providers')
+              .update({
+                vendor_code: vendorName,
+                type: vendorType,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingProvider.id);
+
+            providerId = existingProvider.id;
+            localUpdatedProviders++;
+            console.log(`✅ [HonorAPI] 제공사 업데이트: ${vendorData.name} (ID: ${providerId})`);
+          } else {
+            // 신규 제공사 추가
+            const { data: newProvider, error: insertError } = await supabase
+              .from('honor_game_providers')
+              .insert({
+                name: vendorData.name,
+                vendor_code: vendorName,
+                type: vendorType,
+                status: 'visible',
+                is_visible: true
+              })
+              .select('id')
+              .single();
+
+            if (insertError || !newProvider) {
+              console.error(`❌ [HonorAPI] 제공사 추가 실패: ${vendorData.name}`, insertError);
+              
+              // unique constraint 위반인 경우 기존 제공사 찾기
+              if (insertError?.code === '23505') {
+                console.log(`🔄 [HonorAPI] 제공사 중복, 기존 제공사 조회: ${vendorData.name}`);
+                
+                // vendor_code나 name으로 다시 조회
+                const { data: retryProvider } = await supabase
+                  .from('honor_game_providers')
+                  .select('id')
+                  .or(`name.eq.${vendorData.name},vendor_code.eq.${vendorName}`)
+                  .single();
+                
+                if (retryProvider) {
+                  providerId = retryProvider.id;
+                  updatedProviders++;
+                  console.log(`✅ [HonorAPI] 기존 제공사 사용: ${vendorData.name} (ID: ${providerId})`);
+                } else {
+                  console.error(`❌ [HonorAPI] 제공사 재조회 실패: ${vendorData.name}`);
+                  return { newProviders: 0, updatedProviders: 0, newGames: 0, updatedGames: 0 };
+                }
+              } else {
+                return { newProviders: 0, updatedProviders: 0, newGames: 0, updatedGames: 0 };
+              }
+            } else {
+              providerId = newProvider.id;
+              localNewProviders++;
+              console.log(`✅ [HonorAPI] 제공사 추가: ${vendorData.name} (ID: ${providerId})`);
+            }
+          }
+
+          // 4. 각 게임 저장/업데이트 (병렬 처리)
+          let localNewGames = 0;
+          let localUpdatedGames = 0;
+
+          const gamePromises = games.map(async (game) => {
+            const gameType: 'slot' | 'casino' = casinoGameTypes.includes(game.type.toLowerCase()) ? 'casino' : 'slot';
+
+            // ✅ game_code만으로 중복 체크 (provider_id 제외)
+            const { data: existingGame } = await supabase
+              .from('honor_games')
+              .select('id')
+              .eq('game_code', String(game.id))
+              .single();
+
+            if (existingGame) {
+              // 기존 게임 업데이트
+              await supabase
+                .from('honor_games')
+                .update({
+                  provider_id: providerId, // ✅ 제공사 정보도 업데이트
+                  name: game.title,
+                  name_en: game.title,
+                  name_ko: game.langs?.ko || game.title, // ✅ 한국어 이름!
+                  vendor_code: vendorName,
+                  type: gameType,
+                  image_url: game.thumbnail,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', existingGame.id);
+
+              return 'updated';
+            } else {
+              // 신규 게임 추가
+              await supabase
+                .from('honor_games')
+                .insert({
+                  provider_id: providerId,
+                  name: game.title,
+                  name_en: game.title,
+                  name_ko: game.langs?.ko || game.title, // ✅ 한국어 이름!
+                  vendor_code: vendorName,
+                  type: gameType,
+                  status: 'visible', // ✅ GMS 어드민 기본 노출
+                  is_visible: true, // ✅ GMS 어드민 기본 노출
+                  image_url: game.thumbnail,
+                  game_code: String(game.id),
+                  demo_available: false,
+                  is_featured: false,
+                  priority: game.rank || 0
+                });
+
+              return 'new';
+            }
+          });
+
+          const gameResults = await Promise.all(gamePromises);
+          localNewGames = gameResults.filter(r => r === 'new').length;
+          localUpdatedGames = gameResults.filter(r => r === 'updated').length;
+
+          console.log(`✅ [HonorAPI] ${vendorData.name} 게임 동기화 완료 (신규: ${localNewGames}, 업데이트: ${localUpdatedGames})`);
+          
+          return { 
+            newProviders: localNewProviders, 
+            updatedProviders: localUpdatedProviders, 
+            newGames: localNewGames, 
+            updatedGames: localUpdatedGames 
+          };
+          
+        } catch (gameError) {
+          console.error(`❌ [HonorAPI] ${vendorData.name} 게임 조회 실패:`, gameError);
+          return { newProviders: 0, updatedProviders: 0, newGames: 0, updatedGames: 0 };
         }
+      });
 
-        // 벤더 타입 결정: 게임 type 필드를 기반으로 결정
-        // 카지노 게임 타입: baccarat, blackjack, roulette, sicbo, dragontiger 등
-        const casinoGameTypes = ['baccarat', 'blackjack', 'roulette', 'sicbo', 'dragontiger', 'poker', 'wheel'];
-        const hasCasinoGames = games.some(g => casinoGameTypes.includes(g.type.toLowerCase()));
-        const hasSlotGames = games.some(g => g.type.toLowerCase() === 'slot');
-        
-        // 벤더 타입: 카지노 게임이 있으면 casino, 없으면 slot
-        const vendorType: 'slot' | 'casino' = hasCasinoGames ? 'casino' : 'slot';
+      // 모든 벤더 처리 완료 대기
+      const vendorResults = await Promise.all(vendorPromises);
+      
+      // 결과 집계
+      vendorResults.forEach(result => {
+        newProviders += result.newProviders;
+        updatedProviders += result.updatedProviders;
+        newGames += result.newGames;
+        updatedGames += result.updatedGames;
+      });
+    }
 
-        console.log(`🎮 [HonorAPI] ${vendorData.name} 타입: ${vendorType} (카지노: ${hasCasinoGames}, 슬롯: ${hasSlotGames})`);
+    // 5. 로비 목록도 처리 (vendor별로 구분)
+    try {
+      const lobbies = await getLobbyList(api_key);
+      console.log(`📋 [HonorAPI] 로비 목록: ${lobbies.length}개`);
 
-        // honor_game_providers에 벤더 저장/업데이트
-        const { data: existingProvider } = await supabase
+      // 벤더별로 로비 그룹화
+      const lobbiesByVendor = new Map<string, typeof lobbies>();
+      for (const lobby of lobbies) {
+        if (!lobbiesByVendor.has(lobby.vendor)) {
+          lobbiesByVendor.set(lobby.vendor, []);
+        }
+        lobbiesByVendor.get(lobby.vendor)!.push(lobby);
+      }
+
+      console.log(`🔍 [HonorAPI] ${lobbiesByVendor.size}개 벤더의 로비 발견`);
+
+      // 각 벤더별로 병렬 처리 ⚡
+      const lobbyPromises = Array.from(lobbiesByVendor.entries()).map(async ([vendorName, vendorLobbies]) => {
+        console.log(`🔄 [HonorAPI] ${vendorName} 로비 처리: ${vendorLobbies.length}개`);
+
+        // 해당 벤더의 제공사 찾기
+        const { data: vendorProvider } = await supabase
           .from('honor_game_providers')
           .select('id')
-          .eq('name', vendorData.name)
+          .eq('vendor_code', vendorName)
           .single();
 
         let providerId: number;
 
-        if (existingProvider) {
-          // 기존 제공사 업데이트
-          await supabase
-            .from('honor_game_providers')
-            .update({
-              vendor_code: vendorName, // vendor_code 추가
-              type: vendorType,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existingProvider.id);
-
-          providerId = existingProvider.id;
-          updatedProviders++;
-          console.log(`✅ [HonorAPI] 제공사 업데이트: ${vendorData.name} (ID: ${providerId}, Type: ${vendorType}, vendor_code: ${vendorName})`);
+        if (vendorProvider) {
+          providerId = vendorProvider.id;
+          console.log(`✅ [HonorAPI] 기존 제공사 발견: ${vendorName} (ID: ${providerId})`);
         } else {
-          // 신규 제공사 추가
-          const { data: newProvider } = await supabase
+          // 제공사가 없으면 생성 (벤더 정보에서 이름 가져오기)
+          const vendorInfo = vendorList[vendorName];
+          const providerName = vendorInfo?.name || vendorName;
+
+          const { data: newProvider, error: insertError } = await supabase
             .from('honor_game_providers')
             .insert({
-              name: vendorData.name,
-              vendor_code: vendorName, // vendor_code 추가
-              type: vendorType,
+              name: providerName,
+              vendor_code: vendorName,
+              type: 'casino', // 로비는 카지노 타입
               status: 'visible',
               is_visible: true
             })
             .select('id')
             .single();
 
-          if (!newProvider) {
-            console.error(`❌ [HonorAPI] 제공사 추가 실패: ${vendorData.name}`);
-            continue;
+          if (insertError || !newProvider) {
+            console.error(`❌ [HonorAPI] ${vendorName} 제공사 생성 실패`, insertError);
+            
+            // unique constraint 위반인 경우 기존 제공사 찾기
+            if (insertError?.code === '23505') {
+              console.log(`🔄 [HonorAPI] 로비 제공사 중복, 기존 제공사 조회: ${providerName}`);
+              
+              const { data: retryProvider } = await supabase
+                .from('honor_game_providers')
+                .select('id')
+                .or(`name.eq.${providerName},vendor_code.eq.${vendorName}`)
+                .single();
+              
+              if (retryProvider) {
+                providerId = retryProvider.id;
+                console.log(`✅ [HonorAPI] 기존 제공사 사용: ${providerName} (ID: ${providerId})`);
+              } else {
+                console.error(`❌ [HonorAPI] 제공사 재조회 실패: ${providerName}`);
+                return { newProviders: 0, updatedProviders: 0, newGames: 0, updatedGames: 0 };
+              }
+            } else {
+              return { newProviders: 0, updatedProviders: 0, newGames: 0, updatedGames: 0 };
+            }
+          } else {
+            providerId = newProvider.id;
+            newProviders++;
+            console.log(`✅ [HonorAPI] 제공사 생성: ${providerName} (ID: ${providerId}, vendor_code: ${vendorName})`);
           }
-
-          providerId = newProvider.id;
-          newProviders++;
-          console.log(`✅ [HonorAPI] 제공사 추가: ${vendorData.name} (ID: ${providerId}, Type: ${vendorType}, vendor_code: ${vendorName})`);
         }
 
-        // 4. 각 게임 저장/업데이트
-        for (const game of games) {
-          // 게임의 실제 타입 결정 (game.type 기반)
-          const gameType: 'slot' | 'casino' = casinoGameTypes.includes(game.type.toLowerCase()) ? 'casino' : 'slot';
-
-          const { data: existingGame } = await supabase
+        // 각 로비 저장
+        for (const lobby of vendorLobbies) {
+          // ✅ game_code만으로 중복 체크 (provider_id 제외)
+          const { data: existingLobby } = await supabase
             .from('honor_games')
             .select('id')
-            .eq('provider_id', providerId)
-            .eq('game_code', game.id)
+            .eq('game_code', String(lobby.id))
             .single();
 
-          if (existingGame) {
-            // 기존 게임 업데이트
+          if (existingLobby) {
             await supabase
               .from('honor_games')
               .update({
-                name: game.title,
-                vendor_code: vendorName, // vendor_code 추가
-                type: gameType,
-                image_url: game.thumbnail,
+                provider_id: providerId, // ✅ 제공사 정보도 업데이트
+                name: lobby.title, // ✅ HonorAPI Lobby: title 필드
+                name_en: lobby.title,
+                name_ko: lobby.langs?.ko || lobby.title, // ✅ HonorAPI Lobby: langs.ko 필드
+                vendor_code: vendorName, // ✅ vendor 저장
+                image_url: lobby.thumbnail, // ✅ HonorAPI Lobby: thumbnail 필드
                 updated_at: new Date().toISOString()
               })
-              .eq('id', existingGame.id);
+              .eq('id', existingLobby.id);
 
             updatedGames++;
           } else {
-            // 신규 게임 추가
             await supabase
               .from('honor_games')
               .insert({
                 provider_id: providerId,
-                name: game.title,
-                vendor_code: vendorName, // vendor_code 추가
-                type: gameType,
-                status: 'visible',
-                is_visible: true,
-                image_url: game.thumbnail,
-                game_code: game.id,
+                name: lobby.title, // ✅ HonorAPI Lobby: title 필드
+                name_en: lobby.title,
+                name_ko: lobby.langs?.ko || lobby.title, // ✅ HonorAPI Lobby: langs.ko 필드
+                vendor_code: vendorName, // ✅ vendor 저장
+                type: 'casino', // 로비는 카지노 타입
+                status: 'visible', // ✅ GMS 어드민 기본 노출
+                is_visible: true, // ✅ GMS 어드민 기본 노출
+                image_url: lobby.thumbnail, // ✅ HonorAPI Lobby: thumbnail 필드
+                game_code: String(lobby.id), // ✅ HonorAPI Lobby: id를 game_code로 저장
                 demo_available: false,
                 is_featured: false,
-                priority: 0
+                priority: lobby.rank || 0 // ✅ HonorAPI Lobby: rank 필드
               });
 
             newGames++;
           }
         }
 
-        console.log(`✅ [HonorAPI] ${vendorData.name} 게임 동기화 완료`);
-      } catch (gameError) {
-        console.error(`❌ [HonorAPI] ${vendorData.name} 게임 조회 실패:`, gameError);
-      }
-    }
+        console.log(`✅ [HonorAPI] ${vendorName} 로비 동기화 완료`);
+        
+        return { newProviders: 0, updatedProviders: 0, newGames: 0, updatedGames: 0 };
+      });
 
-    // 5. 로비 목록도 처리
-    try {
-      const lobbies = await getLobbyList(api_key);
-      console.log(`📋 [HonorAPI] 로비 목록: ${lobbies.length}개`);
+      // 모든 로비 처리 완료 대기
+      const lobbyResults = await Promise.all(lobbyPromises);
+      
+      // 결과 집계
+      lobbyResults.forEach(result => {
+        newProviders += result.newProviders;
+        updatedProviders += result.updatedProviders;
+        newGames += result.newGames;
+        updatedGames += result.updatedGames;
+      });
 
-      // "Casino" 제공사 찾기 또는 생성
-      const { data: casinoProvider } = await supabase
-        .from('honor_game_providers')
-        .select('id')
-        .eq('name', 'HonorAPI Casino')
-        .single();
-
-      let casinoProviderId: number;
-
-      if (casinoProvider) {
-        casinoProviderId = casinoProvider.id;
-      } else {
-        const { data: newCasinoProvider } = await supabase
-          .from('honor_game_providers')
-          .insert({
-            name: 'HonorAPI Casino',
-            type: 'casino',
-            status: 'visible',
-            is_visible: true
-          })
-          .select('id')
-          .single();
-
-        if (!newCasinoProvider) {
-          throw new Error('Casino 제공사 생성 실패');
-        }
-
-        casinoProviderId = newCasinoProvider.id;
-        newProviders++;
-      }
-
-      // 각 로비 저장
-      for (const lobby of lobbies) {
-        const { data: existingLobby } = await supabase
-          .from('honor_games')
-          .select('id')
-          .eq('provider_id', casinoProviderId)
-          .eq('game_code', lobby.id)
-          .single();
-
-        if (existingLobby) {
-          await supabase
-            .from('honor_games')
-            .update({
-              name: lobby.title,
-              image_url: lobby.thumbnail,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existingLobby.id);
-
-          updatedGames++;
-        } else {
-          await supabase
-            .from('honor_games')
-            .insert({
-              provider_id: casinoProviderId,
-              name: lobby.title,
-              type: 'casino',
-              status: 'visible',
-              is_visible: true,
-              image_url: lobby.thumbnail,
-              game_code: lobby.id,
-              demo_available: false,
-              is_featured: false,
-              priority: 0
-            });
-
-          newGames++;
-        }
-      }
-
-      console.log(`✅ [HonorAPI] 로비 동기화 완료`);
+      console.log(`✅ [HonorAPI] 전체 로비 동기화 완료`);
     } catch (lobbyError) {
       console.error(`❌ [HonorAPI] 로비 조회 실패:`, lobbyError);
     }

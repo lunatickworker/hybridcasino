@@ -7,7 +7,6 @@ import { supabase } from "../../lib/supabase";
 import { gameApi } from "../../lib/gameApi";
 import { motion } from "motion/react";
 import { toast } from "sonner@2.0.3";
-import { BenzGamePreparingDialog } from "./BenzGamePreparingDialog";
 
 interface BenzSlotProps {
   user: any;
@@ -62,8 +61,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   const [loading, setLoading] = useState(true);
   const [gamesLoading, setGamesLoading] = useState(false);
   const [launchingGameId, setLaunchingGameId] = useState<string | null>(null);
-  const [showLoadingPopup, setShowLoadingPopup] = useState(false);
-  const [loadingStage, setLoadingStage] = useState<'deposit' | 'launch' | 'withdraw' | 'switch_deposit'>('launch');
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -163,9 +160,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
           newGameId: game.id
         });
         
-        setLoadingStage('withdraw');
-        setShowLoadingPopup(true);
-        
         // 기존 게임 출금 + 보유금 동기화
         const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
         await syncBalanceOnSessionEnd(user.id, activeSession.api_type);
@@ -234,9 +228,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
             if (isProcessing) return;
             isProcessing = true;
             
-            setLoadingStage('withdraw');
-            setShowLoadingPopup(true);
-            
             const checker = (window as any).gameWindowCheckers?.get(sessionId);
             if (checker) {
               clearInterval(checker);
@@ -245,10 +236,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
             
             (window as any).gameWindows?.delete(sessionId);
             await (window as any).syncBalanceAfterGame?.(sessionId);
-            
-            setTimeout(() => {
-              setShowLoadingPopup(false);
-            }, 500);
           };
           
           const checkGameWindow = setInterval(() => {
@@ -269,13 +256,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       }
       
       // ⭐ 4. 새로운 게임 실행 (API 입금 포함)
-      setLoadingStage('launch');
-      setShowLoadingPopup(true);
-      
       const result = await gameApi.generateGameLaunchUrl(user.id, parseInt(game.id));
-      
-      // ⭐ 팝업 자동 닫힘
-      setShowLoadingPopup(false);
       
       if (result.success && result.launchUrl) {
         const sessionId = result.sessionId;
@@ -331,10 +312,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
               if (isProcessing) return;
               isProcessing = true;
               
-              // ⭐ 게임 종료 팝업 표시
-              setLoadingStage('withdraw');
-              setShowLoadingPopup(true);
-              
               const checker = (window as any).gameWindowCheckers?.get(sessionId);
               if (checker) {
                 clearInterval(checker);
@@ -345,11 +322,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
               
               // withdrawal API 호출 (syncBalanceAfterGame 내부에서 처리)
               await (window as any).syncBalanceAfterGame?.(sessionId);
-              
-              // ⭐ 종료 팝업 자동 닫힘 (0.5초 후)
-              setTimeout(() => {
-                setShowLoadingPopup(false);
-              }, 500);
             };
             
             const checkGameWindow = setInterval(() => {
@@ -395,7 +367,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
             <div className="w-1 h-8 bg-gradient-to-b from-pink-500 to-purple-500"></div>
             <h1 className="text-3xl font-black">
               <span className="bg-gradient-to-r from-pink-500 to-purple-400 bg-clip-text text-transparent">
-                {selectedProvider ? selectedProvider.name_ko || selectedProvider.name : 'SLOT GAMES'}
+                {selectedProvider ? selectedProvider.name_ko || selectedProvider.name : '슬롯 게임'}
               </span>
             </h1>
           </div>
@@ -431,17 +403,18 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                   perspective: '1000px'
                 }}
               >
-                <div className="relative aspect-[4/3] overflow-hidden group">\n                  {/* 제공사 이미지 - 카드 전체를 꽉 채움 */}
+                <div className="relative aspect-[4/3] overflow-hidden group">
+                  {/* 제공사 이미지 - 카드 전체를 꽉 채움 */}
                   <ImageWithFallback
                     src={provider.logo_url || provider.thumbnail_url || getRandomSlotImage()}
                     alt={provider.name}
                     className="w-full h-full object-cover transition-all duration-500 group-hover:brightness-110"
                   />
                   
-                  {/* 제공사명 오버레이 - 하단에 50% 투명 배경 */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-4 py-3">
-                    <p className="font-black text-center text-white" style={{
-                      textShadow: '0 2px 4px rgba(0, 0, 0, 0.8)'
+                  {/* 제공사명 오버레이 - 하단 그라디언트 배경 */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent py-6 px-4">
+                    <p className="text-xl font-black text-center text-white tracking-wide" style={{
+                      textShadow: '0 0 12px rgba(0, 0, 0, 1), 0 2px 8px rgba(0, 0, 0, 0.9), 0 4px 16px rgba(236, 72, 153, 0.6)'
                     }}>
                       {provider.name_ko || provider.name}
                     </p>
@@ -476,28 +449,39 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                 className="cursor-pointer"
                 onClick={() => handleGameClick(game)}
               >
-                <div className="bg-[#1a1f3a] border border-pink-500/30 rounded-xl overflow-hidden group">
-                  <div className="relative aspect-[3/4] flex items-center justify-center bg-gradient-to-br from-pink-900/20 to-purple-900/20">
-                    {game.image_url ? (
-                      <ImageWithFallback
-                        src={game.image_url}
-                        alt={game.name}
-                        className="w-full h-full object-cover transition-all duration-500 group-hover:brightness-110"
-                      />
-                    ) : (
+                <div className="relative aspect-[3/4] rounded-xl overflow-hidden group shadow-lg hover:shadow-pink-500/30 transition-all duration-300">
+                  {/* 게임 이미지 */}
+                  {game.image_url ? (
+                    <ImageWithFallback
+                      src={game.image_url}
+                      alt={game.name}
+                      className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-pink-900/30 to-purple-900/30 flex items-center justify-center">
                       <Play className="w-12 h-12 text-pink-500/50" />
-                    )}
-                    
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                      <Play className="w-16 h-16 text-white" />
                     </div>
-                    
-                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
-                      <p className="font-black text-sm text-center text-white line-clamp-2" style={{
-                        textShadow: '0 0 20px rgba(236, 72, 153, 0.8), 0 2px 10px rgba(0, 0, 0, 1)'
-                      }}>
-                        {game.name}
-                      </p>
+                  )}
+                  
+                  {/* 하단 그라디언트 오버레이 (항상 표시) */}
+                  <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black via-black/70 to-transparent"></div>
+                  
+                  {/* 게임명 (항상 표시) */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4">
+                    <p className="text-white text-center line-clamp-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                      {game.name}
+                    </p>
+                  </div>
+                  
+                  {/* 호버 효과 - 플레이 버튼 & 밝기 조절 */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-pink-600/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-2 -translate-y-6">
+                      <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center">
+                        <Play className="w-8 h-8 text-white fill-white" />
+                      </div>
+                      <span className="text-white font-black tracking-wider drop-shadow-lg">
+                        플레이
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -506,12 +490,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
           )}
         </div>
       )}
-      
-      {/* 게임 준비 중 다이얼로그 */}
-      <BenzGamePreparingDialog
-        show={showLoadingPopup}
-        stage={loadingStage}
-      />
     </div>
   );
 }

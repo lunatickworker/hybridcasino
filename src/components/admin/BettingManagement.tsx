@@ -98,6 +98,8 @@ export function BettingManagement({ user }: BettingManagementProps) {
           username,
           game_id,
           provider_id,
+          provider_name,
+          game_title,
           bet_amount,
           win_amount,
           balance_before,
@@ -133,8 +135,10 @@ export function BettingManagement({ user }: BettingManagementProps) {
         user_id: record.user_id,
         username: record.username || 'Unknown',
         referrer_nickname: record.users?.referrer?.nickname || '-',
-        game_name: record.games?.name || `Game ${record.game_id}`,
-        provider_name: record.game_providers?.name || `Provider ${record.provider_id}`,
+        // ✅ game_title 우선 사용 (직접 저장된 필드), 없으면 games JOIN 결과 사용
+        game_name: record.game_title || record.games?.name || `Game ${record.game_id}`,
+        // ✅ provider_name 우선 사용 (직접 저장된 필드), 없으면 game_providers JOIN 결과 사용
+        provider_name: record.provider_name || record.game_providers?.name || `Provider ${record.provider_id}`,
         bet_amount: parseFloat(record.bet_amount || 0),
         win_amount: parseFloat(record.win_amount || 0),
         balance_before: parseFloat(record.balance_before || 0),

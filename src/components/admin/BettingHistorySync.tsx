@@ -385,14 +385,30 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
     // 1. OroPlay 토큰 가져오기
     const token = await oroplayApi.getOroPlayToken(partnerId);
     
-    // 2. 최근 동기화 시간 확인 (없으면 24시간 전부터)
+    // ✅ 2. Vendor 목록 가져오기 (실제 vendor 이름 매핑용)
+    const vendors = await oroplayApi.getVendorsList(token);
+    const vendorMap = new Map<string, string>();
+    vendors.forEach(vendor => {
+      // vendorCode 전체를 키로 사용 (예: "slot-pragmatic")
+      vendorMap.set(vendor.vendorCode, vendor.name);
+      
+      // ✅ "-" 뒤의 provider code만 추출하여 fallback 키로도 추가
+      const parts = vendor.vendorCode.split('-');
+      if (parts.length >= 2) {
+        const providerCode = parts.slice(1).join('-'); // "slot-pragmatic" → "pragmatic"
+        vendorMap.set(providerCode, vendor.name);
+      }
+    });
+    console.log(`   📋 Vendor 목록: ${vendors.length}개 (맵 크기: ${vendorMap.size})`);
+    
+    // 3. 최근 동기화 시간 확인 (없으면 24시간 전부터)
     const lastSyncKey = `oroplay_last_sync_${partnerId}`;
     const lastSyncTime = localStorage.getItem(lastSyncKey);
     
     // ✅ 더 넓은 범위로 조회 (24시간)
     const startDate = lastSyncTime || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     
-    // 3. Apply rate limit to betting history query (V2 by-date, limit 4000)
+    // 4. Apply rate limit to betting history query (V2 by-date, limit 4000)
     const result = await callWithRateLimit(async () => {
       return await oroplayApi.getBettingHistory(token, startDate, 4000);
     });
@@ -404,11 +420,11 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
     
     console.log(`📊 [OROPLAY-SYNC] ${result.histories.length} betting records retrieved`);
     
-    // 4. status=1 (완료된 배팅만) 필터링
+    // 5. status=1 (완료된 배팅만) 필터링
     const completedBets = result.histories.filter((bet: any) => bet.status === 1);
     console.log(`   ✅ 완료된 배팅: ${completedBets.length}건`);
     
-    // 5. 사용자 매핑
+    // 6. 사용자 매핑
     const { data: allUsers } = await supabase
       .from('users')
       .select('id, username');
@@ -420,7 +436,7 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
       });
     }
     
-    // 6. game_records에 저장
+    // 7. game_records에 저장
     let successCount = 0;
     let skipCount = 0;
     
@@ -432,26 +448,36 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
           continue;
         }
         
-        // 게임 정보 조회 (vendor_code와 game_code로 매칭)
+        // ✅ vendorCode 파싱: "slot-pragmatic" → gameType="slot", providerCode="pragmatic"
+        let gameType = '';
+        let providerCode = '';
+        let providerName = '';
+        
+        if (bet.vendorCode && bet.vendorCode.includes('-')) {
+          const parts = bet.vendorCode.split('-');
+          gameType = parts[0]; // "slot", "casino" 등
+          providerCode = parts.slice(1).join('-'); // "pragmatic", "evolution" 등
+          
+          // ⭐ vendorMap에서 제공사 이름 찾기 (전체 vendorCode 우선, 없으면 providerCode로, 최종적으로 대문자 변환)
+          providerName = vendorMap.get(bet.vendorCode) || 
+                         vendorMap.get(providerCode) || 
+                         providerCode.toUpperCase() || // ⭐ 매핑 실패 시 대문자로 표시
+                         'Unknown Provider';
+        } else {
+          // "-"가 없는 경우 그대로 사용
+          providerName = vendorMap.get(bet.vendorCode) || bet.vendorCode || 'Unknown Provider';
+        }
+        
+        // ✅ gameCode로 게임 정보 조회
         const { data: gameData } = await supabase
           .from('games')
-          .select('id, provider_id, name')
-          .eq('vendor_code', bet.vendorCode)
+          .select('id, name, provider_id')
           .eq('game_code', bet.gameCode)
           .eq('api_type', 'oroplay')
           .maybeSingle();
         
-        // 제공사 정보 조회
-        let providerName = '';
-        if (gameData?.provider_id) {
-          const { data: providerData } = await supabase
-            .from('game_providers')
-            .select('name')
-            .eq('id', gameData.provider_id)
-            .maybeSingle();
-          
-          providerName = providerData?.name || '';
-        }
+        // ⭐ gameName: DB에 있으면 사용, 없으면 gameCode를 그대로 사용 (Unknown Game 제거)
+        const gameName = gameData?.name || bet.gameCode || 'Unknown';
         
         const { error } = await supabase
           .from('game_records')
@@ -463,8 +489,9 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
             user_id: userId,
             game_id: gameData?.id || null,
             provider_id: gameData?.provider_id || null,
-            game_title: gameData?.name || null,
-            provider_name: providerName || null,
+            game_title: gameName,  // ⭐ 항상 유효한 값 보장
+            provider_name: providerName,  // ⭐ 항상 유효한 값 보장
+            game_type: gameType || null, // ✅ 게임 타입 저장 (slot, casino 등)
             bet_amount: bet.betAmount,
             win_amount: bet.winAmount,
             balance_before: bet.beforeBalance,
@@ -492,7 +519,7 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
     
     console.log(`✅ [OROPLAY-SYNC] 완료: 성공 ${successCount}건, 중복 ${skipCount}건`);
     
-    // 7. 다음 동기화 시작 시간 저장
+    // 8. 다음 동기화 시작 시간 저장
     if (result.nextStartDate) {
       localStorage.setItem(lastSyncKey, result.nextStartDate);
     }
@@ -538,6 +565,7 @@ const syncHonorApiBettingHistory = async (partnerId: string) => {
  * - ❌ 30초 자동 타이머 제거 (성능 최적화)
  * - ✅ 베팅 내역은 새로고침 버튼으로만 수동 호출
  * - ✅ 세션 자동 종료는 30초마다 체크 (240초 무활동 기준)
+ * - ❌ HonorAPI 자동 동기화 비활성화 (Rate Limit 방지, 수동으로만 호출)
  * 
  * AdminLayout.tsx에서 user.level === 1 또는 user.level === 2일 때만 렌더링됩니다.
  */

@@ -505,7 +505,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -100, opacity: 0 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
-            className="fixed top-24 left-1/2 transform -translate-x-1/2 z-[100]"
+            className="fixed top-24 left-1/2 transform -translate-x-1/2 z-[120]"
           >
             <div className="relative bg-[#0a0e27]/95 backdrop-blur-sm border-2 px-10 py-5 shadow-2xl" style={{
               borderColor: 'rgba(168, 85, 247, 0.4)',
@@ -574,7 +574,12 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                 
                 <div className="relative flex items-center gap-2">
                   <Play className="w-5 h-5 md:w-5 md:h-5 w-4 h-4" />
-                  <span className="font-black text-white">게임 시작하기</span>
+                  <span className="font-black text-white tracking-tight" style={{ 
+                    fontSize: '1.02rem',
+                    textRendering: 'geometricPrecision',
+                    WebkitFontSmoothing: 'antialiased',
+                    MozOsxFontSmoothing: 'grayscale'
+                  }}>게임 시작하기</span>
                 </div>
               </Button>
             </div>
@@ -897,46 +902,49 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                 </div>
               ))
             ) : (
-              inoutGames.map((game) => (
-                <div key={game.id} className="flex-shrink-0 w-[294px]">
-                  <motion.div
-                    whileHover={{ 
-                      scale: 1.05,
-                      rotateY: 5,
-                      boxShadow: '0 20px 40px rgba(59, 130, 246, 0.6), 0 0 60px rgba(6, 182, 212, 0.4)'
-                    }}
-                    transition={{ duration: 0.4, ease: "easeOut" }}
-                    className="cursor-pointer bg-[#1a1f3a] group"
-                    onClick={() => handleMiniGameClick(game)}
-                    style={{
-                      transformStyle: 'preserve-3d',
-                      perspective: '1000px'
-                    }}
-                  >
-                    <div className="relative aspect-[4/3] bg-gradient-to-br from-blue-900/20 to-cyan-900/20 flex items-center justify-center overflow-hidden">
-                      {game.thumbnail_url ? (
-                        <ImageWithFallback
-                          src={game.thumbnail_url}
-                          alt={game.game_name || game.name || '미니게임'}
-                          className="w-full h-full object-cover transition-all duration-500 group-hover:brightness-110"
-                        />
-                      ) : (
-                        <Sparkles className="w-16 h-16 text-blue-500/50" />
-                      )}
-                      
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                      
-                      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
-                        <p className="font-black text-lg text-center text-white" style={{
-                          textShadow: '0 0 20px rgba(59, 130, 246, 0.8), 0 2px 10px rgba(0, 0, 0, 1)'
-                        }}>
-                          {game.game_name || game.name || '미니게임'}
-                        </p>
+              <>
+                {/* Inout 게임만 표시 */}
+                {inoutGames.map((game) => (
+                  <div key={game.id} className="flex-shrink-0 w-[294px]">
+                    <motion.div
+                      whileHover={{ 
+                        scale: 1.05,
+                        rotateY: 5,
+                        boxShadow: '0 20px 40px rgba(59, 130, 246, 0.6), 0 0 60px rgba(6, 182, 212, 0.4)'
+                      }}
+                      transition={{ duration: 0.4, ease: "easeOut" }}
+                      className="cursor-pointer bg-[#1a1f3a] group"
+                      onClick={() => handleMiniGameClick(game)}
+                      style={{
+                        transformStyle: 'preserve-3d',
+                        perspective: '1000px'
+                      }}
+                    >
+                      <div className="relative aspect-[4/3] bg-gradient-to-br from-blue-900/20 to-cyan-900/20 flex items-center justify-center overflow-hidden">
+                        {game.thumbnail_url ? (
+                          <ImageWithFallback
+                            src={game.thumbnail_url}
+                            alt={game.game_name || game.name || '미니게임'}
+                            className="w-full h-full object-cover transition-all duration-500 group-hover:brightness-110"
+                          />
+                        ) : (
+                          <Sparkles className="w-16 h-16 text-blue-500/50" />
+                        )}
+                        
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        
+                        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
+                          <p className="font-black text-lg text-center text-white" style={{
+                            textShadow: '0 0 20px rgba(59, 130, 246, 0.8), 0 2px 10px rgba(0, 0, 0, 1)'
+                          }}>
+                            {game.game_name || game.name || '미니게임'}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                </div>
-              ))
+                    </motion.div>
+                  </div>
+                ))}
+              </>
             )}
           </div>
 
@@ -968,8 +976,8 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   notices.map((notice) => (
                     <div key={notice.id} className="flex items-start justify-between border-b border-purple-900/20 pb-4">
                       <div className="flex-1">
-                        <p className="text-white mb-1">{notice.title}</p>
-                        <p className="text-xs text-gray-400">{formatDate(notice.created_at)}</p>
+                        <p className="text-white mb-1" style={{ fontSize: '120%' }}>{notice.title}</p>
+                        <p className="text-gray-400" style={{ fontSize: '120%' }}>{formatDate(notice.created_at)}</p>
                       </div>
                     </div>
                   ))
@@ -977,8 +985,8 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   [1, 2, 3].map((i) => (
                     <div key={i} className="flex items-start justify-between border-b border-purple-900/20 pb-4">
                       <div className="flex-1">
-                        <p className="text-white mb-1">카지노 출금 및 이용에 관한 안내</p>
-                        <p className="text-xs text-gray-400">2025-11-18</p>
+                        <p className="text-white mb-1" style={{ fontSize: '120%' }}>카지노 출금 및 이용에 관한 안내</p>
+                        <p className="text-gray-400" style={{ fontSize: '120%' }}>2025-11-18</p>
                       </div>
                     </div>
                   ))
@@ -999,8 +1007,8 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   supports.map((support) => (
                     <div key={support.id} className="flex items-start justify-between border-b border-purple-900/20 pb-4">
                       <div className="flex-1">
-                        <p className="text-white mb-1">{support.title}</p>
-                        <p className="text-xs text-gray-400">{formatDate(support.created_at)}</p>
+                        <p className="text-white mb-1" style={{ fontSize: '120%' }}>{support.title}</p>
+                        <p className="text-gray-400" style={{ fontSize: '120%' }}>{formatDate(support.created_at)}</p>
                       </div>
                     </div>
                   ))
@@ -1008,8 +1016,8 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   [1, 2, 3].map((i) => (
                     <div key={i} className="flex items-start justify-between border-b border-purple-900/20 pb-4">
                       <div className="flex-1">
-                        <p className="text-white mb-1">카지노 게임 이용 가이드</p>
-                        <p className="text-xs text-gray-400">2025-11-18</p>
+                        <p className="text-white mb-1" style={{ fontSize: '120%' }}>카지노 게임 이용 가이드</p>
+                        <p className="text-gray-400" style={{ fontSize: '120%' }}>2025-11-18</p>
                       </div>
                     </div>
                   ))
@@ -1042,10 +1050,10 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   {recentWithdrawals.concat(recentWithdrawals).map((withdrawal, index) => (
                     <div key={index} className="flex items-center justify-between border-b border-purple-900/20 pb-4 mb-4">
                       <div className="flex-1">
-                        <p className="text-white mb-1">
+                        <p className="text-white mb-1" style={{ fontSize: '120%' }}>
                           {withdrawal.users?.nickname || withdrawal.users?.username || '익명'} 님, {formatCurrency(withdrawal.amount)}원 출금
                         </p>
-                        <p className="text-xs text-gray-400">{formatDate(withdrawal.created_at)}</p>
+                        <p className="text-gray-400" style={{ fontSize: '120%' }}>{formatDate(withdrawal.created_at)}</p>
                       </div>
                     </div>
                   ))}

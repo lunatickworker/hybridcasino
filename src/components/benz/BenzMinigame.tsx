@@ -7,7 +7,6 @@ import { supabase } from "../../lib/supabase";
 import { gameApi } from "../../lib/gameApi";
 import { motion } from "motion/react";
 import { toast } from "sonner@2.0.3";
-import { BenzGamePreparingDialog } from "./BenzGamePreparingDialog";
 
 interface BenzMinigameProps {
   user: any;
@@ -61,8 +60,6 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
   const [loading, setLoading] = useState(true);
   const [gamesLoading, setGamesLoading] = useState(false);
   const [launchingGameId, setLaunchingGameId] = useState<string | null>(null);
-  const [showLoadingPopup, setShowLoadingPopup] = useState(false);
-  const [loadingStage, setLoadingStage] = useState<'deposit' | 'launch' | 'withdraw' | 'switch_deposit'>('launch');
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -87,8 +84,8 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
       
       if (providersData.length > 0) {
         setProviders(providersData);
-        // 첫 번째 제공사의 게임 리스트 자동 로드
-        handleProviderClick(providersData[0]);
+        // ⭐ 제공사 목록을 먼저 보여주도록 변경 (자동 로드 제거)
+        // handleProviderClick(providersData[0]); // 제거됨
       } else {
         setProviders([]);
       }
@@ -126,7 +123,8 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
   };
 
   const handleGameClick = async (game: Game) => {
-    if (launchingGameId === game.id) return;
+    // ⭐ 수정: 어떤 게임이든 실행 중이면 차단
+    if (launchingGameId) return;
 
     setLaunchingGameId(game.id);
     
@@ -162,9 +160,6 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
           oldGameId: activeSession.game_id,
           newGameId: game.id
         });
-        
-        setLoadingStage('withdraw');
-        setShowLoadingPopup(true);
         
         // 기존 게임 출금 + 보유금 동기화
         const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
@@ -234,9 +229,6 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
             if (isProcessing) return;
             isProcessing = true;
             
-            setLoadingStage('withdraw');
-            setShowLoadingPopup(true);
-            
             const checker = (window as any).gameWindowCheckers?.get(sessionId);
             if (checker) {
               clearInterval(checker);
@@ -245,10 +237,6 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
             
             (window as any).gameWindows?.delete(sessionId);
             await (window as any).syncBalanceAfterGame?.(sessionId);
-            
-            setTimeout(() => {
-              setShowLoadingPopup(false);
-            }, 500);
           };
           
           const checkGameWindow = setInterval(() => {
@@ -269,13 +257,7 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
       }
       
       // ⭐ 4. 새로운 게임 실행 (API 입금 포함)
-      setLoadingStage('launch');
-      setShowLoadingPopup(true);
-      
       const result = await gameApi.generateGameLaunchUrl(user.id, parseInt(game.id));
-      
-      // ⭐ 팝업 자동 닫힘
-      setShowLoadingPopup(false);
       
       if (result.success && result.launchUrl) {
         const sessionId = result.sessionId;
@@ -332,8 +314,6 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
               isProcessing = true;
               
               // ⭐ 게임 종료 팝업 표시
-              setLoadingStage('withdraw');
-              setShowLoadingPopup(true);
               
               const checker = (window as any).gameWindowCheckers?.get(sessionId);
               if (checker) {
@@ -345,11 +325,6 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
               
               // withdrawal API 호출 (syncBalanceAfterGame 내부에서 처리)
               await (window as any).syncBalanceAfterGame?.(sessionId);
-              
-              // ⭐ 종료 팝업 자동 닫힘 (0.5초 후)
-              setTimeout(() => {
-                setShowLoadingPopup(false);
-              }, 500);
             };
             
             const checkGameWindow = setInterval(() => {
@@ -381,7 +356,7 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          {selectedProvider && providers.length > 1 && (
+          {selectedProvider && (
             <Button
               onClick={handleBackToProviders}
               variant="ghost"
@@ -395,22 +370,22 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
             <div className="w-1 h-8 bg-gradient-to-b from-blue-500 to-cyan-500"></div>
             <h1 className="text-3xl font-black">
               <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                {selectedProvider ? selectedProvider.name_ko || selectedProvider.name : 'MINI GAMES'}
+                {selectedProvider ? selectedProvider.name_ko || selectedProvider.name : '미니 게임'}
               </span>
             </h1>
           </div>
         </div>
       </div>
 
-      {/* 제공사 목록 (제공사가 여러 개일 경우에만) */}
-      {!selectedProvider && providers.length > 1 && (
+      {/* ⭐ 제공사 목록 (항상 표시하되 selectedProvider가 없을 때만) */}
+      {!selectedProvider && providers.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
           {loading ? (
             Array(6).fill(0).map((_, i) => (
               <div key={i} className="aspect-[4/3] bg-gray-800 animate-pulse"></div>
             ))
           ) : (
-            providers.map((provider) => (
+            providers.map((provider, index) => (
               <motion.div
                 key={provider.id}
                 whileHover={{ scale: 1.05 }}
@@ -421,15 +396,20 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
                 <div className="relative aspect-[4/3] overflow-hidden group">
                   {/* 제공사 이미지 - 카드 전체를 꽉 채움 */}
                   <ImageWithFallback
-                    src={provider.logo_url || provider.thumbnail_url || getRandomMiniImage()}
+                    src={index === 0 
+                      ? "https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/mini/1.png"
+                      : index === 1
+                      ? "https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/mini/2.png"
+                      : "https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/mini/4.png"
+                    }
                     alt={provider.name}
                     className="w-full h-full object-cover transition-all duration-500 group-hover:brightness-110"
                   />
                   
-                  {/* 제공사명 오버레이 - 하단에 50% 투명 배경 */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-4 py-3">
-                    <p className="font-black text-center text-white" style={{
-                      textShadow: '0 2px 4px rgba(0, 0, 0, 0.8)'
+                  {/* 제공사명 오버레이 - 하단 그라디언트 배경 */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent py-6 px-4">
+                    <p className="text-xl font-black text-center text-white tracking-wide" style={{
+                      textShadow: '0 0 12px rgba(0, 0, 0, 1), 0 2px 8px rgba(0, 0, 0, 0.9), 0 4px 16px rgba(59, 130, 246, 0.6)'
                     }}>
                       {provider.name_ko || provider.name}
                     </p>
@@ -456,7 +436,8 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
               <p className="text-gray-400">게임이 없습니다.</p>
             </div>
           ) : (
-            games.map((game) => (
+            games.map((game, index) => {
+              return (
               <motion.div
                 key={game.id}
                 whileHover={{ scale: 1.05 }}
@@ -464,44 +445,48 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
                 className="cursor-pointer"
                 onClick={() => handleGameClick(game)}
               >
-                <Card className="bg-[#1a1f3a] border-blue-500/30 overflow-hidden group">
-                  <CardContent className="p-0">
-                    <div className="relative aspect-[3/4] flex items-center justify-center bg-gradient-to-br from-blue-900/20 to-cyan-900/20">
-                      {game.image_url ? (
-                        <ImageWithFallback
-                          src={game.image_url}
-                          alt={game.name}
-                          className="w-full h-full object-cover transition-all duration-500 group-hover:brightness-110"
-                        />
-                      ) : (
-                        <Play className="w-12 h-12 text-blue-500/50" />
-                      )}
-                      
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                        <Play className="w-16 h-16 text-white" />
-                      </div>
-                      
-                      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/95 via-black/80 to-transparent">
-                        <p className="font-black text-sm text-center text-white line-clamp-2" style={{
-                          textShadow: '0 0 20px rgba(59, 130, 246, 0.8), 0 2px 10px rgba(0, 0, 0, 1)'
-                        }}>
-                          {game.name}
-                        </p>
-                      </div>
+                <div className="relative aspect-[3/4] rounded-xl overflow-hidden group shadow-lg hover:shadow-blue-500/30 transition-all duration-300">
+                  {/* 게임 이미지 - DB의 image_url 사용 */}
+                  {game.image_url ? (
+                    <ImageWithFallback
+                      src={game.image_url}
+                      alt={game.name}
+                      className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-blue-900/30 to-cyan-900/30 flex items-center justify-center">
+                      <Play className="w-12 h-12 text-blue-500/50" />
                     </div>
-                  </CardContent>
-                </Card>
+                  )}
+                  
+                  {/* 하단 그라디언트 오버레이 (항상 표시) */}
+                  <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black via-black/70 to-transparent"></div>
+                  
+                  {/* 게임명 (항상 표시) */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4">
+                    <p className="text-white text-center line-clamp-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
+                      {game.name}
+                    </p>
+                  </div>
+                  
+                  {/* 호버 효과 - 플레이 버튼 & 밝기 조절 */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-blue-600/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-2 -translate-y-6">
+                      <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center">
+                        <Play className="w-8 h-8 text-white fill-white" />
+                      </div>
+                      <span className="text-white font-black tracking-wider drop-shadow-lg">
+                        플레이
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </motion.div>
-            ))
+              );
+            })
           )}
         </div>
       )}
-      
-      {/* 게임 준비 중 다이얼로그 */}
-      <BenzGamePreparingDialog
-        show={showLoadingPopup}
-        stage={loadingStage}
-      />
     </div>
   );
 }

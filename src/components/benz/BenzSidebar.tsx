@@ -83,7 +83,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange, isOpen, onToggl
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -100, opacity: 0 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
-            className="fixed top-24 left-1/2 transform -translate-x-1/2 z-[100]"
+            className="fixed top-24 left-1/2 transform -translate-x-1/2 z-[120]"
           >
             <div className="relative bg-[#0a0e27]/95 backdrop-blur-sm border-2 px-10 py-5 shadow-2xl" style={{
               borderColor: 'rgba(168, 85, 247, 0.4)',
@@ -132,13 +132,13 @@ export function BenzSidebar({ user, currentRoute, onRouteChange, isOpen, onToggl
                     key={item.path}
                     variant="ghost"
                     onClick={() => handleMenuClick(item.path)}
-                    className={`w-full justify-start gap-3 h-12 text-lg transition-all duration-300 ${ 
+                    className={`w-full justify-start gap-3 h-12 text-[1.21rem] transition-all duration-300 ${ 
                       isActive 
                         ? 'text-[#FF6B35] font-bold scale-105' 
-                        : 'text-gray-400 hover:text-white hover:bg-purple-900/30 hover:scale-105'
+                        : 'text-white hover:text-[#FF6B35] hover:bg-purple-900/30 hover:scale-105'
                     }`}
                   >
-                    <Icon className={`w-6 h-6 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
+                    <Icon className={`w-[28.6px] h-[28.6px] transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
                     <span className="transition-all duration-300">{item.label}</span>
                   </Button>
                 );
@@ -148,7 +148,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange, isOpen, onToggl
 
           {/* User Menu */}
           <div>
-            <h3 className="text-base font-semibold text-gray-400 uppercase mb-3 px-2">회원</h3>
+            <h3 className="text-[1.1rem] font-semibold text-gray-200 uppercase mb-3 px-2">회원</h3>
             <nav className="space-y-1">
               {userMenuItems.map((item) => {
                 const Icon = item.icon;
@@ -158,13 +158,13 @@ export function BenzSidebar({ user, currentRoute, onRouteChange, isOpen, onToggl
                     key={item.path}
                     variant="ghost"
                     onClick={() => handleMenuClick(item.path)}
-                    className={`w-full justify-start gap-3 h-12 text-lg transition-all duration-300 ${ 
+                    className={`w-full justify-start gap-3 h-12 text-[1.21rem] transition-all duration-300 ${ 
                       isActive 
                         ? 'text-[#FF6B35] font-bold scale-105' 
-                        : 'text-gray-400 hover:text-white hover:bg-purple-900/30 hover:scale-105'
+                        : 'text-white hover:text-[#FF6B35] hover:bg-purple-900/30 hover:scale-105'
                     }`}
                   >
-                    <Icon className={`w-6 h-6 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
+                    <Icon className={`w-[28.6px] h-[28.6px] transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
                     <span className="transition-all duration-300">{item.label}</span>
                   </Button>
                 );

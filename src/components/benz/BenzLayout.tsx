@@ -76,6 +76,9 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   useEffect(() => {
     if (!user?.id) return;
 
+    // ⭐ 컴포넌트 마운트 상태 초기화
+    isMountedRef.current = true;
+
     // 초기 잔고 조회
     fetchBalance();
 

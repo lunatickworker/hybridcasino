@@ -363,61 +363,77 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       setRefreshing(true);
       const { action, transaction, memo } = actionDialog;
 
-      // 승인인 경우 Invest API를 통한 실제 입출금 처리
+      // 승인인 경우 GMS 머니 보유금 확인
       if (action === 'approve') {
-        // OPCODE 정보 조회
-        const opcodeInfo = await getAdminOpcode(user);
-        
-        // 시스템관리자면 첫 번째 OPCODE 사용
-        const config = isMultipleOpcode(opcodeInfo) 
-          ? opcodeInfo.opcodes[0] 
-          : opcodeInfo;
-
-        // 사용자 username 조회
-        if (!transaction.user?.username) {
-          throw new Error(t.transactionManagement.userInfoNotFound);
-        }
-
-        // amount를 정수로 변환 (Guidelines: 입금액/출금액은 숫자만)
         const amount = Math.floor(parseFloat(transaction.amount.toString()));
         
-        console.log('💰 거래 승인 처리 시작:', {
-          transaction_type: transaction.transaction_type,
-          username: transaction.user.username,
-          amount,
-          opcode: config.opcode
-        });
-
-        let apiResult;
-
-        // Invest API 호출 (입금 또는 출금)
+        // 입금 승인: 파트너 보유금 확인
         if (transaction.transaction_type === 'deposit') {
-          console.log('📥 입금 API 호출 중...');
-          apiResult = await depositBalance(
-            transaction.user.username,
-            amount,
-            config.opcode,
-            config.token,
-            config.secretKey
-          );
-        } else if (transaction.transaction_type === 'withdrawal') {
-          console.log('📤 출금 API 호출 중...');
-          apiResult = await withdrawBalance(
-            transaction.user.username,
-            amount,
-            config.opcode,
-            config.token,
-            config.secretKey
-          );
-        }
+          // 사용자의 소속 파트너 조회
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('referrer_id')
+            .eq('id', transaction.user_id)
+            .single();
 
-        // API 호출 실패 시
-        if (apiResult && !apiResult.success) {
-          console.error('❌ Invest API 호출 실패:', apiResult);
-          throw new Error(apiResult.error || 'Invest API 호출 실패');
-        }
+          if (userError || !userData) {
+            throw new Error(t.transactionManagement.userInfoNotFound);
+          }
 
-        console.log('✅ Invest API 처리 완료:', apiResult);
+          // 파트너 보유금 조회
+          const { data: partnerData, error: partnerError } = await supabase
+            .from('partners')
+            .select('balance, nickname')
+            .eq('id', userData.referrer_id)
+            .single();
+
+          if (partnerError || !partnerData) {
+            throw new Error('파트너 정보를 찾을 수 없습니다.');
+          }
+
+          const partnerBalance = parseFloat(partnerData.balance?.toString() || '0');
+
+          // 보유금 검증
+          if (partnerBalance < amount) {
+            toast.error('매장 보유금을 확인하세요');
+            setRefreshing(false);
+            return;
+          }
+
+          console.log('✅ 입금 승인 가능:', {
+            partnerBalance,
+            amount,
+            remaining: partnerBalance - amount
+          });
+        }
+        
+        // 출금 승인: 회원 보유금 확인
+        if (transaction.transaction_type === 'withdrawal') {
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('balance, nickname')
+            .eq('id', transaction.user_id)
+            .single();
+
+          if (userError || !userData) {
+            throw new Error(t.transactionManagement.userInfoNotFound);
+          }
+
+          const userBalance = parseFloat(userData.balance?.toString() || '0');
+
+          // 보유금 검증
+          if (userBalance < amount) {
+            toast.error('회원 보유금이 부족합니다');
+            setRefreshing(false);
+            return;
+          }
+
+          console.log('✅ 출금 승인 가능:', {
+            userBalance,
+            amount,
+            remaining: userBalance - amount
+          });
+        }
       }
 
       // DB 상태 업데이트
@@ -1060,7 +1076,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       {/* 승인/거절 확인 Dialog */}
       <Dialog open={actionDialog.open} onOpenChange={(open) => setActionDialog({ ...actionDialog, open })}>
-        <DialogContent className="bg-slate-900 border-slate-700">
+        <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-[350px]">
           <DialogHeader>
             <DialogTitle className="text-white text-2xl">
               {actionDialog.action === 'approve' ? t.transactionManagement.approveTransaction : t.transactionManagement.rejectTransaction}

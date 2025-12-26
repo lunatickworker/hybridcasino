@@ -800,7 +800,7 @@ export function TransactionApprovalManager({ user }: TransactionApprovalManagerP
 
       {/* 거래 처리 Dialog */}
       <Dialog open={showProcessDialog} onOpenChange={setShowProcessDialog}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[300px]">
           <DialogHeader>
             <DialogTitle>거래 요청 처리</DialogTitle>
             <DialogDescription>

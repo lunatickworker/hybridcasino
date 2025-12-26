@@ -41,7 +41,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [bettingRecords, setBettingRecords] = useState<BettingRecord[]>([]);
-  const [dateFilter, setDateFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("today"); // ✅ 기본값을 "오늘"로 변경
   const [searchTerm, setSearchTerm] = useState("");
 
   // 날짜 포맷 (이미지와 동일: 2025년10월24일 08:19:52)

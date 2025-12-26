@@ -27,6 +27,7 @@ interface BettingRecord {
   balance_before: number;
   balance_after: number;
   played_at: string;
+  api_type?: string;
 }
 
 export function UserBettingHistory({ user }: UserBettingHistoryProps) {
@@ -69,9 +70,24 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
       setLoading(true);
       console.log('🎮 베팅내역 조회 시작:', user.username);
 
+      // ✅ game_title과 provider_name은 이미 DB에 저장되어 있으므로 JOIN 불필요
       const { data, error } = await supabase
         .from('game_records')
-        .select('*')
+        .select(`
+          id,
+          external_txid,
+          username,
+          game_id,
+          provider_id,
+          game_title,
+          provider_name,
+          bet_amount,
+          win_amount,
+          balance_before,
+          balance_after,
+          played_at,
+          api_type
+        `)
         .eq('username', user.username)
         .order('played_at', { ascending: false })
         .limit(100);
@@ -82,7 +98,15 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
       }
 
       console.log('✅ 조회 성공:', data?.length || 0, '건');
-      setRecords(data || []);
+      
+      // ⭐ game_title/provider_name이 없는 경우 fallback 처리
+      const mappedRecords = (data || []).map((record: any) => ({
+        ...record,
+        game_title: record.game_title || `Game ${record.game_id || 'Unknown'}`,
+        provider_name: record.provider_name || `Provider ${record.provider_id || 'Unknown'}`,
+      }));
+      
+      setRecords(mappedRecords);
 
     } catch (err: any) {
       console.error('❌ 에러:', err);
@@ -95,6 +119,30 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
   // 초기 로드
   useEffect(() => {
     loadRecords();
+  }, [user.username]);
+
+  // ⭐ Realtime 구독: 새로운 베팅 기록 자동 반영
+  useEffect(() => {
+    const channel = supabase
+      .channel('user-betting-records')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'game_records',
+          filter: `username=eq.${user.username}`
+        },
+        (payload) => {
+          console.log('🎮 새로운 베팅 기록:', payload);
+          loadRecords(); // 새 기록 추가 시 전체 다시 로드
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user.username]);
 
   // 통계 계산

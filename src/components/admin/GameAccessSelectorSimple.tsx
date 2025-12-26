@@ -544,43 +544,43 @@ export function GameAccessSelectorSimple({ availableApis, value, onChange, paren
   const allGamesSelected = filteredGames.length > 0 && (selectedGamesCount === filteredGames.length || providerFullySelected);
 
   return (
-    <div className="space-y-6 px-6">
+    <div className="space-y-3 px-4">
       {/* 상속 안내 & 전체 상속 버튼 */}
       {parentGameAccess && parentGameAccess.length > 0 && (
-        <div className="flex items-center justify-between gap-4 p-4 bg-gradient-to-r from-blue-900/30 to-purple-900/30 rounded-lg border border-blue-500/30">
-          <div className="flex items-center gap-3">
-            <div className="w-1 h-12 bg-gradient-to-b from-blue-400 to-purple-400 rounded-full"></div>
+        <div className="flex items-center justify-between gap-3 p-3 bg-gradient-to-r from-blue-900/30 to-purple-900/30 rounded-lg border border-blue-500/30">
+          <div className="flex items-center gap-2">
+            <div className="w-1 h-8 bg-gradient-to-b from-blue-400 to-purple-400 rounded-full"></div>
             <div>
-              <h4 className="font-semibold text-white text-lg">게임 상속 설정</h4>
-              <p className="text-slate-300 text-sm mt-1">
+              <h4 className="font-semibold text-white text-sm tracking-tight">게임 상속 설정</h4>
+              <p className="text-slate-300 text-xs mt-0.5 tracking-tight">
                 {value.length === 0 
-                  ? '✅ 현재 상위의 모든 게임을 상속 중입니다.' 
-                  : `🎮 ${value.length}개 게임을 개별 선택 중입니다.`}
+                  ? '✅ 상위의 모든 게임을 상속 중' 
+                  : `🎮 ${value.length}개 게임 개별 선택 중`}
               </p>
             </div>
           </div>
           <Button
             onClick={() => {
               onChange([]);
-              toast.success('전체 상속으로 설정되었습니다. 저장하면 상위의 모든 게임을 사용할 수 있습니다.');
+              toast.success('전체 상속으로 설정되었습니다.');
             }}
             disabled={value.length === 0}
             variant="outline"
-            className="bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30 hover:text-blue-200 px-6 py-3 h-auto text-base"
+            className="bg-blue-600/20 border-blue-500/50 text-blue-300 hover:bg-blue-600/30 hover:text-blue-200 px-3 py-1.5 h-auto text-xs tracking-tight"
           >
-            <CheckSquare className="h-5 w-5 mr-2" />
+            <CheckSquare className="h-3.5 w-3.5 mr-1" />
             전체 상속으로 변경
           </Button>
         </div>
       )}
 
       {/* API 탭 */}
-      <div className="flex gap-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+      <div className="flex gap-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700">
         {availableApis.map(api => (
           <button
             key={api}
             onClick={() => setSelectedApiTab(api)}
-            className={`flex-1 px-6 py-3 rounded-md font-semibold transition-all text-base ${
+            className={`flex-1 px-4 py-2 rounded-md font-semibold transition-all text-sm tracking-tight ${
               selectedApiTab === api
                 ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50'
                 : 'text-slate-300 hover:text-white hover:bg-slate-700/70 bg-slate-800/60'
@@ -592,27 +592,27 @@ export function GameAccessSelectorSimple({ availableApis, value, onChange, paren
       </div>
 
       {/* 2단 레이아웃 */}
-      <div className="grid grid-cols-12 gap-8">
+      <div className="grid grid-cols-12 gap-4">
         {/* 왼쪽: 제공사 리스트 */}
-        <div className="col-span-4 border border-slate-700 rounded-lg bg-slate-800/50 overflow-hidden flex flex-col h-[600px]">
-          <div className="p-4 border-b border-slate-700 bg-gradient-to-r from-purple-600/20 to-pink-600/20 flex-shrink-0 space-y-3">
+        <div className="col-span-4 border border-slate-700 rounded-lg bg-slate-800/50 overflow-hidden flex flex-col" style={{ height: 'calc(85vh - 240px)' }}>
+          <div className="p-3 border-b border-slate-700 bg-gradient-to-r from-purple-600/20 to-pink-600/20 flex-shrink-0 space-y-2">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1">
-                <h3 className="font-bold text-white text-base">게임 제공사</h3>
-                <p className="text-xs text-slate-300 mt-1">클릭하여 게임 목록 보기</p>
+                <h3 className="font-bold text-white text-sm tracking-tight">게임 제공사</h3>
+                <p className="text-xs text-slate-300 mt-0.5 tracking-tight">클릭하여 게임 목록 보기</p>
               </div>
               
-              {/* 🆕 제공사 일괄 선택/해제 버튼 */}
-              <div className="flex gap-1.5 flex-shrink-0">
+              {/* 제공사 일괄 선택/해제 버튼 */}
+              <div className="flex gap-1 flex-shrink-0">
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={handleSelectAllProviders}
                   disabled={loading || filteredProviders.length === 0 || allFilteredProvidersSelected}
-                  className="h-7 px-2 text-xs bg-green-600/20 text-green-300 hover:bg-green-600/40 hover:text-white border border-green-500/30 disabled:opacity-50"
+                  className="h-6 px-2 text-xs bg-green-600/20 text-green-300 hover:bg-green-600/40 hover:text-white border border-green-500/30 disabled:opacity-50 tracking-tight"
                   title="현재 보이는 모든 제공사 선택"
                 >
-                  <CheckSquare className="h-3.5 w-3.5 mr-1" />
+                  <CheckSquare className="h-3 w-3 mr-0.5" />
                   전체
                 </Button>
                 <Button
@@ -620,17 +620,17 @@ export function GameAccessSelectorSimple({ availableApis, value, onChange, paren
                   variant="ghost"
                   onClick={handleDeselectAllProviders}
                   disabled={loading || selectedFilteredProvidersCount === 0}
-                  className="h-7 px-2 text-xs bg-red-600/20 text-red-300 hover:bg-red-600/40 hover:text-white border border-red-500/30 disabled:opacity-50"
+                  className="h-6 px-2 text-xs bg-red-600/20 text-red-300 hover:bg-red-600/40 hover:text-white border border-red-500/30 disabled:opacity-50 tracking-tight"
                   title="현재 보이는 모든 제공사 해제"
                 >
-                  <Square className="h-3.5 w-3.5 mr-1" />
+                  <Square className="h-3 w-3 mr-0.5" />
                   해제
                 </Button>
               </div>
             </div>
             
             {/* 타입 필터 */}
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
               {[
                 { key: 'all', label: '전체', icon: '🎯' },
                 { key: 'slot', label: '슬롯', icon: '🎮' },
@@ -640,13 +640,13 @@ export function GameAccessSelectorSimple({ availableApis, value, onChange, paren
                 <button
                   key={type.key}
                   onClick={() => setSelectedProviderType(type.key)}
-                  className={`flex-1 px-2 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  className={`flex-1 px-2 py-1 rounded text-xs font-semibold transition-all tracking-tight ${
                     selectedProviderType === type.key
                       ? 'bg-purple-600 text-white shadow-md'
                       : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-white'
                   }`}
                 >
-                  <span className="mr-1">{type.icon}</span>
+                  <span className="mr-0.5">{type.icon}</span>
                   {type.label}
                 </button>
               ))}
@@ -654,30 +654,30 @@ export function GameAccessSelectorSimple({ availableApis, value, onChange, paren
             
             {/* 검색 */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <Input
                 type="text"
                 placeholder="제공사 검색..."
                 value={providerSearch}
                 onChange={(e) => setProviderSearch(e.target.value)}
-                className="pl-9 h-9 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-500"
+                className="pl-7 h-7 text-xs bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-500 tracking-tight"
               />
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-2.5">
             {loading ? (
               <div className="flex items-center justify-center h-full">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
               </div>
             ) : providers.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center text-slate-400">
-                  <Gamepad2 className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm font-medium">제공사가 없습니다</p>
+                  <Gamepad2 className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                  <p className="text-xs font-medium tracking-tight">제공사가 없습니다</p>
                 </div>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {filteredProviders.map(provider => {
                   const selected = isProviderSelected(provider);
                   const hasGames = hasSelectedGames(provider);
@@ -695,29 +695,29 @@ export function GameAccessSelectorSimple({ availableApis, value, onChange, paren
                       }`}
                       onClick={() => handleProviderClick(provider)}
                     >
-                      <div className="flex items-start gap-3 p-4">
+                      <div className="flex items-start gap-2 p-2.5">
                         <Checkbox
                           checked={selected || hasGames}
                           onCheckedChange={() => toggleProvider(provider)}
                           onClick={(e) => e.stopPropagation()}
-                          className={`flex-shrink-0 h-5 w-5 mt-0.5 ${hasGames && !selected ? 'opacity-70' : ''}`}
+                          className={`flex-shrink-0 h-4 w-4 mt-0.5 ${hasGames && !selected ? 'opacity-70' : ''}`}
                         />
                         <div className="flex-1 min-w-0">
-                          <p className={`font-semibold mb-1 text-sm ${
+                          <p className={`font-semibold mb-0.5 text-xs tracking-tight ${
                             isActive || selected || hasGames ? 'text-white' : 'text-slate-200'
                           }`}>
                             {provider.name}
                             {hasGames && !selected && (
-                              <span className="ml-2 text-xs text-blue-300">(일부 게임)</span>
+                              <span className="ml-1.5 text-[10px] text-blue-300">(일부)</span>
                             )}
                           </p>
-                          <p className={`text-xs ${
+                          <p className={`text-[10px] tracking-tight ${
                             isActive || selected || hasGames ? 'text-slate-300' : 'text-slate-400'
                           }`}>
                             {provider.type === 'casino' ? '🎰 카지노' : provider.type === 'slot' ? '🎮 슬롯' : '🎯 미니게임'}
                           </p>
                         </div>
-                        <ChevronRight className={`h-5 w-5 flex-shrink-0 mt-0.5 transition-all ${
+                        <ChevronRight className={`h-4 w-4 flex-shrink-0 mt-0.5 transition-all ${
                           isActive ? 'text-purple-300' : 'text-slate-500 group-hover:text-slate-400'
                         }`} />
                       </div>
@@ -730,32 +730,32 @@ export function GameAccessSelectorSimple({ availableApis, value, onChange, paren
         </div>
 
         {/* 오른쪽: 게임 리스트 */}
-        <div className="col-span-8 border border-slate-700 rounded-lg bg-slate-800/50 overflow-hidden flex flex-col h-[600px]">
-          <div className="p-4 border-b border-slate-700 bg-gradient-to-r from-purple-600/20 to-pink-600/20 flex-shrink-0 space-y-3">
+        <div className="col-span-8 border border-slate-700 rounded-lg bg-slate-800/50 overflow-hidden flex flex-col" style={{ height: 'calc(85vh - 240px)' }}>
+          <div className="p-3 border-b border-slate-700 bg-gradient-to-r from-purple-600/20 to-pink-600/20 flex-shrink-0 space-y-2">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <h3 className="font-bold text-white text-base">
+                <h3 className="font-bold text-white text-sm tracking-tight">
                   {selectedProvider ? (selectedProvider.name_ko || selectedProvider.name) : '게임 목록'}
                 </h3>
                 {selectedProvider && (
-                  <p className="text-xs text-slate-300 mt-1">
-                    개별 게임 선택 가능 (제공사 전체 선택 시 모든 게임 포함)
+                  <p className="text-xs text-slate-300 mt-0.5 tracking-tight">
+                    개별 게임 선택 가능
                   </p>
                 )}
               </div>
               
-              {/* 🆕 게임 일괄 선택/해제 버튼 */}
+              {/* 게임 일괄 선택/해제 버튼 */}
               {selectedProvider && (
-                <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="flex items-center gap-1 flex-shrink-0">
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={handleSelectAllGames}
                     disabled={gamesLoading || filteredGames.length === 0 || allGamesSelected}
-                    className="h-7 px-2 text-xs bg-green-600/20 text-green-300 hover:bg-green-600/40 hover:text-white border border-green-500/30 disabled:opacity-50"
+                    className="h-6 px-2 text-xs bg-green-600/20 text-green-300 hover:bg-green-600/40 hover:text-white border border-green-500/30 disabled:opacity-50 tracking-tight"
                     title="현재 보이는 모든 게임 선택"
                   >
-                    <CheckSquare className="h-3.5 w-3.5 mr-1" />
+                    <CheckSquare className="h-3 w-3 mr-0.5" />
                     전체
                   </Button>
                   <Button
@@ -763,10 +763,10 @@ export function GameAccessSelectorSimple({ availableApis, value, onChange, paren
                     variant="ghost"
                     onClick={handleDeselectAllGames}
                     disabled={gamesLoading || (selectedGamesCount === 0 && !providerFullySelected)}
-                    className="h-7 px-2 text-xs bg-red-600/20 text-red-300 hover:bg-red-600/40 hover:text-white border border-red-500/30 disabled:opacity-50"
+                    className="h-6 px-2 text-xs bg-red-600/20 text-red-300 hover:bg-red-600/40 hover:text-white border border-red-500/30 disabled:opacity-50 tracking-tight"
                     title="제공사 및 게임 선택 모두 해제"
                   >
-                    <Square className="h-3.5 w-3.5 mr-1" />
+                    <Square className="h-3 w-3 mr-0.5" />
                     해제
                   </Button>
                   <Button
@@ -777,9 +777,9 @@ export function GameAccessSelectorSimple({ availableApis, value, onChange, paren
                       setGames([]);
                       setGameSearch('');
                     }}
-                    className="h-7 px-2 text-slate-300 hover:text-white hover:bg-slate-700/70"
+                    className="h-6 px-2 text-slate-300 hover:text-white hover:bg-slate-700/70"
                   >
-                    <X className="h-4 w-4" />
+                    <X className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               )}
@@ -788,46 +788,46 @@ export function GameAccessSelectorSimple({ availableApis, value, onChange, paren
             {/* 게임 검색 */}
             {selectedProvider && (
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                 <Input
                   type="text"
                   placeholder="게임 검색..."
                   value={gameSearch}
                   onChange={(e) => setGameSearch(e.target.value)}
-                  className="pl-9 h-9 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-500"
+                  className="pl-7 h-7 text-xs bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-500 tracking-tight"
                 />
               </div>
             )}
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-2.5">
             {!selectedProvider ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center text-slate-400">
-                  <ChevronRight className="h-20 w-20 mx-auto mb-4 opacity-20" />
-                  <p className="font-semibold mb-2 text-base text-slate-300">왼쪽에서 제공사를 선택하세요</p>
-                  <p className="text-xs text-slate-500">제공사를 클릭하면 게임 목록이 표시됩니다</p>
+                  <ChevronRight className="h-16 w-16 mx-auto mb-3 opacity-20" />
+                  <p className="font-semibold mb-1 text-sm text-slate-300 tracking-tight">왼쪽에서 제공사를 선택하세요</p>
+                  <p className="text-xs text-slate-500 tracking-tight">제공사를 클릭하면 게임 목록이 표시됩니다</p>
                 </div>
               </div>
             ) : gamesLoading ? (
               <div className="flex items-center justify-center h-full">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
               </div>
             ) : games.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center text-slate-400">
-                  <Gamepad2 className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm font-medium">게임이 없습니다</p>
+                  <Gamepad2 className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                  <p className="text-xs font-medium tracking-tight">게임이 없습니다</p>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-2">
                 {filteredGames.map(game => {
                   const selected = isGameSelected(game);
                   
                   return (
                     <div
                       key={game.id}
-                      className={`flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-all ${
+                      className={`flex items-center gap-1.5 p-2 rounded-lg cursor-pointer transition-all ${
                         selected
                           ? 'bg-blue-600/30 border-2 border-blue-400 shadow-md shadow-blue-500/30'
                           : 'border-2 border-slate-700 hover:border-purple-500/50 hover:bg-slate-700/50'
@@ -838,9 +838,9 @@ export function GameAccessSelectorSimple({ availableApis, value, onChange, paren
                         checked={selected}
                         onCheckedChange={() => toggleGame(game)}
                         onClick={(e) => e.stopPropagation()}
-                        className="flex-shrink-0 h-4 w-4"
+                        className="flex-shrink-0 h-3.5 w-3.5"
                       />
-                      <p className={`text-sm flex-1 leading-tight font-medium ${
+                      <p className={`text-xs flex-1 leading-tight font-medium tracking-tight ${
                         selected ? 'text-white' : 'text-slate-200'
                       }`}>{game.name}</p>
                     </div>

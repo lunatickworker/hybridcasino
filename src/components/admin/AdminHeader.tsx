@@ -701,8 +701,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             if (transaction.status === 'pending') {
               if (transaction.transaction_type === 'deposit') {
                 toast.info('새로운 입금 요청이 있습니.', {
-                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${transaction.user_id}`,
+                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${transaction.user_id}\n클릭하면 사라집니다.`,
                   duration: 10000,
+                  position: 'bottom-left',
                   action: {
                     label: '확인',
                     onClick: () => {
@@ -714,8 +715,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 });
               } else if (transaction.transaction_type === 'withdrawal') {
                 toast.warning('새로운 출금 요청이 있습니다.', {
-                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${transaction.user_id}`,
+                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${transaction.user_id}\n클릭하면 사라집니다.`,
                   duration: 10000,
+                  position: 'bottom-left',
                   action: {
                     label: '확인',
                     onClick: () => {
@@ -749,8 +751,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           // 새 가입 요청 시 토스트 알림
           if (payload.eventType === 'INSERT' && payload.new && (payload.new as any).status === 'pending') {
             toast.info('새로운 가입 신청이 있습니다.', {
-              description: `회원 아이디: ${(payload.new as any).username}`,
+              description: `회원 아이디: ${(payload.new as any).username}\n클릭하면 사라집니다.`,
               duration: 8000,
+              position: 'bottom-left',
             });
           }
         }
@@ -779,8 +782,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 newMsg.receiver_type === 'partner' &&
                 !newMsg.parent_id) {
               toast.info(t.header.newDeposit || 'New customer inquiry', {
-                description: `Subject: ${newMsg.subject || 'Inquiry'}`,
+                description: `Subject: ${newMsg.subject || 'Inquiry'}\n클릭하면 사라집니다.`,
                 duration: 8000,
+                position: 'bottom-left',
                 action: {
                   label: '확인',
                   onClick: () => {
