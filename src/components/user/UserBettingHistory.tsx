@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { RefreshCw, Gamepad2, TrendingUp, TrendingDown } from 'lucide-react';
+import { RefreshCw, Gamepad2, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { GameResultInline } from '../admin/GameResultInline';
 
 interface UserBettingHistoryProps {
   user: {
@@ -28,12 +29,17 @@ interface BettingRecord {
   balance_after: number;
   played_at: string;
   api_type?: string;
+  external?: {
+    id: string;
+    detail: any;
+  } | null;
 }
 
 export function UserBettingHistory({ user }: UserBettingHistoryProps) {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<BettingRecord[]>([]);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   
   // Guard against null user - AFTER all hooks
   if (!user) {
@@ -86,7 +92,8 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
           balance_before,
           balance_after,
           played_at,
-          api_type
+          api_type,
+          external
         `)
         .eq('username', user.username)
         .order('played_at', { ascending: false })
@@ -263,6 +270,7 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
                         <th className="px-4 py-4 text-right text-sm font-semibold text-slate-300">당첨금액</th>
                         <th className="px-4 py-4 text-right text-sm font-semibold text-slate-300">손익</th>
                         <th className="px-4 py-4 text-left text-sm font-semibold text-slate-300">플레이 시간</th>
+                        <th className="px-4 py-4 text-left text-sm font-semibold text-slate-300">결과 보기</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -270,36 +278,63 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
                         const betAmount = Math.abs(Number(record.bet_amount) || 0);
                         const winAmount = Number(record.win_amount) || 0;
                         const profit = winAmount - betAmount;
+                        const isExpanded = expandedRow === record.id;
 
                         return (
-                          <tr
-                            key={record.id}
-                            className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors"
-                          >
-                            <td className="px-4 py-4">
-                              {getStatusBadge(winAmount, betAmount)}
-                            </td>
-                            <td className="px-4 py-4 text-white text-base font-medium max-w-[200px] truncate">
-                              {record.game_title || `Game ${record.game_id}`}
-                            </td>
-                            <td className="px-4 py-4">
-                              <Badge variant="secondary" className="text-sm bg-slate-700/50 text-slate-300 border-slate-600">
-                                {record.provider_name || `Provider ${record.provider_id}`}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-4 text-right font-mono text-base text-blue-400 font-semibold">
-                              ₩{formatMoney(betAmount)}
-                            </td>
-                            <td className="px-4 py-4 text-right font-mono text-base text-green-400 font-semibold">
-                              {winAmount === 0 ? '-' : `₩${formatMoney(winAmount)}`}
-                            </td>
-                            <td className={`px-4 py-4 text-right font-mono text-base font-semibold ${profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {profit >= 0 ? '+' : ''}₩{formatMoney(profit)}
-                            </td>
-                            <td className="px-4 py-4 text-slate-300 text-sm">
-                              {formatDate(record.played_at)}
-                            </td>
-                          </tr>
+                          <Fragment key={record.id}>
+                            <tr
+                              className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors"
+                            >
+                              <td className="px-4 py-4">
+                                {getStatusBadge(winAmount, betAmount)}
+                              </td>
+                              <td className="px-4 py-4 text-white text-base font-medium max-w-[200px] truncate">
+                                {record.game_title || `Game ${record.game_id}`}
+                              </td>
+                              <td className="px-4 py-4">
+                                <Badge variant="secondary" className="text-sm bg-slate-700/50 text-slate-300 border-slate-600">
+                                  {record.provider_name || `Provider ${record.provider_id}`}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-4 text-right font-mono text-base text-blue-400 font-semibold">
+                                ₩{formatMoney(betAmount)}
+                              </td>
+                              <td className="px-4 py-4 text-right font-mono text-base text-green-400 font-semibold">
+                                {winAmount === 0 ? '-' : `₩${formatMoney(winAmount)}`}
+                              </td>
+                              <td className={`px-4 py-4 text-right font-mono text-base font-semibold ${profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {profit >= 0 ? '+' : ''}₩{formatMoney(profit)}
+                              </td>
+                              <td className="px-4 py-4 text-slate-300 text-sm">
+                                {formatDate(record.played_at)}
+                              </td>
+                              <td className="px-4 py-4">
+                                {record.external?.detail ? (
+                                  <Button
+                                    onClick={() => setExpandedRow(isExpanded ? null : record.id)}
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 px-2 text-xs border-slate-600 hover:bg-slate-700/50 text-white"
+                                  >
+                                    {isExpanded ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
+                                    {isExpanded ? '닫기' : '보기'}
+                                  </Button>
+                                ) : (
+                                  <span className="text-slate-500 text-sm">-</span>
+                                )}
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr>
+                                <td colSpan={8} className="px-4 py-3 bg-slate-800/70">
+                                  <GameResultInline
+                                    external={record.external}
+                                    gameTitle={record.game_title}
+                                  />
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>

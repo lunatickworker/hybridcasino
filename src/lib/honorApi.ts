@@ -537,9 +537,10 @@ export async function getTransactions(
   start: string,
   end: string,
   page: number = 1,
-  perPage: number = 1000
+  perPage: number = 1000,
+  withDetails: boolean = true  // ✅ external.detail 포함 여부
 ): Promise<{ data: Transaction[] }> {
-  console.log(`📊 [HonorAPI] 트랜잭션 조회: ${start} ~ ${end}, page: ${page}, perPage: ${perPage}`);
+  console.log(`📊 [HonorAPI] 트랜잭션 조회: ${start} ~ ${end}, page: ${page}, perPage: ${perPage}, withDetails: ${withDetails}`);
   
   const params = new URLSearchParams({
     start,
@@ -547,6 +548,11 @@ export async function getTransactions(
     page: page.toString(),
     perPage: perPage.toString()
   });
+
+  // ✅ withDetails 파라미터 추가 (external.detail 포함)
+  if (withDetails) {
+    params.append('withDetails', '1');
+  }
 
   console.log(`🔍 [HonorAPI] API URL: ${HONORAPI_BASE_URL}/transactions?${params.toString()}`);
   console.log(`🔑 [HonorAPI] API Key: ${apiKey.substring(0, 10)}...`);
@@ -772,6 +778,12 @@ export async function syncHonorApiBettingHistory(): Promise<{
         // ✅ 올바른 잔액 계산: balance_after = balance_before - betAmount + winAmount
         const balanceAfter = tx.before - betAmount + winAmount;
 
+        // ✅ external 데이터 추출 (게임 상세 결과)
+        const external = tx.external ? {
+          id: tx.external.id,
+          detail: tx.external.detail
+        } : null;
+
         // game_records에 저장 (중복 체크: external_txid + api_type unique)
         const { error: insertError } = await supabase
           .from('game_records')
@@ -795,7 +807,8 @@ export async function syncHonorApiBettingHistory(): Promise<{
             api_type: 'honorapi',
             sync_status: 'synced',
             time_category: 'recent',
-            currency: 'KRW'
+            currency: 'KRW',
+            external: external  // ✅ 게임 상세 결과 저장
           });
 
         if (insertError) {

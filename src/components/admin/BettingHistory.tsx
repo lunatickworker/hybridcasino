@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { CreditCard, Download, RefreshCw } from "lucide-react";
+import { CreditCard, Download, RefreshCw, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -13,6 +13,8 @@ import { MetricCard } from "./MetricCard";
 import { forceSyncBettingHistory } from "./BettingHistorySync";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { getTodayStartUTC, formatSystemTime } from "../../utils/timezone";
+import { GameResultDetail } from "./GameResultDetail";
+import { GameResultInline } from "./GameResultInline";
 
 interface BettingHistoryProps {
   user: Partner;
@@ -33,6 +35,10 @@ interface BettingRecord {
   balance_before: number;
   balance_after: number;
   played_at: string;
+  external?: {
+    id: string;
+    detail: any;
+  } | null;
 }
 
 export function BettingHistory({ user }: BettingHistoryProps) {
@@ -43,6 +49,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   const [bettingRecords, setBettingRecords] = useState<BettingRecord[]>([]);
   const [dateFilter, setDateFilter] = useState("today"); // ✅ 기본값을 "오늘"로 변경
   const [searchTerm, setSearchTerm] = useState("");
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   // 날짜 포맷 (이미지와 동일: 2025년10월24일 08:19:52)
   const formatKoreanDate = (dateStr: string) => {
@@ -513,6 +520,37 @@ export function BettingHistory({ user }: BettingHistoryProps) {
           <span className={`${profitColor} font-bold text-xl`}>
             {profit > 0 ? '+' : ''}₩{profit.toLocaleString()}
           </span>
+        );
+      }
+    },
+    {
+      key: 'game_result',
+      header: '게임 결과',
+      render: (_: any, record: BettingRecord) => {
+        if (!record?.external?.detail) return <span className="text-slate-500 text-sm">-</span>;
+        
+        const isExpanded = expandedRow === record.id;
+        
+        return (
+          <div>
+            <Button
+              onClick={() => setExpandedRow(isExpanded ? null : record.id)}
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-sm"
+            >
+              {isExpanded ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
+              {isExpanded ? '닫기' : '보기'}
+            </Button>
+            {isExpanded && (
+              <div className="mt-2">
+                <GameResultInline
+                  external={record.external}
+                  gameTitle={record.game_title}
+                />
+              </div>
+            )}
+          </div>
         );
       }
     },

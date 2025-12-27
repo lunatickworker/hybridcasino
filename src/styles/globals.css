@@ -337,6 +337,27 @@ html {
   100% { transform: rotate(360deg); }
 }
 
+@keyframes loadingRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 슬라이드 인 애니메이션 (오른쪽에서) */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
 .metric-card-hover:hover {
   transform: translateY(-4px) scale(1.02);
   filter: brightness(1.15);
@@ -617,11 +638,6 @@ html {
     box-shadow: 0 0 40px rgba(59, 130, 246, 0.6);
     transform: scale(1.05);
   }
-}
-
-@keyframes loadingRotate {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
 }
 
 /* 알림 표시기 */

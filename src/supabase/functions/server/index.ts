@@ -4,6 +4,7 @@ import {
   handleChangeBalanceCallback,
   handleChangeBalanceSlotCallback
 } from "./familycallback.ts";
+import { executeAutoSettlement } from "./auto-settlement.ts";
 
 // =====================================================
 // 상수 정의
@@ -1166,6 +1167,13 @@ Deno.serve(async (req: Request) => {
     if ((path === '/sync/lv2-balances' || path === '/server/sync/lv2-balances') && req.method === 'POST') {
       console.log('🎯 [Sync] 보유금 동기화 요청 수신');
       const result = await syncLv2Balances();
+      return new Response(JSON.stringify(result), { headers: corsHeaders });
+    }
+
+    // 자동 정산 (매일 00:04 실행)
+    if ((path === '/sync/auto-settlement' || path === '/server/sync/auto-settlement') && req.method === 'POST') {
+      console.log('🎯 [Auto Settlement] 자동 정산 요청 수신');
+      const result = await executeAutoSettlement();
       return new Response(JSON.stringify(result), { headers: corsHeaders });
     }
 

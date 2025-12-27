@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { useAuth } from "../../hooks/useAuth";
 import { useWebSocketContext } from "../../contexts/WebSocketContext";
 import { supabase } from "../../lib/supabase";
@@ -142,7 +143,11 @@ export function UserManagement() {
     selected_referrer_id: '', // Lv1이 회원 생성 시 소속 파트너 선택
     bulk_mode: false, // 벌크 생성 모드
     bulk_start: '', // 벌크 시작 (예: dev1)
-    bulk_end: '' // 벌크 종료 (예: dev40)
+    bulk_end: '', // 벌크 종료 (예: dev40)
+    casino_rolling_commission: '', // 카지노 롤링 커미션
+    casino_losing_commission: '', // 카지노 루징 커미션
+    slot_rolling_commission: '', // 슬롯 롤링 커미션
+    slot_losing_commission: '' // 슬롯 루징 커미션
   });
 
   // 사용자 목록 조회 (하위 파트너 포함)
@@ -628,7 +633,11 @@ export function UserManagement() {
       selected_referrer_id: '',
       bulk_mode: false,
       bulk_start: '',
-      bulk_end: ''
+      bulk_end: '',
+      casino_rolling_commission: '',
+      casino_losing_commission: '',
+      slot_rolling_commission: '',
+      slot_losing_commission: ''
     });
 
     // 백그라운드에서 회원 생성 진행
@@ -685,6 +694,10 @@ export function UserManagement() {
           api_account_status: 'pending',
           api_invest_created: false,
           api_oroplay_created: false,
+          casino_rolling_commission: parseFloat(userData.casino_rolling_commission || '0'),
+          casino_losing_commission: parseFloat(userData.casino_losing_commission || '0'),
+          slot_rolling_commission: parseFloat(userData.slot_rolling_commission || '0'),
+          slot_losing_commission: parseFloat(userData.slot_losing_commission || '0'),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -1526,11 +1539,48 @@ export function UserManagement() {
     {
       key: "points",
       header: t.userManagement.points,
-      cell: (row: any) => (
-        <span className="font-mono font-semibold text-purple-400">
-          {(row.points || 0).toLocaleString()}P
-        </span>
-      )
+      cell: (row: any) => {
+        const casinoPoints = row.casino_rolling_points || 0;
+        const slotPoints = row.slot_rolling_points || 0;
+        const totalPoints = casinoPoints + slotPoints;
+        
+        return (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="font-mono font-semibold text-purple-400 hover:text-purple-300 transition-colors cursor-pointer">
+                {totalPoints.toLocaleString()}P
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 glass-card border-purple-500/30 p-4">
+              <div className="space-y-3">
+                <h4 className="text-base font-semibold text-purple-300 mb-3 pb-2 border-b border-purple-500/30">포인트 상세</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-400">🎰 카지노 롤링</span>
+                    <span className="font-mono text-base font-semibold text-purple-400">
+                      {casinoPoints.toLocaleString()}P
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-slate-400">🎮 슬롯 롤링</span>
+                    <span className="font-mono text-base font-semibold text-pink-400">
+                      {slotPoints.toLocaleString()}P
+                    </span>
+                  </div>
+                  <div className="pt-2 mt-2 border-t border-white/10">
+                    <div className="flex justify-between items-center">
+                      <span className="text-base font-semibold text-white">전체 합산</span>
+                      <span className="font-mono text-lg font-bold text-purple-400">
+                        {totalPoints.toLocaleString()}P
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        );
+      }
     },
     {
       key: "vip_level",
@@ -2195,6 +2245,85 @@ export function UserManagement() {
                   className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
                   placeholder={t.userManagement.enterAccountNumber}
                 />
+              </div>
+            </div>
+
+            {/* 커미션 설정 섹션 */}
+            <div className="space-y-5">
+              <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
+                <div className="w-1.5 h-6 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
+                <h4 className="text-lg font-semibold text-slate-200">커미션 설정</h4>
+                <span className="text-base text-slate-400">베팅액의 %</span>
+              </div>
+              <div className="grid grid-cols-2 gap-5">
+                {/* 카지노 롤링 */}
+                <div className="space-y-2">
+                  <Label htmlFor="casino_rolling" className="text-slate-300 text-base">
+                    🎰 카지노 롤링 (%)
+                  </Label>
+                  <Input
+                    id="casino_rolling"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={formData.casino_rolling_commission}
+                    onChange={(e) => setFormData(prev => ({ ...prev, casino_rolling_commission: e.target.value }))}
+                    className="input-premium focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/20 text-lg h-12"
+                    placeholder="0.00"
+                  />
+                </div>
+                {/* 카지노 루징 */}
+                <div className="space-y-2">
+                  <Label htmlFor="casino_losing" className="text-slate-300 text-base">
+                    🎰 카지노 루징 (%)
+                  </Label>
+                  <Input
+                    id="casino_losing"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={formData.casino_losing_commission}
+                    onChange={(e) => setFormData(prev => ({ ...prev, casino_losing_commission: e.target.value }))}
+                    className="input-premium focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/20 text-lg h-12"
+                    placeholder="0.00"
+                  />
+                </div>
+                {/* 슬롯 롤링 */}
+                <div className="space-y-2">
+                  <Label htmlFor="slot_rolling" className="text-slate-300 text-base">
+                    🎮 슬롯 롤링 (%)
+                  </Label>
+                  <Input
+                    id="slot_rolling"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={formData.slot_rolling_commission}
+                    onChange={(e) => setFormData(prev => ({ ...prev, slot_rolling_commission: e.target.value }))}
+                    className="input-premium focus:border-pink-500/60 focus:ring-2 focus:ring-pink-500/20 text-lg h-12"
+                    placeholder="0.00"
+                  />
+                </div>
+                {/* 슬롯 루징 */}
+                <div className="space-y-2">
+                  <Label htmlFor="slot_losing" className="text-slate-300 text-base">
+                    🎮 슬롯 루징 (%)
+                  </Label>
+                  <Input
+                    id="slot_losing"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={formData.slot_losing_commission}
+                    onChange={(e) => setFormData(prev => ({ ...prev, slot_losing_commission: e.target.value }))}
+                    className="input-premium focus:border-pink-500/60 focus:ring-2 focus:ring-pink-500/20 text-lg h-12"
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
             </div>
 

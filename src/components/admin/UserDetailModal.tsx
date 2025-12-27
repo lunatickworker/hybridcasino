@@ -27,6 +27,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { PasswordChangeSection } from "./PasswordChangeSection";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface UserDetailModalProps {
   user: any;
@@ -56,6 +57,7 @@ interface BettingRecord {
 
 export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps) {
   const { t } = useLanguage();
+  const { authState } = useAuth();
   const [activeTab, setActiveTab] = useState("basic");
   const [loading, setLoading] = useState(false);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
@@ -79,8 +81,116 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
   const [evolutionLoading, setEvolutionLoading] = useState(false);
   const [hasInvestApi, setHasInvestApi] = useState<boolean>(false); // invest API 사용 여부
 
+  // 커미션 수정 state
+  const [editMode, setEditMode] = useState(false);
+  const [commissionData, setCommissionData] = useState({
+    casino_rolling_commission: 0,
+    casino_losing_commission: 0,
+    slot_rolling_commission: 0,
+    slot_losing_commission: 0
+  });
 
+  // 메모 수정 state
+  const [memoEditMode, setMemoEditMode] = useState(false);
+  const [memoText, setMemoText] = useState('');
+  const [memoHistory, setMemoHistory] = useState<any[]>([]);
+  const [showMemoHistory, setShowMemoHistory] = useState(false);
 
+  // 커미션 저장 함수
+  const saveCommission = async () => {
+    try {
+      setLoading(true);
+      
+      const { error } = await supabase
+        .from('users')
+        .update({
+          casino_rolling_commission: parseFloat(commissionData.casino_rolling_commission.toString()),
+          casino_losing_commission: parseFloat(commissionData.casino_losing_commission.toString()),
+          slot_rolling_commission: parseFloat(commissionData.slot_rolling_commission.toString()),
+          slot_losing_commission: parseFloat(commissionData.slot_losing_commission.toString()),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      toast.success('커미션 설정이 저장되었습니다.');
+      setEditMode(false);
+      
+      // 사용자 객체 업데이트 (모달 재렌더링을 위해)
+      user.casino_rolling_commission = parseFloat(commissionData.casino_rolling_commission.toString());
+      user.casino_losing_commission = parseFloat(commissionData.casino_losing_commission.toString());
+      user.slot_rolling_commission = parseFloat(commissionData.slot_rolling_commission.toString());
+      user.slot_losing_commission = parseFloat(commissionData.slot_losing_commission.toString());
+      
+    } catch (error) {
+      console.error('커미션 저장 오류:', error);
+      toast.error('커미션 저장에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 메모 이력 조회
+  const fetchMemoHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_memo_history')
+        .select('*, created_by_partner:partners!user_memo_history_created_by_fkey(username, nickname)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setMemoHistory(data || []);
+    } catch (error) {
+      console.error('메모 이력 조회 오류:', error);
+    }
+  };
+
+  // 메모 저장 함수
+  const saveMemo = async () => {
+    try {
+      setLoading(true);
+
+      // 1. 사용자 테이블 업데이트
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          memo: memoText || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      // 2. 메모 이력 기록
+      const { error: historyError } = await supabase
+        .from('user_memo_history')
+        .insert({
+          user_id: user.id,
+          memo: memoText || null,
+          created_by: authState.user?.id, // 현재 로그인한 관리자 ID
+          created_at: new Date().toISOString()
+        });
+
+      if (historyError) throw historyError;
+
+      toast.success('메모가 저장되었습니다.');
+      setMemoEditMode(false);
+      user.memo = memoText; // 사용자 객체 업데이트
+      
+      // 이력 새로고침
+      await fetchMemoHistory();
+      
+    } catch (error) {
+      console.error('메모 저장 오류:', error);
+      toast.error('메모 저장에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   // 기본 통계 계산
   const calculateStats = async () => {
     try {
@@ -493,6 +603,18 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
 
     if (activeTab === "basic") {
       calculateStats();
+      // 커미션 데이터 초기화
+      setCommissionData({
+        casino_rolling_commission: user.casino_rolling_commission || 0,
+        casino_losing_commission: user.casino_losing_commission || 0,
+        slot_rolling_commission: user.slot_rolling_commission || 0,
+        slot_losing_commission: user.slot_losing_commission || 0
+      });
+      setEditMode(false);
+      // 메모 데이터 초기화
+      setMemoText(user.memo || '');
+      setMemoEditMode(false);
+      fetchMemoHistory();
     } else if (activeTab === "transactions") {
       fetchTransactions();
     } else if (activeTab === "betting") {
@@ -552,13 +674,13 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
     switch (status) {
       case 'approved':
       case 'completed':
-        return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">승인</Badge>;
+        return <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-base px-3 py-1">승인</Badge>;
       case 'pending':
-        return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">대기</Badge>;
+        return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-base px-3 py-1">대기</Badge>;
       case 'rejected':
-        return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">거절</Badge>;
+        return <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-base px-3 py-1">거절</Badge>;
       default:
-        return <Badge>{status}</Badge>;
+        return <Badge className="text-base px-3 py-1">{status}</Badge>;
     }
   };
 
@@ -646,33 +768,33 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                 {/* 기본 정보 */}
                 <div>
                   <h3 className="flex items-center gap-2 mb-4">
-                    <User className="h-4 w-4 text-blue-400" />
-                    <span className="text-base">기본 정보</span>
+                    <User className="h-5 w-5 text-blue-400" />
+                    <span className="text-lg">기본 정보</span>
                   </h3>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">아이디</span>
-                      <span className="text-base font-mono">{user.username}</span>
+                      <span className="text-base text-muted-foreground">아이디</span>
+                      <span className="text-lg font-mono">{user.username}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">닉네임</span>
-                      <span className="text-base">{user.nickname}</span>
+                      <span className="text-base text-muted-foreground">닉네임</span>
+                      <span className="text-lg">{user.nickname}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">가입일</span>
-                      <span className="text-base">{formatDate(user.created_at)}</span>
+                      <span className="text-base text-muted-foreground">가입일</span>
+                      <span className="text-lg">{formatDate(user.created_at)}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">가입 경과</span>
-                      <span className="text-base">{stats.accountAge}일</span>
+                      <span className="text-base text-muted-foreground">가입 경과</span>
+                      <span className="text-lg">{stats.accountAge}일</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">은행</span>
-                      <span className="text-base">{user.bank_name || '-'}</span>
+                      <span className="text-base text-muted-foreground">은행</span>
+                      <span className="text-lg">{user.bank_name || '-'}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">계좌번호</span>
-                      <span className="text-base font-mono">{user.bank_account || '-'}</span>
+                      <span className="text-base text-muted-foreground">계좌번호</span>
+                      <span className="text-lg font-mono">{user.bank_account || '-'}</span>
                     </div>
                   </div>
                 </div>
@@ -680,35 +802,35 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                 {/* 잔고 정보 */}
                 <div>
                   <h3 className="flex items-center gap-2 mb-4">
-                    <Wallet className="h-4 w-4 text-emerald-400" />
-                    <span className="text-base">잔고 정보</span>
+                    <Wallet className="h-5 w-5 text-emerald-400" />
+                    <span className="text-lg">잔고 정보</span>
                   </h3>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">보유금</span>
-                      <span className="text-lg font-mono">{formatCurrency(user.balance || 0)}</span>
+                      <span className="text-base text-muted-foreground">보유금</span>
+                      <span className="text-xl font-mono">{formatCurrency(user.balance || 0)}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">포인트</span>
-                      <span className="text-lg font-mono">{formatCurrency(user.points || 0)}</span>
+                      <span className="text-base text-muted-foreground">포인트</span>
+                      <span className="text-xl font-mono">{formatCurrency(user.points || 0)}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">총 입금</span>
-                      <span className="text-lg font-mono text-blue-400">{formatCurrency(stats.totalDeposit)}</span>
+                      <span className="text-base text-muted-foreground">총 입금</span>
+                      <span className="text-xl font-mono text-blue-400">{formatCurrency(stats.totalDeposit)}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">총 출금</span>
-                      <span className="text-lg font-mono text-pink-400">{formatCurrency(stats.totalWithdraw)}</span>
+                      <span className="text-base text-muted-foreground">총 출금</span>
+                      <span className="text-xl font-mono text-pink-400">{formatCurrency(stats.totalWithdraw)}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-gradient-to-r from-white/10 to-white/5 border border-white/20">
-                      <span className="text-base">순 입출금</span>
-                      <span className={`text-lg font-mono ${stats.totalDeposit - stats.totalWithdraw >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      <span className="text-lg">순 입출금</span>
+                      <span className={`text-xl font-mono ${stats.totalDeposit - stats.totalWithdraw >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {formatCurrency(stats.totalDeposit - stats.totalWithdraw)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-gradient-to-r from-white/10 to-white/5 border border-white/20">
-                      <span className="text-base">게임 손익</span>
-                      <span className={`text-lg font-mono ${stats.totalWinAmount - stats.totalBets >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      <span className="text-lg">게임 손익</span>
+                      <span className={`text-xl font-mono ${stats.totalWinAmount - stats.totalBets >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {stats.totalWinAmount - stats.totalBets >= 0 ? '+' : ''}
                         {formatCurrency(stats.totalWinAmount - stats.totalBets)}
                       </span>
@@ -719,27 +841,27 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                 {/* 베팅 통계 */}
                 <div>
                   <h3 className="flex items-center gap-2 mb-4">
-                    <Activity className="h-4 w-4 text-amber-400" />
-                    <span className="text-base">베팅 통계</span>
+                    <Activity className="h-5 w-5 text-amber-400" />
+                    <span className="text-lg">베팅 통계</span>
                   </h3>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">게임 플레이</span>
-                      <span className="text-base font-mono">{stats.gameCount}회</span>
+                      <span className="text-base text-muted-foreground">게임 플레이</span>
+                      <span className="text-lg font-mono">{stats.gameCount}회</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">승률</span>
-                      <span className={`text-base font-mono ${stats.winRate > 50 ? 'text-green-400' : 'text-red-400'}`}>
+                      <span className="text-base text-muted-foreground">승률</span>
+                      <span className={`text-lg font-mono ${stats.winRate > 50 ? 'text-green-400' : 'text-red-400'}`}>
                         {stats.winRate.toFixed(1)}%
                       </span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">총 베팅액</span>
-                      <span className="text-base font-mono">{formatCurrency(stats.totalBets)}</span>
+                      <span className="text-base text-muted-foreground">총 베팅액</span>
+                      <span className="text-lg font-mono">{formatCurrency(stats.totalBets)}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">총 당첨액</span>
-                      <span className="text-base font-mono">{formatCurrency(stats.totalWinAmount)}</span>
+                      <span className="text-base text-muted-foreground">총 당첨액</span>
+                      <span className="text-lg font-mono">{formatCurrency(stats.totalWinAmount)}</span>
                     </div>
                   </div>
                 </div>
@@ -747,29 +869,228 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                 {/* 활동 정보 */}
                 <div>
                   <h3 className="flex items-center gap-2 mb-4">
-                    <Clock className="h-4 w-4 text-purple-400" />
-                    <span className="text-base">활동 정보</span>
+                    <Clock className="h-5 w-5 text-purple-400" />
+                    <span className="text-lg">활동 정보</span>
                   </h3>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-3">
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">최근 활동</span>
-                      <span className="text-base">{formatDateTime(stats.lastActivity)}</span>
+                      <span className="text-base text-muted-foreground">최근 활동</span>
+                      <span className="text-lg">{formatDateTime(stats.lastActivity)}</span>
                     </div>
                     <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                      <span className="text-sm text-muted-foreground">추천인</span>
-                      <span className="text-base">{user.referrer?.username || '-'}</span>
+                      <span className="text-base text-muted-foreground">추천인</span>
+                      <span className="text-lg">{user.referrer?.username || '-'}</span>
                     </div>
-                    {user.memo && (
-                      <div className="col-span-2 py-3 px-4 rounded-lg bg-white/5 border border-white/10">
-                        <span className="text-sm text-muted-foreground block mb-1.5">메모</span>
-                        <span className="text-base">{user.memo}</span>
-                      </div>
-                    )}
                   </div>
+                </div>
+
+                {/* 관리자 메모 섹션 */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-amber-400" />
+                      <span className="text-lg">관리자 메모</span>
+                    </h3>
+                    <div className="flex gap-2">
+                      {memoHistory.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowMemoHistory(!showMemoHistory)}
+                          className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 text-sm"
+                        >
+                          📜 이력 ({memoHistory.length})
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (memoEditMode) {
+                            setMemoText(user.memo || '');
+                          }
+                          setMemoEditMode(!memoEditMode);
+                        }}
+                        className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 text-sm"
+                      >
+                        {memoEditMode ? '취소' : '✏️ 수정'}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {memoEditMode ? (
+                    <div className="space-y-3">
+                      <textarea
+                        value={memoText}
+                        onChange={(e) => setMemoText(e.target.value)}
+                        className="w-full min-h-[120px] p-3 rounded-lg bg-slate-800/50 border border-slate-700 text-white text-base focus:border-amber-500/60 focus:ring-2 focus:ring-amber-500/20 resize-none"
+                        placeholder="관리자 메모를 입력하세요..."
+                      />
+                      <Button
+                        onClick={saveMemo}
+                        disabled={loading}
+                        className="w-full btn-premium-primary text-base h-11"
+                      >
+                        {loading ? '저장 중...' : '💾 메모 저장'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-lg bg-white/5 border border-white/10 min-h-[80px]">
+                      <p className="text-lg text-white/90 whitespace-pre-wrap">
+                        {user.memo || '메모가 없습니다.'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 메모 이력 */}
+                  {showMemoHistory && memoHistory.length > 0 && (
+                    <div className="mt-4 p-4 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                      <h4 className="text-base text-amber-400 mb-3 flex items-center gap-2">
+                        <Clock className="h-4 w-4" />
+                        메모 변경 이력
+                      </h4>
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                        {memoHistory.map((history, idx) => (
+                          <div key={history.id} className="p-3 rounded bg-white/5 border border-white/10">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm text-amber-400">
+                                #{memoHistory.length - idx}
+                              </span>
+                              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                                <span>{history.created_by_partner?.nickname || history.created_by_partner?.username || '관리자'}</span>
+                                <span>{formatDateTime(history.created_at)}</span>
+                              </div>
+                            </div>
+                            <p className="text-base text-white/80 whitespace-pre-wrap">
+                              {history.memo || '(삭제됨)'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 비밀번호 변경 섹션 */}
                 <PasswordChangeSection userId={user.id} />
+
+                {/* 커미션 설정 섹션 */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="flex items-center gap-2">
+                      <Settings className="h-4 w-4 text-purple-400" />
+                      <span className="text-base">커미션 설정 (%)</span>
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (editMode) {
+                          // 취소 시 원래 값 복원
+                          setCommissionData({
+                            casino_rolling_commission: user.casino_rolling_commission || 0,
+                            casino_losing_commission: user.casino_losing_commission || 0,
+                            slot_rolling_commission: user.slot_rolling_commission || 0,
+                            slot_losing_commission: user.slot_losing_commission || 0
+                          });
+                        }
+                        setEditMode(!editMode);
+                      }}
+                      className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                    >
+                      {editMode ? '취소' : '✏️ 수정'}
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* 카지노 롤링 */}
+                    <div className="space-y-2">
+                      <Label className="text-base text-muted-foreground">🎰 카지노 롤링</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={commissionData.casino_rolling_commission}
+                        onChange={(e) => setCommissionData(prev => ({
+                          ...prev,
+                          casino_rolling_commission: parseFloat(e.target.value) || 0
+                        }))}
+                        onFocus={(e) => e.target.select()}
+                        className={`input-premium text-lg h-12 ${!editMode ? 'opacity-60 cursor-not-allowed' : 'focus:border-purple-500/60'}`}
+                        disabled={!editMode}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    {/* 카지노 루징 */}
+                    <div className="space-y-2">
+                      <Label className="text-base text-muted-foreground">🎰 카지노 루징</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={commissionData.casino_losing_commission}
+                        onChange={(e) => setCommissionData(prev => ({
+                          ...prev,
+                          casino_losing_commission: parseFloat(e.target.value) || 0
+                        }))}
+                        onFocus={(e) => e.target.select()}
+                        className={`input-premium text-lg h-12 ${!editMode ? 'opacity-60 cursor-not-allowed' : 'focus:border-purple-500/60'}`}
+                        disabled={!editMode}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    {/* 슬롯 롤링 */}
+                    <div className="space-y-2">
+                      <Label className="text-base text-muted-foreground">🎮 슬롯 롤링</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={commissionData.slot_rolling_commission}
+                        onChange={(e) => setCommissionData(prev => ({
+                          ...prev,
+                          slot_rolling_commission: parseFloat(e.target.value) || 0
+                        }))}
+                        onFocus={(e) => e.target.select()}
+                        className={`input-premium text-lg h-12 ${!editMode ? 'opacity-60 cursor-not-allowed' : 'focus:border-pink-500/60'}`}
+                        disabled={!editMode}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    {/* 슬롯 루징 */}
+                    <div className="space-y-2">
+                      <Label className="text-base text-muted-foreground">🎮 슬롯 루징</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={commissionData.slot_losing_commission}
+                        onChange={(e) => setCommissionData(prev => ({
+                          ...prev,
+                          slot_losing_commission: parseFloat(e.target.value) || 0
+                        }))}
+                        onFocus={(e) => e.target.select()}
+                        className={`input-premium text-lg h-12 ${!editMode ? 'opacity-60 cursor-not-allowed' : 'focus:border-pink-500/60'}`}
+                        disabled={!editMode}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  {editMode && (
+                    <div className="flex gap-3 pt-4">
+                      <Button
+                        onClick={saveCommission}
+                        disabled={loading}
+                        className="w-full btn-premium-primary text-base h-11"
+                      >
+                        {loading ? '저장 중...' : '💾 커미션 저장'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </TabsContent>
@@ -781,7 +1102,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
             ) : transactions.length === 0 ? (
               <div className="text-center py-12 glass-card rounded-xl">
                 <Wallet className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                <p className="text-muted-foreground text-base">입출금 내역이 없습니다.</p>
+                <p className="text-muted-foreground text-lg">입출금 내역이 없습니다.</p>
               </div>
             ) : (
               <div className="glass-card rounded-xl overflow-hidden">
@@ -789,45 +1110,45 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                   <table className="w-full">
                     <thead className="border-b border-white/10">
                       <tr className="bg-white/5">
-                        <th className="px-4 py-3.5 text-left text-sm">구분</th>
-                        <th className="px-4 py-3.5 text-left text-sm">상태</th>
-                        <th className="px-4 py-3.5 text-left text-sm">일시</th>
-                        <th className="px-4 py-3.5 text-left text-sm">메모</th>
-                        <th className="px-4 py-3.5 text-right text-sm">금액</th>
+                        <th className="px-4 py-4 text-left text-base">구분</th>
+                        <th className="px-4 py-4 text-left text-base">상태</th>
+                        <th className="px-4 py-4 text-left text-base">일시</th>
+                        <th className="px-4 py-4 text-left text-base">메모</th>
+                        <th className="px-4 py-4 text-right text-base">금액</th>
                       </tr>
                     </thead>
                     <tbody>
                       {transactions.map((tx) => (
                         <tr key={tx.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3.5">
                             <div className="flex items-center gap-2">
-                              <div className={`p-1.5 rounded-lg ${
+                              <div className={`p-2 rounded-lg ${
                                 tx.transaction_type === 'deposit' 
                                   ? 'bg-green-500/20' 
                                   : 'bg-red-500/20'
                               }`}>
                                 {tx.transaction_type === 'deposit' ? (
-                                  <TrendingUp className="h-4 w-4 text-green-400" />
+                                  <TrendingUp className="h-5 w-5 text-green-400" />
                                 ) : (
-                                  <ArrowDownToLine className="h-4 w-4 text-red-400" />
+                                  <ArrowDownToLine className="h-5 w-5 text-red-400" />
                                 )}
                               </div>
-                              <span className="text-sm">
+                              <span className="text-base">
                                 {tx.transaction_type === 'deposit' ? '입금' : '출금'}
                               </span>
                             </div>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3.5">
                             {getStatusBadge(tx.status)}
                           </td>
-                          <td className="px-4 py-3 text-muted-foreground text-sm">
+                          <td className="px-4 py-3.5 text-muted-foreground text-base">
                             {formatDateTime(tx.created_at)}
                           </td>
-                          <td className="px-4 py-3 text-muted-foreground text-sm max-w-xs truncate">
+                          <td className="px-4 py-3.5 text-muted-foreground text-base max-w-xs truncate">
                             {tx.notes || '-'}
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className={`font-mono text-base ${
+                          <td className="px-4 py-3.5 text-right">
+                            <span className={`font-mono text-lg ${
                               tx.transaction_type === 'deposit' ? 'text-green-400' : 'text-red-400'
                             }`}>
                               {tx.transaction_type === 'deposit' ? '+' : '-'}
@@ -923,7 +1244,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
             ) : !aiAnalysis ? (
               <div className="text-center py-12 glass-card rounded-xl">
                 <Brain className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                <p className="text-muted-foreground text-base mb-2">분석할 베팅 데이터가 부족합니다.</p>
+                <p className="text-muted-foreground text-lg mb-2">분석할 베팅 데이터가 부족합니다.</p>
               </div>
             ) : (
               <div className="grid gap-4">
@@ -932,21 +1253,21 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                   <Card className="glass-card metric-gradient-purple">
                     <CardContent className="pt-4 pb-4 px-5">
                       <div className="flex items-center gap-2 mb-2.5">
-                        <Target className="h-4 w-4 text-white" />
-                        <h3 className="text-sm text-white">사용자 성향</h3>
+                        <Target className="h-5 w-5 text-white" />
+                        <h3 className="text-base text-white">사용자 성향</h3>
                       </div>
-                      <p className="text-base font-bold text-white mb-1.5">{aiAnalysis.userType}</p>
-                      <p className="text-sm text-white/80">베팅 패턴 종합 분석</p>
+                      <p className="text-lg font-bold text-white mb-1.5">{aiAnalysis.userType}</p>
+                      <p className="text-base text-white/80">베팅 패턴 종합 분석</p>
                     </CardContent>
                   </Card>
 
                   <Card className="glass-card">
                     <CardContent className="pt-4 pb-4 px-5">
                       <div className="flex items-center gap-2 mb-2.5">
-                        <AlertTriangle className="h-4 w-4 text-yellow-400" />
-                        <h3 className="text-sm">리스크 분석</h3>
+                        <AlertTriangle className="h-5 w-5 text-yellow-400" />
+                        <h3 className="text-base">리스크 분석</h3>
                       </div>
-                      <Badge className={`px-2.5 py-1 mb-2 ${
+                      <Badge className={`px-3 py-1.5 mb-2 text-base ${
                         aiAnalysis.riskLevel === 'HIGH' ? 'bg-red-500/20 text-red-400 border-red-500/30' :
                         aiAnalysis.riskLevel === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
                         'bg-green-500/20 text-green-400 border-green-500/30'
@@ -954,8 +1275,8 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                         {aiAnalysis.riskLevel === 'HIGH' ? '고위험' :
                          aiAnalysis.riskLevel === 'MEDIUM' ? '중위험' : '저위험'}
                       </Badge>
-                      <div className="text-sm text-muted-foreground">
-                        평균: <span className="font-mono text-base">{formatCurrency(aiAnalysis.avgBet)}</span>
+                      <div className="text-base text-muted-foreground">
+                        평균: <span className="font-mono text-lg">{formatCurrency(aiAnalysis.avgBet)}</span>
                       </div>
                     </CardContent>
                   </Card>
@@ -963,17 +1284,17 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                   <Card className="glass-card">
                     <CardContent className="pt-4 pb-4 px-5">
                       <div className="flex items-center gap-2 mb-2.5">
-                        <BarChart3 className="h-4 w-4 text-cyan-400" />
-                        <h3 className="text-sm">베팅 통계</h3>
+                        <BarChart3 className="h-5 w-5 text-cyan-400" />
+                        <h3 className="text-base">베팅 통계</h3>
                       </div>
                       <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">총 베팅</span>
-                          <span className="text-base font-mono">{aiAnalysis.totalBets}회</span>
+                          <span className="text-base text-muted-foreground">총 베팅</span>
+                          <span className="text-lg font-mono">{aiAnalysis.totalBets}회</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">승률</span>
-                          <span className={`text-base font-mono ${aiAnalysis.winRate > 50 ? 'text-green-400' : 'text-red-400'}`}>
+                          <span className="text-base text-muted-foreground">승률</span>
+                          <span className={`text-lg font-mono ${aiAnalysis.winRate > 50 ? 'text-green-400' : 'text-red-400'}`}>
                             {aiAnalysis.winRate.toFixed(1)}%
                           </span>
                         </div>
@@ -984,17 +1305,17 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                   <Card className="glass-card">
                     <CardContent className="pt-4 pb-4 px-5">
                       <div className="flex items-center gap-2 mb-2.5">
-                        <Clock className="h-4 w-4 text-orange-400" />
-                        <h3 className="text-sm">시간 패턴</h3>
+                        <Clock className="h-5 w-5 text-orange-400" />
+                        <h3 className="text-base">시간 패턴</h3>
                       </div>
                       <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">피크</span>
-                          <span className="text-base font-mono">{aiAnalysis.peakHour}시</span>
+                          <span className="text-base text-muted-foreground">피크</span>
+                          <span className="text-lg font-mono">{aiAnalysis.peakHour}시</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">야간</span>
-                          <span className="text-base font-mono">{aiAnalysis.nightPlayRatio.toFixed(1)}%</span>
+                          <span className="text-base text-muted-foreground">야간</span>
+                          <span className="text-lg font-mono">{aiAnalysis.nightPlayRatio.toFixed(1)}%</span>
                         </div>
                       </div>
                     </CardContent>
@@ -1005,20 +1326,20 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                 <Card className="glass-card">
                   <CardContent className="pt-4 pb-4 px-5">
                     <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/10">
-                      <Trophy className="h-4 w-4 text-yellow-400" />
-                      <h3 className="text-sm">선호 게임 TOP 5</h3>
+                      <Trophy className="h-5 w-5 text-yellow-400" />
+                      <h3 className="text-base">선호 게임 TOP 5</h3>
                     </div>
                     <div className="grid grid-cols-5 gap-3">
                       {aiAnalysis.topGames.map((game: any, idx: number) => (
                         <div key={idx} className="p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
-                          <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 px-2 py-0.5 mb-2">
+                          <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 px-2.5 py-1 mb-2 text-base">
                             {idx + 1}위
                           </Badge>
-                          <p className="text-sm mb-1 truncate">{game.game}</p>
-                          <p className="text-sm text-muted-foreground mb-2 truncate">{game.provider}</p>
+                          <p className="text-base mb-1 truncate">{game.game}</p>
+                          <p className="text-base text-muted-foreground mb-2 truncate">{game.provider}</p>
                           <div className="space-y-1">
-                            <p className="font-mono text-sm">{game.count}회</p>
-                            <p className={`text-sm ${game.winRate > 50 ? 'text-green-400' : 'text-red-400'}`}>
+                            <p className="font-mono text-base">{game.count}회</p>
+                            <p className={`text-base ${game.winRate > 50 ? 'text-green-400' : 'text-red-400'}`}>
                               승률 {game.winRate.toFixed(1)}%
                             </p>
                           </div>
@@ -1032,14 +1353,14 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                 <Card className="glass-card">
                   <CardContent className="pt-4 pb-4 px-5">
                     <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/10">
-                      <Brain className="h-4 w-4 text-purple-400" />
-                      <h3 className="text-sm">AI 분석 인사이트</h3>
+                      <Brain className="h-5 w-5 text-purple-400" />
+                      <h3 className="text-base">AI 분석 인사이트</h3>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       {aiAnalysis.insights.map((insight: string, idx: number) => (
                         <div key={idx} className="flex items-start gap-2 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/15 transition-colors">
-                          <Brain className="h-4 w-4 text-purple-400 mt-0.5 flex-shrink-0" />
-                          <p className="text-sm leading-relaxed">{insight}</p>
+                          <Brain className="h-5 w-5 text-purple-400 mt-0.5 flex-shrink-0" />
+                          <p className="text-base leading-relaxed">{insight}</p>
                         </div>
                       ))}
                     </div>
@@ -1067,8 +1388,8 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                       {currentEvolutionLimit !== null && (
                         <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
                           <div className="flex items-center justify-between">
-                            <span className="text-sm text-slate-400">현재 설정</span>
-                            <span className="font-mono text-lg text-blue-400">
+                            <span className="text-base text-slate-400">현재 설정</span>
+                            <span className="font-mono text-xl text-blue-400">
                               {currentEvolutionLimit.toLocaleString()}원
                             </span>
                           </div>
@@ -1077,13 +1398,13 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
 
                       {/* 회원 정보 */}
                       <div className="p-4 rounded-lg bg-slate-800/30 border border-slate-700">
-                        <div className="text-sm text-slate-400 mb-2">회원 아이디</div>
-                        <div className="font-mono text-base text-white">{user.username}</div>
+                        <div className="text-base text-slate-400 mb-2">회원 아이디</div>
+                        <div className="font-mono text-lg text-white">{user.username}</div>
                       </div>
 
                       {/* 최대배팅금 설정 */}
                       <div>
-                        <Label className="text-sm text-slate-400 mb-2">최대배팅금액</Label>
+                        <Label className="text-base text-slate-400 mb-2">최대배팅금액</Label>
                         <Input
                           type="number"
                           value={evolutionLimit}
@@ -1091,10 +1412,10 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                             const value = parseInt(e.target.value) || 0;
                             setEvolutionLimit(value);
                           }}
-                          className="bg-slate-800/50 border-slate-700 text-white font-mono text-base"
+                          className="bg-slate-800/50 border-slate-700 text-white font-mono text-lg h-12"
                           placeholder="금액 입력"
                         />
-                        <p className="text-sm text-slate-500 mt-2">
+                        <p className="text-base text-slate-500 mt-2">
                           {evolutionLimit.toLocaleString()}원
                         </p>
                       </div>
