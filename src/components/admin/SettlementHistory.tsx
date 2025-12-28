@@ -109,7 +109,7 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
         setLoading(true);
       }
 
-      // 직접 settlements 테이블 조회 (카지노/슬롯 컬럼 포함)
+      // settlements 테이블을 직접 조회 (카지노/슬롯 컬럼 포함)
       let query = supabase
         .from('settlements')
         .select(`
@@ -122,10 +122,10 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
 
       // 날짜 필터
       if (dateRange?.from) {
-        query = query.gte('period_start', dateRange.from.toISOString());
+        query = query.gte('created_at', dateRange.from.toISOString());
       }
       if (dateRange?.to) {
-        query = query.lte('period_end', dateRange.to.toISOString());
+        query = query.lte('created_at', dateRange.to.toISOString());
       }
 
       // 정산 타입 필터
@@ -133,55 +133,30 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
         query = query.eq('settlement_type', typeFilter);
       }
 
+      // API 필터
+      if (apiFilter !== 'all') {
+        query = query.eq('api_filter', apiFilter);
+      }
+
       const { data, error } = await query;
 
       if (error) {
         console.error('정산 이력 조회 실패:', error);
-        toast.error('정산 이력 조회에 실패했습니다.');
+        toast.error(t.settlement.historyLoadFailed);
         return;
       }
 
-      // 데이터 변환
-      let settlements = (data || []).map((s: any) => ({
-        id: s.id,
-        partner_id: s.partner_id,
-        partner_nickname: s.partner?.nickname || '-',
-        settlement_type: s.settlement_type,
-        settlement_period: s.settlement_period,
-        api_filter: s.api_filter,
-        period_start: s.period_start,
-        period_end: s.period_end,
-        total_bet_amount: s.total_bet_amount || 0,
-        total_win_amount: s.total_win_amount || 0,
-        total_withdrawal_amount: s.total_withdrawal_amount || 0,
-        casino_rolling_commission: s.casino_rolling_commission || 0,
-        casino_losing_commission: s.casino_losing_commission || 0,
-        slot_rolling_commission: s.slot_rolling_commission || 0,
-        slot_losing_commission: s.slot_losing_commission || 0,
-        rolling_commission: s.rolling_commission || 0,
-        losing_commission: s.losing_commission || 0,
-        withdrawal_commission: s.withdrawal_commission || 0,
-        commission_amount: s.commission_amount || 0,
-        my_total_income: s.my_total_income || 0,
-        partner_total_payments: s.partner_total_payments || 0,
-        net_profit: s.net_profit || 0,
-        status: s.status,
-        processed_at: s.processed_at,
-        created_at: s.created_at,
-        executed_by: s.executed_by,
-        executor_nickname: s.executor?.nickname || '-',
-        commission_conversions: s.commission_conversions || {}
+      // 데이터 매핑
+      const formattedData = (data || []).map(settlement => ({
+        ...settlement,
+        partner_nickname: settlement.partner?.nickname || '-',
+        executor_nickname: settlement.executor?.nickname || '-'
       }));
 
-      // API 필터 적용
-      if (apiFilter !== 'all') {
-        settlements = settlements.filter((s: Settlement) => s.api_filter === apiFilter);
-      }
-
-      setSettlements(settlements);
+      setSettlements(formattedData);
     } catch (error) {
       console.error('정산 이력 조회 실패:', error);
-      toast.error('정산 이력 조회에 실패했습니다.');
+      toast.error(t.settlement.historyLoadFailed);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -395,124 +370,119 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
 
       {/* 정산 이력 카드 */}
       <Card className="border-slate-800 bg-slate-900/50">
-        <CardHeader className="border-b border-slate-800 pb-6">
-          {/* 필터 영역 - 한 줄 레이아웃 */}
-          <div className="flex items-center gap-4">
+        <CardHeader className="border-b border-slate-800 pb-4">
+          {/* 필터 영역 - 한 줄로 배치 */}
+          <div className="flex items-center gap-3">
             {/* API 제공사 드롭다운 (Lv1, Lv2만) */}
             {user.level <= 2 && availableApis.length > 0 && (
-              <div className="flex items-center gap-2">
-                <label className="text-base text-slate-300 whitespace-nowrap font-medium">API 제공사</label>
+              <div className="w-40">
                 <Select value={apiFilter} onValueChange={setApiFilter}>
-                  <SelectTrigger className="w-[160px] h-11 text-base rounded-none">
-                    <SelectValue placeholder="선택하세요" />
+                  <SelectTrigger className="h-12 text-base rounded-none border-slate-700 bg-slate-800/50 hover:bg-slate-800 hover:border-purple-500/50 transition-colors">
+                    <SelectValue placeholder="API 제공사" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all" className="text-base">전체</SelectItem>
+                    <SelectItem value="all">전체 API</SelectItem>
                     {availableApis.map(api => (
-                      <SelectItem key={api} value={api} className="text-base">{api}</SelectItem>
+                      <SelectItem key={api} value={api}>{api}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
 
-            {/* 기간 선택 */}
-            <div className="flex items-center gap-2">
-              <label className="text-base text-slate-300 whitespace-nowrap font-medium">기간 선택</label>
-              <div className="flex gap-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDatePreset('today')}
-                  className="text-base h-11 px-5 rounded-none border-r-0 hover:bg-purple-500/10 hover:border-purple-500/50"
-                >
-                  오늘
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDatePreset('yesterday')}
-                  className="text-base h-11 px-5 rounded-none border-r-0 hover:bg-purple-500/10 hover:border-purple-500/50"
-                >
-                  어제
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDatePreset('week')}
-                  className="text-base h-11 px-5 rounded-none border-r-0 hover:bg-purple-500/10 hover:border-purple-500/50"
-                >
-                  최근 7일
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDatePreset('month')}
-                  className="text-base h-11 px-5 rounded-none border-r-0 hover:bg-purple-500/10 hover:border-purple-500/50"
-                >
-                  이번 달
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDatePreset('all')}
-                  className="text-base h-11 px-5 rounded-none hover:bg-purple-500/10 hover:border-purple-500/50"
-                >
-                  전체
-                </Button>
-              </div>
-
-              {/* 커스텀 캘린더 */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    className={cn(
-                      "h-11 px-5 text-base justify-start text-left min-w-[280px] rounded-none",
-                      "hover:bg-purple-500/10 hover:border-purple-500/50",
-                      dateRange?.from && "border-purple-500/50 bg-purple-500/5"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-5 w-5" />
-                    {dateRange?.from ? (
-                      dateRange.to ? (
-                        <>
-                          {format(dateRange.from, "yyyy-MM-dd", { locale: ko })} ~ {format(dateRange.to, "yyyy-MM-dd", { locale: ko })}
-                        </>
-                      ) : (
-                        format(dateRange.from, "yyyy-MM-dd", { locale: ko })
-                      )
-                    ) : (
-                      <span className="text-slate-500">날짜를 선택하세요</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange?.from}
-                    selected={dateRange}
-                    onSelect={setDateRange}
-                    numberOfMonths={2}
-                    locale={ko}
-                  />
-                </PopoverContent>
-              </Popover>
+            {/* 기간 선택 프리셋 버튼들 */}
+            <div className="flex gap-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDatePreset('today')}
+                className="h-12 px-5 rounded-none border-r-0 text-base hover:bg-purple-500/10 hover:border-purple-500/50 hover:z-10"
+              >
+                오늘
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDatePreset('yesterday')}
+                className="h-12 px-5 rounded-none border-r-0 text-base hover:bg-purple-500/10 hover:border-purple-500/50 hover:z-10"
+              >
+                어제
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDatePreset('week')}
+                className="h-12 px-5 rounded-none border-r-0 text-base hover:bg-purple-500/10 hover:border-purple-500/50 hover:z-10"
+              >
+                최근 7일
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDatePreset('month')}
+                className="h-12 px-5 rounded-none border-r-0 text-base hover:bg-purple-500/10 hover:border-purple-500/50 hover:z-10"
+              >
+                이번 달
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDatePreset('all')}
+                className="h-12 px-5 rounded-none text-base hover:bg-purple-500/10 hover:border-purple-500/50 hover:z-10"
+              >
+                전체
+              </Button>
             </div>
 
-            {/* 정산 유형 */}
-            <div className="flex items-center gap-2 ml-auto">
-              <label className="text-base text-slate-300 whitespace-nowrap font-medium">정산 유형</label>
+            {/* 커스텀 캘린더 */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className={cn(
+                    "h-12 px-5 text-base justify-start text-left min-w-[280px] rounded-none",
+                    "hover:bg-purple-500/10 hover:border-purple-500/50",
+                    dateRange?.from && "border-purple-500/50 bg-purple-500/5"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-5 w-5" />
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "yyyy-MM-dd", { locale: ko })} ~ {format(dateRange.to, "yyyy-MM-dd", { locale: ko })}
+                      </>
+                    ) : (
+                      format(dateRange.from, "yyyy-MM-dd", { locale: ko })
+                    )
+                  ) : (
+                    <span className="text-slate-500">날짜 선택</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
+                  locale={ko}
+                />
+              </PopoverContent>
+            </Popover>
+
+            {/* 정산 유형 드롭다운 */}
+            <div className="w-44">
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-[160px] h-11 text-base rounded-none">
-                  <SelectValue placeholder="선택하세요" />
+                <SelectTrigger className="h-12 text-base rounded-none border-slate-700 bg-slate-800/50 hover:bg-slate-800 hover:border-purple-500/50 transition-colors">
+                  <SelectValue placeholder="정산 유형" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all" className="text-base">전체</SelectItem>
-                  <SelectItem value="partner_commission" className="text-base">통합 정산</SelectItem>
-                  <SelectItem value="rolling" className="text-base">롤링</SelectItem>
-                  <SelectItem value="losing" className="text-base">루징</SelectItem>
+                  <SelectItem value="all">전체</SelectItem>
+                  <SelectItem value="partner_commission">통합 정산</SelectItem>
+                  <SelectItem value="rolling">롤링</SelectItem>
+                  <SelectItem value="losing">루징</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -527,20 +497,21 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full" style={{ minWidth: '1400px' }}>
+              <table className="w-full">
                 <thead className="bg-slate-800/30">
                   <tr className="border-b border-slate-700">
-                    <th className="text-left p-6 text-slate-400 font-medium whitespace-nowrap">정산일시</th>
-                    <th className="text-left p-6 text-slate-400 font-medium whitespace-nowrap">정산 유형</th>
-                    <th className="text-left p-6 text-slate-400 font-medium whitespace-nowrap">정산 기간</th>
-                    <th className="text-left p-6 text-slate-400 font-medium whitespace-nowrap">기간</th>
-                    <th className="text-right p-6 text-blue-400 font-medium whitespace-nowrap">🎰 카지노 롤링</th>
-                    <th className="text-right p-6 text-blue-400 font-medium whitespace-nowrap">🎰 카지노 루징</th>
-                    <th className="text-right p-6 text-purple-400 font-medium whitespace-nowrap">🎮 슬롯 롤링</th>
-                    <th className="text-right p-6 text-purple-400 font-medium whitespace-nowrap">🎮 슬롯 루징</th>
-                    <th className="text-right p-6 text-green-400 font-medium whitespace-nowrap">💰 출금 수수료</th>
-                    <th className="text-right p-6 text-slate-400 font-medium whitespace-nowrap">총액</th>
-                    <th className="text-left p-6 text-slate-400 font-medium whitespace-nowrap">실행자</th>
+                    <th className="text-left p-6 text-slate-400 font-medium">정산일시</th>
+                    <th className="text-left p-6 text-slate-400 font-medium">정산 유형</th>
+                    <th className="text-left p-6 text-slate-400 font-medium">정산 기간</th>
+                    <th className="text-left p-6 text-slate-400 font-medium">기간</th>
+                    <th className="text-left p-6 text-slate-400 font-medium">API</th>
+                    <th className="text-right p-6 text-blue-400 font-medium">🎰 카지노 롤링</th>
+                    <th className="text-right p-6 text-blue-400 font-medium">🎰 카지노 루징</th>
+                    <th className="text-right p-6 text-purple-400 font-medium">🎮 슬롯 롤링</th>
+                    <th className="text-right p-6 text-purple-400 font-medium">🎮 슬롯 루징</th>
+                    <th className="text-right p-6 text-green-400 font-medium">💰 출금 수수료</th>
+                    <th className="text-right p-6 text-slate-400 font-medium">총액</th>
+                    <th className="text-left p-6 text-slate-400 font-medium">실행자</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -563,8 +534,8 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
                         <td className="p-6 text-slate-300 whitespace-nowrap text-base">
                           {format(new Date(settlement.processed_at || settlement.created_at), "yyyy-MM-dd HH:mm", { locale: ko })}
                         </td>
-                        <td className="p-6 whitespace-nowrap">
-                          <Badge className={cn(getSettlementTypeColor(settlement.settlement_type), "px-4 py-2 text-sm")}>
+                        <td className="p-6">
+                          <Badge className={cn(getSettlementTypeColor(settlement.settlement_type), "px-4 py-2 whitespace-nowrap text-sm")}>
                             {getSettlementTypeText(settlement.settlement_type)}
                           </Badge>
                         </td>
@@ -573,6 +544,11 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
                         </td>
                         <td className="p-6 text-slate-300 whitespace-nowrap text-base">
                           {format(new Date(settlement.period_start), "MM/dd", { locale: ko })} ~ {format(new Date(settlement.period_end), "MM/dd", { locale: ko })}
+                        </td>
+                        <td className="p-6">
+                          <Badge variant="outline" className="px-3 py-1.5 whitespace-nowrap text-sm">
+                            {settlement.api_filter === 'all' ? '전체' : settlement.api_filter}
+                          </Badge>
                         </td>
                         <td 
                           className={cn(
@@ -634,7 +610,7 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
                           ₩{Math.round(settlement.withdrawal_commission).toLocaleString()}
                         </td>
                         <td className="p-6 text-right whitespace-nowrap">
-                          <span className="text-orange-400 font-mono text-lg font-bold">
+                          <span className="text-orange-400 font-mono font-bold text-xl">
                             ₩{totalAmount.toLocaleString()}
                           </span>
                         </td>
@@ -675,30 +651,30 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
               <table className="w-full">
                 <thead className="bg-slate-800/30">
                   <tr className="border-b border-slate-700">
-                    <th className="text-left p-5 text-slate-400 text-sm font-medium">전환일시</th>
-                    <th className="text-left p-5 text-slate-400 text-sm font-medium">커미션 종류</th>
-                    <th className="text-right p-5 text-slate-400 text-sm font-medium">전환 금액</th>
-                    <th className="text-right p-5 text-slate-400 text-sm font-medium">전환 후 잔액</th>
+                    <th className="text-left p-6 text-slate-400 font-medium">전환일시</th>
+                    <th className="text-left p-6 text-slate-400 font-medium">커미션 종류</th>
+                    <th className="text-right p-6 text-slate-400 font-medium">전환 금액</th>
+                    <th className="text-right p-6 text-slate-400 font-medium">전환 후 잔액</th>
                   </tr>
                 </thead>
                 <tbody>
                   {conversionHistory.map((item) => (
                     <tr key={item.id} className="border-b border-slate-800 hover:bg-slate-800/20 transition-colors">
-                      <td className="p-5 text-slate-300 whitespace-nowrap">
+                      <td className="p-6 text-slate-300 whitespace-nowrap text-base">
                         <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-slate-500" />
+                          <Clock className="h-5 w-5 text-slate-500" />
                           {format(new Date(item.created_at), "yyyy-MM-dd HH:mm", { locale: ko })}
                         </div>
                       </td>
-                      <td className="p-5 text-slate-300">
+                      <td className="p-6 text-slate-300 text-base">
                         {item.memo}
                       </td>
-                      <td className="p-5 text-right whitespace-nowrap">
-                        <span className="text-gradient bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent font-mono font-semibold">
+                      <td className="p-6 text-right whitespace-nowrap">
+                        <span className="text-gradient bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent font-mono font-bold text-lg">
                           +₩{item.amount.toLocaleString()}
                         </span>
                       </td>
-                      <td className="p-5 text-right text-green-400 whitespace-nowrap font-mono">
+                      <td className="p-6 text-right text-green-400 whitespace-nowrap font-mono font-semibold text-lg">
                         ₩{item.balance_after.toLocaleString()}
                       </td>
                     </tr>

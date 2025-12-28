@@ -27,6 +27,7 @@ interface GameProvider {
 interface Game {
   id: string;
   name: string;
+  name_ko?: string;
   game_code: string;
   image_url?: string;
   provider_id: number;
@@ -364,134 +365,181 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
   };
 
   return (
-    <div className="p-6 space-y-6" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
-      {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          {selectedProvider && (
-            <Button
-              onClick={handleBackToProviders}
-              variant="ghost"
-              className="text-purple-400 hover:text-purple-300 hover:bg-purple-900/20"
-            >
-              <ChevronLeft className="w-5 h-5 mr-2" />
-              제공사 목록
-            </Button>
-          )}
-          <div className="flex items-center gap-4">
-            <div className="w-1 h-8 bg-gradient-to-b from-purple-500 to-pink-500"></div>
-            <h1 className="text-3xl font-black">
-              <span className="bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+    <div className="relative min-h-screen" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+      {/* 깔끔한 다크 배경 */}
+      <div 
+        className="fixed inset-0 z-0"
+        style={{
+          background: '#0a0a0f',
+        }}
+      />
+
+      <div className="relative z-10 p-8 lg:p-12 space-y-10 max-w-[1400px] mx-auto">
+        {/* 미니멀 헤더 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            {selectedProvider && (
+              <Button
+                onClick={handleBackToProviders}
+                variant="ghost"
+                className="text-white/60 hover:text-white hover:bg-white/5 transition-all"
+              >
+                <ChevronLeft className="w-5 h-5 mr-2" />
+                뒤로가기
+              </Button>
+            )}
+            <h1 className="text-4xl font-bold tracking-tight">
+              <span style={{
+                background: 'linear-gradient(90deg, #ffffff 0%, #E6C9A8 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>
                 {selectedProvider ? selectedProvider.name_ko || selectedProvider.name : '라이브 카지노'}
               </span>
             </h1>
           </div>
         </div>
-      </div>
 
-      {/* 제공사 목록 */}
-      {!selectedProvider && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-          {loading ? (
-            Array(12).fill(0).map((_, i) => (
-              <div key={i} className="aspect-[4/3] bg-gray-800 animate-pulse"></div>
-            ))
-          ) : (
-            providers.map((provider) => (
-              <motion.div
-                key={provider.id}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="cursor-pointer"
-                onClick={() => handleProviderClick(provider)}
-              >
-                <div className="relative aspect-[4/3] overflow-hidden group">
-                  {/* 제공사 이미지 - 카드 전체를 꽉 채움 */}
-                  <ImageWithFallback
-                    src={provider.logo_url || provider.thumbnail_url || getRandomCasinoImage()}
-                    alt={provider.name}
-                    className="w-full h-full object-cover transition-all duration-500 group-hover:brightness-110"
-                  />
-                  
-                  {/* 제공사명 오버레이 - 하단 그라디언트 배경 */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/90 to-transparent py-6 px-4">
-                    <p className="text-xl font-black text-center text-white tracking-wide" style={{
-                      textShadow: '0 0 12px rgba(0, 0, 0, 1), 0 2px 8px rgba(0, 0, 0, 0.9), 0 4px 16px rgba(147, 51, 234, 0.6)'
-                    }}>
-                      {provider.name_ko || provider.name}
-                    </p>
-                  </div>
-                  
-                  {/* 호버 효과 */}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300"></div>
-                </div>
-              </motion.div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* 게임 목록 */}
-      {selectedProvider && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
-          {gamesLoading ? (
-            Array(12).fill(0).map((_, i) => (
-              <div key={i} className="aspect-[3/4] bg-gray-800 animate-pulse"></div>
-            ))
-          ) : games.length === 0 ? (
-            <div className="col-span-full text-center py-12">
-              <p className="text-gray-400">게임이 없습니다.</p>
-            </div>
-          ) : (
-            games.map((game) => (
-              <motion.div
-                key={game.id}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="cursor-pointer"
-                onClick={() => handleGameClick(game)}
-              >
-                <div className="relative aspect-[3/4] rounded-xl overflow-hidden group shadow-lg hover:shadow-purple-500/30 transition-all duration-300">
-                  {/* 게임 이미지 */}
-                  {game.image_url ? (
+        {/* 제공사 목록 - 4칸 정렬 */}
+        {!selectedProvider && (
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+            {loading ? (
+              Array(8).fill(0).map((_, i) => (
+                <div key={i} className="aspect-[3/4] rounded-2xl animate-pulse" style={{
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)'
+                }}></div>
+              ))
+            ) : (
+              providers.map((provider) => (
+                <motion.div
+                  key={provider.id}
+                  whileHover={{ scale: 1.05, y: -8 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="cursor-pointer group"
+                  onClick={() => handleProviderClick(provider)}
+                >
+                  <div className="relative aspect-[3/4] overflow-hidden rounded-2xl transition-all duration-500" style={{
+                    background: '#16161f',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
+                  }}>
+                    {/* 제공사 이미지 */}
                     <ImageWithFallback
-                      src={game.image_url}
-                      alt={game.name}
-                      className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
+                      src={provider.logo_url || provider.thumbnail_url || getRandomCasinoImage()}
+                      alt={provider.name}
+                      className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
                     />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-purple-900/30 to-pink-900/30 flex items-center justify-center">
-                      <Play className="w-12 h-12 text-purple-500/50" />
+                    
+                    {/* 그라디언트 오버레이 */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity duration-500"></div>
+                    
+                    {/* 호버 시 로즈 골드 테두리 */}
+                    <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
+                      boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
+                    }}></div>
+                    
+                    {/* 제공사명 */}
+                    <div className="absolute bottom-0 left-0 right-0 p-6">
+                      <p className="text-2xl font-black text-white tracking-tight" style={{
+                        textShadow: '0 2px 20px rgba(0,0,0,0.9)',
+                        letterSpacing: '-0.02em'
+                      }}>
+                        {provider.name_ko || provider.name}
+                      </p>
                     </div>
-                  )}
-                  
-                  {/* 하단 그라디언트 오버레이 (항상 표시) */}
-                  <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black via-black/70 to-transparent"></div>
-                  
-                  {/* 게임명 (항상 표시) */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <p className="text-white text-center line-clamp-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
-                      {game.name}
-                    </p>
                   </div>
-                  
-                  {/* 호버 효과 - 플레이 버튼 & 밝기 조절 */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-purple-600/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-2 -translate-y-6">
-                      <div className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center">
-                        <Play className="w-8 h-8 text-white fill-white" />
+                </motion.div>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* 게임 목록 - 4칸 정렬 */}
+        {selectedProvider && (
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+            {gamesLoading ? (
+              Array(8).fill(0).map((_, i) => (
+                <div key={i} className="aspect-[3/4] rounded-2xl animate-pulse" style={{
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)'
+                }}></div>
+              ))
+            ) : games.length === 0 ? (
+              <div className="col-span-full text-center py-20">
+                <p className="text-white/40 text-lg">게임이 없습니다.</p>
+              </div>
+            ) : (
+              games.map((game) => (
+                <motion.div
+                  key={game.id}
+                  whileHover={{ scale: 1.05, y: -8 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="cursor-pointer group"
+                  onClick={() => handleGameClick(game)}
+                >
+                  <div className="relative aspect-[3/4] overflow-hidden rounded-2xl transition-all duration-500" style={{
+                    background: '#16161f',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
+                  }}>
+                    {/* 게임 이미지 */}
+                    {game.image_url ? (
+                      <ImageWithFallback
+                        src={game.image_url}
+                        alt={game.name_ko || game.name}
+                        className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center" style={{
+                        background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)'
+                      }}>
+                        <Play className="w-16 h-16 text-white/20" />
                       </div>
-                      <span className="text-white font-black tracking-wider drop-shadow-lg">
-                        플레이
-                      </span>
+                    )}
+                    
+                    {/* 그라디언트 오버레이 */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent opacity-70 group-hover:opacity-80 transition-opacity duration-500"></div>
+                    
+                    {/* 호버 시 로즈 골드 테두리 */}
+                    <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
+                      boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
+                    }}></div>
+                    
+                    {/* 게임명 - 항상 표시, 한글 우선 */}
+                    <div className="absolute bottom-0 left-0 right-0 p-5">
+                      <p className="text-[22px] font-black text-white leading-tight line-clamp-2" style={{
+                        textShadow: '0 3px 24px rgba(0,0,0,1), 0 1px 8px rgba(0,0,0,0.9)',
+                        letterSpacing: '-0.03em',
+                        wordBreak: 'keep-all'
+                      }}>
+                        {game.name_ko || game.name}
+                      </p>
+                    </div>
+                    
+                    {/* 호버 시 플레이 버튼 */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="w-24 h-24 rounded-full backdrop-blur-xl flex items-center justify-center transition-all duration-500" style={{
+                          background: 'rgba(193, 154, 107, 0.15)',
+                          boxShadow: '0 0 40px rgba(193, 154, 107, 0.3), inset 0 0 20px rgba(255,255,255,0.1)',
+                          border: '2px solid rgba(193, 154, 107, 0.4)'
+                        }}>
+                          <Play className="w-12 h-12" style={{ color: '#E6C9A8', fill: '#E6C9A8' }} />
+                        </div>
+                        <span className="text-white font-black text-xl tracking-wide" style={{
+                          textShadow: '0 2px 20px rgba(0,0,0,0.8)',
+                          color: '#E6C9A8',
+                          letterSpacing: '0.05em'
+                        }}>
+                          PLAY
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))
-          )}
-        </div>
-      )}
+                </motion.div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

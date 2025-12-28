@@ -390,11 +390,13 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
           <button
             className="w-full py-4 px-5 mb-3 text-left relative overflow-hidden transform transition-all duration-300 hover:scale-105 active:scale-100"
             style={{
-              background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f97316 100%)',
+              background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
               boxShadow: `
-                inset 0 2px 4px rgba(255, 255, 255, 0.3),
+                0 4px 15px rgba(193, 154, 107, 0.3),
+                inset 0 2px 4px rgba(255, 255, 255, 0.2),
                 inset 0 -4px 8px rgba(0, 0, 0, 0.3)
-              `
+              `,
+              borderRadius: '8px'
             }}
           >
             {/* 광택 효과 */}
@@ -413,7 +415,12 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
           </button>
           <button
             onClick={() => onRouteChange('/benz/withdraw')}
-            className="w-full py-4 px-5 text-left bg-[#1a1f3a] border border-purple-900/30 text-gray-300 hover:bg-[#252a45] hover:border-purple-500/50 font-medium text-lg transition-all"
+            className="w-full py-4 px-5 text-left border text-gray-300 font-medium text-lg transition-all"
+            style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(193, 154, 107, 0.3)',
+              borderRadius: '8px'
+            }}
           >
             <div className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-400"></div>
@@ -428,12 +435,28 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
-                <div className="w-1.5 h-8 bg-gradient-to-b from-purple-400 to-pink-500"></div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">보유머니 입금</h1>
+                <div className="w-1.5 h-8" style={{
+                  background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)'
+                }}></div>
+                <h1 className="text-2xl font-bold" style={{
+                  background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 50%, #A67C52 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>보유머니 입금</h1>
               </div>
-              <div className="bg-[#1a1f3a] border border-purple-900/30 px-6 py-3">
+              <div className="px-6 py-3 border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.3)',
+                borderRadius: '8px'
+              }}>
                 <div className="text-sm text-gray-400 mb-1">현재 잔고</div>
-                <div className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                <div className="text-xl font-bold" style={{
+                  background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>
                   <AnimatedCurrency value={currentBalance} duration={800} currencySymbol="₩" />
                 </div>
               </div>
@@ -441,39 +464,64 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
           </div>
 
           {/* Notice */}
-          <div className="bg-[#1a1f3a] border border-purple-900/30 p-6 mb-6">
+          <div className="p-6 mb-6 border-0" style={{
+            background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+            border: '1px solid rgba(193, 154, 107, 0.2)',
+            borderRadius: '8px'
+          }}>
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-2 h-2 bg-gradient-to-r from-purple-400 to-pink-500 animate-pulse"></div>
-              <h2 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">Notice</h2>
+              <div className="w-2 h-2 animate-pulse" style={{
+                background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                boxShadow: '0 0 8px rgba(193, 154, 107, 0.6)'
+              }}></div>
+              <h2 className="text-xl font-bold" style={{
+                background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>Notice</h2>
             </div>
             <div className="space-y-3 text-base text-gray-300 leading-relaxed">
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">1.</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>1.</span>
                 <span>입금 시 반드시 계좌확인 후 입금을 부탁 드립니다.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">2.</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>2.</span>
                 <span>입금하신 머니는 입금자 본인 계좌로만 재차되며 타인의 은행 예금 신청시 승인되지 않습니다.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">3.</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>3.</span>
                 <span>입금계좌는 수시로 변경됩니다. [계좌번호 문의] 후 본사 예금 계좌번호를 확인 후 입금하시길 부탁드립니다.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">4.</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>4.</span>
                 <span>타사의 충전내역 및 베팅내역 캡쳐를 이용한 신청시 적발 시 제재처리 됩니다.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">5.</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>5.</span>
                 <span>최소 입금 금액: 10,000원 | 최대 입금 금액: 10,000,000원</span>
               </div>
             </div>
           </div>
 
           {/* 입금 계좌 정보 확인 */}
-          <div className="bg-[#1a1f3a] border border-purple-900/30 p-6 mb-6">
-            <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-500/30 p-5 mb-4">
-              <h3 className="text-lg font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent mb-3">입금 계좌 정보</h3>
+          <div className="p-6 mb-6 border-0" style={{
+            background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+            border: '1px solid rgba(193, 154, 107, 0.2)',
+            borderRadius: '8px'
+          }}>
+            <div className="p-5 mb-4" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.1) 100%)',
+              border: '1px solid rgba(193, 154, 107, 0.3)',
+              borderRadius: '8px'
+            }}>
+              <h3 className="text-lg font-bold mb-3" style={{
+                background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>입금 계좌 정보</h3>
               <p className="text-base text-gray-300 mb-4 leading-relaxed">
                 입금 계좌정보는 매번 변동될 수 있으며, 예금주는 수시로 변경됩니다. 입금 전에 반드시 계좌번호를 먼저 전달받으시기 바랍니다.
               </p>
@@ -481,9 +529,11 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
                 onClick={handleSendAccountNumber}
                 className="relative overflow-hidden transform transition-all duration-300 hover:scale-105 active:scale-100 px-8 py-3"
                 style={{
-                  background: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
+                  background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                  borderRadius: '8px',
                   boxShadow: `
-                    inset 0 2px 4px rgba(255, 255, 255, 0.3),
+                    0 4px 15px rgba(193, 154, 107, 0.3),
+                    inset 0 2px 4px rgba(255, 255, 255, 0.2),
                     inset 0 -4px 8px rgba(0, 0, 0, 0.3)
                   `
                 }}
@@ -502,7 +552,11 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
             </div>
 
             {accountInfo && (
-              <div className="bg-[#0f1433] p-5 mb-4 border border-purple-800/30">
+              <div className="p-5 mb-4" style={{
+                background: 'rgba(0, 0, 0, 0.3)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '8px'
+              }}>
                 <div className="text-base space-y-2">
                   <div className="flex justify-between">
                     <span className="text-gray-400 font-medium">은행:</span>
@@ -522,15 +576,15 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
 
             <div className="space-y-3 text-sm text-gray-400 leading-relaxed">
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">•</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>•</span>
                 <span>입금 전 반드시 위의 계좌번호 문의 버튼을 통해 고객센터로 문의해주세요.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">•</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>•</span>
                 <span>계좌번호로 입금 신청 시 입금자명을 정확히 기재해주세요.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">•</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>•</span>
                 <span>충전 신청이 많아 입금대기 상태가 지연될 수 있으며, 기다리시면 자동 정산됩니다.</span>
               </div>
             </div>
@@ -538,9 +592,9 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
 
           {/* 입금 보유머니 */}
           <div className="mb-6">
-            <label className="block text-base font-semibold text-gray-300 mb-3">입금 보유머니</label>
+            <label className="block text-base font-semibold mb-3" style={{ color: '#E6C9A8' }}>입금 보유머니</label>
             <div className="relative">
-              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-purple-400 font-bold text-lg">₩</div>
+              <div className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-lg" style={{ color: '#C19A6B' }}>₩</div>
               <input
                 type="text"
                 value={depositAmount}
@@ -549,35 +603,50 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
                   setDepositAmount(value ? parseInt(value).toLocaleString() : '');
                 }}
                 placeholder="입금할 보유머니를 입력해주세요"
-                className="w-full bg-[#1a1f3a] border border-purple-900/30 px-14 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all font-semibold"
+                className="w-full px-14 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:ring-2 transition-all font-semibold border-0"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(193, 154, 107, 0.3)',
+                  borderRadius: '8px'
+                }}
               />
-              <div className="absolute right-5 top-1/2 -translate-y-1/2 text-purple-400 font-bold text-lg">₩</div>
+              <div className="absolute right-5 top-1/2 -translate-y-1/2 font-bold text-lg" style={{ color: '#C19A6B' }}>₩</div>
             </div>
           </div>
 
           {/* 입금계좌 입력 */}
           <div className="mb-6">
-            <label className="block text-base font-semibold text-gray-300 mb-3">입금자 계좌 정보</label>
+            <label className="block text-base font-semibold mb-3" style={{ color: '#E6C9A8' }}>입금자 계좌 정보</label>
             <div className="relative">
               <input
                 type="text"
                 value={depositAccount}
                 onChange={(e) => setDepositAccount(e.target.value)}
                 placeholder="입금하신 계좌 정보를 입력해주세요"
-                className="w-full bg-[#1a1f3a] border border-purple-900/30 px-5 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all font-medium"
+                className="w-full px-5 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:ring-2 transition-all font-medium border-0"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(193, 154, 107, 0.3)',
+                  borderRadius: '8px'
+                }}
               />
             </div>
           </div>
 
           {/* 메모 입력 */}
           <div className="mb-6">
-            <label className="block text-base font-semibold text-gray-300 mb-3">메모 (선택사항)</label>
+            <label className="block text-base font-semibold mb-3" style={{ color: '#E6C9A8' }}>메모 (선택사항)</label>
             <div className="relative">
               <textarea
                 value={memo}
                 onChange={(e) => setMemo(e.target.value)}
                 placeholder="추가 메모사항이 있으시면 입력해주세요"
-                className="w-full bg-[#1a1f3a] border border-purple-900/30 px-5 py-4 text-white text-base placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all font-medium"
+                className="w-full px-5 py-4 text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 transition-all font-medium border-0"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(193, 154, 107, 0.3)',
+                  borderRadius: '8px'
+                }}
                 rows={3}
               />
             </div>
@@ -645,9 +714,11 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
               disabled={loading}
               className="relative overflow-hidden transform transition-all duration-300 hover:scale-105 active:scale-100 disabled:scale-100 px-12 py-3 whitespace-nowrap"
               style={{
-                background: loading ? 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)' : 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
+                background: loading ? 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)' : 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                borderRadius: '8px',
                 boxShadow: `
-                  inset 0 2px 4px rgba(255, 255, 255, 0.3),
+                  0 4px 15px rgba(193, 154, 107, 0.3),
+                  inset 0 2px 4px rgba(255, 255, 255, 0.2),
                   inset 0 -4px 8px rgba(0, 0, 0, 0.3)
                 `
               }}
@@ -665,9 +736,21 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
           </div>
 
           {/* 입금 내역 테이블 */}
-          <div className="bg-[#1a1f3a] border border-purple-900/30 overflow-hidden">
-            <div className="px-6 py-4 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-b border-purple-900/30">
-              <h3 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">최근 입금 내역</h3>
+          <div className="overflow-hidden border-0" style={{
+            background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+            border: '1px solid rgba(193, 154, 107, 0.2)',
+            borderRadius: '8px'
+          }}>
+            <div className="px-6 py-4" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.1) 100%)',
+              borderBottom: '1px solid rgba(193, 154, 107, 0.2)'
+            }}>
+              <h3 className="text-xl font-bold" style={{
+                background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>최근 입금 내역</h3>
             </div>
             <div className="p-6">
               {isLoadingHistory ? (
@@ -686,7 +769,11 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
                     const StatusIcon = statusInfo.icon;
                     
                     return (
-                      <div key={record.id} className="p-4 bg-[#0f1433] border border-purple-900/30">
+                      <div key={record.id} className="p-4 border-0" style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        border: '1px solid rgba(193, 154, 107, 0.2)',
+                        borderRadius: '8px'
+                      }}>
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <StatusIcon className={`w-4 h-4 ${statusInfo.textColor}`} />
@@ -710,7 +797,13 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
                   })}
                   <button
                     onClick={() => onRouteChange('/benz/profile')}
-                    className="w-full py-3 bg-[#0f1433] border border-purple-900/30 text-purple-400 hover:bg-[#151a3f] transition-all"
+                    className="w-full py-3 border-0 transition-all"
+                    style={{
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      border: '1px solid rgba(193, 154, 107, 0.3)',
+                      borderRadius: '8px',
+                      color: '#C19A6B'
+                    }}
                   >
                     전체 보기
                   </button>

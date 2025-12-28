@@ -489,110 +489,151 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
       {/* ⭐ 게임 준비 다이얼로그 */}
       <GamePreparingDialog show={showLoadingPopup} stage={loadingStage} />
       
-      <div className="relative min-h-screen overflow-x-hidden">
+      <div className="relative min-h-screen overflow-x-hidden" style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif' }}>
+        {/* 로즈 골드 그라디언트 배경 */}
         <div 
           className="fixed inset-0 z-0 w-full h-full"
           style={{
-            backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.90)), url('https://images.unsplash.com/photo-1680191741548-1a9321688cc3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjYXNpbm8lMjBpbnRlcmlvciUyMGJhY2tncm91bmR8ZW58MXx8fHwxNzU5NzIwMzYzfDA&ixlib=rb-4.1.0&q80&w=1080&utm_source=figma&utm_medium=referral')`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center center',
-            backgroundRepeat: 'no-repeat'
+            background: 'linear-gradient(135deg, #0f0c1a 0%, #1a1526 25%, #1e1830 50%, #1a1526 75%, #0f0c1a 100%)',
           }}
         />
         
-        <div className="relative z-10 space-y-8 p-4 sm:p-6 lg:p-8">
-          {/* VIP 헤더 */}
-          <div className="text-center space-y-6">
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <Crown className="w-16 h-16 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]" />
-              <h1 className="text-6xl lg:text-7xl font-bold gold-text neon-glow">
+        {/* 추가 오버레이 효과 */}
+        <div 
+          className="fixed inset-0 z-0 w-full h-full opacity-30"
+          style={{
+            backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(193, 154, 107, 0.15) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(166, 124, 82, 0.15) 0%, transparent 50%)'
+          }}
+        />
+        
+        <div className="relative z-10 space-y-8 p-4 sm:p-6 lg:p-8 pb-24">
+          {/* 헤더 */}
+          <div className="text-center space-y-4">
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <Crown className="w-12 h-12 drop-shadow-[0_0_15px_rgba(193,154,107,0.6)]" style={{ color: '#C19A6B' }} />
+              <h1 className="text-5xl lg:text-6xl font-bold" style={{
+                background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 50%, #A67C52 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                filter: 'drop-shadow(0 0 20px rgba(193, 154, 107, 0.3))'
+              }}>
                 {t.user.casinoTitle}
               </h1>
-              <Crown className="w-16 h-16 text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]" />
+              <Crown className="w-12 h-12 drop-shadow-[0_0_15px_rgba(193,154,107,0.6)]" style={{ color: '#C19A6B' }} />
             </div>
-            <p className="text-3xl text-yellow-100 tracking-wide">
+            <p className="text-xl" style={{ color: '#E6C9A8' }}>
               {t.user.casinoSubtitle}
             </p>
-            <div className="flex items-center justify-center gap-6 text-yellow-300/80 text-lg">
+            <div className="flex items-center justify-center gap-6 text-slate-400 text-base">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                <div className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ background: '#C19A6B' }} />
                 <span>{t.user.realTimeLive}</span>
               </div>
-              <div className="w-px h-6 bg-yellow-600/50" />
+              <div className="w-px h-5 bg-slate-700" />
               <div className="flex items-center gap-2">
-                <Users className="w-5 h-5" />
+                <Users className="w-4 h-4" />
                 <span>{t.user.available24h}</span>
               </div>
-              <div className="w-px h-6 bg-yellow-600/50" />
+              <div className="w-px h-5 bg-slate-700" />
               <div className="flex items-center gap-2">
-                <Trophy className="w-5 h-5" />
+                <Trophy className="w-4 h-4" />
                 <span>{t.user.vipExclusive}</span>
               </div>
             </div>
           </div>
 
           {/* 검색 */}
-          <div className="flex flex-col lg:flex-row gap-5 items-center justify-between">
-            <div className="relative flex-1 max-w-xl">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-yellow-400" />
+          <div className="flex flex-col lg:flex-row gap-5 items-center justify-between max-w-7xl mx-auto">
+            <div className="relative flex-1 max-w-xl w-full">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5" style={{ color: '#C19A6B' }} />
               <Input
                 type="text"
                 placeholder={t.user.searchGame}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-12 h-14 text-lg bg-black/50 border-yellow-600/30 text-white placeholder:text-yellow-200/50 focus:border-yellow-500"
+                className="pl-12 h-12 text-base text-white border-0"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.4)',
+                  border: '1px solid rgba(193, 154, 107, 0.2)'
+                }}
               />
             </div>
           </div>
 
           {/* 제공사 선택 */}
-          <GameProviderSelector
-            selectedProvider={selectedProvider}
-            onProviderChange={setSelectedProvider}
-            gameType="casino"
-            providers={providers}
-          />
+          <div className="max-w-7xl mx-auto">
+            <GameProviderSelector
+              selectedProvider={selectedProvider}
+              onProviderChange={setSelectedProvider}
+              gameType="casino"
+              providers={providers}
+            />
+          </div>
 
-          {/* 카지노 게임 목록 */}
+          {/* 카지노 게임 목록 - 4칸 정렬 */}
           {isInitialLoad && loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <Card key={i} className="luxury-card animate-pulse border-yellow-600/20">
-                  <div className="aspect-[4/3] bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Card key={i} className="animate-pulse border-0" style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(193, 154, 107, 0.2)'
+                }}>
+                  <div className="aspect-[3/4] bg-gradient-to-br from-slate-800 to-slate-900 rounded-t-lg" />
+                  <div className="p-4 space-y-2">
+                    <div className="h-5 bg-slate-700 rounded w-3/4" />
+                    <div className="h-4 bg-slate-800 rounded w-1/2" />
+                  </div>
                 </Card>
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
               {filteredGames.map((game) => (
                 <Card 
                   key={game.game_id} 
-                  className={`group cursor-pointer bg-slate-900/80 border border-slate-700/50 hover:border-yellow-500/50 transition-all duration-300 overflow-hidden rounded-xl hover:shadow-xl hover:shadow-yellow-500/20 ${
+                  className={`group cursor-pointer border-0 overflow-hidden transition-all duration-300 hover:scale-[1.02] ${
                     launchingGameId === game.game_id ? 'opacity-50' : ''
                   }`}
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.08) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                    border: '1px solid rgba(193, 154, 107, 0.2)',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+                  }}
                   onClick={() => handleGameClick(game)}
                 >
-                  <div className="aspect-[4/3] relative overflow-hidden bg-slate-800">
+                  <div className="aspect-[3/4] relative overflow-hidden" style={{ borderRadius: '12px 12px 0 0' }}>
                     <ImageWithFallback
                       src={game.image_url}
                       alt={game.game_name}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     />
                     
-                    {/* 오버레이 */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+                    {/* 그라디언트 오버레이 */}
+                    <div 
+                      className="absolute inset-0 opacity-40 group-hover:opacity-60 transition-opacity"
+                      style={{
+                        background: 'linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0.9) 100%)'
+                      }}
+                    />
                     
                     {/* 배지들 */}
-                    <div className="absolute top-2 left-2 flex gap-2">
-                      <Badge className="bg-red-500/90 text-white border-0 text-xs backdrop-blur-sm">
+                    <div className="absolute top-3 left-3 flex gap-2">
+                      <Badge className="text-white border-0 text-xs backdrop-blur-sm px-2 py-1" style={{
+                        background: 'rgba(239, 68, 68, 0.9)'
+                      }}>
                         <div className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-pulse" />
                         LIVE
                       </Badge>
                     </div>
 
                     {game.is_featured && (
-                      <div className="absolute top-2 right-2">
-                        <Badge className="bg-yellow-500/90 text-black border-0 text-xs backdrop-blur-sm">
+                      <div className="absolute top-3 right-3">
+                        <Badge className="border-0 text-xs backdrop-blur-sm px-2 py-1" style={{
+                          background: 'rgba(193, 154, 107, 0.95)',
+                          color: '#fff'
+                        }}>
                           <Star className="w-3 h-3 mr-1 fill-current" />
                           VIP
                         </Badge>
@@ -603,31 +644,36 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       {launchingGameId === game.game_id ? (
                         <div className="flex flex-col items-center gap-2 text-white">
-                          <Loader className="w-10 h-10 animate-spin" />
+                          <Loader className="w-12 h-12 animate-spin" style={{ color: '#C19A6B' }} />
                           <span className="text-sm font-semibold">{t.user.entering}</span>
                         </div>
                       ) : (
                         <div className="flex flex-col items-center gap-3">
-                          <div className="w-16 h-16 rounded-full bg-yellow-500/20 backdrop-blur-md flex items-center justify-center border-2 border-yellow-500/50">
-                            <Play className="w-8 h-8 text-yellow-400 fill-current" />
+                          <div className="w-20 h-20 rounded-full backdrop-blur-md flex items-center justify-center" style={{
+                            background: 'rgba(193, 154, 107, 0.2)',
+                            border: '2px solid rgba(193, 154, 107, 0.6)'
+                          }}>
+                            <Play className="w-10 h-10 fill-current" style={{ color: '#E6C9A8' }} />
                           </div>
-                          <span className="text-white font-bold text-sm">{t.user.enterCasino}</span>
+                          <span className="text-white font-bold text-base drop-shadow-lg">{t.user.enterCasino}</span>
                         </div>
                       )}
                     </div>
                   </div>
                   
                   {/* 카드 정보 */}
-                  <div className="p-3 bg-slate-900/90">
-                    <h3 className="font-bold text-white text-base mb-1 truncate">
+                  <div className="p-4" style={{ background: 'rgba(0, 0, 0, 0.4)' }}>
+                    <h3 className="font-bold text-white text-lg mb-2 truncate" style={{
+                      textShadow: '0 2px 8px rgba(0, 0, 0, 0.5)'
+                    }}>
                       {game.game_name}
                     </h3>
-                    <div className="flex items-center justify-between text-xs">
-                      <p className="text-yellow-400/80 truncate flex-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <p className="truncate flex-1" style={{ color: '#C19A6B' }}>
                         {game.provider_name}
                       </p>
                       <div className="flex items-center gap-1 text-green-400 ml-2">
-                        <Clock className="w-3 h-3" />
+                        <Clock className="w-3.5 h-3.5" />
                         <span>24H</span>
                       </div>
                     </div>
@@ -638,14 +684,24 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
           )}
 
           {filteredGames.length === 0 && !loading && (
-            <div className="text-center py-16 luxury-card rounded-2xl border-2 border-yellow-600/20">
-              <div className="mx-auto w-24 h-24 bg-gradient-to-br from-yellow-500/20 to-amber-600/20 rounded-full flex items-center justify-center mb-6">
-                <Crown className="w-12 h-12 text-yellow-400" />
+            <div className="text-center py-16 rounded-2xl max-w-2xl mx-auto" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+              border: '1px solid rgba(193, 154, 107, 0.2)'
+            }}>
+              <div className="mx-auto w-24 h-24 rounded-full flex items-center justify-center mb-6" style={{
+                background: 'rgba(193, 154, 107, 0.2)'
+              }}>
+                <Crown className="w-12 h-12" style={{ color: '#C19A6B' }} />
               </div>
-              <h3 className="text-2xl font-bold gold-text mb-2">
+              <h3 className="text-2xl font-bold mb-2" style={{
+                background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>
                 {t.user.noGamesFound}
               </h3>
-              <p className="text-yellow-200/80 text-lg mb-4">
+              <p className="text-slate-400 text-base mb-4">
                 {searchQuery ? t.user.noGamesMessage.replace('{{query}}', searchQuery) : 
                  selectedProvider !== 'all' ? t.user.noGamesProvider :
                  t.user.noGamesAvailable}
@@ -659,7 +715,11 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
                       setSelectedProvider(providers[0].id.toString());
                     }
                   }}
-                  className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
+                  className="border-0 text-white"
+                  style={{
+                    background: 'rgba(193, 154, 107, 0.2)',
+                    border: '1px solid rgba(193, 154, 107, 0.3)'
+                  }}
                 >
                   {t.user.viewAllGames}
                 </Button>
@@ -672,7 +732,11 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
                       loadAllCasinoGames();
                     }
                   }}
-                  className="border-yellow-600/30 text-yellow-300 hover:bg-yellow-900/20"
+                  className="border-0 text-white"
+                  style={{
+                    background: 'rgba(193, 154, 107, 0.2)',
+                    border: '1px solid rgba(193, 154, 107, 0.3)'
+                  }}
                 >
                   {t.user.refresh}
                 </Button>

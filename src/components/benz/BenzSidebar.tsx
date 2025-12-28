@@ -23,8 +23,6 @@ interface BenzSidebarProps {
   user: any;
   currentRoute: string;
   onRouteChange: (route: string) => void;
-  isOpen: boolean;
-  onToggle: () => void;
 }
 
 // ⭐ /benz는 필터링 없이 모든 게임 메뉴 표시 (partner_game_access 체크 안 함)
@@ -33,7 +31,6 @@ const menuItems = [
   { path: '/benz/featured', label: '추천게임', icon: Star },
   { path: '/benz/casino', label: '카지노', icon: Gamepad2 },
   { path: '/benz/slot', label: '슬롯', icon: Coins },
-  { path: '/benz/minigame', label: '미니게임', icon: Crown },
   { path: '/benz/notice', label: '공지사항', icon: Bell },
   { path: '/benz/support', label: '고객센터', icon: MessageSquare },
 ];
@@ -45,7 +42,7 @@ const userMenuItems = [
   { path: '/benz/profile', label: '내 정보', icon: User },
 ];
 
-export function BenzSidebar({ user, currentRoute, onRouteChange, isOpen, onToggle }: BenzSidebarProps) {
+export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarProps) {
   const [showLoginMessage, setShowLoginMessage] = useState(false);
 
   const handleMenuClick = (path: string) => {
@@ -57,7 +54,6 @@ export function BenzSidebar({ user, currentRoute, onRouteChange, isOpen, onToggl
       '/benz/profile',
       '/benz/casino',
       '/benz/slot',
-      '/benz/minigame',
       '/benz/support',
       '/benz/notice'
     ];
@@ -85,20 +81,10 @@ export function BenzSidebar({ user, currentRoute, onRouteChange, isOpen, onToggl
             transition={{ duration: 0.5, ease: "easeOut" }}
             className="fixed top-24 left-1/2 transform -translate-x-1/2 z-[120]"
           >
-            <div className="relative bg-[#0a0e27]/95 backdrop-blur-sm border-2 px-10 py-5 shadow-2xl" style={{
-              borderColor: 'rgba(168, 85, 247, 0.4)',
-              boxShadow: '0 0 30px rgba(168, 85, 247, 0.3), 0 0 60px rgba(236, 72, 153, 0.2), inset 0 0 20px rgba(168, 85, 247, 0.1)'
-            }}>
+            <div className="relative px-10 py-5" style={{ backgroundColor: '#000000', border: '4px solid #444444' }}>
               <div className="flex items-center gap-4">
-                <div className="w-3 h-3 rounded-full animate-pulse" style={{
-                  background: 'radial-gradient(circle, rgba(168, 85, 247, 1) 0%, rgba(168, 85, 247, 0.4) 70%)',
-                  boxShadow: '0 0 10px rgba(168, 85, 247, 0.8), 0 0 20px rgba(168, 85, 247, 0.5)'
-                }}></div>
-                <p className="font-bold text-lg" style={{
-                  color: '#e0d5ff',
-                  textShadow: '0 0 10px rgba(168, 85, 247, 0.6), 0 0 20px rgba(236, 72, 153, 0.4), 0 0 30px rgba(168, 85, 247, 0.3)',
-                  letterSpacing: '0.5px'
-                }}>로그인이 필요한 서비스입니다</p>
+                <div className="w-3 h-3 rounded-full bg-purple-500 animate-pulse"></div>
+                <p className="font-bold text-lg text-white">로그인이 필요한 서비스입니다</p>
               </div>
             </div>
           </motion.div>
@@ -106,41 +92,101 @@ export function BenzSidebar({ user, currentRoute, onRouteChange, isOpen, onToggl
       </AnimatePresence>
 
       {/* Sidebar */}
-      <aside className={`hidden md:block fixed left-0 top-20 h-[calc(100vh-5rem)] bg-[#0f1433] border-r border-purple-900/30 transition-all duration-300 z-40 ${isOpen ? 'w-64' : 'w-0'} overflow-hidden`} style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
-        {/* Close Button - 메뉴 카드 우측 상단 */}
-        {isOpen && (
-          <div className="absolute top-4 right-4 z-50">
-            <button
-              onClick={onToggle}
-              className="bg-[#1a1f4a] hover:bg-[#232a5c] text-gray-400 hover:text-white p-2 border border-purple-900/30 hover:border-purple-700/50 shadow-sm transition-all duration-300"
-              title="사이드바 닫기"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+      <aside className="hidden md:block fixed left-0 top-20 h-[calc(100vh-5rem)] w-80 z-40 overflow-y-auto" style={{ 
+        fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+        background: 'linear-gradient(180deg, rgba(20, 20, 30, 0.98) 0%, rgba(15, 15, 25, 0.98) 100%)',
+        borderRight: '2px solid rgba(193, 154, 107, 0.2)',
+        boxShadow: '4px 0 20px rgba(0, 0, 0, 0.5)'
+      }}>
+        <div className="p-4 space-y-6" style={{ marginTop: '40px' }}>
+          {/* Logo */}
+          <div className="flex justify-start pl-4 mb-8">
+            <img
+              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
+              alt="BENZ CASINO"
+              className="w-40 h-auto object-contain"
+              style={{
+                filter: 'drop-shadow(0 4px 12px rgba(193, 154, 107, 0.3))'
+              }}
+            />
           </div>
-        )}
 
-        <div className="p-4 space-y-6 pt-8">
           {/* Main Menu */}
           <div>
-            <nav className="space-y-1">
+            <nav className="space-y-2">
               {menuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentRoute === item.path;
                 return (
-                  <Button
+                  <button
                     key={item.path}
-                    variant="ghost"
                     onClick={() => handleMenuClick(item.path)}
-                    className={`w-full justify-start gap-3 h-12 text-[1.21rem] transition-all duration-300 ${ 
+                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-300 group relative overflow-hidden ${ 
                       isActive 
-                        ? 'text-[#FF6B35] font-bold scale-105' 
-                        : 'text-white hover:text-[#FF6B35] hover:bg-purple-900/30 hover:scale-105'
+                        ? 'scale-105' 
+                        : 'hover:scale-105'
                     }`}
+                    style={{
+                      background: isActive 
+                        ? 'linear-gradient(135deg, rgba(193, 154, 107, 0.25) 0%, rgba(166, 124, 82, 0.15) 100%)'
+                        : 'transparent',
+                      border: isActive
+                        ? '1px solid rgba(193, 154, 107, 0.4)'
+                        : '1px solid transparent',
+                      boxShadow: isActive 
+                        ? '0 4px 15px rgba(193, 154, 107, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+                        : 'none'
+                    }}
                   >
-                    <Icon className={`w-[28.6px] h-[28.6px] transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
-                    <span className="transition-all duration-300">{item.label}</span>
-                  </Button>
+                    {/* 호버 배경 효과 */}
+                    <div 
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.08) 100%)'
+                      }}
+                    ></div>
+                    
+                    {/* 왼쪽 골드 라인 */}
+                    <div 
+                      className={`absolute left-0 top-0 bottom-0 w-1 transition-all duration-300 ${
+                        isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                      style={{
+                        background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)',
+                        boxShadow: '0 0 10px rgba(193, 154, 107, 0.5)'
+                      }}
+                    ></div>
+
+                    <Icon 
+                      className="w-6 h-6 relative z-10 transition-all duration-300"
+                      style={{
+                        color: isActive ? '#E6C9A8' : '#9CA3AF',
+                        filter: isActive 
+                          ? 'drop-shadow(0 0 6px rgba(193, 154, 107, 0.6))'
+                          : 'none'
+                      }}
+                    />
+                    <span 
+                      className="relative z-10 font-bold tracking-wide transition-all duration-300"
+                      style={{
+                        fontSize: '1.5rem',
+                        color: isActive ? '#E6C9A8' : '#D1D5DB',
+                        textShadow: isActive 
+                          ? '0 2px 8px rgba(193, 154, 107, 0.4)'
+                          : 'none'
+                      }}
+                    >
+                      {item.label}
+                    </span>
+
+                    {/* 호버 글로우 */}
+                    <div 
+                      className="absolute right-0 top-1/2 -translate-y-1/2 w-20 h-20 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-300"
+                      style={{
+                        background: 'radial-gradient(circle, rgba(193, 154, 107, 0.4) 0%, transparent 70%)'
+                      }}
+                    ></div>
+                  </button>
                 );
               })}
             </nav>
@@ -148,42 +194,96 @@ export function BenzSidebar({ user, currentRoute, onRouteChange, isOpen, onToggl
 
           {/* User Menu */}
           <div>
-            <h3 className="text-[1.1rem] font-semibold text-gray-200 uppercase mb-3 px-2">회원</h3>
-            <nav className="space-y-1">
+            <h3 
+              className="font-bold uppercase mb-3 px-4 tracking-wider"
+              style={{
+                fontSize: '1.1rem',
+                color: '#A67C52',
+                textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)'
+              }}
+            >
+              회원
+            </h3>
+            <nav className="space-y-2">
               {userMenuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentRoute === item.path;
                 return (
-                  <Button
+                  <button
                     key={item.path}
-                    variant="ghost"
                     onClick={() => handleMenuClick(item.path)}
-                    className={`w-full justify-start gap-3 h-12 text-[1.21rem] transition-all duration-300 ${ 
+                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-300 group relative overflow-hidden ${ 
                       isActive 
-                        ? 'text-[#FF6B35] font-bold scale-105' 
-                        : 'text-white hover:text-[#FF6B35] hover:bg-purple-900/30 hover:scale-105'
+                        ? 'scale-105' 
+                        : 'hover:scale-105'
                     }`}
+                    style={{
+                      background: isActive 
+                        ? 'linear-gradient(135deg, rgba(193, 154, 107, 0.25) 0%, rgba(166, 124, 82, 0.15) 100%)'
+                        : 'transparent',
+                      border: isActive
+                        ? '1px solid rgba(193, 154, 107, 0.4)'
+                        : '1px solid transparent',
+                      boxShadow: isActive 
+                        ? '0 4px 15px rgba(193, 154, 107, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+                        : 'none'
+                    }}
                   >
-                    <Icon className={`w-[28.6px] h-[28.6px] transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} />
-                    <span className="transition-all duration-300">{item.label}</span>
-                  </Button>
+                    {/* 호버 배경 효과 */}
+                    <div 
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.08) 100%)'
+                      }}
+                    ></div>
+                    
+                    {/* 왼쪽 골드 라인 */}
+                    <div 
+                      className={`absolute left-0 top-0 bottom-0 w-1 transition-all duration-300 ${
+                        isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                      style={{
+                        background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)',
+                        boxShadow: '0 0 10px rgba(193, 154, 107, 0.5)'
+                      }}
+                    ></div>
+
+                    <Icon 
+                      className="w-6 h-6 relative z-10 transition-all duration-300"
+                      style={{
+                        color: isActive ? '#E6C9A8' : '#9CA3AF',
+                        filter: isActive 
+                          ? 'drop-shadow(0 0 6px rgba(193, 154, 107, 0.6))'
+                          : 'none'
+                      }}
+                    />
+                    <span 
+                      className="relative z-10 font-bold tracking-wide transition-all duration-300"
+                      style={{
+                        fontSize: '1.5rem',
+                        color: isActive ? '#E6C9A8' : '#D1D5DB',
+                        textShadow: isActive 
+                          ? '0 2px 8px rgba(193, 154, 107, 0.4)'
+                          : 'none'
+                      }}
+                    >
+                      {item.label}
+                    </span>
+
+                    {/* 호버 글로우 */}
+                    <div 
+                      className="absolute right-0 top-1/2 -translate-y-1/2 w-20 h-20 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-300"
+                      style={{
+                        background: 'radial-gradient(circle, rgba(193, 154, 107, 0.4) 0%, transparent 70%)'
+                      }}
+                    ></div>
+                  </button>
                 );
               })}
             </nav>
           </div>
         </div>
       </aside>
-
-      {/* Toggle Button - 사이드바가 닫혀있을 때만 표시 - Desktop only */}
-      {!isOpen && (
-        <button
-          onClick={onToggle}
-          className="hidden md:block fixed top-1/2 -translate-y-1/2 left-0 z-50 transition-all duration-300 bg-[#0f1433] hover:bg-[#1a1f4a] text-gray-400 hover:text-white border border-purple-900/30 hover:border-purple-700/50 px-2 py-6 rounded-r-lg shadow-sm"
-          title="사이드바 열기"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      )}
     </>
   );
 }

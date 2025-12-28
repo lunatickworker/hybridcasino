@@ -212,6 +212,8 @@ interface ProviderSectionProps {
   onToggleGameSelection: (gameId: number) => void;
   onToggleGameFeatured: (gameId: number) => void;
   onChangeGameStatus: (gameId: number, status: "visible" | "maintenance" | "hidden", apiType: "invest" | "oroplay" | "familyapi" | "honorapi") => void;
+  userLevel: number;
+  isBlocked?: boolean; // Lv2+에서 partner_game_access에 의해 차단된 제공사인지 여부
 }
 
 function ProviderSection({
@@ -224,11 +226,10 @@ function ProviderSection({
   onToggleGameSelection,
   onToggleGameFeatured,
   onChangeGameStatus,
+  userLevel,
+  isBlocked = false,
 }: ProviderSectionProps) {
   const { t } = useLanguage();
-  
-  // 🔍 디버깅: provider 객체 확인
-  console.log(`🔍 ProviderSection - provider.id=${provider.id}, provider.name=${provider.name}, provider.api_type=${provider.api_type}`);
 
   const stats = useMemo(() => {
     return {
@@ -240,9 +241,8 @@ function ProviderSection({
   }, [games]);
 
   const getProviderStatusIcon = () => {
-    if (provider.status === "maintenance") {
-      return <AlertTriangle className="w-4 h-4 text-orange-400" />;
-    } else if (!provider.is_visible || provider.status === "hidden") {
+    // Lv2~Lv7: partner_game_access 차단 상태 확인 (블랙리스트 방식)
+    if (isBlocked) {
       return <EyeOff className="w-4 h-4 text-slate-400" />;
     } else {
       return <Eye className="w-4 h-4 text-green-400" />;
@@ -285,7 +285,7 @@ function ProviderSection({
 
         <div className="flex items-center gap-2">
           <Select
-            value={provider.status}
+            value={isBlocked ? "hidden" : "visible"}
             onValueChange={(value: "visible" | "maintenance" | "hidden") =>
               onToggleProviderStatus(value, provider.api_type)
             }
@@ -300,12 +300,7 @@ function ProviderSection({
                   {t.gameManagement.visible}
                 </div>
               </SelectItem>
-              <SelectItem value="maintenance">
-                <div className="flex items-center gap-1.5 text-sm font-medium">
-                  <AlertTriangle className="w-4 h-4" />
-                  {t.gameManagement.maintenance}
-                </div>
-              </SelectItem>
+              {/* Lv2~Lv7: 노출/숨김만 사용 (점검중 없음) */}
               <SelectItem value="hidden">
                 <div className="flex items-center gap-1.5 text-sm font-medium">
                   <EyeOff className="w-4 h-4" />
@@ -362,6 +357,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
 
   // 탭 상태
   const [activeTab, setActiveTab] = useState<TabType>("games");
+
+  // Lv2+ 파트너의 차단된 제공사 목록 (partner_game_access)
+  const [blockedProviderIds, setBlockedProviderIds] = useState<Set<number>>(new Set());
 
   // 매장별 게임 설정 상태
   const [stores, setStores] = useState<Partner[]>([]);
@@ -451,6 +449,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     const apiProviders = providers.filter(p => p.api_type === selectedApi);
     
     // 2. 선택한 게임 타입의 게임을 보유한 제공사만 필터링
+    // ⚠️ 관리자 페이지: 숨김 상태 포함 모든 제공사 표시 (관리 목적)
     const filteredProviders = apiProviders.filter(provider => {
       const hasGamesOfType = games.some(game => 
         game.provider_id === provider.id &&
@@ -520,8 +519,17 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     try {
       setLoading(true);
 
-      const providersData = await gameApi.getProviders({ partner_id: user.id });
+      // ✅ Lv2~Lv7: selected_apis 기반으로 제공사 조회
+      const providersData = await gameApi.getProviders({ 
+        partner_id: user.id,
+      });
       setProviders(providersData);
+
+      // ✅ Lv2~Lv7: partner_game_access에서 차단된 제공사 목록 조회
+      console.log(`🔍 [Lv${user.level}] 차단된 제공사 목록 조회 시작...`);
+      const blocked = await gameApi.getPartnerBlockedProviders(user.id);
+      setBlockedProviderIds(blocked);
+      console.log(`📋 [Lv${user.level}] 차단된 제공사: ${blocked.size}개`);
 
       // 첫 번째 API 선택
       const uniqueApiTypes = [...new Set(providersData.map(p => p.api_type))];
@@ -645,16 +653,15 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       if (!game) return;
 
       await gameApi.updateGameFeatured(gameId, !game.is_featured, game.api_type);
-      
-      setGames(prev =>
-        prev.map(g => g.id === gameId ? { ...g, is_featured: !g.is_featured } : g)
-      );
 
       toast.success(
         game.is_featured
           ? "추천이 해제되었습니다."
           : "추천 게임으로 설정되었습니다."
       );
+      
+      // ✅ 데이터 새로고침 추가 (DB에서 최신 상태 가져오기)
+      await initializeData();
     } catch (error) {
       console.error("❌ 추천 설정 실패:", error);
       toast.error("추천 설정 변경에 실패했습니다.");
@@ -672,13 +679,12 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       console.log(`🔄 gameApi.updateGameStatus 호출 시작...`);
       await gameApi.updateGameStatus(gameId, status, apiType);
       console.log(`✅ gameApi.updateGameStatus 완료`);
-      
-      setGames(prev =>
-        prev.map(g => g.id === gameId ? { ...g, status } : g)
-      );
 
       const statusText = status === "visible" ? "노출" : status === "maintenance" ? "점검중" : "숨김";
       toast.success(`게임 상태가 ${statusText}로 변경되었습니다.`);
+      
+      // ✅ 데이터 새로고침 추가 (DB에서 최신 상태 가져오기)
+      await initializeData();
     } catch (error) {
       console.error("❌ 상태 업데이트 실패:", error);
       toast.error("게임 상태 변경에 실패했습니다.");
@@ -690,26 +696,24 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     status: "visible" | "maintenance" | "hidden",
     apiType: "invest" | "oroplay" | "familyapi" | "honorapi"
   ) => {
-    console.log(`🏢 handleToggleProviderStatus 호출: providerId=${providerId}, status=${status}, apiType=${apiType}`);
+    console.log(`🏢 handleToggleProviderStatus 호출: providerId=${providerId}, status=${status}, apiType=${apiType}, userLevel=${user.level}`);
     
     try {
-      console.log(`🔄 gameApi.updateProviderStatus 호출 시작...`);
-      // updateProviderStatus 함수가 제공사와 하위 게임을 모두 일괄 업데이트하므로
-      // 개별 게임 업데이트 호출 불필요 (중복 호출 방지)
-      await gameApi.updateProviderStatus(providerId, status, apiType);
-      console.log(`✅ gameApi.updateProviderStatus 완료`);
+      // ✅ Lv2~Lv7: 모두 partner_game_access 테이블 사용 (블랙리스트 방식)
+      console.log(`🔄 [Lv${user.level}] gameApi.updatePartnerProviderAccess 호출 시작...`);
+      await gameApi.updatePartnerProviderAccess(
+        user.id,
+        providerId,
+        apiType,
+        status === "visible"
+      );
+      console.log(`✅ [Lv${user.level}] gameApi.updatePartnerProviderAccess 완료`);
+
+      const statusText = status === "visible" ? "노출" : "숨김";
+      toast.success(`제공사 상태가 ${statusText}로 변경되었습니다.`);
       
-      setProviders(prev =>
-        prev.map(p => p.id === providerId ? { ...p, status } : p)
-      );
-
-      // 로컬 상태만 업데이트 (DB는 이미 updateProviderStatus에서 일괄 처리됨)
-      setGames(prev =>
-        prev.map(g => g.provider_id === providerId ? { ...g, status } : g)
-      );
-
-      const statusText = status === "visible" ? "노출" : status === "maintenance" ? "점검중" : "숨김";
-      toast.success(`제공사 및 하위 게임 상태가 ${statusText}로 변경되었습니다.`);
+      // ✅ 데이터 새로고침 추가 (DB에서 최신 상태 가져오기)
+      await initializeData();
     } catch (error) {
       console.error("❌ 제공사 상태 업데이트 실패:", error);
       toast.error("제공사 상태 변경에 실패했습니다.");
@@ -752,14 +756,13 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       console.log(`🔄 gameApi.bulkUpdateStatus 호출 시작...`);
       await gameApi.bulkUpdateStatus(Array.from(selectedGameIds), status);
       console.log(`✅ gameApi.bulkUpdateStatus 완료`);
-      
-      setGames(prev =>
-        prev.map(g => selectedGameIds.has(g.id) ? { ...g, status } : g)
-      );
 
       const statusText = status === "visible" ? "노출" : status === "maintenance" ? "점검중" : "숨김";
       toast.success(`${selectedGameIds.size}개 게임 상태가 ${statusText}로 변경되었습니다.`);
       setSelectedGameIds(new Set());
+      
+      // ✅ 데이터 새로고침 추가 (DB에서 최신 상태 가져오기)
+      await initializeData();
     } catch (error) {
       console.error("❌ 일괄 상태 업데이트 실패:", error);
       toast.error("일괄 상태 변경에 실패했습니다.");
@@ -790,28 +793,23 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
         return;
       }
 
-      // 각 제공사별로 상태 업데이트 (제공사와 하위 게임 모두 업데이트)
-      await Promise.all(
-        providerIds.map(providerId => 
-          gameApi.updateProviderStatus(providerId, status)
-        )
-      );
+      console.log(`📦 handleBulkApiStatusChange: userLevel=${user.level}, api=${selectedApi}, providerIds=${providerIds.length}개, status=${status}`);
 
-      // 로컬 상태 업데이트
-      setProviders(prev =>
-        prev.map(p => 
-          providerIds.includes(p.id) ? { ...p, status } : p
-        )
+      // ✅ Lv2~Lv7: 모두 partner_game_access 테이블 사용 (블랙리스트 방식)
+      console.log(`🔄 [Lv${user.level}] gameApi.updatePartnerApiAccess 호출...`);
+      await gameApi.updatePartnerApiAccess(
+        user.id,
+        selectedApi as "invest" | "oroplay" | "familyapi" | "honorapi",
+        providerIds,
+        status === "visible"
       );
-
-      setGames(prev =>
-        prev.map(g => 
-          g.api_type === selectedApi ? { ...g, status } : g
-        )
-      );
+      console.log(`✅ [Lv${user.level}] gameApi.updatePartnerApiAccess 완료`);
 
       const statusText = status === "visible" ? "노출" : "숨김";
-      toast.success(`${selectedApi.toUpperCase()} API의 모든 제공사 및 게임이 ${statusText} 처리되었습니다.`);
+      toast.success(`${selectedApi.toUpperCase()} API의 모든 제공사가 ${statusText} 처리되었습니다.`);
+      
+      // ✅ 데이터 새로고침 추가 (DB에서 최신 상태 가져오기)
+      await initializeData();
     } catch (error) {
       console.error("❌ API 일괄 상태 업데이트 실패:", error);
       toast.error("일괄 상태 변경에 실패했습니다.");
@@ -2502,6 +2500,8 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                     onToggleGameSelection={handleToggleGameSelection}
                     onToggleGameFeatured={handleToggleGameFeatured}
                     onChangeGameStatus={handleChangeGameStatus}
+                    userLevel={user.level}
+                    isBlocked={blockedProviderIds.has(provider.id)}
                   />
                 ))
               )}

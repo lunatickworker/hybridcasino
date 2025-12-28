@@ -74,7 +74,7 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
 
         if (opcodeHelper.isMultipleOpcode(opcodeInfo)) {
           if (opcodeInfo.opcodes.length === 0) {
-            console.error('❌ [OnlineBalanceSync] 사용 가능한 OPCODE 없음');
+            console.warn('⚠️ [OnlineBalanceSync] 사용 가능한 OPCODE 없음 - 동기화 스킵');
             return;
           }
           opcode = opcodeInfo.opcodes[0].opcode;
@@ -272,7 +272,7 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
 
         if (opcodeHelper.isMultipleOpcode(opcodeInfo)) {
           if (opcodeInfo.opcodes.length === 0) {
-            console.error('❌ [BalanceSync] 사용 가능한 OPCODE 없음');
+            console.warn('⚠️ [BalanceSync] 사용 가능한 OPCODE 없음 - 동기화 스킵');
             return;
           }
           opcode = opcodeInfo.opcodes[0].opcode;

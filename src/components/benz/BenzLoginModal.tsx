@@ -185,15 +185,20 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
         />
       </div>
 
-      <div className="relative z-10 bg-gradient-to-br from-[#0a0e27] to-[#1a1f4a] w-full max-w-4xl shadow-2xl border-2 overflow-hidden" style={{
-        borderColor: 'rgba(168, 85, 247, 0.3)',
+      <div className="relative z-10 w-full max-w-4xl shadow-2xl border-2 overflow-hidden" style={{
+        background: 'linear-gradient(135deg, rgba(20, 20, 30, 0.98) 0%, rgba(15, 15, 25, 0.98) 100%)',
+        borderColor: 'rgba(193, 154, 107, 0.4)',
+        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(193, 154, 107, 0.1)',
         maxHeight: '90vh',
         overflowY: 'auto'
       }}>
         {/* Close Button */}
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 z-10 text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+          className="absolute top-4 right-4 z-10 text-gray-400 hover:text-white transition-all p-2 hover:bg-white/10 rounded-lg"
+          style={{
+            color: '#E6C9A8'
+          }}
         >
           <X className="w-5 h-5" />
         </button>
@@ -206,12 +211,25 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
               alt="Benz Casino"
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-transparent to-pink-900/30 flex items-end justify-center pb-8">
+            <div className="absolute inset-0 flex items-end justify-center pb-8" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, transparent 50%, rgba(166, 124, 82, 0.15) 100%)'
+            }}>
               <div className="text-center px-6">
-                <h2 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-500 to-purple-600 mb-2" style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>
+                <h2 className="text-6xl font-bold mb-2" style={{ 
+                  fontFamily: 'Georgia, serif', 
+                  fontStyle: 'italic',
+                  background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 50%, #A67C52 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  textShadow: '0 4px 12px rgba(193, 154, 107, 0.3)'
+                }}>
                   Benz
                 </h2>
-                <p className="text-base text-gray-200">
+                <p className="text-base" style={{
+                  color: '#E6C9A8',
+                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)'
+                }}>
                   최고의 카지노 경험
                 </p>
               </div>
@@ -219,15 +237,23 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
           </div>
 
           {/* Right Side - Login Form */}
-          <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col justify-center bg-[#0f1433]">
+          <div className="w-full md:w-1/2 p-6 md:p-8 flex flex-col justify-center" style={{
+            background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.95) 0%, rgba(15, 15, 25, 0.95) 100%)'
+          }}>
             <div className="max-w-sm mx-auto w-full">
               <div className="text-center mb-6 md:mb-8">
-                <h3 className="text-2xl md:text-3xl text-white font-semibold">로그인</h3>
+                <h3 className="text-2xl md:text-3xl font-bold" style={{
+                  color: '#E6C9A8',
+                  textShadow: '0 2px 8px rgba(193, 154, 107, 0.4)'
+                }}>로그인</h3>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-3 md:space-y-3.5">
                 {error && (
-                  <Alert variant="destructive" className="bg-red-950/20 border-red-900/50 py-2.5 rounded-none">
+                  <Alert variant="destructive" className="py-2.5 rounded-lg border" style={{
+                    background: 'rgba(220, 38, 38, 0.1)',
+                    borderColor: 'rgba(220, 38, 38, 0.3)'
+                  }}>
                     <AlertDescription className="text-red-400 text-base">{error}</AlertDescription>
                   </Alert>
                 )}
@@ -240,7 +266,12 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
                     placeholder="아이디"
                     value={loginData.username}
                     onChange={handleLoginChange}
-                    className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500 h-12 text-lg rounded-none"
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
                     disabled={isLoading}
                   />
                 </div>
@@ -254,13 +285,21 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
                       placeholder="비밀번호"
                       value={loginData.password}
                       onChange={handleLoginChange}
-                      className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500 pr-12 h-12 text-lg rounded-none"
+                      className="pr-12 h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                      }}
                       disabled={isLoading}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                      style={{
+                        color: '#A67C52'
+                      }}
                     >
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
@@ -270,7 +309,10 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
                 {/* CAPTCHA Field */}
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <div className="flex-shrink-0 bg-white px-4 py-2.5 border-2 border-gray-400 rounded-none flex items-center justify-center min-w-[120px] h-12">
+                    <div className="flex-shrink-0 px-4 py-2.5 border-2 rounded-lg flex items-center justify-center min-w-[120px] h-12" style={{
+                      background: 'linear-gradient(135deg, #FFFFFF 0%, #F5F5F5 100%)',
+                      borderColor: '#C19A6B'
+                    }}>
                       <span className="text-3xl font-bold select-none tracking-widest" style={{ 
                         color: '#000000',
                         fontFamily: 'Consolas, "Courier New", monospace',
@@ -282,7 +324,12 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
                     <button
                       type="button"
                       onClick={refreshCaptcha}
-                      className="flex-shrink-0 p-2.5 bg-[#1a1f3a] border border-purple-900/30 hover:bg-[#252a45] transition-colors text-gray-300 hover:text-white rounded-none h-12 w-12 flex items-center justify-center"
+                      className="flex-shrink-0 p-2.5 border transition-all h-12 w-12 flex items-center justify-center rounded-lg hover:scale-105"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        color: '#E6C9A8'
+                      }}
                       disabled={isLoading}
                     >
                       <RefreshCw className="w-5 h-5" />
@@ -294,33 +341,53 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
                       placeholder="자동입력방지코드"
                       value={loginData.captcha}
                       onChange={handleLoginChange}
-                      className="flex-1 bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500 h-12 text-lg rounded-none"
+                      className="flex-1 h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                      }}
                       disabled={isLoading}
                       maxLength={4}
                     />
                   </div>
                 </div>
 
-                <Button
+                <button
                   type="submit"
-                  className="w-full h-12 font-medium mt-5 rounded-none"
+                  className="w-full h-12 font-bold mt-5 rounded-lg transition-all duration-300 hover:scale-105 relative overflow-hidden group"
                   disabled={isLoading}
+                  style={{
+                    background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                    boxShadow: '0 4px 15px rgba(193, 154, 107, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(230, 201, 168, 0.3)'
+                  }}
                 >
+                  <div 
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{
+                      background: 'linear-gradient(135deg, #D4AF87 0%, #C19A6B 100%)'
+                    }}
+                  ></div>
                   {isLoading ? (
-                    <span className="flex items-center gap-2 text-lg">
+                    <span className="flex items-center justify-center gap-2 text-lg relative z-10" style={{
+                      color: '#FFFFFF',
+                      textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)'
+                    }}>
                       <Loader2 className="w-5 h-5 animate-spin" />
                       로그인 중...
                     </span>
                   ) : (
-                    <span className="text-lg" style={{
-                      textShadow: '0 1px 0 rgba(255,255,255,0.3), 0 2px 2px rgba(0,0,0,0.4), 0 3px 4px rgba(0,0,0,0.3), 0 4px 8px rgba(0,0,0,0.2)',
+                    <span className="text-lg relative z-10 tracking-wide" style={{
+                      color: '#FFFFFF',
+                      textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
                       fontWeight: '700',
                       letterSpacing: '0.05em'
                     }}>
                       로그인
                     </span>
                   )}
-                </Button>
+                </button>
               </form>
 
               <div className="mt-5 text-center">
@@ -328,8 +395,11 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
                   아이디가 없으신가요?{' '}
                   <button
                     onClick={onSwitchToSignup}
-                    className="text-amber-400 hover:text-amber-300 font-medium underline"
-                    style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
+                    className="font-semibold underline transition-colors"
+                    style={{ 
+                      fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+                      color: '#E6C9A8'
+                    }}
                   >
                     회원가입
                   </button>

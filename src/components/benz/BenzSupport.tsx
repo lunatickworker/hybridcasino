@@ -51,7 +51,10 @@ export function BenzSupport({ user, onRouteChange }: BenzSupportProps) {
   // Guard against null user - AFTER all hooks
   if (!user) {
     return (
-      <Card className="bg-[#1a1f3a] border-purple-900/30 text-white">
+      <Card className="border-0" style={{
+        background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+        borderRadius: '16px'
+      }}>
         <CardContent className="p-8 text-center">
           <p className="text-gray-400">사용자 정보를 불러올 수 없습니다.</p>
         </CardContent>
@@ -352,36 +355,60 @@ export function BenzSupport({ user, onRouteChange }: BenzSupportProps) {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-1.5 h-8 bg-gradient-to-b from-purple-400 to-pink-500"></div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">고객센터</h1>
+                <div className="w-1.5 h-8" style={{
+                  background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)'
+                }}></div>
+                <h1 className="text-3xl font-bold" style={{
+                  background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 50%, #A67C52 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>고객센터</h1>
               </div>
               <p className="text-slate-400 ml-5">문의하신 내용에 대해 빠르게 답변해 드립니다</p>
             </div>
             <Dialog open={showNewInquiryDialog} onOpenChange={setShowNewInquiryDialog}>
               <DialogTrigger asChild>
-                <Button className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 h-12 px-6 text-base">
+                <Button className="h-12 px-6 text-base border-0" style={{
+                  background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                  color: '#FFFFFF',
+                  boxShadow: '0 4px 15px rgba(193, 154, 107, 0.3)'
+                }}>
                   <Plus className="w-5 h-5 mr-2" />
                   새 문의 작성
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl bg-[#1a1f3a] border-purple-900/30 text-white" style={{
-                backdropFilter: 'blur(8px)',
-                backgroundColor: 'rgba(26, 31, 58, 0.95)'
+              <DialogContent className="max-w-2xl text-white border-0" style={{
+                backdropFilter: 'blur(12px)',
+                background: 'linear-gradient(135deg, rgba(26, 31, 58, 0.95) 0%, rgba(15, 20, 35, 0.95) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.3)',
+                borderRadius: '16px'
               }}>
                 <DialogHeader>
-                  <DialogTitle className="text-2xl">문의 작성하기</DialogTitle>
+                  <DialogTitle className="text-2xl" style={{
+                    background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}>문의 작성하기</DialogTitle>
                   <DialogDescription className="text-slate-400 text-base">
                     문의하실 내용을 자세히 작성해주시면 빠르게 답변드리겠습니다.
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmitInquiry} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="category" className="text-slate-300 text-base">문의 유형 *</Label>
+                    <Label htmlFor="category" className="text-base" style={{ color: '#E6C9A8' }}>문의 유형 *</Label>
                     <Select value={newInquiryForm.category} onValueChange={(value) => setNewInquiryForm(prev => ({ ...prev, category: value }))}>
-                      <SelectTrigger className="bg-[#0f1433] border-purple-900/30 text-white h-12 text-base">
+                      <SelectTrigger className="h-12 text-base text-white border-0" style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        borderRadius: '8px'
+                      }}>
                         <SelectValue placeholder="문의 유형을 선택해주세요" />
                       </SelectTrigger>
-                      <SelectContent className="bg-[#1a1f3a] border-purple-900/30">
+                      <SelectContent className="border-0" style={{
+                        background: 'rgba(26, 31, 58, 0.98)',
+                        border: '1px solid rgba(193, 154, 107, 0.2)'
+                      }}>
                         {inquiryCategories.map((category) => (
                           <SelectItem key={category.value} value={category.value} className="text-white">
                             {category.label}
@@ -392,24 +419,32 @@ export function BenzSupport({ user, onRouteChange }: BenzSupportProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="subject" className="text-slate-300 text-base">제목 *</Label>
+                    <Label htmlFor="subject" className="text-base" style={{ color: '#E6C9A8' }}>제목 *</Label>
                     <Input
                       id="subject"
                       placeholder="문의 제목을 입력해주세요"
                       value={newInquiryForm.subject}
                       onChange={(e) => setNewInquiryForm(prev => ({ ...prev, subject: e.target.value }))}
-                      className="bg-[#0f1433] border-purple-900/30 text-white h-12 text-base"
+                      className="h-12 text-base text-white border-0"
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        borderRadius: '8px'
+                      }}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="content" className="text-slate-300 text-base">내용 *</Label>
+                    <Label htmlFor="content" className="text-base" style={{ color: '#E6C9A8' }}>내용 *</Label>
                     <Textarea
                       id="content"
                       placeholder="문의 내용을 자세히 입력해주세요"
                       value={newInquiryForm.content}
                       onChange={(e) => setNewInquiryForm(prev => ({ ...prev, content: e.target.value }))}
-                      className="bg-[#0f1433] border-purple-900/30 text-white min-h-32 text-base"
+                      className="min-h-32 text-base text-white border-0"
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        borderRadius: '8px'
+                      }}
                     />
                   </div>
 
@@ -418,14 +453,24 @@ export function BenzSupport({ user, onRouteChange }: BenzSupportProps) {
                       type="button"
                       variant="outline"
                       onClick={() => setShowNewInquiryDialog(false)}
-                      className="flex-1 h-12 text-base border-purple-900/30 hover:bg-purple-900/20 text-white"
+                      className="flex-1 h-12 text-base text-white border-0"
+                      style={{
+                        background: 'rgba(100, 100, 100, 0.3)',
+                        borderRadius: '8px'
+                      }}
                     >
                       취소
                     </Button>
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 h-12 text-base"
+                      className="flex-1 h-12 text-base border-0"
+                      style={{
+                        background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                        color: '#FFFFFF',
+                        boxShadow: '0 4px 15px rgba(193, 154, 107, 0.3)',
+                        borderRadius: '8px'
+                      }}
                     >
                       {isSubmitting ? (
                         <>
@@ -446,25 +491,39 @@ export function BenzSupport({ user, onRouteChange }: BenzSupportProps) {
           </div>
 
           {/* 필터 및 검색 */}
-          <Card className="bg-[#1a1f3a] border-purple-900/30 mb-6">
+          <Card className="border-0 mb-6" style={{
+            background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+            borderRadius: '16px',
+            border: '1px solid rgba(193, 154, 107, 0.2)'
+          }}>
             <CardContent className="p-4">
               <div className="flex flex-col lg:flex-row gap-4">
                 <div className="flex-1">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5" style={{ color: '#C19A6B' }} />
                     <Input
                       placeholder="문의 내역 검색..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 bg-[#0f1433] border-purple-900/30 text-white h-12 text-base"
+                      className="pl-10 h-12 text-base text-white border-0"
+                      style={{
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        borderRadius: '8px'
+                      }}
                     />
                   </div>
                 </div>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-48 bg-[#0f1433] border-purple-900/30 text-white h-12 text-base">
+                  <SelectTrigger className="w-48 h-12 text-base text-white border-0" style={{
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    borderRadius: '8px'
+                  }}>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#1a1f3a] border-purple-900/30">
+                  <SelectContent className="border-0" style={{
+                    background: 'rgba(26, 31, 58, 0.98)',
+                    border: '1px solid rgba(193, 154, 107, 0.2)'
+                  }}>
                     <SelectItem value="all" className="text-white">전체</SelectItem>
                     <SelectItem value="waiting" className="text-white">답변대기</SelectItem>
                     <SelectItem value="replied" className="text-white">답변완료</SelectItem>
@@ -476,10 +535,14 @@ export function BenzSupport({ user, onRouteChange }: BenzSupportProps) {
           </Card>
 
           {/* 문의 목록 */}
-          <Card className="bg-[#1a1f3a] border-purple-900/30">
+          <Card className="border-0" style={{
+            background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+            borderRadius: '16px',
+            border: '1px solid rgba(193, 154, 107, 0.2)'
+          }}>
             <CardHeader>
               <CardTitle className="flex items-center text-white text-2xl">
-                <MessageSquare className="w-6 h-6 mr-3 text-purple-400" />
+                <MessageSquare className="w-6 h-6 mr-3" style={{ color: '#C19A6B' }} />
                 문의 내역 ({filteredMessages.length})
               </CardTitle>
             </CardHeader>

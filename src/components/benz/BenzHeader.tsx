@@ -177,21 +177,18 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
   return (
     <>
       {/* Desktop Header */}
-      <header className="hidden md:block fixed top-0 left-0 right-0 z-50 bg-[#0f1433] border-b border-purple-900/30" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+      <header className="hidden md:block fixed top-0 left-0 right-0 z-50 bg-black border-b-2" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif', borderColor: '#141414' }}>
         <div className="flex items-center justify-between px-6 h-20">
           {/* Logo */}
           <div className="flex items-center gap-4">
             <button
               onClick={() => onRouteChange('/benz')}
-              className="hover:opacity-80 transition-opacity mt-6"
+              className="hover:opacity-80 transition-opacity mt-9"
             >
               <ImageWithFallback
-                src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
+                src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-51-13.png"
                 alt="BENZ CASINO"
-                className="h-24 w-auto object-contain"
-                style={{
-                  filter: 'drop-shadow(0 0 15px rgba(168, 85, 247, 0.5)) drop-shadow(0 0 30px rgba(236, 72, 153, 0.3))'
-                }}
+                className="h-48 w-auto object-contain"
               />
             </button>
           </div>
@@ -202,67 +199,198 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
               <>
                 {/* 닉네임 */}
                 <div>
-                  <span className="text-orange-400 font-semibold text-xl">{user.nickname}님</span>
+                  <span 
+                    className="font-bold text-xl tracking-wide"
+                    style={{
+                      color: '#E6C9A8',
+                      textShadow: '0 2px 8px rgba(193, 154, 107, 0.4)'
+                    }}
+                  >
+                    {user.nickname}님
+                  </span>
                 </div>
 
                 {/* 보유머니 */}
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-400 text-base">보유머니 :</span>
-                  <span className="text-orange-400 font-bold text-xl">
+                <div 
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.6) 0%, rgba(30, 30, 45, 0.4) 100%)',
+                    borderColor: 'rgba(193, 154, 107, 0.3)',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+                  }}
+                >
+                  <span className="text-gray-300 text-base">보유머니 :</span>
+                  <span 
+                    className="font-bold text-xl"
+                    style={{
+                      color: '#E6C9A8',
+                      textShadow: '0 2px 6px rgba(193, 154, 107, 0.5)'
+                    }}
+                  >
                     <AnimatedCurrency value={balance.balance} duration={800} />
                   </span>
-                  <span className="text-gray-400 text-base">원</span>
+                  <span className="text-gray-300 text-base">원</span>
                 </div>
 
                 {/* 포인트 (클릭 가능) */}
                 <button
                   onClick={() => setShowPointConvertDialog(true)}
-                  className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border transition-all duration-300 hover:scale-105 group relative overflow-hidden"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.6) 0%, rgba(30, 30, 45, 0.4) 100%)',
+                    borderColor: 'rgba(193, 154, 107, 0.3)',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+                  }}
                 >
-                  <span className="text-gray-400 text-base">포인트 :</span>
-                  <span className="text-green-400 font-bold text-xl">
+                  <div 
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)'
+                    }}
+                  ></div>
+                  <span className="text-gray-300 text-base relative z-10">포인트 :</span>
+                  <span 
+                    className="font-bold text-xl relative z-10"
+                    style={{
+                      color: '#A8E6CF',
+                      textShadow: '0 2px 6px rgba(168, 230, 207, 0.4)'
+                    }}
+                  >
                     <AnimatedPoints value={balance.points} duration={800} />
                   </span>
                 </button>
 
                 {/* 쪽지 */}
-                <Button 
-                  variant="outline"
+                <button 
                   onClick={() => onRouteChange('/benz/support')}
-                  className="border-purple-900/30 text-gray-300 hover:bg-purple-900/20 text-base h-10 px-4 relative"
+                  className="relative px-5 py-2.5 rounded-lg border transition-all duration-300 hover:scale-105 group overflow-hidden"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.1) 100%)',
+                    borderColor: 'rgba(193, 154, 107, 0.4)',
+                    boxShadow: '0 4px 12px rgba(193, 154, 107, 0.2)'
+                  }}
                 >
-                  <Mail className="w-5 h-5 mr-1" />
-                  쪽지 {unreadMessages > 0 && <span className="text-orange-400 ml-1">{unreadMessages}</span>}
+                  <div 
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.25) 0%, rgba(166, 124, 82, 0.15) 100%)'
+                    }}
+                  ></div>
+                  <div className="relative z-10 flex items-center gap-2">
+                    <Mail className="w-5 h-5" style={{ color: '#E6C9A8' }} />
+                    <span 
+                      className="font-semibold text-base"
+                      style={{
+                        color: '#E6C9A8',
+                        textShadow: '0 2px 4px rgba(193, 154, 107, 0.3)'
+                      }}
+                    >
+                      쪽지
+                    </span>
+                    {unreadMessages > 0 && (
+                      <span 
+                        className="ml-1 font-bold"
+                        style={{
+                          color: '#FF6B6B',
+                          textShadow: '0 0 8px rgba(255, 107, 107, 0.6)'
+                        }}
+                      >
+                        {unreadMessages}
+                      </span>
+                    )}
+                  </div>
                   {unreadMessages > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full text-white text-xs flex items-center justify-center">
+                    <span 
+                      className="absolute -top-1 -right-1 w-5 h-5 rounded-full text-white text-xs flex items-center justify-center font-bold"
+                      style={{
+                        background: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A6F 100%)',
+                        boxShadow: '0 2px 8px rgba(255, 107, 107, 0.6)'
+                      }}
+                    >
                       {unreadMessages}
                     </span>
                   )}
-                </Button>
+                </button>
 
                 {/* 로그아웃 */}
-                <Button 
+                <button 
                   onClick={onLogout}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-base h-10 px-5"
+                  className="px-6 py-2.5 rounded-lg transition-all duration-300 hover:scale-105 group relative overflow-hidden"
+                  style={{
+                    background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                    boxShadow: '0 4px 15px rgba(193, 154, 107, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(230, 201, 168, 0.3)'
+                  }}
                 >
-                  로그아웃
-                </Button>
+                  <div 
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{
+                      background: 'linear-gradient(135deg, #D4AF87 0%, #C19A6B 100%)'
+                    }}
+                  ></div>
+                  <span 
+                    className="relative z-10 font-bold text-base tracking-wide"
+                    style={{
+                      color: '#FFFFFF',
+                      textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)'
+                    }}
+                  >
+                    로그아웃
+                  </span>
+                </button>
               </>
             ) : (
-              <div className="flex items-center gap-2">
-                <Button 
+              <div className="flex items-center gap-3">
+                <button 
                   onClick={onOpenLoginModal}
-                  variant="outline"
-                  className="border-purple-500 text-purple-400 hover:bg-purple-900/30 text-base h-11 px-5"
+                  className="px-6 py-2.5 rounded-lg border transition-all duration-300 hover:scale-105 group relative overflow-hidden"
+                  style={{
+                    background: 'transparent',
+                    borderColor: 'rgba(193, 154, 107, 0.5)',
+                    boxShadow: '0 2px 8px rgba(193, 154, 107, 0.2)'
+                  }}
                 >
-                  로그인
-                </Button>
-                <Button 
+                  <div 
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.1) 100%)'
+                    }}
+                  ></div>
+                  <span 
+                    className="relative z-10 font-semibold text-base tracking-wide"
+                    style={{
+                      color: '#E6C9A8',
+                      textShadow: '0 2px 4px rgba(193, 154, 107, 0.3)'
+                    }}
+                  >
+                    로그인
+                  </span>
+                </button>
+                <button 
                   onClick={onOpenSignupModal}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-base h-11 px-5"
+                  className="px-6 py-2.5 rounded-lg transition-all duration-300 hover:scale-105 group relative overflow-hidden"
+                  style={{
+                    background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                    boxShadow: '0 4px 15px rgba(193, 154, 107, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(230, 201, 168, 0.3)'
+                  }}
                 >
-                  회원가입
-                </Button>
+                  <div 
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{
+                      background: 'linear-gradient(135deg, #D4AF87 0%, #C19A6B 100%)'
+                    }}
+                  ></div>
+                  <span 
+                    className="relative z-10 font-bold text-base tracking-wide"
+                    style={{
+                      color: '#FFFFFF',
+                      textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)'
+                    }}
+                  >
+                    회원가입
+                  </span>
+                </button>
               </div>
             )}
           </div>
@@ -270,7 +398,7 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
       </header>
 
       {/* Mobile Header */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-[#0f1433] border-b border-purple-900/30" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-black border-b-2" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif', borderColor: '#141414' }}>
         <div className="flex items-center justify-between px-4 h-16">
           {/* Logo */}
           <button
@@ -278,12 +406,9 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
             className="hover:opacity-80 transition-opacity"
           >
             <ImageWithFallback
-              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
+              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-50-36.jpg"
               alt="BENZ CASINO"
               className="h-15 w-auto object-contain"
-              style={{
-                filter: 'drop-shadow(0 0 10px rgba(168, 85, 247, 0.5)) drop-shadow(0 0 20px rgba(236, 72, 153, 0.3))'
-              }}
             />
           </button>
 
@@ -340,7 +465,7 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
           />
           
           {/* Sidebar */}
-          <div className="fixed top-0 right-0 bottom-0 w-80 bg-[#0f1433] z-[70] md:hidden overflow-y-auto">
+          <div className="fixed top-0 right-0 bottom-0 w-80 bg-black z-[70] md:hidden overflow-y-auto">
             <div className="p-6">
               {/* Close Button */}
               <button
@@ -455,22 +580,6 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                           onOpenLoginModal?.();
                           return;
                         }
-                        onRouteChange('/benz/minigame');
-                        setShowMobileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
-                    >
-                      <Crown className="w-5 h-5 text-orange-400" />
-                      <span className="text-white">미니게임</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        if (!user) {
-                          setShowMobileMenu(false);
-                          onOpenLoginModal?.();
-                          return;
-                        }
                         onRouteChange('/benz/notice');
                         setShowMobileMenu(false);
                       }}
@@ -555,7 +664,7 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
       )}
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0f1433] border-t border-purple-900/30" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-purple-900/30" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
         <div className="flex items-center justify-around h-16">
           {/* 홈 */}
           <button

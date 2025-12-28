@@ -181,54 +181,86 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
           {/* 제목 */}
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-1.5 h-8 bg-gradient-to-b from-purple-400 to-pink-500"></div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">베팅 내역</h1>
+              <div className="w-1.5 h-8" style={{
+                background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)'
+              }}></div>
+              <h1 className="text-3xl font-bold" style={{
+                background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 50%, #A67C52 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>베팅 내역</h1>
             </div>
           </div>
 
           {/* 통계 카드 */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+            <Card className="border-0" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+              border: '1px solid rgba(193, 154, 107, 0.2)',
+              borderRadius: '8px'
+            }}>
               <CardContent className="p-4 text-center">
-                <Gamepad2 className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+                <Gamepad2 className="w-8 h-8 mx-auto mb-2" style={{ color: '#C19A6B' }} />
                 <div className="text-2xl font-bold text-white">{stats.totalBets}건</div>
-                <div className="text-sm text-slate-400">총 베팅횟수</div>
+                <div className="text-base text-slate-400">총 베팅횟수</div>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+            <Card className="border-0" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+              border: '1px solid rgba(193, 154, 107, 0.2)',
+              borderRadius: '8px'
+            }}>
               <CardContent className="p-4 text-center">
-                <TrendingUp className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+                <TrendingUp className="w-8 h-8 mx-auto mb-2" style={{ color: '#C19A6B' }} />
                 <div className="text-2xl font-bold text-white">₩{formatMoney(stats.totalBetAmount)}</div>
-                <div className="text-sm text-slate-400">총 베팅액</div>
+                <div className="text-base text-slate-400">총 베팅액</div>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+            <Card className="border-0" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+              border: '1px solid rgba(193, 154, 107, 0.2)',
+              borderRadius: '8px'
+            }}>
               <CardContent className="p-4 text-center">
                 <TrendingUp className="w-8 h-8 text-green-400 mx-auto mb-2" />
                 <div className="text-2xl font-bold text-white">₩{formatMoney(stats.totalWinAmount)}</div>
-                <div className="text-sm text-slate-400">총 당첨액</div>
+                <div className="text-base text-slate-400">총 당첨액</div>
               </CardContent>
             </Card>
 
-            <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+            <Card className="border-0" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+              border: '1px solid rgba(193, 154, 107, 0.2)',
+              borderRadius: '8px'
+            }}>
               <CardContent className="p-4 text-center">
                 <TrendingDown className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
                 <div className={`text-2xl font-bold ${stats.netProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {stats.netProfit >= 0 ? '+' : ''}₩{formatMoney(stats.netProfit)}
                 </div>
-                <div className="text-sm text-slate-400">순 손익</div>
+                <div className="text-base text-slate-400">순 손익</div>
               </CardContent>
             </Card>
           </div>
 
           {/* 베팅 내역 테이블 */}
-          <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+          <Card className="border-0" style={{
+            background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+            border: '1px solid rgba(193, 154, 107, 0.2)',
+            borderRadius: '8px'
+          }}>
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle className="text-2xl font-bold text-white">베팅내역</CardTitle>
+                  <CardTitle className="text-2xl font-bold" style={{
+                    background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}>베팅내역</CardTitle>
                   <p className="text-sm text-slate-400 mt-1">최근 100건</p>
                 </div>
                 <Button
@@ -236,7 +268,12 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
                   disabled={loading}
                   variant="outline"
                   size="sm"
-                  className="border-slate-600 hover:bg-slate-700/50 text-white"
+                  className="border-0 text-white"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.1) 100%)',
+                    border: '1px solid rgba(193, 154, 107, 0.3)',
+                    borderRadius: '6px'
+                  }}
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                   새로고침
@@ -248,7 +285,7 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
               {loading ? (
                 <div className="flex justify-center items-center py-20">
                   <div className="text-center">
-                    <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-400" />
+                    <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: '#C19A6B' }} />
                     <p className="text-slate-300 text-lg">로딩 중...</p>
                   </div>
                 </div>
@@ -262,15 +299,15 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b border-slate-700">
-                        <th className="px-4 py-4 text-left text-sm font-semibold text-slate-300">상태</th>
-                        <th className="px-4 py-4 text-left text-sm font-semibold text-slate-300">게임명</th>
-                        <th className="px-4 py-4 text-left text-sm font-semibold text-slate-300">제공사</th>
-                        <th className="px-4 py-4 text-right text-sm font-semibold text-slate-300">베팅금액</th>
-                        <th className="px-4 py-4 text-right text-sm font-semibold text-slate-300">당첨금액</th>
-                        <th className="px-4 py-4 text-right text-sm font-semibold text-slate-300">손익</th>
-                        <th className="px-4 py-4 text-left text-sm font-semibold text-slate-300">플레이 시간</th>
-                        <th className="px-4 py-4 text-left text-sm font-semibold text-slate-300">결과 보기</th>
+                      <tr style={{ borderBottom: '1px solid rgba(193, 154, 107, 0.2)' }}>
+                        <th className="px-4 py-4 text-left text-lg font-semibold" style={{ color: '#E6C9A8' }}>상태</th>
+                        <th className="px-4 py-4 text-left text-lg font-semibold" style={{ color: '#E6C9A8' }}>게임명</th>
+                        <th className="px-4 py-4 text-left text-lg font-semibold" style={{ color: '#E6C9A8' }}>제공사</th>
+                        <th className="px-4 py-4 text-right text-lg font-semibold" style={{ color: '#E6C9A8' }}>베팅금액</th>
+                        <th className="px-4 py-4 text-right text-lg font-semibold" style={{ color: '#E6C9A8' }}>당첨금액</th>
+                        <th className="px-4 py-4 text-right text-lg font-semibold" style={{ color: '#E6C9A8' }}>손익</th>
+                        <th className="px-4 py-4 text-left text-lg font-semibold" style={{ color: '#E6C9A8' }}>플레이 시간</th>
+                        <th className="px-4 py-4 text-left text-lg font-semibold" style={{ color: '#E6C9A8' }}>결과 보기</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -283,29 +320,33 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
                         return (
                           <Fragment key={record.id}>
                             <tr
-                              className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors"
+                              className="transition-colors"
+                              style={{ borderBottom: '1px solid rgba(193, 154, 107, 0.1)' }}
                             >
                               <td className="px-4 py-4">
                                 {getStatusBadge(winAmount, betAmount)}
                               </td>
-                              <td className="px-4 py-4 text-white text-base font-medium max-w-[200px] truncate">
+                              <td className="px-4 py-4 text-white text-xl font-medium max-w-[200px] truncate">
                                 {record.game_title || `Game ${record.game_id}`}
                               </td>
                               <td className="px-4 py-4">
-                                <Badge variant="secondary" className="text-sm bg-slate-700/50 text-slate-300 border-slate-600">
+                                <Badge variant="secondary" className="text-base border-0" style={{
+                                  background: 'rgba(193, 154, 107, 0.2)',
+                                  color: '#E6C9A8'
+                                }}>
                                   {record.provider_name || `Provider ${record.provider_id}`}
                                 </Badge>
                               </td>
-                              <td className="px-4 py-4 text-right font-mono text-base text-blue-400 font-semibold">
+                              <td className="px-4 py-4 text-right font-mono text-xl text-blue-400 font-semibold">
                                 ₩{formatMoney(betAmount)}
                               </td>
-                              <td className="px-4 py-4 text-right font-mono text-base text-green-400 font-semibold">
+                              <td className="px-4 py-4 text-right font-mono text-xl text-green-400 font-semibold">
                                 {winAmount === 0 ? '-' : `₩${formatMoney(winAmount)}`}
                               </td>
-                              <td className={`px-4 py-4 text-right font-mono text-base font-semibold ${profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              <td className={`px-4 py-4 text-right font-mono text-xl font-semibold ${profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                 {profit >= 0 ? '+' : ''}₩{formatMoney(profit)}
                               </td>
-                              <td className="px-4 py-4 text-slate-300 text-sm">
+                              <td className="px-4 py-4 text-slate-300 text-base">
                                 {formatDate(record.played_at)}
                               </td>
                               <td className="px-4 py-4">
@@ -314,19 +355,25 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
                                     onClick={() => setExpandedRow(isExpanded ? null : record.id)}
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 px-2 text-xs border-slate-600 hover:bg-slate-700/50 text-white"
+                                    className="h-8 px-3 text-sm border-0 text-white"
+                                    style={{
+                                      background: 'rgba(193, 154, 107, 0.2)',
+                                      border: '1px solid rgba(193, 154, 107, 0.3)'
+                                    }}
                                   >
-                                    {isExpanded ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
+                                    {isExpanded ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
                                     {isExpanded ? '닫기' : '보기'}
                                   </Button>
                                 ) : (
-                                  <span className="text-slate-500 text-sm">-</span>
+                                  <span className="text-slate-500 text-base">-</span>
                                 )}
                               </td>
                             </tr>
                             {isExpanded && (
                               <tr>
-                                <td colSpan={8} className="px-4 py-3 bg-slate-800/70">
+                                <td colSpan={8} className="px-4 py-3" style={{
+                                  background: 'rgba(0, 0, 0, 0.3)'
+                                }}>
                                   <GameResultInline
                                     external={record.external}
                                     gameTitle={record.game_title}

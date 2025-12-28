@@ -501,18 +501,31 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
           {/* 제목 */}
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-1.5 h-8 bg-gradient-to-b from-purple-400 to-pink-500"></div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">{t.user.myInfo}</h1>
+              <div className="w-1.5 h-8" style={{
+                background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)'
+              }}></div>
+              <h1 className="text-2xl font-bold" style={{
+                background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 50%, #A67C52 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>{t.user.myInfo}</h1>
             </div>
             <p className="text-gray-400 ml-6">{t.user.checkAccountInfo}</p>
           </div>
 
           {/* 사용자 정보 카드 */}
-          <Card className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 border-blue-600/50 rounded-none mb-6">
+          <Card className="border-0 mb-6" style={{
+            background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.1) 100%)',
+            border: '1px solid rgba(193, 154, 107, 0.3)',
+            borderRadius: '8px'
+          }}>
             <CardContent className="p-6">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{
+                    background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)'
+                  }}>
                     <User className="w-8 h-8 text-white" />
                   </div>
                   <div>
@@ -579,32 +592,48 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
           {/* 통계 카드 */}
           {userStats && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+              <Card className="border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '8px'
+              }}>
                 <CardContent className="p-4 text-center">
-                  <TrendingUp className="w-8 h-8 text-green-400 mx-auto mb-2" />
-                  <div className="text-lg font-bold text-white">{t.common.currencySymbol}{formatCurrency(userStats.total_deposits)}</div>
-                  <div className="text-sm text-slate-400">{t.user.totalDeposits}</div>
+                  <TrendingUp className="w-11 h-11 text-green-400 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-white">{t.common.currencySymbol}{formatCurrency(userStats.total_deposits)}</div>
+                  <div className="text-base text-slate-400">{t.user.totalDeposits}</div>
                 </CardContent>
               </Card>
-              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+              <Card className="border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '8px'
+              }}>
                 <CardContent className="p-4 text-center">
-                  <TrendingDown className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-                  <div className="text-lg font-bold text-white">{t.common.currencySymbol}{formatCurrency(userStats.total_withdrawals)}</div>
-                  <div className="text-sm text-slate-400">{t.user.totalWithdrawals}</div>
+                  <TrendingDown className="w-11 h-11 text-blue-400 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-white">{t.common.currencySymbol}{formatCurrency(userStats.total_withdrawals)}</div>
+                  <div className="text-base text-slate-400">{t.user.totalWithdrawals}</div>
                 </CardContent>
               </Card>
-              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+              <Card className="border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '8px'
+              }}>
                 <CardContent className="p-4 text-center">
-                  <Gamepad2 className="w-8 h-8 text-purple-400 mx-auto mb-2" />
-                  <div className="text-lg font-bold text-white">{userStats.game_count.toLocaleString()}</div>
-                  <div className="text-sm text-slate-400">{t.user.gameCount}</div>
+                  <Gamepad2 className="w-11 h-11 mx-auto mb-2" style={{ color: '#C19A6B' }} />
+                  <div className="text-2xl font-bold text-white">{userStats.game_count.toLocaleString()}</div>
+                  <div className="text-base text-slate-400">{t.user.gameCount}</div>
                 </CardContent>
               </Card>
-              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+              <Card className="border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '8px'
+              }}>
                 <CardContent className="p-4 text-center">
-                  <Trophy className="w-8 h-8 text-yellow-400 mx-auto mb-2" />
-                  <div className="text-lg font-bold text-white">{userStats.win_rate.toFixed(1)}%</div>
-                  <div className="text-sm text-slate-400">{t.user.winRate}</div>
+                  <Trophy className="w-11 h-11 text-yellow-400 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-white">{userStats.win_rate.toFixed(1)}%</div>
+                  <div className="text-base text-slate-400">{t.user.winRate}</div>
                 </CardContent>
               </Card>
             </div>
@@ -612,38 +641,62 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
 
           {/* 탭 메뉴 */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-5 bg-slate-800/50 rounded-none border border-purple-900/30">
+            <TabsList className="grid w-full grid-cols-5 border-0" style={{
+              background: 'rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(193, 154, 107, 0.2)',
+              borderRadius: '8px'
+            }}>
               <TabsTrigger 
                 value="info" 
-                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white px-2 py-3"
+                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:text-white px-2 py-3"
+                style={{
+                  '--active-bg': 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)'
+                } as any}
+                data-state={activeTab === 'info' ? 'active' : 'inactive'}
               >
                 <User className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden md:inline text-sm">{t.user.basicInfoTab}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="transactions" 
-                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white px-2 py-3"
+                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:text-white px-2 py-3"
+                style={{
+                  '--active-bg': 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)'
+                } as any}
+                data-state={activeTab === 'transactions' ? 'active' : 'inactive'}
               >
                 <CreditCard className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden md:inline text-sm">{t.user.transactionHistoryTab}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="points" 
-                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white px-2 py-3"
+                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:text-white px-2 py-3"
+                style={{
+                  '--active-bg': 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)'
+                } as any}
+                data-state={activeTab === 'points' ? 'active' : 'inactive'}
               >
                 <Coins className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden md:inline text-sm">{t.user.pointHistoryTab}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="games" 
-                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white px-2 py-3"
+                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:text-white px-2 py-3"
+                style={{
+                  '--active-bg': 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)'
+                } as any}
+                data-state={activeTab === 'games' ? 'active' : 'inactive'}
               >
                 <Gamepad2 className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden md:inline text-sm">{t.user.bettingHistoryTab}</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="settings" 
-                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white px-2 py-3"
+                className="flex items-center justify-center gap-2 rounded-none data-[state=active]:text-white px-2 py-3"
+                style={{
+                  '--active-bg': 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)'
+                } as any}
+                data-state={activeTab === 'settings' ? 'active' : 'inactive'}
               >
                 <Settings className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden md:inline text-sm">{t.user.settingsTab}</span>
@@ -652,13 +705,27 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
 
             {/* 기본정보 탭 */}
             <TabsContent value="info">
-              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+              <Card className="border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '8px'
+              }}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-white">{t.user.basicInfoTitle}</CardTitle>
+                    <CardTitle style={{
+                      background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text'
+                    }}>{t.user.basicInfoTitle}</CardTitle>
                     <Button
                       variant="outline"
                       size="sm"
+                      className="border-0 text-white"
+                      style={{
+                        background: 'rgba(193, 154, 107, 0.2)',
+                        border: '1px solid rgba(193, 154, 107, 0.3)'
+                      }}
                       onClick={() => {
                         if (isEditing) {
                           setEditableInfo({
@@ -690,30 +757,41 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-slate-300">{t.user.userId}</Label>
+                      <Label style={{ color: '#E6C9A8' }}>{t.user.userId}</Label>
                       <Input
                         value={user.username}
                         disabled
-                        className="bg-slate-700/50 border-slate-600 text-slate-400"
+                        className="border-0 text-slate-400"
+                        style={{
+                          background: 'rgba(0, 0, 0, 0.3)',
+                          border: '1px solid rgba(193, 154, 107, 0.2)'
+                        }}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-slate-300">{t.user.nickname}</Label>
+                      <Label style={{ color: '#E6C9A8' }}>{t.user.nickname}</Label>
                       <Input
                         value={editableInfo.nickname}
                         onChange={(e) => setEditableInfo(prev => ({ ...prev, nickname: e.target.value }))}
                         disabled={!isEditing}
-                        className="bg-slate-700/50 border-slate-600 text-white"
+                        className="border-0 text-white"
+                        style={{
+                          background: 'rgba(0, 0, 0, 0.3)',
+                          border: '1px solid rgba(193, 154, 107, 0.2)'
+                        }}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-slate-300">{t.user.bankName}</Label>
+                      <Label style={{ color: '#E6C9A8' }}>{t.user.bankName}</Label>
                       <Select
                         value={editableInfo.bank_name}
                         onValueChange={(value) => setEditableInfo(prev => ({ ...prev, bank_name: value }))}
                         disabled={!isEditing}
                       >
-                        <SelectTrigger className="bg-slate-700/50 border-slate-600 text-white">
+                        <SelectTrigger className="border-0 text-white" style={{
+                          background: 'rgba(0, 0, 0, 0.3)',
+                          border: '1px solid rgba(193, 154, 107, 0.2)'
+                        }}>
                           <SelectValue placeholder={t.user.selectBank} />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-800 border-slate-700">
@@ -724,25 +802,33 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-slate-300">{t.user.accountNumber}</Label>
+                      <Label style={{ color: '#E6C9A8' }}>{t.user.accountNumber}</Label>
                       <Input
                         value={editableInfo.bank_account}
                         onChange={(e) => setEditableInfo(prev => ({ ...prev, bank_account: e.target.value }))}
                         disabled={!isEditing}
-                        className="bg-slate-700/50 border-slate-600 text-white"
+                        className="border-0 text-white"
+                        style={{
+                          background: 'rgba(0, 0, 0, 0.3)',
+                          border: '1px solid rgba(193, 154, 107, 0.2)'
+                        }}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-slate-300">{t.user.accountHolder}</Label>
+                      <Label style={{ color: '#E6C9A8' }}>{t.user.accountHolder}</Label>
                       <Input
                         value={editableInfo.bank_holder}
                         onChange={(e) => setEditableInfo(prev => ({ ...prev, bank_holder: e.target.value }))}
                         disabled={!isEditing}
-                        className="bg-slate-700/50 border-slate-600 text-white"
+                        className="border-0 text-white"
+                        style={{
+                          background: 'rgba(0, 0, 0, 0.3)',
+                          border: '1px solid rgba(193, 154, 107, 0.2)'
+                        }}
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-slate-300">{t.user.vipGrade}</Label>
+                      <Label style={{ color: '#E6C9A8' }}>{t.user.vipGrade}</Label>
                       <div className="flex items-center gap-2">
                         <Badge className={`${vipBadge.color} text-white px-3 py-1`}>
                           <Crown className="w-4 h-4 mr-1" />
@@ -757,7 +843,10 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                     <div className="flex justify-end gap-2 pt-4">
                       <Button
                         onClick={handleUpdateInfo}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="border-0 text-white"
+                        style={{
+                          background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)'
+                        }}
                       >
                         <Save className="w-4 h-4 mr-2" />
                         {t.user.save}
@@ -770,9 +859,18 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
 
             {/* 입출금내역 탭 */}
             <TabsContent value="transactions">
-              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+              <Card className="border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '8px'
+              }}>
                 <CardHeader>
-                  <CardTitle className="text-white">{t.user.transactionHistory}</CardTitle>
+                  <CardTitle style={{
+                    background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}>{t.user.transactionHistory}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {transactions.length > 0 ? (
@@ -783,39 +881,43 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                         const isDeposit = transaction.transaction_type === 'deposit';
                         
                         return (
-                          <div key={transaction.id} className="p-4 bg-slate-700/30 rounded-lg">
+                          <div key={transaction.id} className="p-4 border-0" style={{
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            border: '1px solid rgba(193, 154, 107, 0.2)',
+                            borderRadius: '8px'
+                          }}>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
                                 {isDeposit ? (
-                                  <ArrowUpRight className="w-5 h-5 text-green-400" />
+                                  <ArrowUpRight className="w-6 h-6 text-green-400" />
                                 ) : (
-                                  <ArrowDownLeft className="w-5 h-5 text-blue-400" />
+                                  <ArrowDownLeft className="w-6 h-6 text-blue-400" />
                                 )}
                                 <div>
                                   <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-medium text-white">
+                                    <span className="font-medium text-white text-lg">
                                       {isDeposit ? t.user.deposit : t.user.withdrawal}
                                     </span>
-                                    <Badge className={`${statusInfo.color} text-white text-xs`}>
-                                      <StatusIcon className="w-3 h-3 mr-1" />
+                                    <Badge className={`${statusInfo.color} text-white text-sm`}>
+                                      <StatusIcon className="w-4 h-4 mr-1" />
                                       {statusInfo.label}
                                     </Badge>
                                   </div>
-                                  <div className="text-sm text-slate-400">
+                                  <div className="text-base text-slate-400">
                                     {formatDateTime(transaction.created_at)}
                                   </div>
                                   {transaction.bank_name && (
-                                    <div className="text-sm text-slate-500">
+                                    <div className="text-base text-slate-500">
                                       {transaction.bank_name} {transaction.bank_account}
                                     </div>
                                   )}
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className={`text-lg font-bold ${isDeposit ? 'text-green-400' : 'text-blue-400'}`}>
+                                <div className={`text-xl font-bold ${isDeposit ? 'text-green-400' : 'text-blue-400'}`}>
                                   {isDeposit ? '+' : '-'}{t.common.currencySymbol}{formatCurrency(transaction.amount)}
                                 </div>
-                                <div className="text-sm text-slate-400">
+                                <div className="text-base text-slate-400">
                                   {t.user.balance}: {t.common.currencySymbol}{formatCurrency(transaction.balance_after)}
                                 </div>
                               </div>
@@ -836,15 +938,27 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
 
             {/* 포인트내역 탭 */}
             <TabsContent value="points">
-              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+              <Card className="border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '8px'
+              }}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-white">{t.user.pointHistory}</CardTitle>
+                    <CardTitle style={{
+                      background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text'
+                    }}>{t.user.pointHistory}</CardTitle>
                     {currentPoints > 0 && (
                       <Button
                         onClick={() => convertPointsToBalance(currentPoints)}
                         size="sm"
-                        className="bg-yellow-600 hover:bg-yellow-700"
+                        className="border-0 text-white"
+                        style={{
+                          background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)'
+                        }}
                       >
                         <Coins className="w-4 h-4 mr-2" />
                         전체 전환 ({formatCurrency(currentPoints)}P)
@@ -860,32 +974,36 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                         const isConvert = transaction.transaction_type === 'convert_to_balance';
                         
                         return (
-                          <div key={transaction.id} className="p-4 bg-slate-700/30 rounded-lg">
+                          <div key={transaction.id} className="p-4 border-0" style={{
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            border: '1px solid rgba(193, 154, 107, 0.2)',
+                            borderRadius: '8px'
+                          }}>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
-                                <Coins className={`w-5 h-5 ${isEarn ? 'text-yellow-400' : isConvert ? 'text-blue-400' : 'text-slate-400'}`} />
+                                <Coins className={`w-6 h-6 ${isEarn ? 'text-yellow-400' : isConvert ? 'text-blue-400' : 'text-slate-400'}`} />
                                 <div>
-                                  <div className="font-medium text-white mb-1">
+                                  <div className="font-medium text-white mb-1 text-lg">
                                     {transaction.transaction_type === 'earn' && '포인트 적립'}
                                     {transaction.transaction_type === 'use' && '포인트 사용'}
                                     {transaction.transaction_type === 'convert_to_balance' && '잔고 전환'}
                                     {transaction.transaction_type === 'admin_adjustment' && '관리자 조정'}
                                   </div>
-                                  <div className="text-sm text-slate-400">
+                                  <div className="text-base text-slate-400">
                                     {formatDateTime(transaction.created_at)}
                                   </div>
                                   {transaction.memo && (
-                                    <div className="text-sm text-slate-500">
+                                    <div className="text-base text-slate-500">
                                       {transaction.memo}
                                     </div>
                                   )}
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className={`text-lg font-bold ${isEarn ? 'text-yellow-400' : 'text-slate-400'}`}>
+                                <div className={`text-xl font-bold ${isEarn ? 'text-yellow-400' : 'text-slate-400'}`}>
                                   {isEarn ? '+' : '-'}{formatCurrency(transaction.amount)}P
                                 </div>
-                                <div className="text-sm text-slate-400">
+                                <div className="text-base text-slate-400">
                                   포인트: {formatCurrency(transaction.points_after)}P
                                 </div>
                               </div>
@@ -906,9 +1024,18 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
 
             {/* 베팅내역 탭 */}
             <TabsContent value="games">
-              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+              <Card className="border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '8px'
+              }}>
                 <CardHeader>
-                  <CardTitle className="text-white text-xl">베팅 내역</CardTitle>
+                  <CardTitle style={{
+                    background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}>베팅 내역</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {gameRecords.length > 0 ? (
@@ -921,32 +1048,36 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                         const isWin = profit > 0;
                         
                         return (
-                          <div key={record.id} className="p-4 bg-slate-700/30 rounded-none">
+                          <div key={record.id} className="p-4 border-0" style={{
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            border: '1px solid rgba(193, 154, 107, 0.2)',
+                            borderRadius: '8px'
+                          }}>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
-                                <Gamepad2 className="w-5 h-5 text-purple-400" />
+                                <Gamepad2 className="w-6 h-6" style={{ color: '#C19A6B' }} />
                                 <div>
-                                  <div className="font-medium text-white mb-1">
+                                  <div className="font-medium text-white mb-1 text-lg">
                                     {record.game_title || '알 수 없는 게임'}
                                   </div>
-                                  <div className="text-sm text-slate-400">
+                                  <div className="text-base text-slate-400">
                                     {formatDateTime(record.played_at)}
                                   </div>
-                                  <div className="text-sm text-slate-500">
+                                  <div className="text-base text-slate-500">
                                     {record.provider_name || '제공사 정보 없음'}
                                   </div>
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className="text-sm text-slate-400 mb-1">
+                                <div className="text-base text-slate-400 mb-1">
                                   베팅: {t.common.currencySymbol}{formatCurrency(betAmount)}
                                 </div>
                                 {winAmount > 0 && (
-                                  <div className="text-sm text-slate-400 mb-1">
+                                  <div className="text-base text-slate-400 mb-1">
                                     당첨: {t.common.currencySymbol}{formatCurrency(winAmount)}
                                   </div>
                                 )}
-                                <div className={`font-bold ${isWin ? 'text-green-400' : 'text-red-400'}`}>
+                                <div className={`text-xl font-bold ${isWin ? 'text-green-400' : 'text-red-400'}`}>
                                   {isWin ? '+' : ''}{t.common.currencySymbol}{formatCurrency(profit)}
                                 </div>
                               </div>
@@ -967,51 +1098,89 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
 
             {/* 설정 탭 */}
             <TabsContent value="settings">
-              <Card className="bg-slate-800/50 border-slate-700 rounded-none">
+              <Card className="border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '8px'
+              }}>
                 <CardHeader>
-                  <CardTitle className="text-white">계정 설정</CardTitle>
+                  <CardTitle style={{
+                    background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}>계정 설정</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
                     <DialogTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start">
+                      <Button variant="outline" className="w-full justify-start border-0 text-white" style={{
+                        background: 'rgba(193, 154, 107, 0.2)',
+                        border: '1px solid rgba(193, 154, 107, 0.3)'
+                      }}>
                         <Settings className="w-4 h-4 mr-2" />
                         비밀번호 변경
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="bg-slate-800 border-slate-700 text-white">
+                    <DialogContent className="border-0 text-white" style={{
+                      background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                      border: '1px solid rgba(193, 154, 107, 0.3)'
+                    }}>
                       <DialogHeader>
-                        <DialogTitle>비밀번호 변경</DialogTitle>
+                        <DialogTitle style={{
+                          background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          backgroundClip: 'text'
+                        }}>비밀번호 변경</DialogTitle>
+                        <DialogDescription className="text-slate-400">
+                          현재 비밀번호를 확인하고 새로운 비밀번호로 변경하세요.
+                        </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label className="text-slate-300">현재 비밀번호</Label>
+                          <Label style={{ color: '#E6C9A8' }}>현재 비밀번호</Label>
                           <Input
                             type="password"
                             value={passwordChange.currentPassword}
                             onChange={(e) => setPasswordChange(prev => ({ ...prev, currentPassword: e.target.value }))}
-                            className="bg-slate-700/50 border-slate-600 text-white"
+                            className="border-0 text-white"
+                            style={{
+                              background: 'rgba(0, 0, 0, 0.3)',
+                              border: '1px solid rgba(193, 154, 107, 0.2)'
+                            }}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-slate-300">새 비밀번호</Label>
+                          <Label style={{ color: '#E6C9A8' }}>새 비밀번호</Label>
                           <Input
                             type="password"
                             value={passwordChange.newPassword}
                             onChange={(e) => setPasswordChange(prev => ({ ...prev, newPassword: e.target.value }))}
-                            className="bg-slate-700/50 border-slate-600 text-white"
+                            className="border-0 text-white"
+                            style={{
+                              background: 'rgba(0, 0, 0, 0.3)',
+                              border: '1px solid rgba(193, 154, 107, 0.2)'
+                            }}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-slate-300">새 비밀번호 확인</Label>
+                          <Label style={{ color: '#E6C9A8' }}>새 비밀번호 확인</Label>
                           <Input
                             type="password"
                             value={passwordChange.confirmPassword}
                             onChange={(e) => setPasswordChange(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                            className="bg-slate-700/50 border-slate-600 text-white"
+                            className="border-0 text-white"
+                            style={{
+                              background: 'rgba(0, 0, 0, 0.3)',
+                              border: '1px solid rgba(193, 154, 107, 0.2)'
+                            }}
                           />
                         </div>
-                        <Alert className="border-yellow-600 bg-yellow-900/20">
+                        <Alert className="border-0" style={{
+                          background: 'rgba(245, 158, 11, 0.1)',
+                          border: '1px solid rgba(245, 158, 11, 0.3)'
+                        }}>
                           <AlertDescription className="text-yellow-300">
                             비밀번호는 6자리 이상이어야 합니다.
                           </AlertDescription>
@@ -1020,13 +1189,20 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                           <Button
                             variant="outline"
                             onClick={() => setShowPasswordDialog(false)}
-                            className="flex-1"
+                            className="flex-1 border-0 text-white"
+                            style={{
+                              background: 'rgba(0, 0, 0, 0.5)',
+                              border: '1px solid rgba(193, 154, 107, 0.3)'
+                            }}
                           >
                             취소
                           </Button>
                           <Button
                             onClick={handlePasswordChange}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700"
+                            className="flex-1 border-0 text-white"
+                            style={{
+                              background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)'
+                            }}
                             disabled={!passwordChange.currentPassword || !passwordChange.newPassword || !passwordChange.confirmPassword}
                           >
                             변경
@@ -1048,6 +1224,9 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                   <Coins className="w-5 h-5 text-yellow-400" />
                   포인트 → 보유금 전환
                 </DialogTitle>
+                <DialogDescription className="text-slate-400">
+                  보유하신 포인트를 보유금으로 전환합니다.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="p-4 bg-slate-700/30 rounded-lg">

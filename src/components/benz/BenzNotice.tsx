@@ -284,13 +284,19 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
   }, [user?.id]);
 
   return (
-    <div className="min-h-screen text-white p-6" style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif' }}>
+    <div className="min-h-screen text-white p-6" style={{ 
+      fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif',
+      background: 'linear-gradient(135deg, rgba(15, 15, 25, 0.95) 0%, rgba(10, 10, 20, 0.95) 100%)'
+    }}>
       <div className="flex gap-6 justify-center">
         <div className="flex-1" style={{ maxWidth: '70%' }}>
           {/* 팝업 공지사항 */}
           {popupNotices.map((popup) => (
             <div key={popup.id} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-              <Card className="w-full max-w-md lg:max-w-lg bg-[#1a1f3a] border-purple-900/30 relative">
+              <Card className="w-full max-w-md lg:max-w-lg relative rounded-lg border-2" style={{
+                background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.98) 0%, rgba(15, 15, 25, 0.98) 100%)',
+                borderColor: 'rgba(193, 154, 107, 0.4)'
+              }}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg text-white pr-8">{popup.title}</CardTitle>
@@ -309,7 +315,9 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                     className="text-slate-300 text-sm max-h-60 overflow-y-auto"
                     dangerouslySetInnerHTML={{ __html: popup.content }}
                   />
-                  <div className="flex items-center justify-between pt-4 border-t border-purple-900/30">
+                  <div className="flex items-center justify-between pt-4 border-t" style={{
+                    borderColor: 'rgba(193, 154, 107, 0.2)'
+                  }}>
                     <span className="text-xs text-slate-500">
                       {formatDateTime(popup.created_at)}
                     </span>
@@ -318,14 +326,22 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                         variant="outline"
                         size="sm"
                         onClick={() => closePopup(popup.id, true)}
-                        className="border-purple-900/30 hover:bg-purple-900/20"
+                        className="border hover:bg-opacity-20"
+                        style={{
+                          borderColor: 'rgba(193, 154, 107, 0.3)',
+                          color: '#E6C9A8'
+                        }}
                       >
                         오늘 하루 보지 않기
                       </Button>
                       <Button
                         size="sm"
                         onClick={() => closePopup(popup.id)}
-                        className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                        className="rounded-lg"
+                        style={{
+                          background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                          boxShadow: '0 4px 15px rgba(193, 154, 107, 0.3)'
+                        }}
                       >
                         확인
                       </Button>
@@ -339,32 +355,52 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
           {/* 제목 */}
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-1.5 h-8 bg-gradient-to-b from-purple-400 to-pink-500"></div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">공지사항</h1>
+              <div className="w-1.5 h-8" style={{
+                background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)'
+              }}></div>
+              <h1 className="text-3xl font-bold" style={{
+                background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>공지사항</h1>
             </div>
             <p className="text-slate-400 ml-5">최신 소식과 중요한 안내사항을 확인하세요</p>
           </div>
 
           {/* 검색 */}
-          <Card className="bg-[#1a1f3a] border-purple-900/30 mb-6">
+          <Card className="mb-6 rounded-lg border" style={{
+            background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+            borderColor: 'rgba(193, 154, 107, 0.3)'
+          }}>
             <CardContent className="p-4">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5" style={{
+                  color: '#A67C52'
+                }} />
                 <Input
                   placeholder="공지사항 검색..."
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
-                  className="pl-10 bg-[#0f1433] border-purple-900/30 text-white text-base h-12"
+                  className="pl-10 text-white text-base h-12 rounded-lg"
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.8) 0%, rgba(15, 15, 25, 0.8) 100%)',
+                    borderColor: 'rgba(193, 154, 107, 0.3)'
+                  }}
                 />
               </div>
             </CardContent>
           </Card>
 
           {/* 공지사항 목록 */}
-          <Card className="bg-[#1a1f3a] border-purple-900/30">
+          <Card className="rounded-lg border-2" style={{
+            background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+            borderColor: 'rgba(193, 154, 107, 0.3)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
+          }}>
             <CardHeader>
               <CardTitle className="flex items-center text-white text-2xl">
-                <Bell className="w-6 h-6 mr-3 text-purple-400" />
+                <Bell className="w-6 h-6 mr-3" style={{ color: '#E6C9A8' }} />
                 공지사항 ({filteredNotices.length})
               </CardTitle>
             </CardHeader>
@@ -383,13 +419,19 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                     return (
                       <div 
                         key={notice.id} 
-                        className="p-5 bg-[#0f1433] hover:bg-[#151a3f] transition-colors border border-purple-900/30"
+                        className="p-5 transition-all duration-300 border rounded-lg hover:scale-[1.02]"
+                        style={{
+                          background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.6) 0%, rgba(15, 15, 25, 0.6) 100%)',
+                          borderColor: 'rgba(193, 154, 107, 0.2)',
+                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                        }}
                       >
                         <div className="flex items-start gap-3">
                           {/* 읽음 상태 표시 */}
-                          <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
-                            notice.is_read ? 'bg-slate-500' : 'bg-purple-400'
-                          }`} />
+                          <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0`} style={{
+                            background: notice.is_read ? '#64748b' : 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                            boxShadow: notice.is_read ? 'none' : '0 0 8px rgba(193, 154, 107, 0.6)'
+                          }} />
                           
                           <div className="flex-1 min-w-0">
                             {/* 헤더 */}
@@ -397,21 +439,28 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-2">
                                   {notice.is_pinned && (
-                                    <Badge className="bg-red-500 text-white text-xs px-2 py-1">
+                                    <Badge className="text-white text-xs px-2 py-1" style={{
+                                      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
+                                    }}>
                                       <Pin className="w-3 h-3 mr-1" />
                                       고정
                                     </Badge>
                                   )}
                                   {notice.is_popup && (
-                                    <Badge className="bg-purple-500 text-white text-xs px-2 py-1">
+                                    <Badge className="text-white text-xs px-2 py-1" style={{
+                                      background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)'
+                                    }}>
                                       팝업
                                     </Badge>
                                   )}
                                 </div>
                                 <h3 
-                                  className={`font-semibold cursor-pointer hover:text-purple-400 transition-colors text-lg ${
-                                    notice.is_read ? 'text-slate-300' : 'text-white'
+                                  className={`font-semibold cursor-pointer transition-colors text-lg ${
+                                    notice.is_read ? 'text-slate-300' : ''
                                   }`}
+                                  style={{
+                                    color: notice.is_read ? '#cbd5e1' : '#E6C9A8'
+                                  }}
                                   onClick={() => handleNoticeClick(notice)}
                                 >
                                   {notice.title}
@@ -421,7 +470,10 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => toggleNoticeExpansion(notice.id)}
-                                className="flex-shrink-0 w-8 h-8 p-0 text-purple-400 hover:text-purple-300"
+                                className="flex-shrink-0 w-8 h-8 p-0 transition-colors"
+                                style={{
+                                  color: '#E6C9A8'
+                                }}
                               >
                                 {isExpanded ? (
                                   <ChevronUp className="w-5 h-5" />
@@ -450,7 +502,11 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                             <Collapsible open={isExpanded} onOpenChange={() => toggleNoticeExpansion(notice.id)}>
                               <CollapsibleContent>
                                 <div 
-                                  className="text-slate-300 text-base mt-4 p-4 bg-[#0a0f2a] border-l-4 border-purple-500"
+                                  className="text-slate-300 text-base mt-4 p-4 border-l-4 rounded"
+                                  style={{
+                                    background: 'linear-gradient(135deg, rgba(10, 10, 20, 0.8) 0%, rgba(5, 5, 15, 0.8) 100%)',
+                                    borderColor: '#C19A6B'
+                                  }}
                                   dangerouslySetInnerHTML={{ __html: notice.content }}
                                 />
                               </CollapsibleContent>
@@ -475,7 +531,11 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                         size="sm"
                         onClick={() => fetchNotices(currentPage - 1)}
                         disabled={currentPage <= 1}
-                        className="border-purple-900/30 hover:bg-purple-900/20 text-white"
+                        className="border text-white hover:scale-105 transition-all duration-300"
+                        style={{
+                          borderColor: 'rgba(193, 154, 107, 0.3)',
+                          background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)'
+                        }}
                       >
                         이전
                       </Button>
@@ -487,7 +547,11 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                         size="sm"
                         onClick={() => fetchNotices(currentPage + 1)}
                         disabled={currentPage >= totalPages}
-                        className="border-purple-900/30 hover:bg-purple-900/20 text-white"
+                        className="border text-white hover:scale-105 transition-all duration-300"
+                        style={{
+                          borderColor: 'rgba(193, 154, 107, 0.3)',
+                          background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)'
+                        }}
                       >
                         다음
                       </Button>
@@ -496,7 +560,7 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                 </div>
               ) : (
                 <div className="text-center py-20">
-                  <Bell className="w-16 h-16 text-slate-600 mx-auto mb-4" />
+                  <Bell className="w-16 h-16 mx-auto mb-4" style={{ color: '#475569' }} />
                   <h3 className="text-xl font-semibold text-white mb-2">
                     {searchQuery ? '검색 결과가 없습니다' : '등록된 공지사항이 없습니다'}
                   </h3>
@@ -510,7 +574,11 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                     <Button
                       variant="outline"
                       onClick={() => handleSearch('')}
-                      className="border-purple-900/30 hover:bg-purple-900/20 text-white"
+                      className="border text-white"
+                      style={{
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)'
+                      }}
                     >
                       전체 보기
                     </Button>
@@ -524,11 +592,14 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
 
       {/* 공지사항 상세 다이얼로그 */}
       <Dialog open={showNoticeDialog} onOpenChange={setShowNoticeDialog}>
-        <DialogContent className="max-w-2xl bg-[#1a1f3a] border-purple-900/30 text-white max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl text-white max-h-[80vh] overflow-y-auto rounded-lg border-2" style={{
+          background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.98) 0%, rgba(15, 15, 25, 0.98) 100%)',
+          borderColor: 'rgba(193, 154, 107, 0.4)'
+        }}>
           {selectedNotice && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-2xl">{selectedNotice.title}</DialogTitle>
+                <DialogTitle className="text-2xl" style={{ color: '#E6C9A8' }}>{selectedNotice.title}</DialogTitle>
                 <DialogDescription className="text-slate-400">
                   중요한 공지사항입니다
                 </DialogDescription>

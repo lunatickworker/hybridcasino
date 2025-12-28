@@ -412,7 +412,12 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
         <div className="hidden md:block w-56 flex-shrink-0">
           <button
             onClick={() => onRouteChange('/benz/deposit')}
-            className="w-full py-4 px-5 mb-3 text-left bg-[#1a1f3a] border border-purple-900/30 text-gray-300 hover:bg-[#252a45] hover:border-purple-500/50 font-medium text-lg transition-all"
+            className="w-full py-4 px-5 mb-3 text-left border text-gray-300 font-medium text-lg transition-all"
+            style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(193, 154, 107, 0.3)',
+              borderRadius: '8px'
+            }}
           >
             <div className="flex items-center gap-3">
               <div className="w-2 h-2 bg-gray-400"></div>
@@ -422,11 +427,13 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
           <button
             className="w-full py-4 px-5 text-left relative overflow-hidden transform transition-all duration-300 hover:scale-105 active:scale-100"
             style={{
-              background: 'linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f97316 100%)',
+              background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
               boxShadow: `
-                inset 0 2px 4px rgba(255, 255, 255, 0.3),
+                0 4px 15px rgba(193, 154, 107, 0.3),
+                inset 0 2px 4px rgba(255, 255, 255, 0.2),
                 inset 0 -4px 8px rgba(0, 0, 0, 0.3)
-              `
+              `,
+              borderRadius: '8px'
             }}
           >
             {/* 광택 효과 */}
@@ -451,12 +458,28 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
-                <div className="w-1.5 h-8 bg-gradient-to-b from-purple-400 to-pink-500"></div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">즉시머니 출금</h1>
+                <div className="w-1.5 h-8" style={{
+                  background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)'
+                }}></div>
+                <h1 className="text-2xl font-bold" style={{
+                  background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 50%, #A67C52 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>즉시머니 출금</h1>
               </div>
-              <div className="bg-[#1a1f3a] border border-purple-900/30 px-6 py-3">
+              <div className="px-6 py-3 border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.3)',
+                borderRadius: '8px'
+              }}>
                 <div className="text-sm text-gray-400 mb-1">현재 잔고</div>
-                <div className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                <div className="text-xl font-bold" style={{
+                  background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>
                   <AnimatedCurrency value={balance} duration={800} currencySymbol="₩" />
                 </div>
               </div>
@@ -474,39 +497,64 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
           )}
 
           {/* Notice */}
-          <div className="bg-[#1a1f3a] border border-purple-900/30 p-6 mb-6">
+          <div className="p-6 mb-6 border-0" style={{
+            background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+            border: '1px solid rgba(193, 154, 107, 0.2)',
+            borderRadius: '8px'
+          }}>
             <div className="flex items-center gap-3 mb-5">
-              <div className="w-2 h-2 bg-gradient-to-r from-purple-400 to-pink-500 animate-pulse"></div>
-              <h2 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">Notice</h2>
+              <div className="w-2 h-2 animate-pulse" style={{
+                background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                boxShadow: '0 0 8px rgba(193, 154, 107, 0.6)'
+              }}></div>
+              <h2 className="text-xl font-bold" style={{
+                background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>Notice</h2>
             </div>
             <div className="space-y-3 text-base text-gray-300 leading-relaxed">
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">1.</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>1.</span>
                 <span>출금 시 반드시 본인 명의 계좌로만 신청해주시기 바랍니다.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">2.</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>2.</span>
                 <span>출금하신 머니는 출금자 본인 계좌로만 송금되며 타인의 계좌 출금 신청시 승인되지 않습니다.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">3.</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>3.</span>
                 <span>출금 신청 시 정확한 계좌정보 입력 후 신청하시길 부탁드립니다.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">4.</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>4.</span>
                 <span>출금은 최소 10,000원부터 가능하며, 수수료는 별도로 부과되지 않습니다.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">5.</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>5.</span>
                 <span>게임 플레이 중에는 출금이 제한될 수 있습니다. 게임 종료 후 출금해주세요.</span>
               </div>
             </div>
           </div>
 
           {/* 출금 안내 */}
-          <div className="bg-[#1a1f3a] border border-purple-900/30 p-6 mb-6">
-            <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-500/30 p-5 mb-4">
-              <h3 className="text-lg font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent mb-3">출금 안내</h3>
+          <div className="p-6 mb-6 border-0" style={{
+            background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+            border: '1px solid rgba(193, 154, 107, 0.2)',
+            borderRadius: '8px'
+          }}>
+            <div className="p-5 mb-4" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.1) 100%)',
+              border: '1px solid rgba(193, 154, 107, 0.3)',
+              borderRadius: '8px'
+            }}>
+              <h3 className="text-lg font-bold mb-3" style={{
+                background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>출금 안내</h3>
               <p className="text-base text-gray-300 mb-4 leading-relaxed">
                 출금은 24시간 처리되며, 영업일 기준 1~3시간 내 처리됩니다. 출금 신청 후 계좌번호 확인이 필요한 경우 고객센터로 문의해주세요.
               </p>
@@ -514,15 +562,15 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
 
             <div className="space-y-3 text-sm text-gray-400 leading-relaxed">
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">•</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>•</span>
                 <span>출금 신청 시 본인 명의 계좌번호를 정확히 입력해주세요.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">•</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>•</span>
                 <span>출금 대기가 많을 경우 처리 시간이 지연될 수 있으니 양해 부탁드립니다.</span>
               </div>
               <div className="flex gap-3">
-                <span className="text-purple-400 font-bold flex-shrink-0">•</span>
+                <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>•</span>
                 <span>출금 신청 시 본인 확인을 위해 비밀번호를 입력해야 합니다.</span>
               </div>
             </div>
@@ -530,9 +578,9 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
 
           {/* 출금 보유머니 */}
           <div className="mb-6">
-            <label className="block text-base font-semibold text-gray-300 mb-3">신청 보유머니</label>
+            <label className="block text-base font-semibold mb-3" style={{ color: '#E6C9A8' }}>신청 보유머니</label>
             <div className="relative">
-              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-purple-400 font-bold text-lg">₩</div>
+              <div className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-lg" style={{ color: '#C19A6B' }}>₩</div>
               <input
                 type="text"
                 value={withdrawAmount}
@@ -545,21 +593,31 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                   setWithdrawAmount(value ? parseInt(value).toLocaleString() : '');
                 }}
                 placeholder="출금할 보유머니를 입력해주세요"
-                className="w-full bg-[#1a1f3a] border border-purple-900/30 px-14 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all font-semibold"
+                className="w-full px-14 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:ring-2 transition-all font-semibold border-0"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(193, 154, 107, 0.3)',
+                  borderRadius: '8px'
+                }}
                 disabled={isWithdrawLocked}
               />
-              <div className="absolute right-5 top-1/2 -translate-y-1/2 text-purple-400 font-bold text-lg">₩</div>
+              <div className="absolute right-5 top-1/2 -translate-y-1/2 font-bold text-lg" style={{ color: '#C19A6B' }}>₩</div>
             </div>
           </div>
 
           {/* 출금계좌 입력 */}
           <div className="mb-6">
-            <label className="block text-base font-semibold text-gray-300 mb-3">출금 계좌 정보</label>
+            <label className="block text-base font-semibold mb-3" style={{ color: '#E6C9A8' }}>출금 계좌 정보</label>
             <div className="space-y-3">
               <select
                 value={bankName}
                 onChange={(e) => setBankName(e.target.value)}
-                className="w-full bg-[#1a1f3a] border border-purple-900/30 px-5 py-4 text-white text-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all font-medium"
+                className="w-full px-5 py-4 text-white text-lg focus:outline-none focus:ring-2 transition-all font-medium border-0"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(193, 154, 107, 0.3)',
+                  borderRadius: '8px'
+                }}
                 disabled={isWithdrawLocked}
               >
                 <option value="">은행 선택</option>
@@ -572,7 +630,12 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                 value={bankAccount}
                 onChange={(e) => setBankAccount(e.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="계좌번호 (숫자만 입력)"
-                className="w-full bg-[#1a1f3a] border border-purple-900/30 px-5 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all font-medium"
+                className="w-full px-5 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:ring-2 transition-all font-medium border-0"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(193, 154, 107, 0.3)',
+                  borderRadius: '8px'
+                }}
                 disabled={isWithdrawLocked}
               />
               <input
@@ -580,7 +643,12 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                 value={bankHolder}
                 onChange={(e) => setBankHolder(e.target.value)}
                 placeholder="예금주명"
-                className="w-full bg-[#1a1f3a] border border-purple-900/30 px-5 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all font-medium"
+                className="w-full px-5 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:ring-2 transition-all font-medium border-0"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(193, 154, 107, 0.3)',
+                  borderRadius: '8px'
+                }}
                 disabled={isWithdrawLocked}
               />
             </div>
@@ -588,13 +656,18 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
 
           {/* 메모 입력 */}
           <div className="mb-6">
-            <label className="block text-base font-semibold text-gray-300 mb-3">메모 (선택사항)</label>
+            <label className="block text-base font-semibold mb-3" style={{ color: '#E6C9A8' }}>메모 (선택사항)</label>
             <div className="relative">
               <textarea
                 value={memo}
                 onChange={(e) => setMemo(e.target.value)}
                 placeholder="추가 메모사항이 있으시면 입력해주세요"
-                className="w-full bg-[#1a1f3a] border border-purple-900/30 px-5 py-4 text-white text-base placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all font-medium"
+                className="w-full px-5 py-4 text-white text-base placeholder-gray-500 focus:outline-none focus:ring-2 transition-all font-medium border-0"
+                style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(193, 154, 107, 0.3)',
+                  borderRadius: '8px'
+                }}
                 rows={3}
                 disabled={isWithdrawLocked}
               />
@@ -690,9 +763,11 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
               disabled={loading || isWithdrawLocked}
               className="w-full md:w-auto relative overflow-hidden transform transition-all duration-300 hover:scale-105 active:scale-100 disabled:scale-100 disabled:opacity-50 disabled:cursor-not-allowed px-12 py-4 whitespace-nowrap"
               style={{
-                background: (loading || isWithdrawLocked) ? 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)' : 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
+                background: (loading || isWithdrawLocked) ? 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)' : 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                borderRadius: '8px',
                 boxShadow: `
-                  inset 0 2px 4px rgba(255, 255, 255, 0.3),
+                  0 4px 15px rgba(193, 154, 107, 0.3),
+                  inset 0 2px 4px rgba(255, 255, 255, 0.2),
                   inset 0 -4px 8px rgba(0, 0, 0, 0.3)
                 `
               }}
@@ -712,11 +787,24 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
           {/* 비밀번호 확인 다이얼로그 */}
           {showPasswordDialog && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowPasswordDialog(false)}>
-              <div className="bg-[#1a1f3a] border border-purple-900/30 p-8 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent mb-4">출금 신청 확인</h3>
+              <div className="p-8 max-w-md w-full mx-4 border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.3)',
+                borderRadius: '8px'
+              }} onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-xl font-bold mb-4" style={{
+                  background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>출금 신청 확인</h3>
                 <p className="text-gray-300 mb-4">출금 신청을 완료하려면 비밀번호를 입력해주세요.</p>
                 
-                <div className="bg-[#0f1433] p-4 mb-4 border border-purple-800/30">
+                <div className="p-4 mb-4 border-0" style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid rgba(193, 154, 107, 0.2)',
+                  borderRadius: '8px'
+                }}>
                   <div className="flex justify-between mb-2">
                     <span className="text-gray-400">출금 금액:</span>
                     <span className="text-white font-semibold">{withdrawAmount}원</span>
@@ -740,7 +828,12 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="비밀번호를 입력해주세요"
-                    className="w-full bg-[#0f1433] border border-purple-900/30 px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                    className="w-full px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all border-0"
+                    style={{
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      border: '1px solid rgba(193, 154, 107, 0.3)',
+                      borderRadius: '8px'
+                    }}
                     onKeyPress={(e) => {
                       if (e.key === 'Enter' && password) {
                         handleSubmit();
@@ -755,7 +848,12 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                       setShowPasswordDialog(false);
                       setPassword('');
                     }}
-                    className="flex-1 bg-[#252a45] hover:bg-[#2d3454] border border-purple-900/30 text-white px-6 py-3 transition-all"
+                    className="flex-1 px-6 py-3 transition-all border-0 text-white"
+                    style={{
+                      background: 'rgba(0, 0, 0, 0.5)',
+                      border: '1px solid rgba(193, 154, 107, 0.3)',
+                      borderRadius: '8px'
+                    }}
                   >
                     취소
                   </button>
@@ -764,9 +862,11 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                     disabled={loading || !password}
                     className="flex-1 relative overflow-hidden transform transition-all duration-300 hover:scale-105 active:scale-100 disabled:scale-100 disabled:opacity-50 px-6 py-3"
                     style={{
-                      background: (loading || !password) ? 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)' : 'linear-gradient(135deg, #a855f7 0%, #ec4899 100%)',
+                      background: (loading || !password) ? 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)' : 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                      borderRadius: '8px',
                       boxShadow: `
-                        inset 0 2px 4px rgba(255, 255, 255, 0.3),
+                        0 4px 15px rgba(193, 154, 107, 0.3),
+                        inset 0 2px 4px rgba(255, 255, 255, 0.2),
                         inset 0 -4px 8px rgba(0, 0, 0, 0.3)
                       `
                     }}
@@ -787,9 +887,21 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
           )}
 
           {/* 출금 내역 테이블 */}
-          <div className="bg-[#1a1f3a] border border-purple-900/30 overflow-hidden">
-            <div className="px-6 py-4 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border-b border-purple-900/30">
-              <h3 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">최근 출금 내역</h3>
+          <div className="overflow-hidden border-0" style={{
+            background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+            border: '1px solid rgba(193, 154, 107, 0.2)',
+            borderRadius: '8px'
+          }}>
+            <div className="px-6 py-4" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.1) 100%)',
+              borderBottom: '1px solid rgba(193, 154, 107, 0.2)'
+            }}>
+              <h3 className="text-xl font-bold" style={{
+                background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text'
+              }}>최근 출금 내역</h3>
             </div>
             <div className="p-6">
               {isLoadingHistory ? (
@@ -810,7 +922,12 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                     return (
                       <div
                         key={record.id}
-                        className="p-4 bg-[#0f1433] border border-purple-900/30"
+                        className="p-4 border-0"
+                        style={{
+                          background: 'rgba(0, 0, 0, 0.3)',
+                          border: '1px solid rgba(193, 154, 107, 0.2)',
+                          borderRadius: '8px'
+                        }}
                       >
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex items-center gap-2">

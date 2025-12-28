@@ -309,8 +309,11 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
       </div>
 
       <div 
-        className="relative z-10 overflow-hidden border border-purple-900/30 shadow-2xl w-full max-w-6xl bg-gradient-to-br from-[#0a0e27] to-[#1a1f4a]"
+        className="relative z-10 overflow-hidden border-2 shadow-2xl w-full max-w-6xl"
         style={{ 
+          background: 'linear-gradient(135deg, rgba(20, 20, 30, 0.98) 0%, rgba(15, 15, 25, 0.98) 100%)',
+          borderColor: 'rgba(193, 154, 107, 0.4)',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(193, 154, 107, 0.1)',
           maxHeight: '90vh',
           overflowY: 'auto'
         }}
@@ -318,7 +321,10 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
         {/* Close Button */}
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 z-10 text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+          className="absolute top-4 right-4 z-10 text-gray-400 hover:text-white transition-all p-2 hover:bg-white/10 rounded-lg"
+          style={{
+            color: '#E6C9A8'
+          }}
         >
           <X className="w-5 h-5" />
         </button>
@@ -326,43 +332,68 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
         {/* Two Column Layout */}
         <div className="flex flex-col md:flex-row h-full">
           {/* Left Side - Title & Description */}
-          <div className="w-full md:w-2/5 p-6 md:p-10 flex flex-col justify-between bg-[#0a0d1f] md:border-r border-purple-900/20">
+          <div className="w-full md:w-2/5 p-6 md:p-10 flex flex-col justify-between md:border-r" style={{
+            background: 'linear-gradient(135deg, rgba(15, 15, 25, 0.95) 0%, rgba(10, 10, 20, 0.95) 100%)',
+            borderColor: 'rgba(193, 154, 107, 0.2)'
+          }}>
             <div className="mt-4 md:mt-6">
               <div className="flex items-center gap-3 mb-4 md:mb-6">
-                <UserPlus className="w-6 h-6 md:w-8 md:h-8 text-purple-400" />
-                <h3 className="text-2xl md:text-4xl text-white font-semibold">회원가입</h3>
+                <UserPlus className="w-6 h-6 md:w-8 md:h-8" style={{ color: '#E6C9A8' }} />
+                <h3 className="text-2xl md:text-4xl font-bold" style={{
+                  color: '#E6C9A8',
+                  textShadow: '0 2px 8px rgba(193, 154, 107, 0.4)'
+                }}>회원가입</h3>
               </div>
-              <p className="text-base md:text-lg text-gray-300 leading-relaxed mb-2 md:mb-3">
+              <p className="text-base md:text-lg leading-relaxed mb-2 md:mb-3" style={{
+                color: '#D1D5DB'
+              }}>
                 회원가입 시 모든항목을 정확하게 기재하시기 바랍니다.
               </p>
-              <p className="text-base md:text-lg text-gray-300 leading-relaxed">
+              <p className="text-base md:text-lg leading-relaxed" style={{
+                color: '#D1D5DB'
+              }}>
                 회원데이터는 안전한 서버에 안전하게 보관됩니다.
               </p>
             </div>
 
             {/* 회원가입 버튼과 로그인 링크 */}
             <div className="space-y-4 md:space-y-5 mb-4 md:mb-6 mt-6 md:mt-0">
-              <Button
+              <button
                 type="submit"
                 form="signup-form"
-                className="w-full h-12 font-medium rounded-none"
+                className="w-full h-12 font-bold rounded-lg transition-all duration-300 hover:scale-105 relative overflow-hidden group"
                 disabled={isLoading}
+                style={{
+                  background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                  boxShadow: '0 4px 15px rgba(193, 154, 107, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(230, 201, 168, 0.3)'
+                }}
               >
+                <div 
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{
+                    background: 'linear-gradient(135deg, #D4AF87 0%, #C19A6B 100%)'
+                  }}
+                ></div>
                 {isLoading ? (
-                  <span className="flex items-center gap-2 text-lg">
+                  <span className="flex items-center justify-center gap-2 text-lg relative z-10" style={{
+                    color: '#FFFFFF',
+                    textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)'
+                  }}>
                     <Loader2 className="w-5 h-5 animate-spin" />
                     가입 중...
                   </span>
                 ) : (
-                  <span className="text-lg" style={{
-                    textShadow: '0 1px 0 rgba(255,255,255,0.3), 0 2px 2px rgba(0,0,0,0.4), 0 3px 4px rgba(0,0,0,0.3), 0 4px 8px rgba(0,0,0,0.2)',
+                  <span className="text-lg relative z-10 tracking-wide" style={{
+                    color: '#FFFFFF',
+                    textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
                     fontWeight: '700',
                     letterSpacing: '0.05em'
                   }}>
                     회원가입
                   </span>
                 )}
-              </Button>
+              </button>
 
               <div className="text-center">
                 <p className="text-lg text-gray-400" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
@@ -370,8 +401,11 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                   <button
                     type="button"
                     onClick={onSwitchToLogin}
-                    className="text-amber-400 hover:text-amber-300 font-medium underline"
-                    style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}
+                    className="font-semibold underline transition-colors"
+                    style={{ 
+                      fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+                      color: '#E6C9A8'
+                    }}
                   >
                     로그인
                   </button>
@@ -381,17 +415,25 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
           </div>
 
           {/* Right Side - Signup Form */}
-          <div className="w-full md:w-3/5 p-10 overflow-y-auto bg-[#0f1433]">
+          <div className="w-full md:w-3/5 p-10 overflow-y-auto" style={{
+            background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.95) 0%, rgba(15, 15, 25, 0.95) 100%)'
+          }}>
             <form id="signup-form" onSubmit={handleRegister} className="space-y-8">
               {error && (
-                <Alert variant="destructive" className="bg-red-950/20 border-red-900/50 py-3 rounded-none">
+                <Alert variant="destructive" className="py-3 rounded-lg border" style={{
+                  background: 'rgba(220, 38, 38, 0.1)',
+                  borderColor: 'rgba(220, 38, 38, 0.3)'
+                }}>
                   <AlertDescription className="text-red-400 text-lg">{error}</AlertDescription>
                 </Alert>
               )}
 
               {/* 기본 정보 섹션 */}
               <div className="space-y-5">
-                <h4 className="text-white text-lg font-semibold mb-4">기본 정보</h4>
+                <h4 className="text-lg font-bold mb-4" style={{
+                  color: '#E6C9A8',
+                  textShadow: '0 2px 4px rgba(193, 154, 107, 0.3)'
+                }}>기본 정보</h4>
                 
                 {/* 휴대폰번호 */}
                 <div>
@@ -402,7 +444,12 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                     placeholder="휴대폰번호(숫자만, 띄어쓰기, 콤마 금지)"
                     value={registerData.phone}
                     onChange={handleRegisterChange}
-                    className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500/80 h-12 text-lg rounded-none"
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
                     disabled={isLoading}
                   />
                 </div>
@@ -416,7 +463,12 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                     placeholder="추천인 아이디 *"
                     value={registerData.referrer_username}
                     onChange={handleRegisterChange}
-                    className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500/80 h-12 text-lg rounded-none"
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
                     disabled={isLoading}
                     required
                   />
@@ -425,7 +477,10 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
 
               {/* 계정 정보 섹션 */}
               <div className="space-y-5">
-                <h4 className="text-white text-lg font-semibold mb-4">계정 정보</h4>
+                <h4 className="text-lg font-bold mb-4" style={{
+                  color: '#E6C9A8',
+                  textShadow: '0 2px 4px rgba(193, 154, 107, 0.3)'
+                }}>계정 정보</h4>
                 
                 {/* 아이디 */}
                 <div>
@@ -436,7 +491,12 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                     placeholder="아이디 (영문+숫자 포함 5자 이상) *"
                     value={registerData.username}
                     onChange={handleRegisterChange}
-                    className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500/80 h-12 text-lg rounded-none"
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
                     disabled={isLoading}
                     required
                   />
@@ -452,19 +512,29 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                       placeholder="닉네임 (한글 또는 영문만 이상) *"
                       value={registerData.nickname}
                       onChange={handleRegisterChange}
-                      className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500/80 h-12 text-lg rounded-none flex-1"
+                      className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 flex-1 transition-all duration-300 focus:scale-[1.02]"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                      }}
                       disabled={isLoading}
                       required
                     />
-                    <Button
+                    <button
                       type="button"
                       onClick={() => checkNickname(registerData.nickname)}
-                      variant="outline"
-                      className="border-purple-900/30 bg-[#1a1f3a] text-purple-400 hover:bg-purple-900/30 hover:text-purple-300 shrink-0 h-12 px-6 rounded-none text-lg"
+                      className="shrink-0 h-12 px-6 rounded-lg text-lg font-semibold transition-all duration-300 hover:scale-105"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        color: '#E6C9A8',
+                        border: '1px solid rgba(193, 154, 107, 0.3)'
+                      }}
                       disabled={isLoading || !registerData.nickname.trim()}
                     >
                       중복 확인
-                    </Button>
+                    </button>
                   </div>
                   {nicknameCheck.status !== 'idle' && (
                     <div className={`flex items-center gap-1.5 text-base mt-2 ${ 
@@ -488,14 +558,22 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                       placeholder="비밀번호 (6~20자 영문 대소문자 숫자 특수문자 사용가능) *"
                       value={registerData.password}
                       onChange={handleRegisterChange}
-                      className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500/80 pr-12 h-12 text-lg rounded-none"
+                      className="pr-12 h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                      }}
                       disabled={isLoading}
                       required
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                      style={{
+                        color: '#A67C52'
+                      }}
                     >
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
@@ -509,7 +587,12 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                     name="password_confirm"
                     type="password"
                     placeholder="비밀번호 확인 *"
-                    className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500/80 h-12 text-lg rounded-none"
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
                     disabled={isLoading}
                     required
                   />
@@ -522,7 +605,12 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                     name="withdrawal_password"
                     type="password"
                     placeholder="출금 비밀번호 (숫자만 4자리) *"
-                    className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500/80 h-12 text-lg rounded-none"
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
                     disabled={isLoading}
                     required
                   />
@@ -531,7 +619,10 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
 
               {/* 계좌 정보 섹션 */}
               <div className="space-y-5">
-                <h4 className="text-white text-lg font-semibold mb-4">계좌 정보</h4>
+                <h4 className="text-lg font-bold mb-4" style={{
+                  color: '#E6C9A8',
+                  textShadow: '0 2px 4px rgba(193, 154, 107, 0.3)'
+                }}>계좌 정보</h4>
                 
                 {/* 계좌번호 */}
                 <div>
@@ -542,7 +633,12 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                     placeholder="계좌번호"
                     value={registerData.bank_account}
                     onChange={handleRegisterChange}
-                    className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500/80 h-12 text-lg rounded-none"
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
                     disabled={isLoading}
                   />
                 </div>
@@ -557,15 +653,25 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                     }}
                     disabled={isLoading}
                   >
-                    <SelectTrigger className="bg-[#1a1f3a] border-purple-900/30 text-white h-12 text-lg rounded-none w-auto inline-flex min-w-[200px]">
+                    <SelectTrigger className="h-12 text-lg rounded-lg w-auto inline-flex min-w-[200px] text-white transition-all duration-300 focus:scale-[1.02]" style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}>
                       <SelectValue placeholder="계좌은행" />
                     </SelectTrigger>
-                    <SelectContent className="bg-[#1a1f3a] border-purple-900/30 rounded-none">
+                    <SelectContent className="rounded-lg" style={{
+                      background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.98) 0%, rgba(15, 15, 25, 0.98) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)'
+                    }}>
                       {banks.map((bank) => (
                         <SelectItem 
                           key={bank.id} 
                           value={bank.name_ko}
-                          className="text-white hover:text-white hover:bg-purple-900/30 rounded-none text-lg"
+                          className="text-white hover:text-white rounded-lg text-lg"
+                          style={{
+                            background: 'transparent'
+                          }}
                         >
                           {bank.name_ko}
                         </SelectItem>
@@ -583,7 +689,12 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                     placeholder="예금주"
                     value={registerData.bank_holder}
                     onChange={handleRegisterChange}
-                    className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500/80 h-12 text-lg rounded-none"
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
                     disabled={isLoading}
                   />
                 </div>
@@ -597,7 +708,12 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                     placeholder="계좌번호(숫자만 입력)"
                     value={registerData.email}
                     onChange={handleRegisterChange}
-                    className="bg-[#1a1f3a] border-purple-900/30 text-white placeholder:text-gray-500/80 h-12 text-lg rounded-none"
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
                     disabled={isLoading}
                   />
                 </div>

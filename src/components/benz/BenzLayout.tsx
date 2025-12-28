@@ -22,7 +22,6 @@ interface UserBalance {
 }
 
 export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpenLoginModal, onOpenSignupModal, children }: BenzLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userBalance, setUserBalance] = useState<UserBalance>({ balance: 0, points: 0 });
   const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' && window.innerWidth >= 768);
   const syncingSessionsRef = useRef<Set<number>>(new Set());
@@ -428,7 +427,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   }, [user?.id, onLogout]);
 
   return (
-    <div className="min-h-screen bg-[#0a0e27] text-white">
+    <div className="min-h-screen text-white" style={{ backgroundColor: '#141414' }}>
       {/* Header */}
       <BenzHeader 
         user={user}
@@ -446,20 +445,11 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           user={user}
           currentRoute={currentRoute}
           onRouteChange={onRouteChange}
-          isOpen={sidebarOpen}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
         />
         
         {/* Main Content */}
-        <main 
-          className="flex-1 transition-all duration-300 overflow-x-hidden md:pl-0"
-          style={{
-            marginLeft: isDesktop && sidebarOpen ? '256px' : '0'
-          }}
-        >
-          <div className="p-6 max-w-full">
-            {children}
-          </div>
+        <main className="flex-1 transition-all duration-300 overflow-x-hidden md:ml-80">
+          {children}
         </main>
       </div>
 
