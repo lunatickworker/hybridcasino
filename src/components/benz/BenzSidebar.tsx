@@ -27,8 +27,6 @@ interface BenzSidebarProps {
 
 // ⭐ /benz는 필터링 없이 모든 게임 메뉴 표시 (partner_game_access 체크 안 함)
 const menuItems = [
-  { path: '/benz', label: '보너스 혜택', icon: Gift },
-  { path: '/benz/featured', label: '추천게임', icon: Star },
   { path: '/benz/casino', label: '카지노', icon: Gamepad2 },
   { path: '/benz/slot', label: '슬롯', icon: Coins },
   { path: '/benz/notice', label: '공지사항', icon: Bell },
@@ -38,7 +36,6 @@ const menuItems = [
 const userMenuItems = [
   { path: '/benz/deposit', label: '입금신청', icon: CreditCard },
   { path: '/benz/withdraw', label: '출금신청', icon: ArrowUpDown },
-  { path: '/benz/betting-history', label: '베팅내역', icon: History },
   { path: '/benz/profile', label: '내 정보', icon: User },
 ];
 
@@ -50,7 +47,6 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
     const requiresLogin = [
       '/benz/deposit', 
       '/benz/withdraw', 
-      '/benz/betting-history', 
       '/benz/profile',
       '/benz/casino',
       '/benz/slot',
@@ -99,17 +95,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
         boxShadow: '4px 0 20px rgba(0, 0, 0, 0.5)'
       }}>
         <div className="p-4 space-y-6" style={{ marginTop: '40px' }}>
-          {/* Logo */}
-          <div className="flex justify-start pl-4 mb-8">
-            <img
-              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
-              alt="BENZ CASINO"
-              className="w-40 h-auto object-contain"
-              style={{
-                filter: 'drop-shadow(0 4px 12px rgba(193, 154, 107, 0.3))'
-              }}
-            />
-          </div>
+          {/* Logo - 삭제 */}
 
           {/* Main Menu */}
           <div>

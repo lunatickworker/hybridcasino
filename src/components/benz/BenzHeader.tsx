@@ -183,7 +183,7 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
           <div className="flex items-center gap-4">
             <button
               onClick={() => onRouteChange('/benz')}
-              className="hover:opacity-80 transition-opacity mt-9"
+              className="hover:opacity-80 transition-opacity mt-18 -ml-4"
             >
               <ImageWithFallback
                 src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-51-13.png"
@@ -509,38 +509,6 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                 <div className="mb-4">
                   <h3 className="text-sm font-semibold text-gray-400 uppercase mb-3 px-2">메뉴</h3>
                   <div className="space-y-1">
-                    <button
-                      onClick={() => {
-                        if (!user) {
-                          setShowMobileMenu(false);
-                          onOpenLoginModal?.();
-                          return;
-                        }
-                        onRouteChange('/benz');
-                        setShowMobileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
-                    >
-                      <Gift className="w-5 h-5 text-purple-400" />
-                      <span className="text-white">보너스 혜택</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        if (!user) {
-                          setShowMobileMenu(false);
-                          onOpenLoginModal?.();
-                          return;
-                        }
-                        onRouteChange('/benz/featured');
-                        setShowMobileMenu(false);
-                      }}
-                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
-                    >
-                      <Star className="w-5 h-5 text-yellow-400" />
-                      <span className="text-white">추천게임</span>
-                    </button>
-
                     <button
                       onClick={() => {
                         if (!user) {

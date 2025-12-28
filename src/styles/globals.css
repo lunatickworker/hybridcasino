@@ -1027,3 +1027,13 @@ html {
   overflow-x: auto;
   overflow-y: auto;
 }
+
+/* Tabs 스타일 - BENZ CASINO */
+[data-active-style] {
+  transition: all 0.3s ease;
+}
+
+[data-active-style][data-state="active"] {
+  background: linear-gradient(135deg, #C19A6B 0%, #A67C52 100%) !important;
+  box-shadow: 0 2px 8px rgba(193, 154, 107, 0.3);
+}
