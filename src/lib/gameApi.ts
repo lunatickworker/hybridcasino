@@ -2325,6 +2325,7 @@ export async function getPartnerBlockedProviders(
     .from('partner_game_access')
     .select('game_provider_id')
     .eq('partner_id', partnerId)
+    .is('user_id', null)
     .eq('access_type', 'provider');
 
   if (apiType) {
@@ -2346,6 +2347,102 @@ export async function getPartnerBlockedProviders(
 
   console.log(`📋 파트너 ${partnerId} 차단된 제공사: ${blockedIds.size}개`, Array.from(blockedIds));
   return blockedIds;
+}
+
+/**
+ * Lv2+ 파트너의 차단된 게임 목록 조회
+ */
+export async function getPartnerBlockedGames(
+  partnerId: string,
+  apiType?: 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
+): Promise<Set<number>> {
+  let query = supabase
+    .from('partner_game_access')
+    .select('game_id')
+    .eq('partner_id', partnerId)
+    .is('user_id', null)
+    .eq('access_type', 'game');
+
+  if (apiType) {
+    query = query.eq('api_provider', apiType);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('❌ 차단된 게임 조회 오류:', error);
+    return new Set();
+  }
+
+  const blockedIds = new Set(
+    (data || [])
+      .map(item => parseInt(item.game_id))
+      .filter(id => !isNaN(id))
+  );
+
+  console.log(`📋 파트너 ${partnerId} 차단된 게임: ${blockedIds.size}개`);
+  return blockedIds;
+}
+
+/**
+ * Lv2+ 파트너용 개별 게임 접근 관리 (partner_game_access 사용)
+ */
+export async function updatePartnerGameAccess(
+  partnerId: string,
+  gameId: number,
+  apiType: 'invest' | 'oroplay' | 'familyapi' | 'honorapi',
+  providerId: number,
+  isVisible: boolean
+): Promise<void> {
+  console.log(`🔧 updatePartnerGameAccess 호출: partnerId=${partnerId}, gameId=${gameId}, apiType=${apiType}, providerId=${providerId}, isVisible=${isVisible}`);
+  
+  if (!isVisible) {
+    // 숨김: 게임 차단 레코드 추가
+    
+    // 먼저 기존 레코드 삭제 (중복 방지)
+    await supabase
+      .from('partner_game_access')
+      .delete()
+      .eq('partner_id', partnerId)
+      .eq('api_provider', apiType)
+      .eq('game_id', String(gameId))
+      .eq('access_type', 'game');
+
+    // 게임 차단 레코드 추가
+    const { error: insertError } = await supabase
+      .from('partner_game_access')
+      .insert({
+        partner_id: partnerId,
+        api_provider: apiType,
+        game_id: String(gameId),
+        game_provider_id: String(providerId),
+        access_type: 'game',
+        updated_at: new Date().toISOString(),
+      });
+
+    if (insertError) {
+      console.error('❌ 게임 차단 레코드 추가 오류:', insertError);
+      throw insertError;
+    }
+
+    console.log(`✅ 게임 ${gameId} 차단 레코드 추가 완료`);
+  } else {
+    // 노출: 게임 차단 레코드 삭제
+    const { error: deleteError } = await supabase
+      .from('partner_game_access')
+      .delete()
+      .eq('partner_id', partnerId)
+      .eq('api_provider', apiType)
+      .eq('game_id', String(gameId))
+      .eq('access_type', 'game');
+
+    if (deleteError) {
+      console.error('❌ 게임 차단 레코드 삭제 오류:', deleteError);
+      throw deleteError;
+    }
+
+    console.log(`✅ 게임 ${gameId} 차단 해제 완료`);
+  }
 }
 
 // ============================================
@@ -2389,11 +2486,15 @@ export async function getUserVisibleGames(filters?: {
       return [];
     }
     
-    // ⭐ 차단 설정 조회 (is_allowed=true인 블랙리스트만)
+    // ⭐ 상위 계층 전체의 파트너 ID 조회 (자신 + 상위 파트너들)
+    const allPartnerIds = await getAllParentPartnerIds(userPartnerId);
+    console.log('🔗 [getUserVisibleGames] 상위 계층 전체:', allPartnerIds);
+    
+    // ⭐ 상위 계층 전체의 차단 설정 조회 (is_allowed=true인 블랙리스트만)
     const { data: blockedAccess } = await supabase
       .from('partner_game_access')
-      .select('api_provider, game_provider_id, game_id, access_type')
-      .eq('partner_id', userPartnerId)
+      .select('api_provider, game_provider_id, game_id, access_type, partner_id')
+      .in('partner_id', allPartnerIds)  // ✅ 상위 계층 전체 확인
       .eq('is_allowed', true); // ⭐ 블랙리스트: is_allowed=true가 차단
     
     const allBlockedAccess = blockedAccess || [];
@@ -2528,11 +2629,15 @@ export async function getUserVisibleProviders(filters?: {
 
     // 5. partner_game_access로 제공사 필터링 (블랙리스트 방식)
     if (userPartnerId) {
-      // ⭐ 차단 설정 조회 (is_allowed=true인 블랙리스트만)
+      // ⭐ 상위 계층 전체의 파트너 ID 조회 (자신 + 상위 파트너들)
+      const allPartnerIds = await getAllParentPartnerIds(userPartnerId);
+      console.log('🔗 [getUserVisibleProviders] 상위 계층 전체:', allPartnerIds);
+      
+      // ⭐ 상위 계층 전체의 차단 설정 조회 (is_allowed=true인 블랙리스트만)
       const { data: blockedAccess } = await supabase
         .from('partner_game_access')
-        .select('api_provider, game_provider_id, game_id, access_type')
-        .eq('partner_id', userPartnerId)
+        .select('api_provider, game_provider_id, game_id, access_type, partner_id')
+        .in('partner_id', allPartnerIds)  // ✅ 상위 계층 전체 확인
         .eq('is_allowed', true); // ⭐ 블랙리스트: is_allowed=true가 차단
       
       const allBlockedAccess = blockedAccess || [];
@@ -2598,6 +2703,87 @@ export async function getUserVisibleProviders(filters?: {
 // ============================================
 // 7. 게임 실행
 // ============================================
+
+/**
+ * 현재 파트너의 상위 계층 전체 파트너 ID를 조회하는 함수
+ * 자신부터 시작해서 Lv2(대본사)까지의 모든 partner_id 반환
+ * 네트워크 재시도 로직 포함
+ */
+async function getAllParentPartnerIds(partnerId: string): Promise<string[]> {
+  const maxRetries = 3;
+  const retryDelay = 1000;
+  const maxIterations = 10; // 무한 루프 방지
+  
+  try {
+    const parentIds: string[] = [partnerId]; // 자신 포함
+    let currentId = partnerId;
+    let iterations = 0;
+
+    while (iterations < maxIterations) {
+      let partner = null;
+      let error = null;
+      
+      // 재시도 로직
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          const result = await supabase
+            .from('partners')
+            .select('id, parent_id, level, username')
+            .eq('id', currentId)
+            .single();
+          
+          partner = result.data;
+          error = result.error;
+          
+          if (!error && partner) {
+            break; // 성공하면 재시도 루프 탈출
+          }
+          
+          if (attempt < maxRetries) {
+            console.warn(`⚠️ [getAllParentPartnerIds] 파트너 조회 재시도 ${attempt + 1}/${maxRetries}:`, error?.message);
+            await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
+          }
+        } catch (fetchError) {
+          console.error(`❌ [getAllParentPartnerIds] 파트너 조회 네트워크 오류 (시도 ${attempt + 1}):`, fetchError);
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay * (attempt + 1)));
+          } else {
+            error = fetchError;
+          }
+        }
+      }
+
+      if (error || !partner) {
+        console.error('❌ [getAllParentPartnerIds] 파트너 조회 실패 (모든 재시도 완료):', error);
+        return parentIds; // 지금까지 수집한 ID 반환
+      }
+
+      console.log(`🔍 [getAllParentPartnerIds] 파트너 조회 [${iterations}]:`, {
+        id: partner.id,
+        username: partner.username,
+        level: partner.level,
+        parent_id: partner.parent_id
+      });
+
+      // Lv2(대본사)에 도달하거나 parent_id가 없으면 종료
+      if (partner.level === 2 || !partner.parent_id) {
+        console.log('✅ [getAllParentPartnerIds] 상위 계층 조회 완료:', parentIds);
+        return parentIds;
+      }
+
+      // 상위 파트너 추가
+      parentIds.push(partner.parent_id);
+      currentId = partner.parent_id;
+      iterations++;
+    }
+
+    console.warn('⚠️ [getAllParentPartnerIds] 최대 반복 횟수 도달');
+    return parentIds;
+  } catch (error) {
+    console.error('❌ [getAllParentPartnerIds] 오류:', error);
+    return [partnerId]; // 최소한 자신의 ID는 반환
+  }
+}
 
 /**
  * referrer_id를 따라 최상위(Lv1) 파트너 ID를 찾는 함수
@@ -4161,8 +4347,10 @@ export const gameApi = {
   
   // 🆕 Lv2+ 파트너 전용 게임 접근 관리 (partner_game_access)
   updatePartnerProviderAccess,
+  updatePartnerGameAccess,
   updatePartnerApiAccess,
   getPartnerBlockedProviders,
+  getPartnerBlockedGames,
 
   // 게임 실행
   launchGame,

@@ -68,6 +68,7 @@ interface GameCardProps {
   onToggleSelection: () => void;
   onToggleFeatured: () => void;
   onChangeStatus: (status: "visible" | "maintenance" | "hidden") => void;
+  isBlocked?: boolean; // Lv2+에서 partner_game_access에 의해 차단된 게임인지 여부
 }
 
 function GameCard({
@@ -76,11 +77,15 @@ function GameCard({
   onToggleSelection,
   onToggleFeatured,
   onChangeStatus,
+  isBlocked = false,
 }: GameCardProps) {
   const { t } = useLanguage();
   
   const getStatusIcon = () => {
-    if (game.status === "maintenance") {
+    // Lv2~Lv7: partner_game_access 차단 상태 우선 확인 (블랙리스트 방식)
+    if (isBlocked) {
+      return <EyeOff className="w-4 h-4 text-slate-400" />;
+    } else if (game.status === "maintenance") {
       return <AlertTriangle className="w-4 h-4 text-orange-400" />;
     } else if (!game.is_visible || game.status === "hidden") {
       return <EyeOff className="w-4 h-4 text-slate-400" />;
@@ -165,7 +170,7 @@ function GameCard({
           </div>
           <div className="flex items-center gap-1">
             <Select
-              value={game.status}
+              value={isBlocked ? "hidden" : game.status}
               onValueChange={(value: "visible" | "maintenance" | "hidden") =>
                 onChangeStatus(value)
               }
@@ -214,6 +219,7 @@ interface ProviderSectionProps {
   onChangeGameStatus: (gameId: number, status: "visible" | "maintenance" | "hidden", apiType: "invest" | "oroplay" | "familyapi" | "honorapi") => void;
   userLevel: number;
   isBlocked?: boolean; // Lv2+에서 partner_game_access에 의해 차단된 제공사인지 여부
+  blockedGameIds?: Set<number>; // Lv2+에서 partner_game_access에 의해 차단된 게임 목록
 }
 
 function ProviderSection({
@@ -228,6 +234,7 @@ function ProviderSection({
   onChangeGameStatus,
   userLevel,
   isBlocked = false,
+  blockedGameIds = new Set(),
 }: ProviderSectionProps) {
   const { t } = useLanguage();
 
@@ -329,6 +336,7 @@ function ProviderSection({
                   onToggleSelection={() => onToggleGameSelection(game.id)}
                   onToggleFeatured={() => onToggleGameFeatured(game.id)}
                   onChangeStatus={(status) => onChangeGameStatus(game.id, status, game.api_type)}
+                  isBlocked={blockedGameIds.has(game.id)}
                 />
               ))}
             </div>
@@ -358,8 +366,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
   // 탭 상태
   const [activeTab, setActiveTab] = useState<TabType>("games");
 
-  // Lv2+ 파트너의 차단된 제공사 목록 (partner_game_access)
+  // Lv2+ 파트너의 차단된 제공사 및 게임 목록 (partner_game_access)
   const [blockedProviderIds, setBlockedProviderIds] = useState<Set<number>>(new Set());
+  const [blockedGameIds, setBlockedGameIds] = useState<Set<number>>(new Set());
 
   // 매장별 게임 설정 상태
   const [stores, setStores] = useState<Partner[]>([]);
@@ -449,8 +458,12 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     const apiProviders = providers.filter(p => p.api_type === selectedApi);
     
     // 2. 선택한 게임 타입의 게임을 보유한 제공사만 필터링
-    // ⚠️ 관리자 페이지: 숨김 상태 포함 모든 제공사 표시 (관리 목적)
     const filteredProviders = apiProviders.filter(provider => {
+      // ✅ Lv2+는 Lv1이 노출한 제공사만 볼 수 있음
+      if (user.level > 1 && provider.status !== "visible") {
+        return false;
+      }
+      
       const hasGamesOfType = games.some(game => 
         game.provider_id === provider.id &&
         game.api_type === selectedApi &&
@@ -461,21 +474,43 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     });
     
     return filteredProviders;
-  }, [providers, selectedApi, selectedGameType, games]);
+  }, [providers, selectedApi, selectedGameType, games, user.level]);
 
   // 제공사별 게임 그룹화
   const providerGamesMap = useMemo(() => {
     const map = new Map<number, Game[]>();
     
+    // ✅ 띄어쓰기 무시 검색
+    const searchNormalized = debouncedSearchTerm.replace(/\s/g, '').toLowerCase();
+    
     currentProviders.forEach(provider => {
+      const providerNameNormalized = provider.name.replace(/\s/g, '').toLowerCase();
+      
       const providerGames = games.filter(game => {
         const matchesProvider = game.provider_id === provider.id;
         const matchesApi = game.api_type === selectedApi;
         const matchesType = game.type === selectedGameType;
-        const matchesSearch = debouncedSearchTerm === "" || 
-          game.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
         
-        return matchesProvider && matchesApi && matchesType && matchesSearch;
+        if (!matchesProvider || !matchesApi || !matchesType) {
+          return false;
+        }
+        
+        // ✅ Lv2+는 Lv1이 노출한 게임만 볼 수 있음
+        if (user.level > 1 && game.status !== "visible") {
+          return false;
+        }
+        
+        // 검색어가 없으면 모든 게임 표시
+        if (!searchNormalized) {
+          return true;
+        }
+        
+        // ✅ 띄어쓰기 무시하고 제공사명 또는 게임명에서 검색 (한 글자만 매핑되어도 검색)
+        const gameNameNormalized = game.name.replace(/\s/g, '').toLowerCase();
+        const matchesProviderName = providerNameNormalized.includes(searchNormalized);
+        const matchesGameName = gameNameNormalized.includes(searchNormalized);
+        
+        return matchesProviderName || matchesGameName;
       });
       
       // 게임이 있는 제공사만 맵에 추가
@@ -485,7 +520,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     });
     
     return map;
-  }, [games, currentProviders, selectedApi, selectedGameType, debouncedSearchTerm]);
+  }, [games, currentProviders, selectedApi, selectedGameType, debouncedSearchTerm, user.level]);
 
   // 통계 계산
   const stats = useMemo(() => {
@@ -525,11 +560,15 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       });
       setProviders(providersData);
 
-      // ✅ Lv2~Lv7: partner_game_access에서 차단된 제공사 목록 조회
-      console.log(`🔍 [Lv${user.level}] 차단된 제공사 목록 조회 시작...`);
-      const blocked = await gameApi.getPartnerBlockedProviders(user.id);
-      setBlockedProviderIds(blocked);
-      console.log(`📋 [Lv${user.level}] 차단된 제공사: ${blocked.size}개`);
+      // ✅ Lv2~Lv7: partner_game_access에서 차단된 제공사 및 게임 목록 조회
+      console.log(`🔍 [Lv${user.level}] 차단된 제공사 및 게임 목록 조회 시작...`);
+      const [blockedProviders, blockedGames] = await Promise.all([
+        gameApi.getPartnerBlockedProviders(user.id),
+        gameApi.getPartnerBlockedGames(user.id)
+      ]);
+      setBlockedProviderIds(blockedProviders);
+      setBlockedGameIds(blockedGames);
+      console.log(`📋 [Lv${user.level}] 차단된 제공사: ${blockedProviders.size}개, 차단된 게임: ${blockedGames.size}개`);
 
       // 첫 번째 API 선택
       const uniqueApiTypes = [...new Set(providersData.map(p => p.api_type))];
@@ -662,6 +701,11 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       
       // ✅ 데이터 새로고침 추가 (DB에서 최신 상태 가져오기)
       await initializeData();
+      
+      // ✅ 게임 데이터도 다시 로드 (UI 업데이트를 위해)
+      if (selectedApi) {
+        await loadGamesForApi(selectedApi);
+      }
     } catch (error) {
       console.error("❌ 추천 설정 실패:", error);
       toast.error("추천 설정 변경에 실패했습니다.");
@@ -673,18 +717,47 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     status: "visible" | "maintenance" | "hidden",
     apiType: "invest" | "oroplay" | "familyapi" | "honorapi"
   ) => {
-    console.log(`🎮 handleChangeGameStatus 호출: gameId=${gameId}, status=${status}, apiType=${apiType}`);
+    console.log(`🎮 handleChangeGameStatus 호출: gameId=${gameId}, status=${status}, apiType=${apiType}, userLevel=${user.level}`);
     
     try {
-      console.log(`🔄 gameApi.updateGameStatus 호출 시작...`);
-      await gameApi.updateGameStatus(gameId, status, apiType);
-      console.log(`✅ gameApi.updateGameStatus 완료`);
+      if (user.level === 1) {
+        // ✅ Lv1: games/honor_games 테이블 직접 업데이트
+        console.log(`🔄 [Lv1] gameApi.updateGameStatus 호출 시작...`);
+        await gameApi.updateGameStatus(gameId, status, apiType);
+        console.log(`✅ [Lv1] gameApi.updateGameStatus 완료`);
 
-      const statusText = status === "visible" ? "노출" : status === "maintenance" ? "점검중" : "숨김";
-      toast.success(`게임 상태가 ${statusText}로 변경되었습니다.`);
+        const statusText = status === "visible" ? "노출" : status === "maintenance" ? "점검중" : "숨김";
+        toast.success(`게임 상태가 ${statusText}로 변경되었습니다.`);
+      } else {
+        // ✅ Lv2~Lv7: partner_game_access 테이블 사용 (블랙리스트 방식)
+        console.log(`🔄 [Lv${user.level}] gameApi.updatePartnerGameAccess 호출 시작...`);
+        
+        const game = games.find(g => g.id === gameId);
+        if (!game) {
+          toast.error("게임을 찾을 수 없습니다.");
+          return;
+        }
+        
+        await gameApi.updatePartnerGameAccess(
+          user.id,
+          gameId,
+          apiType,
+          game.provider_id,
+          status === "visible"
+        );
+        console.log(`✅ [Lv${user.level}] gameApi.updatePartnerGameAccess 완료`);
+
+        const statusText = status === "visible" ? "노출" : "숨김";
+        toast.success(`게임 상태가 ${statusText}로 변경되었습니다.`);
+      }
       
       // ✅ 데이터 새로고침 추가 (DB에서 최신 상태 가져오기)
       await initializeData();
+      
+      // ✅ 게임 데이터도 다시 로드 (UI 업데이트를 위해)
+      if (selectedApi) {
+        await loadGamesForApi(selectedApi);
+      }
     } catch (error) {
       console.error("❌ 상태 업데이트 실패:", error);
       toast.error("게임 상태 변경에 실패했습니다.");
@@ -699,21 +772,36 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     console.log(`🏢 handleToggleProviderStatus 호출: providerId=${providerId}, status=${status}, apiType=${apiType}, userLevel=${user.level}`);
     
     try {
-      // ✅ Lv2~Lv7: 모두 partner_game_access 테이블 사용 (블랙리스트 방식)
-      console.log(`🔄 [Lv${user.level}] gameApi.updatePartnerProviderAccess 호출 시작...`);
-      await gameApi.updatePartnerProviderAccess(
-        user.id,
-        providerId,
-        apiType,
-        status === "visible"
-      );
-      console.log(`✅ [Lv${user.level}] gameApi.updatePartnerProviderAccess 완료`);
+      if (user.level === 1) {
+        // ✅ Lv1: games_provider/honor_games_provider 테이블 직접 업데이트
+        console.log(`🔄 [Lv1] gameApi.updateProviderStatus 호출 시작...`);
+        await gameApi.updateProviderStatus(providerId, status, apiType);
+        console.log(`✅ [Lv1] gameApi.updateProviderStatus 완료`);
 
-      const statusText = status === "visible" ? "노출" : "숨김";
-      toast.success(`제공사 상태가 ${statusText}로 변경되었습니다.`);
+        const statusText = status === "visible" ? "노출" : status === "maintenance" ? "점검중" : "숨김";
+        toast.success(`제공사 상태가 ${statusText}로 변경되었습니다.`);
+      } else {
+        // ✅ Lv2~Lv7: partner_game_access 테이블 사용 (블랙리스트 방식)
+        console.log(`🔄 [Lv${user.level}] gameApi.updatePartnerProviderAccess 호출 시작...`);
+        await gameApi.updatePartnerProviderAccess(
+          user.id,
+          providerId,
+          apiType,
+          status === "visible"
+        );
+        console.log(`✅ [Lv${user.level}] gameApi.updatePartnerProviderAccess 완료`);
+
+        const statusText = status === "visible" ? "노출" : "숨김";
+        toast.success(`제공사 상태가 ${statusText}로 변경되었습니다.`);
+      }
       
       // ✅ 데이터 새로고침 추가 (DB에서 최신 상태 가져오기)
       await initializeData();
+      
+      // ✅ 게임 데이터도 다시 로드 (UI 업데이트를 위해)
+      if (selectedApi) {
+        await loadGamesForApi(selectedApi);
+      }
     } catch (error) {
       console.error("❌ 제공사 상태 업데이트 실패:", error);
       toast.error("제공사 상태 변경에 실패했습니다.");
@@ -745,7 +833,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
   };
 
   const handleBulkStatusChange = async (status: "visible" | "maintenance" | "hidden") => {
-    console.log(`📦 handleBulkStatusChange 호출: ${selectedGameIds.size}개 게임, status=${status}`);
+    console.log(`📦 handleBulkStatusChange 호출: ${selectedGameIds.size}개 게임, status=${status}, userLevel=${user.level}`);
     
     if (selectedGameIds.size === 0) {
       toast.warning("게임을 선택해주세요.");
@@ -753,16 +841,46 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     }
 
     try {
-      console.log(`🔄 gameApi.bulkUpdateStatus 호출 시작...`);
-      await gameApi.bulkUpdateStatus(Array.from(selectedGameIds), status);
-      console.log(`✅ gameApi.bulkUpdateStatus 완료`);
+      if (user.level === 1) {
+        // ✅ Lv1: games/honor_games 테이블 직접 일괄 업데이트
+        console.log(`🔄 [Lv1] gameApi.bulkUpdateStatus 호출 시작...`);
+        await gameApi.bulkUpdateStatus(Array.from(selectedGameIds), status);
+        console.log(`✅ [Lv1] gameApi.bulkUpdateStatus 완료`);
 
-      const statusText = status === "visible" ? "노출" : status === "maintenance" ? "점검중" : "숨김";
-      toast.success(`${selectedGameIds.size}개 게임 상태가 ${statusText}로 변경되었습니다.`);
+        const statusText = status === "visible" ? "노출" : status === "maintenance" ? "점검중" : "숨김";
+        toast.success(`${selectedGameIds.size}개 게임 상태가 ${statusText}로 변경되었습니다.`);
+      } else {
+        // ✅ Lv2~Lv7: partner_game_access 테이블 사용 (블랙리스트 방식)
+        console.log(`🔄 [Lv${user.level}] gameApi.updatePartnerGameAccess 일괄 호출 시작...`);
+        
+        const isVisible = status === "visible";
+        const selectedGames = games.filter(g => selectedGameIds.has(g.id));
+        
+        for (const game of selectedGames) {
+          await gameApi.updatePartnerGameAccess(
+            user.id,
+            game.id,
+            game.api_type,
+            game.provider_id,
+            isVisible
+          );
+        }
+        
+        console.log(`✅ [Lv${user.level}] gameApi.updatePartnerGameAccess ���괄 완료`);
+
+        const statusText = status === "visible" ? "노출" : "숨김";
+        toast.success(`${selectedGameIds.size}개 게임 상태가 ${statusText}로 변경되었습니다.`);
+      }
+      
       setSelectedGameIds(new Set());
       
       // ✅ 데이터 새로고침 추가 (DB에서 최신 상태 가져오기)
       await initializeData();
+      
+      // ✅ 게임 데이터도 다시 로드 (UI 업데이트를 위해)
+      if (selectedApi) {
+        await loadGamesForApi(selectedApi);
+      }
     } catch (error) {
       console.error("❌ 일괄 상태 업데이트 실패:", error);
       toast.error("일괄 상태 변경에 실패했습니다.");
@@ -795,21 +913,41 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
 
       console.log(`📦 handleBulkApiStatusChange: userLevel=${user.level}, api=${selectedApi}, providerIds=${providerIds.length}개, status=${status}`);
 
-      // ✅ Lv2~Lv7: 모두 partner_game_access 테이블 사용 (블랙리스트 방식)
-      console.log(`🔄 [Lv${user.level}] gameApi.updatePartnerApiAccess 호출...`);
-      await gameApi.updatePartnerApiAccess(
-        user.id,
-        selectedApi as "invest" | "oroplay" | "familyapi" | "honorapi",
-        providerIds,
-        status === "visible"
-      );
-      console.log(`✅ [Lv${user.level}] gameApi.updatePartnerApiAccess 완료`);
+      if (user.level === 1) {
+        // ✅ Lv1: games_provider/honor_games_provider 테이블 직접 업데이트
+        console.log(`🔄 [Lv1] 제공사 일괄 상태 업데이트 시작...`);
+        
+        // 각 제공사별로 상태 업데이트
+        for (const providerId of providerIds) {
+          await gameApi.updateProviderStatus(providerId, status, selectedApi);
+        }
+        
+        console.log(`✅ [Lv1] ${providerIds.length}개 제공사 상태 업데이트 완료`);
+        
+        const statusText = status === "visible" ? "노출" : "숨김";
+        toast.success(`${selectedApi.toUpperCase()} API의 ${providerIds.length}개 제공사가 ${statusText} 처리되었습니다.`);
+      } else {
+        // ✅ Lv2~Lv7: partner_game_access 테이블 사용 (블랙리스트 방식)
+        console.log(`🔄 [Lv${user.level}] gameApi.updatePartnerApiAccess 호출...`);
+        await gameApi.updatePartnerApiAccess(
+          user.id,
+          selectedApi as "invest" | "oroplay" | "familyapi" | "honorapi",
+          providerIds,
+          status === "visible"
+        );
+        console.log(`✅ [Lv${user.level}] gameApi.updatePartnerApiAccess 완료`);
 
-      const statusText = status === "visible" ? "노출" : "숨김";
-      toast.success(`${selectedApi.toUpperCase()} API의 모든 제공사가 ${statusText} 처리되었습니다.`);
+        const statusText = status === "visible" ? "노출" : "숨김";
+        toast.success(`${selectedApi.toUpperCase()} API의 모든 제공사가 ${statusText} 처리되었습니다.`);
+      }
       
       // ✅ 데이터 새로고침 추가 (DB에서 최신 상태 가져오기)
       await initializeData();
+      
+      // ✅ 게임 데이터도 다시 로드 (UI 업데이트를 위해)
+      if (selectedApi) {
+        await loadGamesForApi(selectedApi);
+      }
     } catch (error) {
       console.error("❌ API 일괄 상태 업데이트 실패:", error);
       toast.error("일괄 상태 변경에 실패했습니다.");
@@ -1154,6 +1292,97 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     }
   };
 
+  // ✅ 매장별 게임 탭: 전체 제공사 노출/숨김 (API + 게임타입별)
+  const handleBulkStoreProviderAccess = async (showAll: boolean) => {
+    if (!selectedStore || !selectedApi) {
+      toast.warning("매장과 API를 선택해주세요.");
+      return;
+    }
+
+    try {
+      // 현재 필터된 제공사 목록 (API + 게임타입)
+      const filteredProviders = providers.filter(p => {
+        if (p.api_type !== selectedApi) return false;
+        if (selectedGameType !== "all" && p.type !== selectedGameType) return false;
+        
+        // 해당 제공사의 게임이 있는지 확인
+        const hasGames = games.some(g => 
+          g.provider_id === p.id &&
+          g.api_type === selectedApi &&
+          (selectedGameType === "all" || g.type === selectedGameType)
+        );
+        
+        return hasGames;
+      });
+
+      if (filteredProviders.length === 0) {
+        toast.warning("제공사가 없습니다.");
+        return;
+      }
+
+      const apiLabel = selectedApi.toUpperCase();
+      const typeLabel = selectedGameType === "all" ? "전체" : 
+                       selectedGameType === "casino" ? "카지노" :
+                       selectedGameType === "slot" ? "슬롯" : "미니게임";
+
+      if (showAll) {
+        // 전체 노출: 제공사 레코드 삭제
+        const providerIdsToRemove = filteredProviders.map(p => String(p.id));
+        const { error } = await supabase
+          .from("partner_game_access")
+          .delete()
+          .eq("partner_id", selectedStore.id)
+          .is("user_id", null)
+          .eq("access_type", "provider")
+          .in("game_provider_id", providerIdsToRemove);
+
+        if (error) throw error;
+
+        // 로컬 상태 업데이트
+        const providerIdsSet = new Set(filteredProviders.map(p => p.id));
+        setStoreBlockedProviders(prev => prev.filter(id => !providerIdsSet.has(id)));
+
+        toast.success(`${apiLabel} ${typeLabel} 제공사 ${filteredProviders.length}개를 전체 노출했습니다.`);
+      } else {
+        // 전체 숨김: 제공사 레코드 생성
+        const accessRecords = filteredProviders.map(provider => ({
+          partner_id: selectedStore.id,
+          api_provider: provider.api_type,
+          game_provider_id: String(provider.id),
+          access_type: "provider",
+        }));
+
+        // 기존 레코드 삭제 후 재생성 (중복 방지)
+        const providerIdsToRemove = filteredProviders.map(p => String(p.id));
+        await supabase
+          .from("partner_game_access")
+          .delete()
+          .eq("partner_id", selectedStore.id)
+          .is("user_id", null)
+          .eq("access_type", "provider")
+          .in("game_provider_id", providerIdsToRemove);
+
+        const { error } = await supabase
+          .from("partner_game_access")
+          .insert(accessRecords);
+
+        if (error) throw error;
+
+        // 로컬 상태 업데이트
+        const newProviderIds = filteredProviders.map(p => p.id);
+        setStoreBlockedProviders(prev => [...new Set([...prev, ...newProviderIds])]);
+
+        toast.success(`${apiLabel} ${typeLabel} 제공사 ${filteredProviders.length}개를 전체 숨김했습니다.`);
+      }
+
+      // 게임 접근 설정 다시 로드
+      await loadStoreGameAccess(selectedStore.id);
+    } catch (error) {
+      console.error("❌ 일괄 제공사 접근 권한 업데이트 실패:", error);
+      toast.error("일괄 업데이트에 실패했습니다.");
+    }
+  };
+
   const loadUsers = async () => {
     try {
       setLoadingUsers(true);
@@ -1376,6 +1605,84 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     }
   };
 
+  // ✅ 사용자별 게임 탭: 전체 노출/숨김 (API + 게임타입별)
+  const handleBulkUserGameAccess = async (showAll: boolean) => {
+    if (!selectedUser || !selectedStore || !selectedApi) {
+      toast.warning("사용자와 API를 선택해주세요.");
+      return;
+    }
+
+    try {
+      // 현재 필터된 게임 목록 (API + 게임타입 + Lv1 노출 + 매장 허용)
+      const filteredGames = games.filter(g => {
+        if (g.api_type !== selectedApi) return false;
+        if (selectedGameType !== "all" && g.type !== selectedGameType) return false;
+        if (g.status !== "visible") return false; // Lv1에서 노출한 게임만
+        if (storeBlockedGames.includes(g.id)) return false; // 매장에서 허용한 게임만
+        return true;
+      });
+
+      if (filteredGames.length === 0) {
+        toast.warning("대상 게임이 없습니다.");
+        return;
+      }
+
+      console.log(`📦 사용자별 전체 ${showAll ? '노출' : '숨김'}: ${filteredGames.length}개 게임`);
+
+      if (showAll) {
+        // 전체 노출: 모든 차단 레코드 삭제
+        const gameIdsToAllow = filteredGames
+          .filter(g => userBlockedGames.includes(g.id))
+          .map(g => String(g.id));
+
+        if (gameIdsToAllow.length > 0) {
+          const { error } = await supabase
+            .from("partner_game_access")
+            .delete()
+            .eq("partner_id", selectedStore.id)
+            .eq("user_id", selectedUser.id)
+            .eq("api_provider", selectedApi)
+            .eq("access_type", "game")
+            .in("game_id", gameIdsToAllow);
+
+          if (error) throw error;
+        }
+
+        setUserBlockedGames(prev => prev.filter(id => !filteredGames.some(g => g.id === id)));
+        toast.success(`${filteredGames.length}개 게임이 노출되었습니다.`);
+      } else {
+        // 전체 숨김: 모든 게임에 차단 레코드 추가
+        const gamesToBlock = filteredGames
+          .filter(g => !userBlockedGames.includes(g.id))
+          .map(g => ({
+            partner_id: selectedStore.id,
+            user_id: selectedUser.id,
+            api_provider: g.api_type,
+            game_id: String(g.id),
+            access_type: "game" as const,
+          }));
+
+        if (gamesToBlock.length > 0) {
+          const { error } = await supabase
+            .from("partner_game_access")
+            .insert(gamesToBlock);
+
+          if (error) throw error;
+        }
+
+        const newBlockedGameIds = filteredGames.map(g => g.id);
+        setUserBlockedGames(prev => [...new Set([...prev, ...newBlockedGameIds])]);
+        toast.success(`${filteredGames.length}개 게임이 숨겨졌습니다.`);
+      }
+
+      // 데이터 새로고침
+      await loadUserGameAccess(selectedUser.id);
+    } catch (error) {
+      console.error("❌ 사용자별 전체 게임 접근 권한 업데이트 실패:", error);
+      toast.error("일괄 업데이트에 실패했습니다.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* 탭 네비게이션 */}
@@ -1496,7 +1803,17 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                         <Button
                           key={api.value}
                           variant="ghost"
-                          onClick={() => setSelectedApi(api.value)}
+                          onClick={async () => {
+                            setSelectedApi(api.value);
+                            // ✅ API 선택 시 해당 API의 게임이 없으면 로드
+                            const apiGames = games.filter(g => g.api_type === api.value);
+                            console.log(`📊 [매장별 게임] ${api.value} 게임 수:`, apiGames.length);
+                            
+                            if (apiGames.length === 0) {
+                              console.log(`⬇️ [매장별 게임] ${api.value} 게임 로드 중...`);
+                              await loadGamesForApi(api.value);
+                            }
+                          }}
                           className={`rounded-none border-b-2 transition-colors px-6 py-3 text-base font-bold ${
                             selectedApi === api.value
                               ? "border-purple-500 bg-purple-900/20 text-white"
@@ -1542,22 +1859,51 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                         </Select>
                       </div>
 
+                      {/* 전체 노출/숨김 버튼 */}
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleBulkStoreProviderAccess(true)}
+                          className="bg-green-900/20 border-green-700 text-green-400 hover:bg-green-900/40 hover:text-green-300"
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          전체 노출
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleBulkStoreProviderAccess(false)}
+                          className="bg-red-900/20 border-red-700 text-red-400 hover:bg-red-900/40 hover:text-red-300"
+                        >
+                          <EyeOff className="w-4 h-4 mr-2" />
+                          전체 숨김
+                        </Button>
+                      </div>
+
                       {/* 게임 목록 */}
                       <ScrollArea className="h-[600px]">
                         <div className="space-y-4">
                           {(() => {
-                            // ✅ Lv2가 노출 설정한 제공사만 표시 (매장별 게임 탭)
+                            // ✅ 매장별 게임 탭: 게임이 있는 제공사만 표시
                             const filteredProviders = providers.filter(p => {
                               // 선택된 API와 일치해야 함
                               if (p.api_type !== selectedApi) return false;
                               
-                              // 제공사가 visible 상태여야 함
-                              if (p.is_visible !== true) return false;
+                              // ✅ Lv1에서 노출한 제공사만 표시 (provider status='visible')
+                              if (p.status !== "visible") return false;
                               
                               // ✅ 게임 타입 필터링: 카지노/슬롯/미니게임별로 제공사 필터링
                               if (selectedGameType !== "all" && p.type !== selectedGameType) return false;
                               
-                              return true;
+                              // ✅ 해당 제공사의 게임이 있는지 확인
+                              const hasGames = games.some(g => 
+                                g.provider_id === p.id &&
+                                g.api_type === selectedApi &&
+                                (selectedGameType === "all" || g.type === selectedGameType)
+                              );
+                              
+                              return hasGames;
                             });
                             
                             if (filteredProviders.length === 0) {
@@ -1571,11 +1917,25 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                             }
 
                             return filteredProviders.map(provider => {
-                              const providerGames = games.filter(g => 
-                                g.provider_id === provider.id &&
-                                (selectedGameType === "all" || g.type === selectedGameType) &&
-                                (!debouncedSearchTerm || g.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()))
-                              );
+                              // ✅ 띄어쓰기 무시 검색: 제공사명 + 게임명 모두 검색
+                              const searchNormalized = debouncedSearchTerm.replace(/\s/g, '').toLowerCase();
+                              const providerNameNormalized = provider.name.replace(/\s/g, '').toLowerCase();
+                              const isProviderMatch = !debouncedSearchTerm || providerNameNormalized.includes(searchNormalized);
+
+                              const providerGames = games.filter(g => {
+                                if (g.provider_id !== provider.id) return false;
+                                if (selectedGameType !== "all" && g.type !== selectedGameType) return false;
+                                
+                                // ✅ Lv1에서 노출한 게임만 표시 (status='visible')
+                                if (g.status !== "visible") return false;
+                                
+                                // 제공사명이 매칭되면 모든 게임 표시
+                                if (isProviderMatch) return true;
+                                
+                                // 게임명으로 검색 (띄어쓰기 무시)
+                                const gameNameNormalized = g.name.replace(/\s/g, '').toLowerCase();
+                                return gameNameNormalized.includes(searchNormalized);
+                              });
 
                               if (providerGames.length === 0 && debouncedSearchTerm) {
                                 return null;
@@ -1915,10 +2275,12 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                   <ScrollArea className="h-[600px]">
                     <div className="space-y-2">
                       {users
-                        .filter(u => 
-                          !debouncedUserSearchTerm || 
-                          u.username.toLowerCase().includes(debouncedUserSearchTerm.toLowerCase())
-                        )
+                        .filter(u => {
+                          if (!debouncedUserSearchTerm) return true;
+                          const searchNormalized = debouncedUserSearchTerm.replace(/\s/g, '').toLowerCase();
+                          const usernameNormalized = u.username.replace(/\s/g, '').toLowerCase();
+                          return usernameNormalized.includes(searchNormalized);
+                        })
                         .map((targetUser) => (
                         <button
                           key={targetUser.id}
@@ -1968,7 +2330,17 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                         <Button
                           key={api.value}
                           variant="ghost"
-                          onClick={() => setSelectedApi(api.value)}
+                          onClick={async () => {
+                            setSelectedApi(api.value);
+                            // ✅ API 선택 시 해당 API의 게임이 없으면 로드
+                            const apiGames = games.filter(g => g.api_type === api.value);
+                            console.log(`📊 [사용자별 게임] ${api.value} 게임 수:`, apiGames.length);
+                            
+                            if (apiGames.length === 0) {
+                              console.log(`⬇️ [사용자별 게임] ${api.value} 게임 로드 중...`);
+                              await loadGamesForApi(api.value);
+                            }
+                          }}
                           className={`rounded-none border-b-2 transition-colors px-6 py-3 text-base font-bold ${
                             selectedApi === api.value
                               ? "border-purple-500 bg-purple-900/20 text-white"
@@ -2014,22 +2386,51 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                         </Select>
                       </div>
 
+                      {/* 전체 노출/숨김 버튼 */}
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleBulkUserGameAccess(true)}
+                          className="bg-green-900/20 border-green-700 text-green-400 hover:bg-green-900/40 hover:text-green-300"
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          전체 노출
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleBulkUserGameAccess(false)}
+                          className="bg-red-900/20 border-red-700 text-red-400 hover:bg-red-900/40 hover:text-red-300"
+                        >
+                          <EyeOff className="w-4 h-4 mr-2" />
+                          전체 숨김
+                        </Button>
+                      </div>
+
                       {/* 게임 목록 */}
                       <ScrollArea className="h-[600px]">
                         <div className="space-y-4">
                           {(() => {
-                            // ✅ Lv2가 노출 설정한 제공사만 표시 (사용자별 게임 탭)
+                            // ✅ 사용자별 게임 탭: 게임이 있는 제공사만 표시
                             const filteredProviders = providers.filter(p => {
                               // 선택된 API와 일치해야 함
                               if (p.api_type !== selectedApi) return false;
                               
-                              // 제공사가 visible 상태여야 함
-                              if (p.is_visible !== true) return false;
+                              // ✅ Lv1에서 노출한 제공사만 표시 (provider status='visible')
+                              if (p.status !== "visible") return false;
                               
                               // ✅ 게임 타입 필터링: 카지노/슬롯/미니게임별로 제공사 필터링
                               if (selectedGameType !== "all" && p.type !== selectedGameType) return false;
                               
-                              return true;
+                              // ✅ 해당 제공사의 게임이 있는지 확인
+                              const hasGames = games.some(g => 
+                                g.provider_id === p.id &&
+                                g.api_type === selectedApi &&
+                                (selectedGameType === "all" || g.type === selectedGameType)
+                              );
+                              
+                              return hasGames;
                             });
                             
                             if (filteredProviders.length === 0) {
@@ -2043,13 +2444,28 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                             }
 
                             return filteredProviders.map(provider => {
+                              // ✅ 띄어쓰기 무시 검색: 제공사명 + 게임명 모두 검색
+                              const searchNormalized = debouncedSearchTerm.replace(/\s/g, '').toLowerCase();
+                              const providerNameNormalized = provider.name.replace(/\s/g, '').toLowerCase();
+                              const isProviderMatch = !debouncedSearchTerm || providerNameNormalized.includes(searchNormalized);
+
                               // 매장에서 차단되지 않은 게임만 필터링 (로직 반전)
-                              const providerGames = games.filter(g => 
-                                g.provider_id === provider.id &&
-                                (selectedGameType === "all" || g.type === selectedGameType) &&
-                                (!debouncedSearchTerm || g.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) &&
-                                !storeBlockedGames.includes(g.id) // 매장에서 차단되지 않은 게임만
-                              );
+                              const providerGames = games.filter(g => {
+                                if (g.provider_id !== provider.id) return false;
+                                if (selectedGameType !== "all" && g.type !== selectedGameType) return false;
+                                
+                                // ✅ Lv1에서 노출한 게임만 표시 (status='visible')
+                                if (g.status !== "visible") return false;
+                                
+                                if (storeBlockedGames.includes(g.id)) return false; // 매장에서 차단되지 않은 게임만
+                                
+                                // 제공사명이 매칭되면 모든 게임 표시
+                                if (isProviderMatch) return true;
+                                
+                                // 게임명으로 검색 (띄어쓰기 무시)
+                                const gameNameNormalized = g.name.replace(/\s/g, '').toLowerCase();
+                                return gameNameNormalized.includes(searchNormalized);
+                              });
 
                               if (providerGames.length === 0 && debouncedSearchTerm) {
                                 return null;
@@ -2174,7 +2590,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                               return;
                                             }
 
-                                            console.log("🚫 사용자별 전체 차단:", { 
+                                            console.log("��� 사용자별 전체 차단:", { 
                                               provider: provider.name, 
                                               providerId: provider.id,
                                               storeId: selectedStore.id,
@@ -2502,6 +2918,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                     onChangeGameStatus={handleChangeGameStatus}
                     userLevel={user.level}
                     isBlocked={blockedProviderIds.has(provider.id)}
+                    blockedGameIds={blockedGameIds}
                   />
                 ))
               )}
