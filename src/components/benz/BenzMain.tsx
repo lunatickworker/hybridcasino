@@ -34,6 +34,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
   const [slotProviders, setSlotProviders] = useState<GameProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [showLoginMessage, setShowLoginMessage] = useState(false);
+  const [isHoveringBanner, setIsHoveringBanner] = useState(false); // 🆕 배너 hover 상태
 
   // Fallback 데이터
   const FALLBACK_CASINO_PROVIDERS = [
@@ -123,7 +124,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
           <div className="relative text-left">
             {/* 배너 텍스트 이미지 */}
             <img
-              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Banner-Text.png"
+              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Banner-Text.png?t=20241229"
               alt="LIVE CASINO"
               className="w-full h-auto object-contain"
               style={{ maxWidth: '600px' }}
@@ -131,6 +132,8 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
             
             {/* 이미지 내 버튼 위치에 클릭 영역 */}
             <button
+              onMouseEnter={() => setIsHoveringBanner(true)}
+              onMouseLeave={() => setIsHoveringBanner(false)}
               onClick={() => {
                 if (!user) {
                   setShowLoginMessage(true);
@@ -139,16 +142,25 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                 }
                 onRouteChange('/benz/casino');
               }}
-              className="absolute cursor-pointer transition-transform hover:scale-105"
+              className="absolute cursor-pointer"
               style={{
-                left: '10%',
-                bottom: '18%',
-                width: '35%',
-                height: '15%',
+                left: '12.5%',
+                bottom: '19.6%',
+                width: '35.72%',
+                height: '14.8%',
                 background: 'transparent'
               }}
               aria-label="Play Now"
-            />
+            >
+              {/* Hover 이미지 - 버튼 위에만 표시 */}
+              {isHoveringBanner && (
+                <img
+                  src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/hover1.png"
+                  alt="Play Now Hover"
+                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                />
+              )}
+            </button>
           </div>
         </div>
       </section>
@@ -171,7 +183,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
           src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Casino-game-list.png"
           alt="Casino Game List"
           className="absolute z-20 w-[200px] md:w-auto"
-          style={{ top: '-35px', left: '20px' }}
+          style={{ top: '-70px', left: '50px' }}
         />
         
         <div className="relative z-10 px-4 md:px-16">
@@ -238,7 +250,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
           src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Slot-game-list.png"
           alt="Slot Game List"
           className="absolute z-20 w-[200px] md:w-auto"
-          style={{ top: '-40px', left: '20px' }}
+          style={{ top: '-80px', left: '50px' }}
         />
         
         <div className="relative z-10 px-4 md:px-16">

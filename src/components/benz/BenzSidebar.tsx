@@ -37,7 +37,6 @@ const userMenuItems = [
   { path: '/benz/deposit', label: '입금', icon: CreditCard },
   { path: '/benz/withdraw', label: '출금', icon: ArrowUpDown },
   { path: '/benz/notice', label: '공지사항', icon: Bell },
-  { path: '/benz/points', label: '포인트', icon: Star },
   { path: '/benz/support', label: '고객센터', icon: Mail },
   { path: '/benz/profile', label: '회원정보수정', icon: User },
 ];
@@ -54,7 +53,6 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
       '/benz/casino',
       '/benz/slot',
       '/benz/notice',
-      '/benz/points',
       '/benz/support'
     ];
     
@@ -138,46 +136,28 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                   >
                     {/* 기본 배경 이미지 */}
                     <div 
-                      className={`absolute inset-0 transition-opacity duration-300 ${
-                        isActive ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
-                      }`}
+                      className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-0"
                       style={{
                         backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu-bg.png)',
                         backgroundSize: 'cover',
-                        backgroundPosition: 'center'
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                        opacity: isActive ? 0 : 1
                       }}
                     ></div>
 
-                    {/* 호버/활성 배경 이미지 */}
+                    {/* hover 배경 이미지 */}
                     <div 
-                      className={`absolute inset-0 transition-opacity duration-300 ${ 
-                        isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      }`}
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                       style={{
                         backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center'
+                        backgroundSize: '96% 100%',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                        opacity: isActive ? 1 : undefined
                       }}
                     ></div>
 
-                    {/* 왼쪽 골드 라인 */}
-                    <div 
-                      className={`absolute left-0 top-0 bottom-0 w-1 transition-all duration-300 ${
-                        isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      }`}
-                      style={{
-                        background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)',
-                        boxShadow: '0 0 10px rgba(193, 154, 107, 0.5)'
-                      }}
-                    ></div>
-
-                    <Icon 
-                      className="w-6 h-6 relative z-10 transition-all duration-300"
-                      style={{
-                        color: '#888773',
-                        filter: 'none'
-                      }}
-                    />
                     <span 
                       className="relative z-10 font-bold tracking-wide transition-all duration-300"
                       style={{
@@ -191,7 +171,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
 
                     {/* 호버 글로우 */}
                     <div 
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-20 h-20 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-300"
+                      className="absolute right-0 top-1/2 -translate-y-1/2 w-20 h-20 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-300 pointer-events-none"
                       style={{
                         background: 'radial-gradient(circle, rgba(193, 154, 107, 0.4) 0%, transparent 70%)'
                       }}
@@ -226,46 +206,28 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                   >
                     {/* 기본 배경 이미지 */}
                     <div 
-                      className={`absolute inset-0 transition-opacity duration-300 ${
-                        isActive ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
-                      }`}
+                      className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-0"
                       style={{
                         backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu-bg.png)',
                         backgroundSize: 'cover',
-                        backgroundPosition: 'center'
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                        opacity: isActive ? 0 : 1
                       }}
                     ></div>
 
-                    {/* 호버/활성 배경 이미지 */}
+                    {/* hover 배경 이미지 */}
                     <div 
-                      className={`absolute inset-0 transition-opacity duration-300 ${ 
-                        isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      }`}
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                       style={{
                         backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center'
+                        backgroundSize: '96% 100%',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                        opacity: isActive ? 1 : undefined
                       }}
                     ></div>
 
-                    {/* 왼쪽 골드 라인 */}
-                    <div 
-                      className={`absolute left-0 top-0 bottom-0 w-1 transition-all duration-300 ${
-                        isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      }`}
-                      style={{
-                        background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)',
-                        boxShadow: '0 0 10px rgba(193, 154, 107, 0.5)'
-                      }}
-                    ></div>
-
-                    <Icon 
-                      className="w-6 h-6 relative z-10 transition-all duration-300"
-                      style={{
-                        color: '#888773',
-                        filter: 'none'
-                      }}
-                    />
                     <span 
                       className="relative z-10 font-bold tracking-wide transition-all duration-300"
                       style={{
@@ -279,7 +241,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
 
                     {/* 호버 글로우 */}
                     <div 
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-20 h-20 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-300"
+                      className="absolute right-0 top-1/2 -translate-y-1/2 w-20 h-20 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-300 pointer-events-none"
                       style={{
                         background: 'radial-gradient(circle, rgba(193, 154, 107, 0.4) 0%, transparent 70%)'
                       }}

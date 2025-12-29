@@ -464,11 +464,17 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
         return false;
       }
       
-      const hasGamesOfType = games.some(game => 
-        game.provider_id === provider.id &&
-        game.api_type === selectedApi &&
-        game.type === selectedGameType
-      );
+      const hasGamesOfType = games.some(game => {
+        if (game.provider_id !== provider.id) return false;
+        if (game.api_type !== selectedApi) return false;
+        
+        // ✅ selectedGameType이 "all"이 아닐 때만 타입 필터링 적용
+        if (selectedGameType !== "all" && game.type !== selectedGameType) {
+          return false;
+        }
+        
+        return true;
+      });
       
       return hasGamesOfType;
     });
@@ -489,7 +495,8 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       const providerGames = games.filter(game => {
         const matchesProvider = game.provider_id === provider.id;
         const matchesApi = game.api_type === selectedApi;
-        const matchesType = game.type === selectedGameType;
+        // ✅ selectedGameType이 "all"이 아닐 때만 타입 필터링 적용
+        const matchesType = selectedGameType === "all" || game.type === selectedGameType;
         
         if (!matchesProvider || !matchesApi || !matchesType) {
           return false;
@@ -1893,10 +1900,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                               // ✅ Lv1에서 노출한 제공사만 표시 (provider status='visible')
                               if (p.status !== "visible") return false;
                               
-                              // ✅ 게임 타입 필터링: 카지노/슬롯/미니게임별로 제공사 필터링
-                              if (selectedGameType !== "all" && p.type !== selectedGameType) return false;
-                              
-                              // ✅ 해당 제공사의 게임이 있는지 확인
+                              // ✅ 해당 제공사의 선택된 게임 타입의 게임이 있는지 확인
                               const hasGames = games.some(g => 
                                 g.provider_id === p.id &&
                                 g.api_type === selectedApi &&
@@ -2420,10 +2424,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                               // ✅ Lv1에서 노출한 제공사만 표시 (provider status='visible')
                               if (p.status !== "visible") return false;
                               
-                              // ✅ 게임 타입 필터링: 카지노/슬롯/미니게임별로 제공사 필터링
-                              if (selectedGameType !== "all" && p.type !== selectedGameType) return false;
-                              
-                              // ✅ 해당 제공사의 게임이 있는지 확인
+                              // ✅ 해당 제공사의 선택된 게임 타입의 게임이 있는지 확인
                               const hasGames = games.some(g => 
                                 g.provider_id === p.id &&
                                 g.api_type === selectedApi &&

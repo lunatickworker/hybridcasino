@@ -7762,12 +7762,6 @@
   }
 
   @media (hover: hover) {
-    .group-hover\:opacity-40:is(:where(.group):hover *) {
-      opacity: .4;
-    }
-  }
-
-  @media (hover: hover) {
     .group-hover\:opacity-60:is(:where(.group):hover *) {
       opacity: .6;
     }

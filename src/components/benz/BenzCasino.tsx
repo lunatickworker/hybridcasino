@@ -22,6 +22,7 @@ interface GameProvider {
   thumbnail_url?: string;
   status: string;
   vendor_code?: string;
+  provider_ids?: number[]; // 🆕 통합된 게임사의 모든 provider_id
 }
 
 interface Game {
@@ -78,7 +79,49 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
         userId: user?.id 
       });
       
-      setProviders(providersData);
+      // 🆕 같은 이름의 게임사를 하나로 통합 (유연한 매핑)
+      const providerMap = new Map<string, GameProvider>();
+      
+      // 프라그마틱 통합을 위한 정규화 함수
+      const normalizeProviderName = (provider: GameProvider): string => {
+        const name = (provider.name_ko || provider.name || '').toLowerCase();
+        
+        // 프라그마틱 관련 통합
+        if (name.includes('pragmatic') || name.includes('프라그마틱')) {
+          if (name.includes('slot') || name.includes('슬롯')) {
+            return 'pragmatic_slot';
+          }
+          if (name.includes('live') || name.includes('라이브')) {
+            return 'pragmatic_live';
+          }
+          // 기본 프라그마틱 (라이브로 간주)
+          return 'pragmatic_live';
+        }
+        
+        // 다른 게임사들은 name_ko 또는 name 사용
+        return provider.name_ko || provider.name;
+      };
+      
+      for (const provider of providersData) {
+        const key = normalizeProviderName(provider);
+        
+        if (providerMap.has(key)) {
+          // 이미 존재하는 게임사 - provider_ids 배열에 추가
+          const existing = providerMap.get(key)!;
+          if (!existing.provider_ids) {
+            existing.provider_ids = [existing.id];
+          }
+          existing.provider_ids.push(provider.id);
+        } else {
+          // 새로운 게임사
+          providerMap.set(key, {
+            ...provider,
+            provider_ids: [provider.id]
+          });
+        }
+      }
+      
+      setProviders(Array.from(providerMap.values()));
     } catch (error) {
       console.error('❌ 제공사 로드 오류:', error);
       setProviders([]);
@@ -98,13 +141,23 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       setGamesLoading(true);
       setSelectedProvider(provider);
 
-      const gamesData = await gameApi.getUserVisibleGames({
-        type: 'casino',
-        provider_id: provider.id,
-        userId: user.id
-      });
+      // 🆕 통합된 게임사의 모든 provider_id로 게임 로드
+      const providerIds = provider.provider_ids || [provider.id];
+      let allGames: Game[] = [];
 
-      setGames(gamesData || []);
+      for (const providerId of providerIds) {
+        const gamesData = await gameApi.getUserVisibleGames({
+          type: 'casino',
+          provider_id: providerId,
+          userId: user.id
+        });
+
+        if (gamesData && gamesData.length > 0) {
+          allGames = [...allGames, ...gamesData];
+        }
+      }
+
+      setGames(allGames);
     } catch (error) {
       console.error('게임 로드 오류:', error);
       setGames([]);
@@ -407,32 +460,35 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                 }}></div>
               ))
             ) : (
-              providers.map((provider) => (
+              providers.map((provider, index) => (
                 <motion.div
                   key={provider.id}
-                  whileHover={{ scale: 1.05, y: -8 }}
-                  whileTap={{ scale: 0.98 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  whileHover={{ 
+                    y: -12,
+                    scale: 1.05,
+                    transition: { duration: 0.3 }
+                  }}
                   className="cursor-pointer group"
                   onClick={() => handleProviderClick(provider)}
                 >
-                  <div className="relative aspect-square overflow-hidden rounded-2xl transition-all duration-500" style={{
-                    background: '#16161f',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
-                  }}>
-                    {/* 제공사 이미지 */}
-                    <ImageWithFallback
-                      src={provider.logo_url || provider.thumbnail_url || getRandomCasinoImage()}
+                  <div 
+                    className="relative aspect-square rounded-2xl overflow-hidden"
+                    style={{
+                      border: '2px solid rgba(193, 154, 107, 0.5)',
+                    }}
+                  >
+                    <img
+                      src={FALLBACK_PROVIDERS[index % FALLBACK_PROVIDERS.length]?.logo_url || provider.logo_url}
                       alt={provider.name}
-                      className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                      className="w-full object-cover"
+                      style={{
+                        height: '105%',
+                        marginTop: '-2.5%'
+                      }}
                     />
-                    
-                    {/* 그라디언트 오버레이 */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity duration-500"></div>
-                    
-                    {/* 호버 시 로즈 골드 테두리 */}
-                    <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
-                      boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
-                    }}></div>
                   </div>
                 </motion.div>
               ))

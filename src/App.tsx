@@ -12,7 +12,6 @@ import { UserRoutes } from './components/common/UserRoutes';
 import { Sample1Layout } from './components/sample1/Sample1Layout';
 import { Sample1Routes } from './components/sample1/Sample1Routes';
 import { BenzLayout } from './components/benz/BenzLayout';
-import { BenzLogin } from './components/benz/BenzLogin';
 import { BenzRoutes } from './components/benz/BenzRoutes';
 import { BenzLoginModal } from './components/benz/BenzLoginModal';
 import { BenzSignupModal } from './components/benz/BenzSignupModal';
@@ -25,8 +24,7 @@ import { MessageQueueProvider } from './components/common/MessageQueueProvider';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { supabase } from './lib/supabase';
 import { initFavicon } from './utils/favicon';
-
-
+import { gameApi } from './lib/gameApi';
 
 function AppContent() {
   const { authState, logout } = useAuth();
@@ -306,7 +304,6 @@ function AppContent() {
             
             // 🆕 접근 가능한 게임 타입 확인 후 리다이렉트
             try {
-              const { gameApi } = await import('./lib/gameApi');
               const accessibleTypes = await gameApi.getUserAccessibleGameTypes(user.id);
               
               if (accessibleTypes.length > 0) {
