@@ -35,18 +35,14 @@ interface Game {
 }
 
 const FALLBACK_PROVIDERS = [
-  { id: 1, name: 'Evolution', name_ko: '에볼루션', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/16.png', status: 'visible' },
-  { id: 2, name: 'Pragmatic Play Live', name_ko: '프라그마틱 라이브', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/17.png', status: 'visible' },
-  { id: 3, name: 'Dream Gaming', name_ko: '드림게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/18.png', status: 'visible' },
-  { id: 4, name: 'Microgaming', name_ko: '마이크로게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/19.png', status: 'visible' },
-  { id: 5, name: 'Asia Gaming', name_ko: '아시아게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/20.png', status: 'visible' },
-  { id: 6, name: 'Sexy Gaming', name_ko: '섹시게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/21.png', status: 'visible' },
-  { id: 7, name: 'BBIN', name_ko: '비비아이엔', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/22.png', status: 'visible' },
-  { id: 8, name: 'Oriental Game', name_ko: '오리엔탈게임', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/16.png', status: 'visible' },
-  { id: 9, name: 'Vivo Gaming', name_ko: 'Vivo 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/17.png', status: 'visible' },
-  { id: 10, name: 'Ezugi', name_ko: '이주기', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/18.png', status: 'visible' },
-  { id: 11, name: 'Playtech', name_ko: '플레이텍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/19.png', status: 'visible' },
-  { id: 12, name: 'Bota', name_ko: '보타', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/20.png', status: 'visible' },
+  { id: 1, name: 'Evolution', name_ko: '에볼루션', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evolution.jpg', status: 'visible' },
+  { id: 2, name: 'Pragmatic Play Live', name_ko: '프라그마틱 라이브', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticlive.jpg', status: 'visible' },
+  { id: 3, name: 'Microgaming', name_ko: '마이크로 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg', status: 'visible' },
+  { id: 4, name: 'Asia Gaming', name_ko: '아시아 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/asiagaming.jpg', status: 'visible' },
+  { id: 5, name: 'SA Gaming', name_ko: 'SA 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/sagaming.jpg', status: 'visible' },
+  { id: 6, name: 'Ezugi', name_ko: '이주기', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/ezugi.jpg', status: 'visible' },
+  { id: 7, name: 'Dream Gaming', name_ko: '드림 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/dreamgaming.jpg', status: 'visible' },
+  { id: 8, name: 'Play Ace', name_ko: '플레이 에이스', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg', status: 'visible' },
 ];
 
 // 랜덤 이미지 선택 함수
@@ -403,10 +399,10 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
 
         {/* 제공사 목록 - 4칸 정렬 */}
         {!selectedProvider && (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {loading ? (
               Array(8).fill(0).map((_, i) => (
-                <div key={i} className="aspect-[3/4] rounded-2xl animate-pulse" style={{
+                <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{
                   background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)'
                 }}></div>
               ))
@@ -419,7 +415,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                   className="cursor-pointer group"
                   onClick={() => handleProviderClick(provider)}
                 >
-                  <div className="relative aspect-[3/4] overflow-hidden rounded-2xl transition-all duration-500" style={{
+                  <div className="relative aspect-square overflow-hidden rounded-2xl transition-all duration-500" style={{
                     background: '#16161f',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
                   }}>
@@ -437,16 +433,6 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                     <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
                       boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
                     }}></div>
-                    
-                    {/* 제공사명 */}
-                    <div className="absolute bottom-0 left-0 right-0 p-6">
-                      <p className="text-2xl font-black text-white tracking-tight" style={{
-                        textShadow: '0 2px 20px rgba(0,0,0,0.9)',
-                        letterSpacing: '-0.02em'
-                      }}>
-                        {provider.name_ko || provider.name}
-                      </p>
-                    </div>
                   </div>
                 </motion.div>
               ))
@@ -456,10 +442,10 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
 
         {/* 게임 목록 - 4칸 정렬 */}
         {selectedProvider && (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {gamesLoading ? (
               Array(8).fill(0).map((_, i) => (
-                <div key={i} className="aspect-[3/4] rounded-2xl animate-pulse" style={{
+                <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{
                   background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)'
                 }}></div>
               ))
@@ -476,7 +462,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                   className="cursor-pointer group"
                   onClick={() => handleGameClick(game)}
                 >
-                  <div className="relative aspect-[3/4] overflow-hidden rounded-2xl transition-all duration-500" style={{
+                  <div className="relative aspect-square overflow-hidden rounded-2xl transition-all duration-500" style={{
                     background: '#16161f',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
                   }}>
@@ -502,17 +488,6 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                     <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
                       boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
                     }}></div>
-                    
-                    {/* 게임명 - 항상 표시, 한글 우선 */}
-                    <div className="absolute bottom-0 left-0 right-0 p-5">
-                      <p className="text-[22px] font-black text-white leading-tight line-clamp-2" style={{
-                        textShadow: '0 3px 24px rgba(0,0,0,1), 0 1px 8px rgba(0,0,0,0.9)',
-                        letterSpacing: '-0.03em',
-                        wordBreak: 'keep-all'
-                      }}>
-                        {game.name_ko || game.name}
-                      </p>
-                    </div>
                     
                     {/* 호버 시 플레이 버튼 */}
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500">

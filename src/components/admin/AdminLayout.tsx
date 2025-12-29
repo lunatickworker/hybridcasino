@@ -59,7 +59,7 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
       <div className="h-screen flex w-full overflow-hidden bg-[#0a0e1a] min-w-[1200px]">
         <div className={cn(
           "fixed left-0 top-0 h-screen transition-all duration-300 z-40",
-          "bg-[#0f1419]/95 backdrop-blur-xl border-r border-slate-700/50 shadow-xl",
+          "backdrop-blur-xl border-r border-slate-700/50 shadow-xl",
           sidebarOpen ? "w-80" : "w-16"
         )}>
           <AdminSidebar 

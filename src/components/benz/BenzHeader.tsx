@@ -44,6 +44,8 @@ interface BenzHeaderProps {
   onOpenSignupModal?: () => void;
   balance?: number;
   points?: number;
+  showPointDialog?: boolean; // ⭐ 외부에서 포인트 모달 제어
+  onPointDialogChange?: (show: boolean) => void; // ⭐ 포인트 모달 상태 변경 콜백
 }
 
 interface UserBalance {
@@ -51,7 +53,7 @@ interface UserBalance {
   points: number;
 }
 
-export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, onOpenSignupModal, balance: propsBalance, points: propsPoints }: BenzHeaderProps) {
+export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, onOpenSignupModal, balance: propsBalance, points: propsPoints, showPointDialog, onPointDialogChange }: BenzHeaderProps) {
   const [balance, setBalance] = useState<UserBalance>({ 
     balance: propsBalance || 0, 
     points: propsPoints || 0 
@@ -61,6 +63,20 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
   const [showMessagesDialog, setShowMessagesDialog] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  // ⭐ 외부에서 포인트 모달을 제어할 수 있도록 동기화
+  useEffect(() => {
+    if (showPointDialog !== undefined) {
+      setShowPointConvertDialog(showPointDialog);
+    }
+  }, [showPointDialog]);
+
+  // ⭐ 내부 상태 변경 시 외부에 알림
+  useEffect(() => {
+    if (onPointDialogChange) {
+      onPointDialogChange(showPointConvertDialog);
+    }
+  }, [showPointConvertDialog, onPointDialogChange]);
 
   // Props로 받은 balance가 변경되면 업데이트
   useEffect(() => {
@@ -177,22 +193,8 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
   return (
     <>
       {/* Desktop Header */}
-      <header className="hidden md:block fixed top-0 left-0 right-0 z-50 bg-black border-b-2" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif', borderColor: '#141414' }}>
-        <div className="flex items-center justify-between px-6 h-20">
-          {/* Logo */}
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => onRouteChange('/benz')}
-              className="hover:opacity-80 transition-opacity mt-18 -ml-4"
-            >
-              <ImageWithFallback
-                src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-51-13.png"
-                alt="BENZ CASINO"
-                className="h-48 w-auto object-contain"
-              />
-            </button>
-          </div>
-
+      <header className="hidden md:block fixed top-0 left-0 right-0 z-50 border-b-2" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif', borderColor: '#141414', backgroundColor: 'rgba(0, 0, 0, 0.7)' }}>
+        <div className="flex items-center justify-end px-6 h-20">
           {/* User Info */}
           <div className="flex items-center gap-4">
             {user ? (
@@ -398,56 +400,78 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
       </header>
 
       {/* Mobile Header */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-black border-b-2" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif', borderColor: '#141414' }}>
-        <div className="flex items-center justify-between px-4 h-16">
-          {/* Logo */}
-          <button
-            onClick={() => onRouteChange('/benz')}
-            className="hover:opacity-80 transition-opacity"
-          >
-            <ImageWithFallback
-              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-50-36.jpg"
-              alt="BENZ CASINO"
-              className="h-15 w-auto object-contain"
-            />
-          </button>
-
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-black border-b-0 md:border-b-2" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif', borderColor: '#141414' }}>
+        <div className="flex items-center justify-end px-4 h-16">
           {/* Right Actions */}
           <div className="flex items-center gap-2">
             {user ? (
               <>
-                <Button 
+                <button 
                   onClick={onLogout}
-                  size="sm"
-                  variant="outline"
-                  className="border-purple-500 text-purple-400 hover:bg-purple-900/30 h-9 px-3"
+                  className="px-4 py-2 rounded-lg transition-all duration-300 hover:scale-105 group relative overflow-hidden"
+                  style={{
+                    background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                    boxShadow: '0 4px 15px rgba(193, 154, 107, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(230, 201, 168, 0.3)'
+                  }}
                 >
-                  로그아웃
-                </Button>
+                  <div 
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{
+                      background: 'linear-gradient(135deg, #D4AF87 0%, #C19A6B 100%)'
+                    }}
+                  ></div>
+                  <span 
+                    className="relative z-10 font-bold text-sm tracking-wide"
+                    style={{
+                      color: '#FFFFFF',
+                      textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)'
+                    }}
+                  >
+                    로그아웃
+                  </span>
+                </button>
                 <Button
                   onClick={() => setShowMobileMenu(true)}
                   size="sm"
                   className="bg-transparent hover:bg-purple-900/20 h-9 w-9 p-0 border-none"
                 >
-                  <Menu className="w-5 h-5 text-purple-400" />
+                  <Menu className="w-5 h-5" style={{ color: '#E6C9A8' }} />
                 </Button>
               </>
             ) : (
               <>
-                <Button 
+                <button 
                   onClick={onOpenLoginModal}
-                  size="sm"
-                  variant="outline"
-                  className="border-purple-500 text-purple-400 hover:bg-purple-900/30 h-9 px-3"
+                  className="px-4 py-2 rounded-lg border transition-all duration-300 hover:scale-105 group relative overflow-hidden"
+                  style={{
+                    background: 'transparent',
+                    borderColor: 'rgba(193, 154, 107, 0.5)',
+                    boxShadow: '0 2px 8px rgba(193, 154, 107, 0.2)'
+                  }}
                 >
-                  로그인
-                </Button>
+                  <div 
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.1) 100%)'
+                    }}
+                  ></div>
+                  <span 
+                    className="relative z-10 font-semibold text-sm tracking-wide"
+                    style={{
+                      color: '#E6C9A8',
+                      textShadow: '0 2px 4px rgba(193, 154, 107, 0.3)'
+                    }}
+                  >
+                    로그인
+                  </span>
+                </button>
                 <Button
                   onClick={() => setShowMobileMenu(true)}
                   size="sm"
                   className="bg-transparent hover:bg-purple-900/20 h-9 w-9 p-0 border-none"
                 >
-                  <Menu className="w-5 h-5 text-purple-400" />
+                  <Menu className="w-5 h-5" style={{ color: '#E6C9A8' }} />
                 </Button>
               </>
             )}
@@ -465,26 +489,30 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
           />
           
           {/* Sidebar */}
-          <div className="fixed top-0 right-0 bottom-0 w-80 bg-black z-[70] md:hidden overflow-y-auto">
+          <div className="fixed top-0 right-0 bottom-0 w-80 bg-black z-[70] md:hidden overflow-y-auto" style={{ fontFamily: '"AsiHead", sans-serif' }}>
             <div className="p-6">
               {/* Close Button */}
               <button
                 onClick={() => setShowMobileMenu(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                className="absolute top-4 right-4 hover:text-white transition-colors"
+                style={{ color: '#E6C9A8' }}
               >
                 <X className="w-6 h-6" />
               </button>
 
               {/* User Info */}
               {user && (
-                <div className="mb-4 space-y-2">
-                  <div className="text-lg text-orange-400 font-bold">{user.nickname}님</div>
+                <div className="mb-6 space-y-3">
+                  <div className="text-lg font-bold" style={{ color: '#E6C9A8' }}>{user.nickname}님</div>
                   
-                  <div className="space-y-2">
-                    <div className="p-2.5 bg-[#1a1f3a] rounded-lg border border-purple-900/30">
-                      <div className="text-xs text-gray-400 mb-0.5">보유머니</div>
-                      <div className="text-lg text-orange-400 font-bold">
-                        <AnimatedCurrency value={balance.balance} duration={800} /> 원
+                  <div className="flex gap-2">
+                    <div className="flex-1 p-3 rounded-lg border" style={{ 
+                      background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.6) 0%, rgba(30, 30, 45, 0.4) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)'
+                    }}>
+                      <div className="text-xs text-gray-400 mb-1">보유머니</div>
+                      <div className="font-bold" style={{ color: '#E6C9A8', fontSize: '15px' }}>
+                        <AnimatedCurrency value={balance.balance} duration={800} />원
                       </div>
                     </div>
                     
@@ -493,11 +521,15 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                         setShowPointConvertDialog(true);
                         setShowMobileMenu(false);
                       }}
-                      className="w-full p-2.5 bg-[#1a1f3a] rounded-lg border border-purple-900/30 hover:bg-purple-900/20 transition-colors"
+                      className="flex-1 p-3 rounded-lg border transition-colors"
+                      style={{ 
+                        background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.6) 0%, rgba(30, 30, 45, 0.4) 100%)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)'
+                      }}
                     >
-                      <div className="text-xs text-gray-400 mb-0.5">포인트</div>
-                      <div className="text-lg text-green-400 font-bold">
-                        <AnimatedPoints value={balance.points} duration={800} /> P
+                      <div className="text-xs text-gray-400 mb-1">포인트</div>
+                      <div className="font-bold" style={{ color: '#A8E6CF', fontSize: '15px' }}>
+                        <AnimatedPoints value={balance.points} duration={800} />P
                       </div>
                     </button>
                   </div>
@@ -507,7 +539,7 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
               {/* Menu Items */}
               <nav className="space-y-2">
                 <div className="mb-4">
-                  <h3 className="text-sm font-semibold text-gray-400 uppercase mb-3 px-2">메뉴</h3>
+                  <h3 className="text-sm font-semibold uppercase mb-3 px-2" style={{ color: '#C19A6B' }}>메뉴</h3>
                   <div className="space-y-1">
                     <button
                       onClick={() => {
@@ -519,10 +551,21 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                         onRouteChange('/benz/casino');
                         setShowMobileMenu(false);
                       }}
-                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                      className="w-full flex items-center gap-3 p-4 text-left rounded-lg transition-colors border border-transparent"
+                      style={{
+                        color: '#E6C9A8'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+                        e.currentTarget.style.borderColor = 'rgba(193, 154, 107, 0.4)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.borderColor = 'transparent';
+                      }}
                     >
-                      <Gamepad2 className="w-5 h-5 text-purple-400" />
-                      <span className="text-white">카지노</span>
+                      <Gamepad2 className="w-5 h-5" style={{ color: '#D4AF87' }} />
+                      <span>카지노</span>
                     </button>
 
                     <button
@@ -535,10 +578,21 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                         onRouteChange('/benz/slot');
                         setShowMobileMenu(false);
                       }}
-                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                      className="w-full flex items-center gap-3 p-4 text-left rounded-lg transition-colors border border-transparent"
+                      style={{
+                        color: '#E6C9A8'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+                        e.currentTarget.style.borderColor = 'rgba(193, 154, 107, 0.4)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.borderColor = 'transparent';
+                      }}
                     >
-                      <Coins className="w-5 h-5 text-yellow-400" />
-                      <span className="text-white">슬롯</span>
+                      <Coins className="w-5 h-5" style={{ color: '#F4D03F' }} />
+                      <span>슬롯</span>
                     </button>
 
                     <button
@@ -551,10 +605,21 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                         onRouteChange('/benz/notice');
                         setShowMobileMenu(false);
                       }}
-                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                      className="w-full flex items-center gap-3 p-4 text-left rounded-lg transition-colors border border-transparent"
+                      style={{
+                        color: '#E6C9A8'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+                        e.currentTarget.style.borderColor = 'rgba(193, 154, 107, 0.4)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.borderColor = 'transparent';
+                      }}
                     >
-                      <Bell className="w-5 h-5 text-blue-400" />
-                      <span className="text-white">공지사항</span>
+                      <Bell className="w-5 h-5" style={{ color: '#C19A6B' }} />
+                      <span>공지사항</span>
                     </button>
 
                     <button
@@ -567,27 +632,49 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                         onRouteChange('/benz/support');
                         setShowMobileMenu(false);
                       }}
-                      className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                      className="w-full flex items-center gap-3 p-4 text-left rounded-lg transition-colors border border-transparent"
+                      style={{
+                        color: '#E6C9A8'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+                        e.currentTarget.style.borderColor = 'rgba(193, 154, 107, 0.4)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.borderColor = 'transparent';
+                      }}
                     >
-                      <MessageSquare className="w-5 h-5 text-green-400" />
-                      <span className="text-white">고객센터</span>
+                      <MessageSquare className="w-5 h-5" style={{ color: '#D4AF87' }} />
+                      <span>고객센터</span>
                     </button>
                   </div>
                 </div>
 
                 {user && (
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-400 uppercase mb-3 px-2">회원</h3>
+                    <h3 className="text-sm font-semibold uppercase mb-3 px-2" style={{ color: '#C19A6B' }}>회원</h3>
                     <div className="space-y-1">
                       <button
                         onClick={() => {
                           onRouteChange('/benz/deposit');
                           setShowMobileMenu(false);
                         }}
-                        className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                        className="w-full flex items-center gap-3 p-4 text-left rounded-lg transition-colors border border-transparent"
+                        style={{
+                          color: '#E6C9A8'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+                          e.currentTarget.style.borderColor = 'rgba(193, 154, 107, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.borderColor = 'transparent';
+                        }}
                       >
-                        <CreditCard className="w-5 h-5 text-green-400" />
-                        <span className="text-white">입금신청</span>
+                        <CreditCard className="w-5 h-5" style={{ color: '#A8E6CF' }} />
+                        <span>입금신청</span>
                       </button>
 
                       <button
@@ -595,21 +682,21 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                           onRouteChange('/benz/withdraw');
                           setShowMobileMenu(false);
                         }}
-                        className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
-                      >
-                        <ArrowUpDown className="w-5 h-5 text-red-400" />
-                        <span className="text-white">출금신청</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          onRouteChange('/benz/betting-history');
-                          setShowMobileMenu(false);
+                        className="w-full flex items-center gap-3 p-4 text-left rounded-lg transition-colors border border-transparent"
+                        style={{
+                          color: '#E6C9A8'
                         }}
-                        className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+                          e.currentTarget.style.borderColor = 'rgba(193, 154, 107, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.borderColor = 'transparent';
+                        }}
                       >
-                        <History className="w-5 h-5 text-blue-400" />
-                        <span className="text-white">베팅내역</span>
+                        <ArrowUpDown className="w-5 h-5" style={{ color: '#FFB6B6' }} />
+                        <span>출금신청</span>
                       </button>
 
                       <button
@@ -617,10 +704,21 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                           onRouteChange('/benz/profile');
                           setShowMobileMenu(false);
                         }}
-                        className="w-full flex items-center gap-3 p-4 text-left hover:bg-purple-900/20 rounded-lg transition-colors border border-transparent hover:border-purple-500/30"
+                        className="w-full flex items-center gap-3 p-4 text-left rounded-lg transition-colors border border-transparent"
+                        style={{
+                          color: '#E6C9A8'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+                          e.currentTarget.style.borderColor = 'rgba(193, 154, 107, 0.4)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.borderColor = 'transparent';
+                        }}
                       >
-                        <User className="w-5 h-5 text-purple-400" />
-                        <span className="text-white">내 정보</span>
+                        <User className="w-5 h-5" style={{ color: '#D4AF87' }} />
+                        <span>내 정보</span>
                       </button>
                     </div>
                   </div>
@@ -632,15 +730,22 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
       )}
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-black border-t border-purple-900/30" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-black border-t" style={{ fontFamily: '"AsiHead", sans-serif', borderColor: 'rgba(193, 154, 107, 0.3)' }}>
         <div className="flex items-center justify-around h-16">
           {/* 홈 */}
           <button
             onClick={() => onRouteChange('/benz')}
-            className="flex flex-col items-center justify-center flex-1 h-full hover:bg-purple-900/20 transition-colors"
+            className="flex flex-col items-center justify-center flex-1 h-full transition-colors"
+            style={{ color: '#E6C9A8' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
           >
-            <Home className="w-6 h-6 text-purple-400 mb-1" />
-            <span className="text-xs text-gray-400">홈</span>
+            <Home className="w-6 h-6 mb-1" style={{ color: '#D4AF87' }} />
+            <span className="text-xs">홈</span>
           </button>
 
           {/* 입금 */}
@@ -652,10 +757,17 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
               }
               onRouteChange('/benz/deposit');
             }}
-            className="flex flex-col items-center justify-center flex-1 h-full hover:bg-purple-900/20 transition-colors"
+            className="flex flex-col items-center justify-center flex-1 h-full transition-colors"
+            style={{ color: '#E6C9A8' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
           >
-            <ArrowUpCircle className="w-6 h-6 text-green-400 mb-1" />
-            <span className="text-xs text-gray-400">입금</span>
+            <ArrowUpCircle className="w-6 h-6 mb-1" style={{ color: '#A8E6CF' }} />
+            <span className="text-xs">입금</span>
           </button>
 
           {/* 출금 */}
@@ -667,10 +779,17 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
               }
               onRouteChange('/benz/withdraw');
             }}
-            className="flex flex-col items-center justify-center flex-1 h-full hover:bg-purple-900/20 transition-colors"
+            className="flex flex-col items-center justify-center flex-1 h-full transition-colors"
+            style={{ color: '#E6C9A8' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
           >
-            <ArrowDownCircle className="w-6 h-6 text-red-400 mb-1" />
-            <span className="text-xs text-gray-400">출금</span>
+            <ArrowDownCircle className="w-6 h-6 mb-1" style={{ color: '#FFB6B6' }} />
+            <span className="text-xs">출금</span>
           </button>
 
           {/* 포인트 */}
@@ -682,10 +801,17 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
               }
               setShowPointConvertDialog(true);
             }}
-            className="flex flex-col items-center justify-center flex-1 h-full hover:bg-purple-900/20 transition-colors"
+            className="flex flex-col items-center justify-center flex-1 h-full transition-colors"
+            style={{ color: '#E6C9A8' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
           >
-            <Gift className="w-6 h-6 text-yellow-400 mb-1" />
-            <span className="text-xs text-gray-400">포인트</span>
+            <Gift className="w-6 h-6 mb-1" style={{ color: '#F4D03F' }} />
+            <span className="text-xs">포인트</span>
           </button>
 
           {/* 회원가입 */}
@@ -697,10 +823,17 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
                 onOpenSignupModal?.();
               }
             }}
-            className="flex flex-col items-center justify-center flex-1 h-full hover:bg-purple-900/20 transition-colors"
+            className="flex flex-col items-center justify-center flex-1 h-full transition-colors"
+            style={{ color: '#E6C9A8' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(193, 154, 107, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
           >
-            <UserPlus className="w-6 h-6 text-pink-400 mb-1" />
-            <span className="text-xs text-gray-400">{user ? '내정보' : '회원가입'}</span>
+            <UserPlus className="w-6 h-6 mb-1" style={{ color: '#C19A6B' }} />
+            <span className="text-xs">{user ? '내정보' : '회원가입'}</span>
           </button>
         </div>
       </nav>

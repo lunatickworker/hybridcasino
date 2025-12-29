@@ -405,7 +405,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       if (gameIds.length > 0) {
         const { data: gamesData } = await supabase
           .from('games')
-          .select('id, name, provider_id, game_providers(name)')
+          .select('id, name, provider_id')
           .in('id', gameIds);
         
         if (gamesData) {

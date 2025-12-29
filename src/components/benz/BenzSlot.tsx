@@ -35,18 +35,14 @@ interface Game {
 }
 
 const FALLBACK_PROVIDERS = [
-  { id: 101, name: '프라그마틱 플레이', name_ko: '프라그마틱 플레이', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s1.png', status: 'visible' },
-  { id: 102, name: 'PG소프트', name_ko: 'PG소프트', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s2.png', status: 'visible' },
-  { id: 103, name: '넷엔트', name_ko: '넷엔트', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s10.png', status: 'visible' },
-  { id: 104, name: '레드타이거', name_ko: '레드타이거', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s11.png', status: 'visible' },
-  { id: 105, name: '플레이앤고', name_ko: '플레이앤고', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s12.png', status: 'visible' },
-  { id: 106, name: '퀵스핀', name_ko: '퀵스핀', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s13.png', status: 'visible' },
-  { id: 107, name: '이그드라실', name_ko: '이그드라실', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s14.png', status: 'visible' },
-  { id: 108, name: '하바네로', name_ko: '하바네로', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s15.png', status: 'visible' },
-  { id: 109, name: '블루프린트', name_ko: '블루프린트', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s16.png', status: 'visible' },
-  { id: 110, name: '빅타임게이밍', name_ko: '빅타임게이밍', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s17.png', status: 'visible' },
-  { id: 111, name: '릴렉스 게이밍', name_ko: '릴렉스 게이밍', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s18.png', status: 'visible' },
-  { id: 112, name: '노리밋 시티', name_ko: '노리밋 시티', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/s19.png', status: 'visible' },
+  { id: 101, name: 'Pragmatic Play', name_ko: '프라그마틱 플레이', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticslot.jpg', status: 'visible' },
+  { id: 102, name: 'PG Soft', name_ko: 'PG 소프트', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pgsoft.jpg', status: 'visible' },
+  { id: 103, name: 'Habanero', name_ko: '하바네로', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/habanero.jpg', status: 'visible' },
+  { id: 104, name: 'Booongo', name_ko: '부운고', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/bng.jpg', status: 'visible' },
+  { id: 105, name: 'CQ9', name_ko: 'CQ9', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/cq9.jpg', status: 'visible' },
+  { id: 106, name: 'Evoplay', name_ko: '에보플레이', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evoplay.jpg', status: 'visible' },
+  { id: 107, name: 'Nolimit City', name_ko: '노리밋시티', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/nolimit.jpg', status: 'visible' },
+  { id: 108, name: 'Jingzibao', name_ko: '진지바오시', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/jinjibaoxi.jpg', status: 'visible' },
 ];
 
 // 랜덤 이미지 선택 함수
@@ -403,10 +399,10 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
 
         {/* 제공사 목록 - 4칸 정렬 */}
         {!selectedProvider && (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {loading ? (
               Array(8).fill(0).map((_, i) => (
-                <div key={i} className="aspect-[3/4] rounded-2xl animate-pulse" style={{
+                <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{
                   background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)'
                 }}></div>
               ))
@@ -419,7 +415,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                   className="cursor-pointer group"
                   onClick={() => handleProviderClick(provider)}
                 >
-                  <div className="relative aspect-[3/4] overflow-hidden rounded-2xl transition-all duration-500" style={{
+                  <div className="relative aspect-square overflow-hidden rounded-2xl transition-all duration-500" style={{
                     background: '#16161f',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
                   }}>
@@ -437,16 +433,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                     <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
                       boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
                     }}></div>
-                    
-                    {/* 제공사명 */}
-                    <div className="absolute bottom-0 left-0 right-0 p-6">
-                      <p className="text-2xl font-black text-white tracking-tight" style={{
-                        textShadow: '0 2px 20px rgba(0,0,0,0.9)',
-                        letterSpacing: '-0.02em'
-                      }}>
-                        {provider.name_ko || provider.name}
-                      </p>
-                    </div>
                   </div>
                 </motion.div>
               ))
@@ -456,10 +442,10 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
 
         {/* 게임 목록 - 4칸 정렬 */}
         {selectedProvider && (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {gamesLoading ? (
               Array(8).fill(0).map((_, i) => (
-                <div key={i} className="aspect-[3/4] rounded-2xl animate-pulse" style={{
+                <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{
                   background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)'
                 }}></div>
               ))
@@ -476,7 +462,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                   className="cursor-pointer group"
                   onClick={() => handleGameClick(game)}
                 >
-                  <div className="relative aspect-[3/4] overflow-hidden rounded-2xl transition-all duration-500" style={{
+                  <div className="relative aspect-square overflow-hidden rounded-2xl transition-all duration-500" style={{
                     background: '#16161f',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
                   }}>
@@ -502,17 +488,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                     <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
                       boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
                     }}></div>
-                    
-                    {/* 게임명 - 항상 표시, 한글 우선 */}
-                    <div className="absolute bottom-0 left-0 right-0 p-5">
-                      <p className="text-[22px] font-black text-white leading-tight line-clamp-2" style={{
-                        textShadow: '0 3px 24px rgba(0,0,0,1), 0 1px 8px rgba(0,0,0,0.9)',
-                        letterSpacing: '-0.03em',
-                        wordBreak: 'keep-all'
-                      }}>
-                        {game.name_ko || game.name}
-                      </p>
-                    </div>
                     
                     {/* 호버 시 플레이 버튼 */}
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500">

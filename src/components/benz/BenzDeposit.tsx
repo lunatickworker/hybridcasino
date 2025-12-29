@@ -592,7 +592,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
 
           {/* 입금 보유머니 */}
           <div className="mb-6">
-            <label className="block text-base font-semibold mb-3" style={{ color: '#E6C9A8' }}>입금 보유머니</label>
+            <label className="block text-base font-semibold mb-3" style={{ color: '#E6C9A8' }}>입금액</label>
             <div className="relative">
               <div className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-lg" style={{ color: '#C19A6B' }}>₩</div>
               <input
@@ -602,15 +602,14 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
                   const value = e.target.value.replace(/[^0-9]/g, '');
                   setDepositAmount(value ? parseInt(value).toLocaleString() : '');
                 }}
-                placeholder="입금할 보유머니를 입력해주세요"
-                className="w-full px-14 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:ring-2 transition-all font-semibold border-0"
+                placeholder="입금할 금액을 입력해주세요"
+                className="w-full pl-14 pr-5 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:ring-2 transition-all font-semibold border-0"
                 style={{
                   background: 'rgba(0, 0, 0, 0.3)',
                   border: '1px solid rgba(193, 154, 107, 0.3)',
                   borderRadius: '8px'
                 }}
               />
-              <div className="absolute right-5 top-1/2 -translate-y-1/2 font-bold text-lg" style={{ color: '#C19A6B' }}>₩</div>
             </div>
           </div>
 
@@ -654,7 +653,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
 
           {/* 금액 버튼 + 신청하기 */}
           <div className="flex gap-3 mb-8">
-            <div className="flex gap-2 flex-wrap flex-1">
+            <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 flex-1">
               {[
                 { amount: 10000, label: '1만원' },
                 { amount: 30000, label: '3만원' },
@@ -667,7 +666,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
                 <button
                   key={amount}
                   onClick={() => handleAmountClick(amount)}
-                  className="relative overflow-hidden transform transition-all duration-300 hover:scale-105 active:scale-100 px-6 py-3"
+                  className="relative overflow-hidden transform transition-all duration-300 hover:scale-105 active:scale-100 px-4 md:px-6 py-3"
                   style={{
                     background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)',
                     boxShadow: `
@@ -677,7 +676,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
                   }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-black/20 pointer-events-none"></div>
-                  <span className="relative font-black text-white" style={{
+                  <span className="relative font-black text-white text-sm md:text-base" style={{
                     textShadow: `
                       2px 2px 0px rgba(0,0,0,0.5),
                       -1px -1px 0px rgba(255,255,255,0.3),

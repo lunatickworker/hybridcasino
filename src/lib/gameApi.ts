@@ -2459,14 +2459,22 @@ export async function getUserVisibleGames(filters?: {
   search?: string;
   userId?: string; // 🆕 사용자 ID 추가
 }): Promise<Game[]> {
-  // 기본 게임 조회
+  // ✅ status='visible'만 체크 (is_visible 조건 제거)
   const allGames = await getGames({
     type: filters?.type,
     provider_id: filters?.provider_id,
     search: filters?.search,
-    is_visible: true,
-    status: 'visible',
+    status: 'visible', // ✅ status만 체크
   });
+
+  console.log(`🎮 [getUserVisibleGames] 초기 게임 조회: ${allGames.length}개 (type=${filters?.type}, provider_id=${filters?.provider_id})`);
+  console.log(`📋 [getUserVisibleGames] 처음 5개 게임:`, allGames.slice(0, 5).map(g => ({
+    id: g.id,
+    name: g.name,
+    provider_id: g.provider_id,
+    status: g.status,
+    is_visible: g.is_visible
+  })));
 
   // 🆕 userId가 있으면 partner_game_access로 차단 필터링 (블랙리스트 방식)
   if (filters?.userId) {
@@ -2612,20 +2620,32 @@ export async function getUserVisibleProviders(filters?: {
     
     console.log('✅ 활성화된 API:', Array.from(activeApis));
 
-    // 3. 제공사 조회 (status='visible' AND is_visible=true)
+    // 3. 제공사 조회 (status='visible'만 체크)
     // ⭐ filters.type이 있으면 제공사의 type으로 필터링
     const providers = await getProviders({
       api_type: filters?.api_type,
       type: filters?.type, // ⭐ 제공사의 type 필드로 필터링
-      is_visible: true,
-      status: 'visible',
+      status: 'visible', // ✅ status만 체크
     });
 
     console.log(`📊 [getUserVisibleProviders] 제공사 조회: ${providers.length}개 (type=${filters?.type || 'all'})`);
+    console.log(`📋 [getUserVisibleProviders] 전체 제공사 상세:`, providers.map(p => ({
+      id: p.id,
+      name: p.name,
+      api_type: p.api_type,
+      type: p.type,
+      status: p.status,
+      is_visible: p.is_visible
+    })));
 
     // 4. 활성화된 API의 제공사만 필터링
     let filteredProviders = providers.filter(p => activeApis.has(p.api_type));
     console.log(`📊 [getUserVisibleProviders] 활성화된 API 필터링: ${filteredProviders.length}개`);
+    console.log(`📋 [getUserVisibleProviders] 활성화된 API 필터 후 제공사:`, filteredProviders.map(p => ({
+      id: p.id,
+      name: p.name,
+      api_type: p.api_type
+    })));
 
     // 5. partner_game_access로 제공사 필터링 (블랙리스트 방식)
     if (userPartnerId) {

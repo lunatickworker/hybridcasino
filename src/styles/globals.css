@@ -3,6 +3,35 @@
 /* Google Fonts - Black Han Sans */
 @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap');
 
+/* AsiHead Font */
+@font-face {
+  font-family: 'AsiHead';
+  src: url('https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/asiafont_asiahead/aasihead1.ttf') format('truetype');
+  font-weight: 100;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'AsiHead';
+  src: url('https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/asiafont_asiahead/asihead2.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'AsiHead';
+  src: url('https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/asiafont_asiahead/asihead3.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'AsiHead';
+  src: url('https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/asiafont_asiahead/asihead4.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+}
+
 :root {
   --font-size: 13px;
   
@@ -547,13 +576,13 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  background: #393127;
   border-radius: 4px;
   border: 2px solid rgba(26, 31, 46, 0.5);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  background: #4a3f30;
 }
 
 /* 스크롤바 숨김 */

@@ -461,23 +461,30 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
           // ⭐ vendorMap에서 제공사 이름 찾기 (전체 vendorCode 우선, 없으면 providerCode로, 최종적으로 대문자 변환)
           providerName = vendorMap.get(bet.vendorCode) || 
                          vendorMap.get(providerCode) || 
-                         providerCode.toUpperCase() || // ⭐ 매핑 실패 시 대문자로 표시
+                         (providerCode ? providerCode.charAt(0).toUpperCase() + providerCode.slice(1) : null) || // ⭐ 매핑 실패 시 첫글자 대문자로 표시
                          'Unknown Provider';
-        } else {
+        } else if (bet.vendorCode) {
           // "-"가 없는 경우 그대로 사용
           providerName = vendorMap.get(bet.vendorCode) || bet.vendorCode || 'Unknown Provider';
+        } else {
+          // vendorCode가 아예 없는 경우
+          providerName = 'Unknown Provider';
         }
         
         // ✅ gameCode로 게임 정보 조회
-        const { data: gameData } = await supabase
-          .from('games')
-          .select('id, name, provider_id')
-          .eq('game_code', bet.gameCode)
-          .eq('api_type', 'oroplay')
-          .maybeSingle();
+        let gameData = null;
+        if (bet.gameCode) {
+          const result = await supabase
+            .from('games')
+            .select('id, name, provider_id')
+            .eq('game_code', bet.gameCode)
+            .eq('api_type', 'oroplay')
+            .maybeSingle();
+          gameData = result.data;
+        }
         
-        // ⭐ gameName: DB에 있으면 사용, 없으면 gameCode를 그대로 사용 (Unknown Game 제거)
-        const gameName = gameData?.name || bet.gameCode || 'Unknown';
+        // ⭐ gameName: DB에 있으면 사용, 없으면 gameCode를 그대로 사용, 그것도 없으면 'Unknown Game'
+        const gameName = gameData?.name || (bet.gameCode ? String(bet.gameCode) : 'Unknown Game');
         
         const { error } = await supabase
           .from('game_records')

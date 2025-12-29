@@ -241,7 +241,6 @@ export function BenzLogin({ onLoginSuccess, onRouteChange }: BenzLoginProps) {
 
       console.log('✅ 로그인 처리 완료');
       
-      toast.success(`${user.nickname}님 환영합니다!`);
       onLoginSuccess(user);
       onRouteChange('/benz/casino');
     } catch (error: any) {

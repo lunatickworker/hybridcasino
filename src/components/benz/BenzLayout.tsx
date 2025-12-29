@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState, cloneElement, ReactElement, isValidElement } from "react";
 import { BenzHeader } from "./BenzHeader";
 import { BenzSidebar } from "./BenzSidebar";
 import { BenzMessagePopup } from "./BenzMessagePopup";
@@ -24,6 +24,7 @@ interface UserBalance {
 export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpenLoginModal, onOpenSignupModal, children }: BenzLayoutProps) {
   const [userBalance, setUserBalance] = useState<UserBalance>({ balance: 0, points: 0 });
   const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' && window.innerWidth >= 768);
+  const [showPointDialog, setShowPointDialog] = useState(false); // ⭐ 포인트 모달 상태 관리
   const syncingSessionsRef = useRef<Set<number>>(new Set());
   const autoLogoutTimerRef = useRef<NodeJS.Timeout>();
   const sessionChannelRef = useRef<any>(null);
@@ -437,9 +438,11 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         onOpenSignupModal={onOpenSignupModal}
         balance={userBalance.balance}
         points={userBalance.points}
+        showPointDialog={showPointDialog}
+        onPointDialogChange={setShowPointDialog}
       />
       
-      <div className="flex pt-20">
+      <div className="flex pt-16 md:pt-20">
         {/* Sidebar */}
         <BenzSidebar 
           user={user}
@@ -447,9 +450,14 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           onRouteChange={onRouteChange}
         />
         
-        {/* Main Content */}
+        {/* Main Content - children에 포인트 모달 함수 전달 */}
         <main className="flex-1 transition-all duration-300 overflow-x-hidden md:ml-80">
-          {children}
+          {isValidElement(children) ? 
+            cloneElement(children as ReactElement<any>, { 
+              onOpenPointModal: () => setShowPointDialog(true) 
+            }) 
+            : children
+          }
         </main>
       </div>
 

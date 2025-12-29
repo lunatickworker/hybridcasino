@@ -578,7 +578,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
 
           {/* 출금 보유머니 */}
           <div className="mb-6">
-            <label className="block text-base font-semibold mb-3" style={{ color: '#E6C9A8' }}>신청 보유머니</label>
+            <label className="block text-base font-semibold mb-3" style={{ color: '#E6C9A8' }}>신청금액</label>
             <div className="relative">
               <div className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-lg" style={{ color: '#C19A6B' }}>₩</div>
               <input
@@ -592,8 +592,8 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                   }
                   setWithdrawAmount(value ? parseInt(value).toLocaleString() : '');
                 }}
-                placeholder="출금할 보유머니를 입력해주세요"
-                className="w-full px-14 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:ring-2 transition-all font-semibold border-0"
+                placeholder="출금할 금액을 입력해주세요"
+                className="w-full pl-14 pr-5 py-4 text-white text-lg placeholder-gray-500 focus:outline-none focus:ring-2 transition-all font-semibold border-0"
                 style={{
                   background: 'rgba(0, 0, 0, 0.3)',
                   border: '1px solid rgba(193, 154, 107, 0.3)',
@@ -601,7 +601,6 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                 }}
                 disabled={isWithdrawLocked}
               />
-              <div className="absolute right-5 top-1/2 -translate-y-1/2 font-bold text-lg" style={{ color: '#C19A6B' }}>₩</div>
             </div>
           </div>
 

@@ -29,6 +29,7 @@ import { AnimatedCurrency, AnimatedPoints } from "../common/AnimatedNumber";
 interface BenzProfileProps {
   user: any;
   onRouteChange: (route: string) => void;
+  onOpenPointModal?: () => void; // ⭐ 포인트 모달 열기 함수 추가
 }
 
 interface PointTransaction {
@@ -50,15 +51,15 @@ interface GameRecord {
   provider_id: string;
   provider_name: string;
   game_title: string;
+  game_type: string;
   bet_amount: number;
   win_amount: number;
   balance_before: number;
   balance_after: number;
   played_at: string;
-  game_type?: string;
 }
 
-export function BenzProfile({ user, onRouteChange }: BenzProfileProps) {
+export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfileProps) {
   const [pointTransactions, setPointTransactions] = useState<PointTransaction[]>([]);
   const [gameRecords, setGameRecords] = useState<GameRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -138,13 +139,12 @@ export function BenzProfile({ user, onRouteChange }: BenzProfileProps) {
           provider_id,
           provider_name,
           game_title,
+          game_type,
           bet_amount,
           win_amount,
           balance_before,
           balance_after,
-          played_at,
-          games(name),
-          game_providers(name)
+          played_at
         `)
         .eq('user_id', user.id)
         .order('played_at', { ascending: false })
@@ -160,10 +160,9 @@ export function BenzProfile({ user, onRouteChange }: BenzProfileProps) {
         username: record.username || 'Unknown',
         game_id: record.game_id,
         provider_id: record.provider_id,
-        // game_title 우선 사용 (직접 저장된 필드), 없으면 games JOIN 결과 사용
-        game_title: record.game_title || record.games?.name || `Game ${record.game_id}`,
-        // provider_name 우선 사용 (직접 저장된 필드), 없으면 game_providers JOIN 결과 사용
-        provider_name: record.provider_name || record.game_providers?.name || `Provider ${record.provider_id}`,
+        // game_title, provider_name은 이미 game_records에 저장되어 있음
+        game_title: record.game_title || `Game ${record.game_id}`,
+        provider_name: record.provider_name || `Provider ${record.provider_id}`,
         bet_amount: parseFloat(record.bet_amount || 0),
         win_amount: parseFloat(record.win_amount || 0),
         balance_before: parseFloat(record.balance_before || 0),
@@ -476,16 +475,23 @@ export function BenzProfile({ user, onRouteChange }: BenzProfileProps) {
                 </div>
 
                 {/* 포인트 */}
-                <div className="p-4 rounded-lg" style={{
-                  background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(202, 138, 4, 0.1) 100%)',
-                  border: '1px solid rgba(234, 179, 8, 0.3)'
-                }}>
+                <div 
+                  className="p-4 rounded-lg cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg" 
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(202, 138, 4, 0.1) 100%)',
+                    border: '1px solid rgba(234, 179, 8, 0.3)'
+                  }}
+                  onClick={() => onOpenPointModal && onOpenPointModal()}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-gray-300">포인트</span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setShowPoints(!showPoints)}
+                      onClick={(e) => {
+                        e.stopPropagation(); // 포인트 카드 클릭 이벤트 방지
+                        setShowPoints(!showPoints);
+                      }}
                       className="w-8 h-8 p-0 hover:bg-yellow-500/10"
                     >
                       {showPoints ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}

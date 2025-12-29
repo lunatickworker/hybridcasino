@@ -284,12 +284,12 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
   }, [user?.id]);
 
   return (
-    <div className="min-h-screen text-white p-6" style={{ 
+    <div className="min-h-screen text-white p-4 md:p-6 pb-20 md:pb-6" style={{ 
       fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif',
       background: 'linear-gradient(135deg, rgba(15, 15, 25, 0.95) 0%, rgba(10, 10, 20, 0.95) 100%)'
     }}>
-      <div className="flex gap-6 justify-center">
-        <div className="flex-1" style={{ maxWidth: '70%' }}>
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6 justify-center">
+        <div className="flex-1 w-full md:max-w-[70%]">
           {/* 팝업 공지사항 */}
           {popupNotices.map((popup) => (
             <div key={popup.id} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
@@ -299,7 +299,7 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
               }}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg text-white pr-8">{popup.title}</CardTitle>
+                    <CardTitle className="text-base md:text-lg text-white pr-8">{popup.title}</CardTitle>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -315,18 +315,18 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                     className="text-slate-300 text-sm max-h-60 overflow-y-auto"
                     dangerouslySetInnerHTML={{ __html: popup.content }}
                   />
-                  <div className="flex items-center justify-between pt-4 border-t" style={{
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pt-4 border-t" style={{
                     borderColor: 'rgba(193, 154, 107, 0.2)'
                   }}>
                     <span className="text-xs text-slate-500">
                       {formatDateTime(popup.created_at)}
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 w-full md:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => closePopup(popup.id, true)}
-                        className="border hover:bg-opacity-20"
+                        className="border hover:bg-opacity-20 flex-1 md:flex-initial text-xs md:text-sm"
                         style={{
                           borderColor: 'rgba(193, 154, 107, 0.3)',
                           color: '#E6C9A8'
@@ -337,7 +337,7 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
                       <Button
                         size="sm"
                         onClick={() => closePopup(popup.id)}
-                        className="rounded-lg"
+                        className="rounded-lg flex-1 md:flex-initial text-xs md:text-sm"
                         style={{
                           background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
                           boxShadow: '0 4px 15px rgba(193, 154, 107, 0.3)'
@@ -358,14 +358,14 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
               <div className="w-1.5 h-8" style={{
                 background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)'
               }}></div>
-              <h1 className="text-3xl font-bold" style={{
+              <h1 className="text-2xl md:text-3xl font-bold" style={{
                 background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text'
               }}>공지사항</h1>
             </div>
-            <p className="text-slate-400 ml-5">최신 소식과 중요한 안내사항을 확인하세요</p>
+            <p className="text-slate-400 ml-5 text-sm md:text-base">최신 소식과 중요한 안내사항을 확인하세요</p>
           </div>
 
           {/* 검색 */}

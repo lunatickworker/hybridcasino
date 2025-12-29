@@ -153,7 +153,6 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
 
       console.log('✅ 로그인 처리 완료');
       
-      toast.success(`${user.nickname}님 환영합니다!`);
       onLoginSuccess(user);
       onClose();
       

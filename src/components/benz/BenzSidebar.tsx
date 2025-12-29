@@ -13,11 +13,13 @@ import {
   Coins,
   Crown,
   History,
-  Menu
+  Menu,
+  Mail
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { motion, AnimatePresence } from "motion/react";
 import { useState } from "react";
+import { ImageWithFallback } from "../figma/ImageWithFallback";
 
 interface BenzSidebarProps {
   user: any;
@@ -29,14 +31,15 @@ interface BenzSidebarProps {
 const menuItems = [
   { path: '/benz/casino', label: '카지노', icon: Gamepad2 },
   { path: '/benz/slot', label: '슬롯', icon: Coins },
-  { path: '/benz/notice', label: '공지사항', icon: Bell },
-  { path: '/benz/support', label: '고객센터', icon: MessageSquare },
 ];
 
 const userMenuItems = [
-  { path: '/benz/deposit', label: '입금신청', icon: CreditCard },
-  { path: '/benz/withdraw', label: '출금신청', icon: ArrowUpDown },
-  { path: '/benz/profile', label: '내 정보', icon: User },
+  { path: '/benz/deposit', label: '입금', icon: CreditCard },
+  { path: '/benz/withdraw', label: '출금', icon: ArrowUpDown },
+  { path: '/benz/notice', label: '공지사항', icon: Bell },
+  { path: '/benz/points', label: '포인트', icon: Star },
+  { path: '/benz/support', label: '고객센터', icon: Mail },
+  { path: '/benz/profile', label: '회원정보수정', icon: User },
 ];
 
 export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarProps) {
@@ -50,8 +53,9 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
       '/benz/profile',
       '/benz/casino',
       '/benz/slot',
-      '/benz/support',
-      '/benz/notice'
+      '/benz/notice',
+      '/benz/points',
+      '/benz/support'
     ];
     
     if (requiresLogin.includes(path) && !user) {
@@ -90,12 +94,25 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
       {/* Sidebar */}
       <aside className="hidden md:block fixed left-0 top-20 h-[calc(100vh-5rem)] w-80 z-40 overflow-y-auto" style={{ 
         fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
-        background: 'linear-gradient(180deg, rgba(20, 20, 30, 0.98) 0%, rgba(15, 15, 25, 0.98) 100%)',
-        borderRight: '2px solid rgba(193, 154, 107, 0.2)',
+        background: 'linear-gradient(180deg, #1a1a1a 0%, #131313 100%)',
+        borderRight: '4px solid rgba(193, 154, 107, 0.2)',
         boxShadow: '4px 0 20px rgba(0, 0, 0, 0.5)'
       }}>
-        <div className="p-4 space-y-6" style={{ marginTop: '40px' }}>
-          {/* Logo - 삭제 */}
+        <div className="p-4 space-y-6" style={{ marginTop: '25px' }}>
+          {/* Logo */}
+          <div className="flex justify-center mb-6" style={{ marginTop: '2px' }}>
+            <button 
+              onClick={() => onRouteChange('/benz')}
+              className="w-full flex justify-center cursor-pointer"
+            >
+              <ImageWithFallback
+                src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/main%20logo.png"
+                alt="BENZ CASINO"
+                className="h-auto object-contain px-4"
+                style={{ width: '80%' }}
+              />
+            </button>
+          </div>
 
           {/* Main Menu */}
           <div>
@@ -113,25 +130,36 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                         : 'hover:scale-105'
                     }`}
                     style={{
-                      background: isActive 
-                        ? 'linear-gradient(135deg, rgba(193, 154, 107, 0.25) 0%, rgba(166, 124, 82, 0.15) 100%)'
-                        : 'transparent',
-                      border: isActive
-                        ? '1px solid rgba(193, 154, 107, 0.4)'
-                        : '1px solid transparent',
+                      border: '1px solid transparent',
                       boxShadow: isActive 
                         ? '0 4px 15px rgba(193, 154, 107, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
                         : 'none'
                     }}
                   >
-                    {/* 호버 배경 효과 */}
+                    {/* 기본 배경 이미지 */}
                     <div 
-                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                      className={`absolute inset-0 transition-opacity duration-300 ${
+                        isActive ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
+                      }`}
                       style={{
-                        background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.08) 100%)'
+                        backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu-bg.png)',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
                       }}
                     ></div>
-                    
+
+                    {/* 호버/활성 배경 이미지 */}
+                    <div 
+                      className={`absolute inset-0 transition-opacity duration-300 ${ 
+                        isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                      style={{
+                        backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
+                      }}
+                    ></div>
+
                     {/* 왼쪽 골드 라인 */}
                     <div 
                       className={`absolute left-0 top-0 bottom-0 w-1 transition-all duration-300 ${
@@ -146,20 +174,16 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                     <Icon 
                       className="w-6 h-6 relative z-10 transition-all duration-300"
                       style={{
-                        color: isActive ? '#E6C9A8' : '#9CA3AF',
-                        filter: isActive 
-                          ? 'drop-shadow(0 0 6px rgba(193, 154, 107, 0.6))'
-                          : 'none'
+                        color: '#888773',
+                        filter: 'none'
                       }}
                     />
                     <span 
                       className="relative z-10 font-bold tracking-wide transition-all duration-300"
                       style={{
-                        fontSize: '1.5rem',
-                        color: isActive ? '#E6C9A8' : '#D1D5DB',
-                        textShadow: isActive 
-                          ? '0 2px 8px rgba(193, 154, 107, 0.4)'
-                          : 'none'
+                        fontSize: '20px',
+                        color: '#888773',
+                        textShadow: 'none'
                       }}
                     >
                       {item.label}
@@ -178,18 +202,8 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
             </nav>
           </div>
 
-          {/* User Menu */}
-          <div>
-            <h3 
-              className="font-bold uppercase mb-3 px-4 tracking-wider"
-              style={{
-                fontSize: '1.1rem',
-                color: '#A67C52',
-                textShadow: '0 2px 4px rgba(0, 0, 0, 0.5)'
-              }}
-            >
-              회원
-            </h3>
+          {/* User Menu - 버튼 하나의 공간만큼 간격 추가 */}
+          <div style={{ marginTop: '60px' }}>
             <nav className="space-y-2">
               {userMenuItems.map((item) => {
                 const Icon = item.icon;
@@ -204,25 +218,36 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                         : 'hover:scale-105'
                     }`}
                     style={{
-                      background: isActive 
-                        ? 'linear-gradient(135deg, rgba(193, 154, 107, 0.25) 0%, rgba(166, 124, 82, 0.15) 100%)'
-                        : 'transparent',
-                      border: isActive
-                        ? '1px solid rgba(193, 154, 107, 0.4)'
-                        : '1px solid transparent',
+                      border: '1px solid transparent',
                       boxShadow: isActive 
                         ? '0 4px 15px rgba(193, 154, 107, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
                         : 'none'
                     }}
                   >
-                    {/* 호버 배경 효과 */}
+                    {/* 기본 배경 이미지 */}
                     <div 
-                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                      className={`absolute inset-0 transition-opacity duration-300 ${
+                        isActive ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
+                      }`}
                       style={{
-                        background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.08) 100%)'
+                        backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu-bg.png)',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
                       }}
                     ></div>
-                    
+
+                    {/* 호버/활성 배경 이미지 */}
+                    <div 
+                      className={`absolute inset-0 transition-opacity duration-300 ${ 
+                        isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                      style={{
+                        backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center'
+                      }}
+                    ></div>
+
                     {/* 왼쪽 골드 라인 */}
                     <div 
                       className={`absolute left-0 top-0 bottom-0 w-1 transition-all duration-300 ${
@@ -237,20 +262,16 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                     <Icon 
                       className="w-6 h-6 relative z-10 transition-all duration-300"
                       style={{
-                        color: isActive ? '#E6C9A8' : '#9CA3AF',
-                        filter: isActive 
-                          ? 'drop-shadow(0 0 6px rgba(193, 154, 107, 0.6))'
-                          : 'none'
+                        color: '#888773',
+                        filter: 'none'
                       }}
                     />
                     <span 
                       className="relative z-10 font-bold tracking-wide transition-all duration-300"
                       style={{
-                        fontSize: '1.5rem',
-                        color: isActive ? '#E6C9A8' : '#D1D5DB',
-                        textShadow: isActive 
-                          ? '0 2px 8px rgba(193, 154, 107, 0.4)'
-                          : 'none'
+                        fontSize: '20px',
+                        color: '#888773',
+                        textShadow: 'none'
                       }}
                     >
                       {item.label}

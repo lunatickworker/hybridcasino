@@ -16,6 +16,7 @@ interface BenzRoutesProps {
   currentRoute: string;
   user: any;
   onRouteChange: (route: string) => void;
+  onOpenPointModal?: () => void; // ⭐ 포인트 모달 열기 함수 추가
 }
 
 const LoadingFallback = () => (
@@ -24,7 +25,7 @@ const LoadingFallback = () => (
   </div>
 );
 
-export const BenzRoutes = memo(({ currentRoute, user, onRouteChange }: BenzRoutesProps) => {
+export const BenzRoutes = memo(({ currentRoute, user, onRouteChange, onOpenPointModal }: BenzRoutesProps) => {
   const renderRoute = () => {
     switch (currentRoute) {
       case '/benz':
@@ -43,7 +44,7 @@ export const BenzRoutes = memo(({ currentRoute, user, onRouteChange }: BenzRoute
       case '/benz/support':
         return <BenzSupport user={user} onRouteChange={onRouteChange} />;
       case '/benz/profile':
-        return <BenzProfile user={user} onRouteChange={onRouteChange} />;
+        return <BenzProfile user={user} onRouteChange={onRouteChange} onOpenPointModal={onOpenPointModal} />;
       case '/benz/betting-history':
         return <UserBettingHistory user={user} />;
       default:

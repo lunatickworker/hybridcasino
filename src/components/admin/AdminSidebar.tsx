@@ -443,7 +443,8 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
           <span className={cn(
             "flex-1 text-left font-medium",
             isActive && "font-semibold"
-          )}>
+          )}
+          style={{ fontFamily: 'AsiHead, Arial, sans-serif' }}>
             {item.title}
           </span>
           {hasChildren && (
@@ -465,7 +466,10 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
   };
 
   return (
-    <div className={cn("flex flex-col h-full bg-[#0f1419] overflow-hidden", className)}>
+    <div className={cn("flex flex-col h-full overflow-hidden", className)}
+      style={{
+        background: '#0b0b0b'
+      }}>
       <div className="py-2 px-3 border-b border-slate-700/50 flex-shrink-0">
         <div className="flex items-center justify-center">
           <img 
@@ -480,7 +484,7 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
         {loadingMenus ? (
           <div className="text-center py-8">
             <div className="loading-premium mx-auto"></div>
-            <p className="text-xs text-slate-400 mt-2">{language === 'en' ? 'Loading menu...' : '메뉴 로딩 중...'}</p>
+            <p className="text-xs text-slate-400 mt-2" style={{ fontFamily: 'AsiHead, Arial, sans-serif' }}>{language === 'en' ? 'Loading menu...' : '메뉴 로딩 중...'}</p>
           </div>
         ) : (
           menuItems.map(item => renderMenuItem(item))
@@ -488,7 +492,7 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       </div>
 
       <div className="p-3 border-t border-slate-700/50 flex-shrink-0">
-        <div className="w-full text-xs text-slate-500 text-center truncate">
+        <div className="w-full text-xs text-slate-500 text-center truncate" style={{ fontFamily: 'AsiHead, Arial, sans-serif' }}>
           GMS v1.0
         </div>
       </div>

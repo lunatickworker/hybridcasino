@@ -348,9 +348,9 @@ export function BenzSupport({ user, onRouteChange }: BenzSupportProps) {
   }, [messages, searchQuery, filterStatus]);
 
   return (
-    <div className="min-h-screen text-white p-6" style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif' }}>
-      <div className="flex gap-6 justify-center">
-        <div className="flex-1" style={{ maxWidth: '70%' }}>
+    <div className="min-h-screen text-white p-4 md:p-6 pb-20 md:pb-6" style={{ fontFamily: '"Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif' }}>
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6 justify-center">
+        <div className="flex-1 w-full md:max-w-[70%]">
           {/* 제목 */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
             <div>
@@ -358,18 +358,18 @@ export function BenzSupport({ user, onRouteChange }: BenzSupportProps) {
                 <div className="w-1.5 h-8" style={{
                   background: 'linear-gradient(180deg, #C19A6B 0%, #A67C52 100%)'
                 }}></div>
-                <h1 className="text-3xl font-bold" style={{
+                <h1 className="text-2xl md:text-3xl font-bold" style={{
                   background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 50%, #A67C52 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text'
                 }}>고객센터</h1>
               </div>
-              <p className="text-slate-400 ml-5">문의하신 내용에 대해 빠르게 답변해 드립니다</p>
+              <p className="text-slate-400 ml-5 text-sm md:text-base">문의하신 내용에 대해 빠르게 답변해 드립니다</p>
             </div>
             <Dialog open={showNewInquiryDialog} onOpenChange={setShowNewInquiryDialog}>
               <DialogTrigger asChild>
-                <Button className="h-12 px-6 text-base border-0" style={{
+                <Button className="w-full lg:w-auto h-12 px-6 text-base border-0" style={{
                   background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
                   color: '#FFFFFF',
                   boxShadow: '0 4px 15px rgba(193, 154, 107, 0.3)'
@@ -514,7 +514,7 @@ export function BenzSupport({ user, onRouteChange }: BenzSupportProps) {
                   </div>
                 </div>
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-48 h-12 text-base text-white border-0" style={{
+                  <SelectTrigger className="w-full lg:w-48 h-12 text-base text-white border-0" style={{
                     background: 'rgba(0, 0, 0, 0.3)',
                     borderRadius: '8px'
                   }}>
