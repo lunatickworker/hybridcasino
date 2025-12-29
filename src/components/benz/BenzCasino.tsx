@@ -46,6 +46,46 @@ const FALLBACK_PROVIDERS = [
   { id: 8, name: 'Play Ace', name_ko: '플레이 에이스', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg', status: 'visible' },
 ];
 
+// 게임사 이름으로 logo_url 찾기
+const getLogoUrlByProviderName = (provider: GameProvider): string | undefined => {
+  const name = (provider.name_ko || provider.name || '').toLowerCase();
+  
+  // Evolution
+  if (name.includes('evolution') || name.includes('에볼루션')) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evolution.jpg';
+  }
+  // Pragmatic Play Live
+  if ((name.includes('pragmatic') || name.includes('프라그마틱')) && (name.includes('live') || name.includes('라이브'))) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticlive.jpg';
+  }
+  // Microgaming
+  if (name.includes('microgaming') || name.includes('마이크로')) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg';
+  }
+  // Asia Gaming
+  if (name.includes('asia') || name.includes('아시아')) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/asiagaming.jpg';
+  }
+  // SA Gaming
+  if (name.includes('sa gaming') || name.includes('sa게이밍') || name === 'sa') {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/sagaming.jpg';
+  }
+  // Ezugi
+  if (name.includes('ezugi') || name.includes('이주기')) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/ezugi.jpg';
+  }
+  // Dream Gaming
+  if (name.includes('dream') || name.includes('드림')) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/dreamgaming.jpg';
+  }
+  // Play Ace
+  if (name.includes('playace') || name.includes('플레이') || name.includes('에이스')) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg';
+  }
+  
+  return provider.logo_url;
+};
+
 // 랜덤 이미지 선택 함수
 const getRandomCasinoImage = () => {
   const randomIndex = Math.floor(Math.random() * FALLBACK_PROVIDERS.length);
@@ -78,6 +118,15 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
         type: 'casino', 
         userId: user?.id 
       });
+      
+      console.log('🎰 [BenzCasino] API 응답 게임사:', providersData.length, '개');
+      console.log('🎰 [BenzCasino] 게임사 상세:', providersData.map(p => ({
+        id: p.id,
+        name: p.name,
+        name_ko: p.name_ko,
+        status: p.status,
+        api_type: p.api_type
+      })));
       
       // 🆕 같은 이름의 게임사를 하나로 통합 (유연한 매핑)
       const providerMap = new Map<string, GameProvider>();
@@ -113,7 +162,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
           }
           existing.provider_ids.push(provider.id);
         } else {
-          // 새로운 게임사
+          // 새로운 게임사 - DB에서 가져온 logo_url 그대로 사용
           providerMap.set(key, {
             ...provider,
             provider_ids: [provider.id]
@@ -450,9 +499,9 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
           </div>
         </div>
 
-        {/* 제공사 목록 - 4칸 정렬 */}
+        {/* 제공사 목록 - 5칸 정렬 */}
         {!selectedProvider && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
             {loading ? (
               Array(8).fill(0).map((_, i) => (
                 <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{
@@ -480,15 +529,17 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                       border: '2px solid rgba(193, 154, 107, 0.5)',
                     }}
                   >
-                    <img
-                      src={FALLBACK_PROVIDERS[index % FALLBACK_PROVIDERS.length]?.logo_url || provider.logo_url}
-                      alt={provider.name}
-                      className="w-full object-cover"
-                      style={{
-                        height: '105%',
-                        marginTop: '-2.5%'
-                      }}
-                    />
+                    {provider.logo_url && (
+                      <img
+                        src={provider.logo_url}
+                        alt=""
+                        className="w-full object-cover"
+                        style={{
+                          height: '105%',
+                          marginTop: '-2.5%'
+                        }}
+                      />
+                    )}
                   </div>
                 </motion.div>
               ))
@@ -496,9 +547,9 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
           </div>
         )}
 
-        {/* 게임 목록 - 4칸 정렬 */}
+        {/* 게임 목록 - 5칸 정렬 */}
         {selectedProvider && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
             {gamesLoading ? (
               Array(8).fill(0).map((_, i) => (
                 <div key={i} className="aspect-square rounded-2xl animate-pulse" style={{
@@ -528,6 +579,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                         src={game.image_url}
                         alt={game.name_ko || game.name}
                         className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                        style={{ objectPosition: 'center 30%' }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center" style={{
@@ -539,6 +591,20 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                     
                     {/* 그라디언트 오버레이 */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent opacity-70 group-hover:opacity-80 transition-opacity duration-500"></div>
+                    
+                    {/* 한글 게임명 - 하단 고정 */}
+                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/50">
+                      <p className="text-white text-center line-clamp-2" style={{
+                        fontFamily: 'AsiaHead, -apple-system, sans-serif',
+                        fontSize: '1.5rem',
+                        fontWeight: '700',
+                        textShadow: '0 3px 15px rgba(0,0,0,1), 0 0 30px rgba(0,0,0,0.9)',
+                        letterSpacing: '-0.01em',
+                        lineHeight: '1.4'
+                      }}>
+                        {game.name_ko || game.name}
+                      </p>
+                    </div>
                     
                     {/* 호버 시 로즈 골드 테두리 */}
                     <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{

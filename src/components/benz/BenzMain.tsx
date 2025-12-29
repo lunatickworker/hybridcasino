@@ -66,10 +66,25 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
   const loadData = async () => {
     try {
       setLoading(true);
-      setCasinoProviders(FALLBACK_CASINO_PROVIDERS);
-      setSlotProviders(FALLBACK_SLOT_PROVIDERS);
+      
+      // DB에서 실제 제공사 데이터 가져오기
+      const casinoData = await gameApi.getUserVisibleProviders({ 
+        type: 'casino',
+        userId: user?.id 
+      });
+      
+      const slotData = await gameApi.getUserVisibleProviders({ 
+        type: 'slot',
+        userId: user?.id 
+      });
+      
+      setCasinoProviders(casinoData.length > 0 ? casinoData : FALLBACK_CASINO_PROVIDERS);
+      setSlotProviders(slotData.length > 0 ? slotData : FALLBACK_SLOT_PROVIDERS);
     } catch (error) {
       console.error('데이터 로드 오류:', error);
+      // 오류 시 fallback 사용
+      setCasinoProviders(FALLBACK_CASINO_PROVIDERS);
+      setSlotProviders(FALLBACK_SLOT_PROVIDERS);
     } finally {
       setLoading(false);
     }
@@ -187,7 +202,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         />
         
         <div className="relative z-10 px-4 md:px-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 w-full">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-8 w-full">
             {loading ? (
               Array(8).fill(0).map((_, i) => (
                 <div key={i} className="aspect-square bg-gray-800/50 animate-pulse rounded-2xl"></div>
@@ -216,7 +231,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                     {provider.logo_url && (
                       <img
                         src={provider.logo_url}
-                        alt={provider.name}
+                        alt=""
                         className="w-full object-cover"
                         style={{
                           height: '105%',
@@ -254,7 +269,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         />
         
         <div className="relative z-10 px-4 md:px-16">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 w-full">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-8 w-full">
             {loading ? (
               Array(8).fill(0).map((_, i) => (
                 <div key={i} className="aspect-square bg-gray-800/50 animate-pulse rounded-2xl"></div>
@@ -283,7 +298,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                     {provider.logo_url && (
                       <img
                         src={provider.logo_url}
-                        alt={provider.name}
+                        alt=""
                         className="w-full object-cover"
                         style={{
                           height: '105%',

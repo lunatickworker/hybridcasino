@@ -28,6 +28,7 @@ interface GameProvider {
 interface Game {
   id: string;
   name: string;
+  name_ko?: string;
   game_code: string;
   image_url?: string;
   provider_id: number;
@@ -394,14 +395,9 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
                 onClick={() => handleProviderClick(provider)}
               >
                 <div className="relative aspect-[4/3] overflow-hidden group">
-                  {/* 제공사 이미지 - 카드 전체를 꽉 채움 */}
+                  {/* 제공사 이미지 - DB의 logo_url 사용 */}
                   <ImageWithFallback
-                    src={index === 0 
-                      ? "https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/mini/1.png"
-                      : index === 1
-                      ? "https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/mini/2.png"
-                      : "https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/mini/4.png"
-                    }
+                    src={provider.logo_url || "https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/mini/1.png"}
                     alt={provider.name}
                     className="w-full h-full object-cover transition-all duration-500 group-hover:brightness-110"
                   />
@@ -452,6 +448,7 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
                       src={game.image_url}
                       alt={game.name}
                       className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
+                      style={{ objectPosition: 'center 30%' }}
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-blue-900/30 to-cyan-900/30 flex items-center justify-center">
@@ -462,10 +459,17 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
                   {/* 하단 그라디언트 오버레이 (항상 표시) */}
                   <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black via-black/70 to-transparent"></div>
                   
-                  {/* 게임명 (항상 표시) */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <p className="text-white text-center line-clamp-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
-                      {game.name}
+                  {/* 한글 게임명 (항상 표시) */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/50">
+                    <p className="text-white text-center line-clamp-2" style={{
+                      fontFamily: 'AsiaHead, -apple-system, sans-serif',
+                      fontSize: '1.5rem',
+                      fontWeight: '700',
+                      textShadow: '0 3px 15px rgba(0,0,0,1), 0 0 30px rgba(0,0,0,0.9)',
+                      letterSpacing: '-0.01em',
+                      lineHeight: '1.4'
+                    }}>
+                      {game.name_ko || game.name}
                     </p>
                   </div>
                   

@@ -3,11 +3,13 @@ import { LoadingSpinner } from "../common/LoadingSpinner";
 import { BenzMain } from "./BenzMain";
 import { BenzCasino } from "./BenzCasino";
 import { BenzSlot } from "./BenzSlot";
+import { BenzMinigame } from "./BenzMinigame";
 import { BenzDeposit } from "./BenzDeposit";
 import { BenzWithdraw } from "./BenzWithdraw";
 import { BenzNotice } from "./BenzNotice";
 import { BenzSupport } from "./BenzSupport";
 import { BenzProfile } from "./BenzProfile";
+import { BenzPoint } from "./BenzPoint";
 
 // User 컴포넌트 재사용 (기능 동일)
 const UserBettingHistory = lazy(() => import("../user/UserBettingHistory").then(m => ({ default: m.UserBettingHistory })));
@@ -35,12 +37,16 @@ export const BenzRoutes = memo(({ currentRoute, user, onRouteChange, onOpenPoint
         return <BenzCasino user={user} onRouteChange={onRouteChange} />;
       case '/benz/slot':
         return <BenzSlot user={user} onRouteChange={onRouteChange} />;
+      case '/benz/minigame':
+        return <BenzMinigame user={user} onRouteChange={onRouteChange} />;
       case '/benz/deposit':
         return <BenzDeposit user={user} onRouteChange={onRouteChange} />;
       case '/benz/withdraw':
         return <BenzWithdraw user={user} onRouteChange={onRouteChange} />;
       case '/benz/notice':
         return <BenzNotice user={user} onRouteChange={onRouteChange} />;
+      case '/benz/point':
+        return <BenzPoint user={user} onRouteChange={onRouteChange} onOpenPointModal={onOpenPointModal} />;
       case '/benz/support':
         return <BenzSupport user={user} onRouteChange={onRouteChange} />;
       case '/benz/profile':

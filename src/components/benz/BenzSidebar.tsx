@@ -37,7 +37,8 @@ const userMenuItems = [
   { path: '/benz/deposit', label: '입금', icon: CreditCard },
   { path: '/benz/withdraw', label: '출금', icon: ArrowUpDown },
   { path: '/benz/notice', label: '공지사항', icon: Bell },
-  { path: '/benz/support', label: '고객센터', icon: Mail },
+  { path: '/benz/point', label: '포인트', icon: Gift },
+  { path: '/benz/support', label: '쪽지관리', icon: Mail },
   { path: '/benz/profile', label: '회원정보수정', icon: User },
 ];
 
@@ -53,6 +54,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
       '/benz/casino',
       '/benz/slot',
       '/benz/notice',
+      '/benz/point',
       '/benz/support'
     ];
     
@@ -151,7 +153,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                       className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                       style={{
                         backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
-                        backgroundSize: '96% 100%',
+                        backgroundSize: '100% 100%',
                         backgroundPosition: 'center',
                         backgroundRepeat: 'no-repeat',
                         opacity: isActive ? 1 : undefined
@@ -221,7 +223,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                       className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                       style={{
                         backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
-                        backgroundSize: '96% 100%',
+                        backgroundSize: '100% 100%',
                         backgroundPosition: 'center',
                         backgroundRepeat: 'no-repeat',
                         opacity: isActive ? 1 : undefined
