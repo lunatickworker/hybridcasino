@@ -363,8 +363,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           launched_at,
           last_activity_at,
           last_bet_at,
-          balance_before,
-          users!inner(username, nickname, balance, ip_address, device_info, referrer_id)
+          balance_before
         `)
         .not('game_id', 'is', null)
         .eq('status', 'active')  // ⭐ ready 상태 제거, active만 조회
@@ -376,15 +375,40 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           .rpc('get_hierarchical_partners', { p_partner_id: user.id });
 
         const allowedPartnerIds = [user.id, ...(childPartners?.map((p: any) => p.id) || [])];
-        query = query.in('users.referrer_id', allowedPartnerIds);
+        
+        // users 테이블에서 허용된 파트너의 회원 ID 조회
+        const { data: allowedUsers } = await supabase
+          .from('users')
+          .select('id')
+          .in('referrer_id', allowedPartnerIds);
+        
+        const allowedUserIds = allowedUsers?.map((u: any) => u.id) || [];
+        if (allowedUserIds.length > 0) {
+          query = query.in('user_id', allowedUserIds);
+        } else {
+          // 허용된 사용자가 없으면 빈 배열 반환
+          setSessions([]);
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        }
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
 
+      // users 정보를 별도로 조회
+      const userIds = [...new Set((data || []).map((s: any) => s.user_id).filter(Boolean))];
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, username, nickname, balance, ip_address, device_info, referrer_id')
+        .in('id', userIds);
+      
+      const usersMap = new Map(usersData?.map(u => [u.id, u]) || []);
+
       // referrer_id로 파트너 정보 조회
-      const referrerIds = [...new Set((data || []).map((s: any) => s.users.referrer_id).filter(Boolean))];
+      const referrerIds = [...new Set(usersData?.map((u: any) => u.referrer_id).filter(Boolean) || [])];
       let partnersMap: Record<string, any> = {};
       
       if (referrerIds.length > 0) {
@@ -414,13 +438,16 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       }
 
       const formattedSessions: OnlineSession[] = (data || []).map((session: any) => {
+        const userInfo = usersMap.get(session.user_id);
+        if (!userInfo) return null;
+        
         // IP 주소 처리 - users 테이블의 ip_address 사용
-        const ipAddress = session.users.ip_address || '-';
+        const ipAddress = userInfo.ip_address || '-';
         
         // device_info에서 디바이스 타입 추출
         let deviceType = 'PC';
-        if (session.users.device_info) {
-          const deviceInfo = session.users.device_info;
+        if (userInfo.device_info) {
+          const deviceInfo = userInfo.device_info;
           if (deviceInfo.device === 'Mobile' || deviceInfo.device === 'mobile') {
             deviceType = 'Mobile';
           } else if (deviceInfo.platform) {
@@ -452,14 +479,14 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
         return {
           id: session.id,
           session_id: session.session_id,
-          user_id: session.users.id,
-          username: session.users.username,
-          nickname: session.users.nickname || session.users.username,
-          partner_username: session.users.referrer_id ? partnersMap[session.users.referrer_id]?.username || `Partner ${session.users.referrer_id}` : 'Self', // 소속명 추가
+          user_id: userInfo.id,
+          username: userInfo.username,
+          nickname: userInfo.nickname || userInfo.username,
+          partner_username: userInfo.referrer_id ? partnersMap[userInfo.referrer_id]?.username || `Partner ${userInfo.referrer_id}` : 'Self', // 소속명 추가
           game_name: gameName,
           provider_name: providerName,
           balance_before: Number(session.balance_before) || 0,
-          current_balance: Number(session.users.balance) || 0,
+          current_balance: Number(userInfo.balance) || 0,
           device_type: deviceType,
           ip_address: ipAddress,
           launched_at: session.launched_at,
@@ -467,7 +494,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           status: session.status,
           api_type: session.api_type, // ⭐ API 타입 추가
         };
-      });
+      }).filter(Boolean) as OnlineSession[];
 
       // ✅ 기존 데이터와 비교하여 실제로 변경된 경우에만 업데이트 (깜박임 방지)
       setSessions(prevSessions => {

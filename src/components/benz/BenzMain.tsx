@@ -634,8 +634,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
             <img
               src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Banner-Text.png?t=20241229"
               alt="LIVE CASINO"
-              className="w-full h-auto object-contain"
-              style={{ maxWidth: '330px' }}
+              className="w-full h-auto object-contain max-w-[330px] md:max-w-[2000px]"
             />
             
             {/* 이미지 내 버튼 위치에 클릭 영역 */}
@@ -690,8 +689,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         <img
           src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Casino-game-list.png"
           alt="Casino Game List"
-          className="absolute z-20 w-[200px] md:w-auto"
-          style={{ top: '-35px', left: '18px' }}
+          className="absolute z-20 w-[200px] md:w-auto top-[-35px] left-[18px] md:top-[-74px] md:left-[44px]"
         />
         
         <div className="relative z-10 px-4 md:px-16">
@@ -746,8 +744,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         <img
           src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Slot-game-list.png"
           alt="Slot Game List"
-          className="absolute z-20 w-[200px] md:w-auto"
-          style={{ top: '-37px', left: '17px' }}
+          className="absolute z-20 w-[200px] md:w-auto top-[-37px] left-[13px] md:top-[-74px] md:left-[44px]"          
         />
         
         <div className="relative z-10 px-4 md:px-16">

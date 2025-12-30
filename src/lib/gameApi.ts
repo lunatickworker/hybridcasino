@@ -1161,13 +1161,17 @@ export async function syncSpecificOroPlayProvider(vendorCode: string): Promise<S
     // 2. OroPlay 토큰 조회
     const token = await oroplayApi.getToken(systemAdmin.id);
 
-    // 3. DB에서 해당 제공사 조회 (없으면 생성)
-    let provider = await getProviders({ 
-      api_type: 'oroplay', 
-      vendor_code: vendorCode 
-    });
+    // 3. DB에서 해당 제공사 조회 (vendor_code 정확히 매칭)
+    const { data: existingProviders } = await supabase
+      .from('game_providers')
+      .select('*')
+      .eq('api_type', 'oroplay')
+      .eq('vendor_code', vendorCode)
+      .limit(1);
 
-    if (!provider || provider.length === 0) {
+    let targetProvider;
+
+    if (!existingProviders || existingProviders.length === 0) {
       console.log(`⚠️ 제공사 ${vendorCode}가 DB에 없습니다. OroPlay API에서 조회 후 생성합니다.`);
       
       // OroPlay API에서 전체 제공사 목록 조회
@@ -1196,14 +1200,16 @@ export async function syncSpecificOroPlayProvider(vendorCode: string): Promise<S
         .single();
 
       if (createError || !newProvider) {
+        console.error('❌ 제공사 생성 실패:', createError);
         throw new Error(`제공사 생성 실패: ${createError?.message}`);
       }
 
       console.log(`✅ 제공사 생성 완료: ${newProvider.name} (ID: ${newProvider.id})`);
-      provider = [newProvider];
+      targetProvider = newProvider;
+    } else {
+      targetProvider = existingProviders[0];
     }
 
-    const targetProvider = provider[0];
     console.log(`🔍 제공사: ${targetProvider.name}, ID: ${targetProvider.id}, vendorCode: ${targetProvider.vendor_code}`);
 
     // 4. 해당 제공사의 게임 목록 조회
@@ -1260,15 +1266,23 @@ export async function syncSpecificOroPlayProvider(vendorCode: string): Promise<S
       for (let i = 0; i < newGames.length; i += batchSize) {
         const batch = newGames.slice(i, i + batchSize);
         
-        const { error: insertError } = await supabase
+        const { data: insertedData, error: insertError } = await supabase
           .from('games')
-          .upsert(batch, { onConflict: 'id' });
+          .upsert(batch, { onConflict: 'id' })
+          .select('id');
 
-        if (!insertError) {
-          totalNew += batch.length;
-          console.log(`✅ 배치 ${Math.floor(i / batchSize) + 1}/${Math.ceil(newGames.length / batchSize)} - ${batch.length}개 추가 완료`);
+        if (insertError) {
+          console.error(`❌ 배치 ${Math.floor(i / batchSize) + 1} 추가 오류:`, {
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint,
+            code: insertError.code
+          });
+          console.error('❌ 실패한 배치 샘플:', batch[0]);
         } else {
-          console.error(`❌ 배치 ${Math.floor(i / batchSize) + 1} 추가 오류:`, insertError);
+          const actualInserted = insertedData?.length || 0;
+          totalNew += actualInserted;
+          console.log(`✅ 배치 ${Math.floor(i / batchSize) + 1}/${Math.ceil(newGames.length / batchSize)} - ${actualInserted}개 추가 완료 (시도: ${batch.length})`);
         }
       }
       
@@ -1298,6 +1312,19 @@ export async function syncSpecificOroPlayProvider(vendorCode: string): Promise<S
     }
 
     console.log(`🎯 ${targetProvider.name} 동기화 완료: 신규 ${totalNew}, 업데이트 ${totalUpdated}, 총 ${processedGames.length}`);
+
+    // 8. DB에 실제 저장된 게임 수 확인
+    const { data: savedGames, error: countError } = await supabase
+      .from('games')
+      .select('id', { count: 'exact' })
+      .eq('provider_id', targetProvider.id)
+      .eq('api_type', 'oroplay');
+
+    if (!countError) {
+      console.log(`📊 [DB 확인] ${targetProvider.name} 게임 총 ${savedGames?.length || 0}개 저장됨`);
+    } else {
+      console.error('❌ DB 확인 실패:', countError);
+    }
 
     return {
       newGames: totalNew,

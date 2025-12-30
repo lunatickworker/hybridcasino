@@ -82,12 +82,7 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
       
       const { data, error, count } = await supabase
         .from('announcements')
-        .select(`
-          *,
-          partners (
-            nickname
-          )
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .eq('status', 'active')
         .in('target_type', ['users', 'all'])
         .order('is_pinned', { ascending: false })
@@ -95,6 +90,15 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
         .range(offset, offset + itemsPerPage - 1);
 
       if (error) throw error;
+
+      // partner 정보를 별도로 조회
+      const partnerIds = [...new Set((data || []).map(n => n.partner_id).filter(Boolean))];
+      const { data: partnersData } = await supabase
+        .from('partners')
+        .select('id, nickname')
+        .in('id', partnerIds);
+      
+      const partnersMap = new Map(partnersData?.map(p => [p.id, p]) || []);
 
       // 읽음 상태 확인 (로그인한 경우에만)
       let readNoticeIds: string[] = [];
@@ -111,6 +115,7 @@ export function BenzNotice({ user, onRouteChange }: BenzNoticeProps) {
 
       const noticesWithReadStatus = data?.map(notice => ({
         ...notice,
+        partners: notice.partner_id ? partnersMap.get(notice.partner_id) : null,
         is_read: readNoticeIds.includes(notice.id)
       })) || [];
 

@@ -161,20 +161,26 @@ export function UserManagement() {
         // 시스템관리자: 모든 사용자
         const { data, error } = await supabase
           .from('users')
-          .select(`
-            *,
-            balance_sync_call_count,
-            balance_sync_started_at,
-            referrer:partners!referrer_id(
-              id,
-              username,
-              level
-            )
-          `)
+          .select('*')
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        setUsers(data || []);
+
+        // referrer 정보를 별도로 조회
+        const referrerIds = [...new Set(data?.map(u => u.referrer_id).filter(Boolean))];
+        const { data: partnersData } = await supabase
+          .from('partners')
+          .select('id, username, level')
+          .in('id', referrerIds);
+
+        const partnersMap = new Map(partnersData?.map(p => [p.id, p]) || []);
+
+        const usersWithReferrer = data?.map(u => ({
+          ...u,
+          referrer: u.referrer_id ? partnersMap.get(u.referrer_id) : null
+        })) || [];
+
+        setUsers(usersWithReferrer);
         return;
       } else {
         // 일반 파트너: 자신 + 하위 파트너들의 사용자
@@ -186,21 +192,27 @@ export function UserManagement() {
 
       const { data, error } = await supabase
         .from('users')
-        .select(`
-          *,
-          balance_sync_call_count,
-          balance_sync_started_at,
-          referrer:partners!referrer_id(
-            id,
-            username,
-            level
-          )
-        `)
+        .select('*')
         .in('referrer_id', allowedReferrerIds)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setUsers(data || []);
+
+      // referrer 정보를 별도로 조회
+      const referrerIds = [...new Set(data?.map(u => u.referrer_id).filter(Boolean))];
+      const { data: partnersData } = await supabase
+        .from('partners')
+        .select('id, username, level')
+        .in('id', referrerIds);
+
+      const partnersMap = new Map(partnersData?.map(p => [p.id, p]) || []);
+
+      const usersWithReferrer = data?.map(u => ({
+        ...u,
+        referrer: u.referrer_id ? partnersMap.get(u.referrer_id) : null
+      })) || [];
+
+      setUsers(usersWithReferrer);
     } catch (error) {
       console.error('❌ 회원 목록 조회 실패:', error);
       if (!silent) toast.error('회원 목록을 불러오는데 실패했습니다.');

@@ -75,16 +75,7 @@ export function PointManagement() {
       
       let pointQuery = supabase
         .from('point_transactions')
-        .select(`
-          *,
-          users:user_id (
-            username,
-            nickname
-          ),
-          partners:partner_id (
-            nickname
-          )
-        `);
+        .select('*');
 
       // ✅ 계층 구조 필터링: 시스템관리자가 아니면 하위 파트너들의 회원까지 포함
       if (authState.user?.level && authState.user.level > 1) {
@@ -122,11 +113,28 @@ export function PointManagement() {
 
       if (error) throw error;
 
+      // 사용자와 파트너 정보를 별도로 조회
+      const userIds = [...new Set(data?.map(item => item.user_id).filter(Boolean))];
+      const partnerIds = [...new Set(data?.map(item => item.partner_id).filter(Boolean))];
+
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, username, nickname')
+        .in('id', userIds);
+
+      const { data: partnersData } = await supabase
+        .from('partners')
+        .select('id, nickname')
+        .in('id', partnerIds);
+
+      const usersMap = new Map(usersData?.map(u => [u.id, u]) || []);
+      const partnersMap = new Map(partnersData?.map(p => [p.id, p]) || []);
+
       const formattedData = data?.map(item => ({
         ...item,
-        user_username: item.users?.username || '',
-        user_nickname: item.users?.nickname || '',
-        partner_nickname: item.partners?.nickname || ''
+        user_username: usersMap.get(item.user_id)?.username || '',
+        user_nickname: usersMap.get(item.user_id)?.nickname || '',
+        partner_nickname: partnersMap.get(item.partner_id)?.nickname || ''
       })) || [];
 
       setTransactions(formattedData);

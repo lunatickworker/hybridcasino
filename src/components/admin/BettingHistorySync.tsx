@@ -25,7 +25,7 @@ const monitorSessionStates = async () => {
     // 1. active → paused (4분 베팅 없음) ⭐ paused 상태로 변경
     const { data: activeSessions } = await supabase
       .from('game_launch_sessions')
-      .select('*, users!inner(username)')
+      .select('*, users!game_launch_sessions_user_id_fkey!inner(username)')
       .eq('status', 'active')
       .not('last_bet_at', 'is', null) // ✅ NULL 체크 추가
       .lt('last_bet_at', fourMinutesAgo.toISOString());
@@ -49,7 +49,7 @@ const monitorSessionStates = async () => {
     // 2. paused → active (베팅 재개)
     const { data: pausedSessions } = await supabase
       .from('game_launch_sessions')
-      .select('*, users!inner(username)')
+      .select('*, users!game_launch_sessions_user_id_fkey!inner(username)')
       .eq('status', 'paused');
 
     if (pausedSessions && pausedSessions.length > 0) {

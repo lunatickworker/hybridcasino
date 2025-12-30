@@ -149,15 +149,7 @@ export function CallCycle({ user }: CallCycleProps) {
     try {
       const { data, error } = await supabase
         .from('rtp_settings')
-        .select(`
-          id,
-          vendor_code,
-          setting_type,
-          rtp_value,
-          user_id,
-          created_at,
-          applied_by:partners!rtp_settings_applied_by_fkey(username)
-        `)
+        .select('id, vendor_code, setting_type, rtp_value, user_id, created_at, applied_by')
         .eq('partner_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
@@ -167,6 +159,15 @@ export function CallCycle({ user }: CallCycleProps) {
         return;
       }
 
+      // applied_by 정보를 별도로 조회
+      const appliedByIds = [...new Set((data || []).map(r => r.applied_by).filter(Boolean))];
+      const { data: partnersData } = await supabase
+        .from('partners')
+        .select('id, username')
+        .in('id', appliedByIds);
+      
+      const partnersMap = new Map(partnersData?.map(p => [p.id, p]) || []);
+
       const history = (data || []).map(record => ({
         id: record.id,
         vendor_code: record.vendor_code,
@@ -174,7 +175,7 @@ export function CallCycle({ user }: CallCycleProps) {
         rtp_value: record.rtp_value,
         user_id: record.user_id,
         created_at: record.created_at,
-        applied_by_username: record.applied_by?.username || '알 수 없음'
+        applied_by_username: record.applied_by ? (partnersMap.get(record.applied_by)?.username || '알 수 없음') : '알 수 없음'
       }));
 
       setRtpHistory(history);

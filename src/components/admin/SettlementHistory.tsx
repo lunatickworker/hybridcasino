@@ -112,11 +112,7 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
       // settlements 테이블을 직접 조회 (카지노/슬롯 컬럼 포함)
       let query = supabase
         .from('settlements')
-        .select(`
-          *,
-          partner:partners!settlements_partner_id_fkey(nickname),
-          executor:partners!settlements_executed_by_fkey(nickname)
-        `)
+        .select('*')
         .eq('partner_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -146,11 +142,24 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
         return;
       }
 
+      // partner_id와 executed_by에서 파트너 정보 별도 조회
+      const partnerIds = [...new Set([
+        ...(data || []).map(s => s.partner_id).filter(Boolean),
+        ...(data || []).map(s => s.executed_by).filter(Boolean)
+      ])];
+
+      const { data: partnersData } = await supabase
+        .from('partners')
+        .select('id, nickname')
+        .in('id', partnerIds);
+
+      const partnersMap = new Map(partnersData?.map(p => [p.id, p]) || []);
+
       // 데이터 매핑
       const formattedData = (data || []).map(settlement => ({
         ...settlement,
-        partner_nickname: settlement.partner?.nickname || '-',
-        executor_nickname: settlement.executor?.nickname || '-'
+        partner_nickname: settlement.partner_id ? partnersMap.get(settlement.partner_id)?.nickname || '-' : '-',
+        executor_nickname: settlement.executed_by ? partnersMap.get(settlement.executed_by)?.nickname || '-' : '-'
       }));
 
       setSettlements(formattedData);
@@ -708,7 +717,7 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
                   {selectedCommission.type === 'casino_rolling' && '🎰 카지노 롤링'}
                   {selectedCommission.type === 'casino_losing' && '🎰 카지노 루징'}
                   {selectedCommission.type === 'slot_rolling' && '🎮 슬롯 롤링'}
-                  {selectedCommission.type === 'slot_losing' && '🎮 슬롯 루징'}
+                  {selectedCommission.type === 'slot_losing' && '🎮 슬�� 루징'}
                 </span>
               </div>
               <div className="flex justify-between items-center">

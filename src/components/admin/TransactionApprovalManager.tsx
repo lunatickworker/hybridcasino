@@ -76,7 +76,7 @@ export function TransactionApprovalManager({ user }: TransactionApprovalManagerP
         .from('transactions')
         .select(`
           *,
-          users:user_id (
+          users!transactions_user_id_fkey (
             username,
             nickname,
             balance,
@@ -84,7 +84,7 @@ export function TransactionApprovalManager({ user }: TransactionApprovalManagerP
             bank_account,
             bank_holder,
             referrer_id,
-            partners:referrer_id (
+            partners!users_referrer_id_fkey (
               opcode,
               secret_key,
               token

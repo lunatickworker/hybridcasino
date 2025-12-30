@@ -44,6 +44,7 @@ interface DbMenuItem {
   parent_menu: string | null;   // 한국어 그룹명
   parent_menu_en?: string;      // 영문 그룹명
   display_order: number;
+  is_visible: boolean;          // 메뉴 표시 여부
 }
 
 const iconMap: Record<string, React.ComponentType<any>> = {
@@ -178,12 +179,13 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
     
     setLoadingMenus(true);
     try {
-      // ✅ DB에서 메뉴 데이터 조회
+      // ✅ DB에서 메뉴 데이터 조회 (is_visible = true인 메뉴만)
       console.log('📋 [메뉴 로드] DB에서 메뉴 조회 시작');
       
       const { data: dbMenus, error: menuError } = await supabase
         .from('menu_permissions')
         .select('*')
+        .eq('is_visible', true)  // is_visible이 true인 메뉴만 조회
         .order('display_order', { ascending: true });
       
       if (menuError) {
@@ -332,7 +334,7 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
     const Icon = item.icon;
 
     return (
-      <div key={item.id}>
+      <div>
         <button
           onClick={() => {
             if (hasChildren) {
@@ -376,8 +378,8 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
 
         {hasChildren && isExpanded && (
           <div className="ml-2 mt-1 space-y-1">
-            {item.children!.map(child => (
-              <div key={child.id}>
+            {item.children!.map((child, idx) => (
+              <div key={`${child.id}-${idx}`}>
                 {renderMenuItem(child, depth + 1)}
               </div>
             ))}
@@ -410,8 +412,8 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
           </div>
         ) : (
           <>
-            {menuItems.map(item => (
-              <div key={item.id}>
+            {menuItems.map((item, idx) => (
+              <div key={`${item.id}-${idx}`}>
                 {renderMenuItem(item)}
               </div>
             ))}

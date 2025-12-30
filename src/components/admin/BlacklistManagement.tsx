@@ -23,6 +23,7 @@ interface BlacklistedUser {
   unblocked_at: string | null;
   admin_username?: string;
   admin_nickname?: string;
+  admin_level?: string;
 }
 
 export function BlacklistManagement() {
@@ -39,10 +40,26 @@ export function BlacklistManagement() {
       setLoading(true);
       console.log('📋 블랙리스트 사용자 조회 시작');
 
-      // 새로운 VIEW를 사용해서 조회
+      // users 테이블에서 blocked 상태만 조회 (조인 없이)
       const { data, error } = await supabase
-        .from('blacklist_users_view')
-        .select('*')
+        .from('users')
+        .select(`
+          id,
+          username,
+          nickname,
+          email,
+          phone,
+          status,
+          balance,
+          points,
+          blocked_reason,
+          blocked_at,
+          blocked_by,
+          unblocked_at,
+          created_at,
+          updated_at
+        `)
+        .eq('status', 'blocked')
         .order('blocked_at', { ascending: false });
 
       if (error) {
@@ -53,7 +70,25 @@ export function BlacklistManagement() {
       console.log('📊 블랙리스트 데이터:', data);
       console.log(`📈 블랙리스트 사용자 수: ${data?.length || 0}명`);
       
-      setBlacklistedUsers(data || []);
+      // 데이터 구조를 뷰 형식에 맞게 변환
+      const formattedData = (data || []).map((user: any) => ({
+        user_id: user.id,
+        username: user.username,
+        nickname: user.nickname,
+        email: user.email,
+        phone: user.phone,
+        status: user.status,
+        balance: user.balance,
+        points: user.points,
+        blocked_reason: user.blocked_reason,
+        blocked_at: user.blocked_at,
+        blocked_by: user.blocked_by,
+        unblocked_at: user.unblocked_at,
+        created_at: user.created_at,
+        updated_at: user.updated_at
+      }));
+      
+      setBlacklistedUsers(formattedData);
 
     } catch (error: any) {
       console.error('❌ 블랙리스트 조회 실패:', error);
@@ -230,7 +265,6 @@ export function BlacklistManagement() {
                     <th className="text-left p-3">{t.userManagement.username}</th>
                     <th className="text-left p-3">{t.userManagement.nickname}</th>
                     <th className="text-left p-3">{t.blacklist.blockReason}</th>
-                    <th className="text-left p-3">{t.blacklist.processor}</th>
                     <th className="text-left p-3">{t.blacklist.blockDate}</th>
                     <th className="text-left p-3">{t.common.status}</th>
                     <th className="text-left p-3">{t.blacklist.management}</th>
@@ -246,7 +280,6 @@ export function BlacklistManagement() {
                           {user.blocked_reason || t.blacklist.noReason}
                         </div>
                       </td>
-                      <td className="p-3">{user.admin_nickname || t.common.system}</td>
                       <td className="p-3">
                         {user.blocked_at 
                           ? new Date(user.blocked_at).toLocaleString(language === 'en' ? 'en-US' : 'ko-KR')

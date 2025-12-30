@@ -141,11 +141,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       // 거래 데이터 로드
       let query = supabase
         .from('transactions')
-        .select(`
-          *,
-          user:users(id, nickname, username, balance, bank_name, bank_account, bank_holder),
-          processed_partner:partners!transactions_processed_by_fkey(nickname, level)
-        `)
+        .select('*')
         .gte('created_at', dateRange.start)
         .lte('created_at', dateRange.end);
 
@@ -190,7 +186,33 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       if (error) throw error;
 
       console.log('✅ 거래 데이터 로드 완료:', transactionsData?.length || 0, '건');
-      setTransactions(transactionsData || []);
+      
+      // user 정보를 별도로 조회
+      const userIds = [...new Set(transactionsData?.map(t => t.user_id).filter(Boolean))];
+      const { data: usersInfo } = await supabase
+        .from('users')
+        .select('id, nickname, username, balance, bank_name, bank_account, bank_holder')
+        .in('id', userIds);
+      
+      const usersMap = new Map(usersInfo?.map(u => [u.id, u]) || []);
+
+      // processed_by 정보를 별도로 조회
+      const processedByIds = [...new Set(transactionsData?.map(t => t.processed_by).filter(Boolean))];
+      const { data: partnersInfo } = await supabase
+        .from('partners')
+        .select('id, nickname, level')
+        .in('id', processedByIds);
+      
+      const partnersMap = new Map(partnersInfo?.map(p => [p.id, p]) || []);
+
+      // 데이터 매핑
+      const transactionsWithRelations = transactionsData?.map(t => ({
+        ...t,
+        user: t.user_id ? usersMap.get(t.user_id) : null,
+        processed_partner: t.processed_by ? partnersMap.get(t.processed_by) : null
+      })) || [];
+
+      setTransactions(transactionsWithRelations);
 
       // 사용자 목록 로드 (강제 입출금용)
       let userQuery = supabase
