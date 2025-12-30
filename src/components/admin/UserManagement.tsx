@@ -23,6 +23,7 @@ import { retryApiAccountCreation, createApiAccounts } from "../../lib/apiAccount
 import { UserDetailModal } from "./UserDetailModal";
 import { MetricCard } from "./MetricCard";
 import { ForceTransactionModal } from "./ForceTransactionModal";
+import * as bcrypt from 'bcryptjs';
 import { 
   useHierarchyAuth, 
   useHierarchicalData, 
@@ -124,6 +125,10 @@ export function UserManagement() {
   const [createUserLoading, setCreateUserLoading] = useState(false);
   const [availablePartners, setAvailablePartners] = useState<any[]>([]); // 회원 생성 시 선택 가능한 파트너 목록 (Lv1: 전체, Lv2~Lv5: 본인+하위, Lv6: 본인)
   const [currentUserBalance, setCurrentUserBalance] = useState(0); // 현재 관리자의 보유금
+  
+  // 🆕 3단 필터 state
+  const [selectedLevel, setSelectedLevel] = useState<number | ''>(''); // 1단: 권한 레벨
+  const [partnerSearchTerm, setPartnerSearchTerm] = useState(''); // 3단: 검색어
   
   // 입출금 대상 사용자의 소속 파트너 보유금 (강제 입출금 모달용)
   const [targetPartnerBalance, setTargetPartnerBalance] = useState(0); // 파트너의 balance
@@ -257,6 +262,16 @@ export function UserManagement() {
       loadAvailablePartners();
     }
   }, [authState.user?.id, authState.user?.level]);
+
+  // 모달이 열릴 때 기본값으로 본인 ID 설정
+  useEffect(() => {
+    if (showCreateDialog && authState.user?.id) {
+      setFormData(prev => ({
+        ...prev,
+        selected_referrer_id: authState.user?.id || ''
+      }));
+    }
+  }, [showCreateDialog, authState.user?.id]);
 
   /**
    * 회원 생성 시 선택 가능한 파트너 목록 로드
@@ -512,6 +527,9 @@ export function UserManagement() {
       bulk_start: '',
       bulk_end: ''
     });
+    // 🆕 3단 필터 초기화
+    setSelectedLevel('');
+    setPartnerSearchTerm('');
     
     setCreateUserLoading(true);
     
@@ -559,13 +577,16 @@ export function UserManagement() {
             continue;
           }
           
+          // 비밀번호 해싱
+          const hashedPassword = await bcrypt.hash(password, 10);
+          
           // DB에 사용자 생성
           const { data: newUser, error: insertError } = await supabase
             .from('users')
             .insert({
               username,
               nickname,
-              password_hash: password,
+              password_hash: hashedPassword,
               bank_name: bulkFormData.bank_name || null,
               bank_account: bulkFormData.bank_account || null,
               memo: bulkFormData.memo || null,
@@ -710,6 +731,9 @@ export function UserManagement() {
       slot_rolling_commission: '',
       slot_losing_commission: ''
     });
+    // 🆕 3단 필터 초기화
+    setSelectedLevel('');
+    setPartnerSearchTerm('');
 
     // 백그라운드에서 회원 생성 진행
     setCreateUserLoading(true);
@@ -746,13 +770,16 @@ export function UserManagement() {
       // 실제 referrer_id 결정 (선택한 파트너 또는 현재 사용자)
       const actualReferrerId = userData.selected_referrer_id || authState.user?.id;
 
+      // 비밀번호 해싱
+      const hashedPassword = await bcrypt.hash(userData.password, 10);
+
       // 1. DB에 사용자 생성 (api_account_status = 'pending')
       const { data: newUser, error: insertError } = await supabase
         .from('users')
         .insert({
           username: userData.username,
           nickname: userData.nickname || userData.username,
-          password_hash: userData.password,
+          password_hash: hashedPassword,
           bank_name: userData.bank_name || null,
           bank_account: userData.bank_account || null,
           memo: userData.memo || null,
@@ -2033,14 +2060,7 @@ export function UserManagement() {
             {t.userManagement.description}
           </p>
         </div>
-        <Button onClick={() => {
-          // 모달 열 때 기본값으로 본인 ID 설정
-          setFormData(prev => ({
-            ...prev,
-            selected_referrer_id: authState.user?.id || ''
-          }));
-          setShowCreateDialog(true);
-        }} className="btn-premium-primary text-lg px-6 py-3 h-auto">
+        <Button onClick={() => setShowCreateDialog(true)} className="btn-premium-primary text-lg px-6 py-3 h-auto">
           <Plus className="h-6 w-6 mr-2" />
           {t.userManagement.newUser}
         </Button>
@@ -2150,7 +2170,28 @@ export function UserManagement() {
       </div>
 
       {/* 회원 생성 다이얼로그 - 유리모피즘 효과 적용 */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      <Dialog open={showCreateDialog} onOpenChange={(open) => {
+        if (!open) {
+          // 모달이 닫힐 때 formData 리셋
+          setFormData({
+            username: '',
+            nickname: '',
+            password: '',
+            bank_name: '',
+            bank_account: '',
+            memo: '',
+            selected_referrer_id: '',
+            bulk_mode: false,
+            bulk_start: '',
+            bulk_end: '',
+            casino_rolling_commission: '',
+            casino_losing_commission: '',
+            slot_rolling_commission: '',
+            slot_losing_commission: ''
+          });
+        }
+        setShowCreateDialog(open);
+      }}>
         <DialogContent className="sm:max-w-[700px] bg-slate-900/90 backdrop-blur-md border-slate-700/60 shadow-2xl shadow-blue-500/20">
           <DialogHeader>
             <DialogTitle className="text-3xl text-slate-100 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">{t.userManagement.newUser}</DialogTitle>
@@ -2326,50 +2367,147 @@ export function UserManagement() {
               </div>
             </div>
             
-            {/* 회원 생성 시 소속 파트너 선택 (Lv1~Lv6 모두 표시) */}
-            {availablePartners.length > 0 && (
-              <div className="space-y-5">
-                <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
-                  <div className="w-1.5 h-6 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
-                  <h4 className="text-lg font-semibold text-slate-200">조직 설정</h4>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-5">
-                <Label className="text-right text-slate-300 text-lg">
-                  {t.userManagement.partnerAffiliation}
-                </Label>
-                <Select 
-                  value={formData.selected_referrer_id || undefined} 
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, selected_referrer_id: value }))}
-                >
-                  <SelectTrigger className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12">
-                    <SelectValue placeholder={authState.user?.level === 1 ? t.userManagement.selectPartnerOptional : "소속 파트너 선택"} />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700">
-                    {availablePartners.map(partner => {
-                      const levelMap: { [key: number]: string } = {
-                        2: t.partnerManagement.headOffice,
-                        3: t.partnerManagement.mainOffice,
-                        4: t.partnerManagement.subOffice,
-                        5: t.partnerManagement.distributor,
-                        6: t.partnerManagement.store
-                      };
-                      const levelText = levelMap[partner.level] || `Level ${partner.level}`;
-                      const isSelf = partner.id === authState.user?.id;
+            {/* 회원 생성 시 소속 파트너 선택 (3단 필터) */}
+            {availablePartners.length > 0 && (() => {
+              // 레벨 목록 추출 (중복 제거)
+              const uniqueLevels = [...new Set(availablePartners.map(p => p.level))].sort((a, b) => a - b);
+              
+              // 1단 필터: 선택된 레벨에 해당하는 파트너들
+              const levelFilteredPartners = selectedLevel 
+                ? availablePartners.filter(p => p.level === selectedLevel)
+                : availablePartners;
+              
+              // 3단 필터: 검색어로 필터링
+              const searchFilteredPartners = levelFilteredPartners.filter(p => {
+                if (!partnerSearchTerm) return true;
+                const searchLower = partnerSearchTerm.toLowerCase();
+                return (p.username?.toLowerCase().includes(searchLower) || 
+                        p.nickname?.toLowerCase().includes(searchLower));
+              });
+              
+              const levelMap: { [key: number]: string } = {
+                2: t.partnerManagement.headOffice,
+                3: t.partnerManagement.mainOffice,
+                4: t.partnerManagement.subOffice,
+                5: t.partnerManagement.distributor,
+                6: t.partnerManagement.store
+              };
+              
+              return (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
+                    <div className="w-1.5 h-6 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
+                    <h4 className="text-lg font-semibold text-slate-200">조직 설정</h4>
+                  </div>
+                  
+                  {/* 3단 필터 - 한 줄에 3열 */}
+                  <div className="grid grid-cols-3 gap-4">
+                    {/* 1단: 파트너 권한 드롭다운 */}
+                    <div className="space-y-2">
+                      <Label className="text-slate-300 text-base">파트너 권한</Label>
+                      <Select 
+                        value={selectedLevel === '' ? 'all' : selectedLevel.toString()} 
+                        onValueChange={(value) => {
+                          setSelectedLevel(value === 'all' ? '' : parseInt(value));
+                          setFormData(prev => ({ ...prev, selected_referrer_id: '' }));
+                        }}
+                      >
+                        <SelectTrigger className="input-premium focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/20 text-base h-11">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700">
+                          <SelectItem value="all" className="text-slate-200 focus:bg-slate-700 text-base py-2">
+                            전체
+                          </SelectItem>
+                          {uniqueLevels.map(level => (
+                            <SelectItem 
+                              key={level} 
+                              value={level.toString()} 
+                              className="text-slate-200 focus:bg-slate-700 text-base py-2"
+                            >
+                              {levelMap[level] || `Level ${level}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* 2단: 파트너 아이디 드롭다운 */}
+                    <div className="space-y-2">
+                      <Label className="text-slate-300 text-base">파트너 아이디</Label>
+                      <Select 
+                        value={formData.selected_referrer_id || undefined} 
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, selected_referrer_id: value }))}
+                      >
+                        <SelectTrigger className="input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-base h-11">
+                          <SelectValue placeholder="파트너 선택" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-slate-800 border-slate-700 max-h-[300px]">
+                          {searchFilteredPartners.length === 0 ? (
+                            <div className="text-center py-3 text-slate-400 text-sm">
+                              파트너가 없습니다
+                            </div>
+                          ) : (
+                            searchFilteredPartners.map(partner => {
+                              const levelText = levelMap[partner.level] || `Level ${partner.level}`;
+                              const isSelf = partner.id === authState.user?.id;
+                              return (
+                                <SelectItem 
+                                  key={partner.id} 
+                                  value={partner.id} 
+                                  className="text-slate-200 focus:bg-slate-700 focus:text-slate-100 text-base py-2"
+                                >
+                                  {partner.nickname || partner.username} ({levelText}){isSelf ? ' ⭐' : ''}
+                                </SelectItem>
+                              );
+                            })
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* 3단: 검색 필터 */}
+                    <div className="space-y-2">
+                      <Label className="text-slate-300 text-base">검색</Label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                          value={partnerSearchTerm}
+                          onChange={(e) => setPartnerSearchTerm(e.target.value)}
+                          className="input-premium focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20 text-base h-11 pl-10"
+                          placeholder="아이디/닉네임 검색"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 선택된 파트너 정보 표시 */}
+                  {formData.selected_referrer_id && (() => {
+                    const selectedPartner = availablePartners.find(p => p.id === formData.selected_referrer_id);
+                    if (selectedPartner) {
+                      const levelText = levelMap[selectedPartner.level] || `Level ${selectedPartner.level}`;
+                      const isSelf = selectedPartner.id === authState.user?.id;
                       return (
-                        <SelectItem 
-                          key={partner.id} 
-                          value={partner.id} 
-                          className="text-slate-200 focus:bg-slate-700 focus:text-slate-100 text-lg py-3"
-                        >
-                          {partner.nickname || partner.username} ({levelText}){isSelf ? ' ⭐ 본인' : ''}
-                        </SelectItem>
+                        <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+                          <div className="flex items-center gap-3">
+                            <Users className="h-5 w-5 text-purple-400" />
+                            <div>
+                              <p className="text-base text-purple-300 font-medium">
+                                선택된 파트너: {selectedPartner.nickname || selectedPartner.username}
+                              </p>
+                              <p className="text-sm text-slate-400">
+                                권한: {levelText} {isSelf && '⭐ 본인'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       );
-                    })}
-                  </SelectContent>
-                  </Select>
+                    }
+                    return null;
+                  })()}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* 은행 정보 섹션 */}
             <div className="space-y-5">

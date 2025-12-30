@@ -97,6 +97,12 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
   const [memoHistory, setMemoHistory] = useState<any[]>([]);
   const [showMemoHistory, setShowMemoHistory] = useState(false);
 
+  // 출금 비밀번호 & 포인트전환 비밀번호 변경 state
+  const [withdrawalPasswordEditMode, setWithdrawalPasswordEditMode] = useState(false);
+  const [withdrawalPassword, setWithdrawalPassword] = useState('');
+  const [pointConversionPassword, setPointConversionPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
   // 커미션 저장 함수
   const saveCommission = async () => {
     try {
@@ -132,20 +138,49 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
     }
   };
 
-  // 메모 이력 조회
+  // 메모 이력 조회 (user_logs 테이블 사용)
   const fetchMemoHistory = async () => {
     try {
       const { data, error } = await supabase
-        .from('user_memo_history')
-        .select('*, created_by_partner:partners!user_memo_history_created_by_fkey(username, nickname)')
+        .from('user_logs')
+        .select('*')
         .eq('user_id', user.id)
+        .eq('action', 'memo_updated')
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
-      setMemoHistory(data || []);
+      
+      // description 필드를 파싱하여 메모 정보 추출
+      const formattedHistory = (data || []).map(log => {
+        try {
+          const parsedDesc = JSON.parse(log.description || '{}');
+          return {
+            id: log.id,
+            user_id: log.user_id,
+            memo: parsedDesc.memo || '',
+            created_by: parsedDesc.created_by || null,
+            created_by_username: parsedDesc.created_by_username || '시스템',
+            created_by_nickname: parsedDesc.created_by_nickname || null,
+            created_at: log.created_at
+          };
+        } catch (e) {
+          // 파싱 실패 시 기본값 사용
+          return {
+            id: log.id,
+            user_id: log.user_id,
+            memo: log.description || '',
+            created_by: null,
+            created_by_username: '시스템',
+            created_by_nickname: null,
+            created_at: log.created_at
+          };
+        }
+      });
+      
+      setMemoHistory(formattedHistory);
     } catch (error) {
-      console.error('메모 이력 조회 오류:', error);
+      console.error('❌ 메모 이력 조회 오류:', error);
     }
   };
 
@@ -165,13 +200,19 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
 
       if (updateError) throw updateError;
 
-      // 2. 메모 이력 기록
+      // 2. 메모 이력 기록 (user_logs 사용)
       const { error: historyError } = await supabase
-        .from('user_memo_history')
+        .from('user_logs')
         .insert({
           user_id: user.id,
-          memo: memoText || null,
-          created_by: authState.user?.id, // 현재 로그인한 관리자 ID
+          action: 'memo_updated',
+          description: JSON.stringify({
+            memo: memoText || null,
+            created_by: authState.user?.id,
+            created_by_username: authState.user?.username || '시스템',
+            created_by_nickname: authState.user?.nickname || null
+          }),
+          ip_address: null,
           created_at: new Date().toISOString()
         });
 
@@ -189,6 +230,67 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
       toast.error('메모 저장에 실패했습니다.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 출금/포인트전환 비밀번호 저장 함수
+  const savePasswords = async () => {
+    try {
+      // 검증
+      if (withdrawalPassword && !/^\d{4}$/.test(withdrawalPassword)) {
+        toast.error('출금 비밀번호는 숫자 4자리로 입력해주세요.');
+        return;
+      }
+
+      if (pointConversionPassword && !/^\d{4}$/.test(pointConversionPassword)) {
+        toast.error('포인트전환 비밀번호는 숫자 4자리로 입력해주세요.');
+        return;
+      }
+
+      if (!withdrawalPassword && !pointConversionPassword) {
+        toast.error('변경할 비밀번호를 입력해주세요.');
+        return;
+      }
+
+      setPasswordLoading(true);
+
+      const updateData: any = {
+        updated_at: new Date().toISOString()
+      };
+
+      if (withdrawalPassword) {
+        updateData.withdrawal_password = withdrawalPassword;
+      }
+
+      if (pointConversionPassword) {
+        updateData.point_conversion_password = pointConversionPassword;
+      }
+
+      const { error } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      toast.success('비밀번호가 변경되었습니다.');
+      setWithdrawalPasswordEditMode(false);
+      setWithdrawalPassword('');
+      setPointConversionPassword('');
+
+      // 사용자 객체 업데이트
+      if (withdrawalPassword) {
+        user.withdrawal_password = withdrawalPassword;
+      }
+      if (pointConversionPassword) {
+        user.point_conversion_password = pointConversionPassword;
+      }
+
+    } catch (error) {
+      console.error('비밀번호 변경 오류:', error);
+      toast.error('비밀번호 변경에 실패했습니다.');
+    } finally {
+      setPasswordLoading(false);
     }
   };
   
@@ -954,7 +1056,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                                 #{memoHistory.length - idx}
                               </span>
                               <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                                <span>{history.created_by_partner?.nickname || history.created_by_partner?.username || '관리자'}</span>
+                                <span>{history.created_by_nickname || history.created_by_username || '관리자'}</span>
                                 <span>{formatDateTime(history.created_at)}</span>
                               </div>
                             </div>
@@ -970,6 +1072,81 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
 
                 {/* 비밀번호 변경 섹션 */}
                 <PasswordChangeSection userId={user.id} />
+
+                {/* 출금/포인트전환 비밀번호 변경 섹션 */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="flex items-center gap-2">
+                      <Settings className="h-5 w-5 text-cyan-400" />
+                      <span className="text-lg">2차 비밀번호 관리</span>
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (withdrawalPasswordEditMode) {
+                          setWithdrawalPassword('');
+                          setPointConversionPassword('');
+                        }
+                        setWithdrawalPasswordEditMode(!withdrawalPasswordEditMode);
+                      }}
+                      className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 text-sm"
+                    >
+                      {withdrawalPasswordEditMode ? '취소' : '✏️ 수정'}
+                    </Button>
+                  </div>
+
+                  {withdrawalPasswordEditMode ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-base text-muted-foreground">🔐 출금 비밀번호 (4자리)</Label>
+                          <Input
+                            type="password"
+                            value={withdrawalPassword}
+                            onChange={(e) => setWithdrawalPassword(e.target.value)}
+                            placeholder="새 출금 비밀번호 입력"
+                            maxLength={4}
+                            className="h-11 text-base bg-slate-800/50 border-slate-700 focus:border-cyan-500/60"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-base text-muted-foreground">💰 포인트전환 비밀번호 (4자리)</Label>
+                          <Input
+                            type="password"
+                            value={pointConversionPassword}
+                            onChange={(e) => setPointConversionPassword(e.target.value)}
+                            placeholder="새 포인트전환 비밀번호 입력"
+                            maxLength={4}
+                            className="h-11 text-base bg-slate-800/50 border-slate-700 focus:border-cyan-500/60"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        onClick={savePasswords}
+                        disabled={passwordLoading || (!withdrawalPassword && !pointConversionPassword)}
+                        className="w-full btn-premium-primary text-base h-11"
+                      >
+                        {passwordLoading ? '저장 중...' : '💾 비밀번호 저장'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
+                        <span className="text-base text-muted-foreground">출금 비밀번호</span>
+                        <span className="text-lg font-mono">
+                          {user.withdrawal_password ? '••••' : '미설정'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
+                        <span className="text-base text-muted-foreground">포인트전환 비밀번호</span>
+                        <span className="text-lg font-mono">
+                          {user.point_conversion_password ? '••••' : '미설정'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* 커미션 설정 섹션 */}
                 <div>

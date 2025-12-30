@@ -16,6 +16,7 @@ import {
 import { generateUUID } from '../../lib/utils';
 import { logLogin, getClientIP, getUserAgent } from '../../lib/activityLogger';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
+import * as bcrypt from 'bcryptjs';
 
 interface BenzLoginModalProps {
   isOpen: boolean;
@@ -90,7 +91,6 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
         .from('users')
         .select('*')
         .eq('username', loginData.username.trim())
-        .eq('password_hash', loginData.password)
         .maybeSingle();
 
       console.log('🔐 로그인 응답:', { data, error: loginError });
@@ -103,6 +103,16 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
 
       if (!data) {
         console.log('❌ 아이디 또는 비밀번호 불일치');
+        
+        // 🔍 디버깅: 해당 username이 존재하는지 확인
+        const { data: userCheck } = await supabase
+          .from('users')
+          .select('username, status')
+          .eq('username', loginData.username.trim())
+          .maybeSingle();
+        
+        console.log('🔍 사용자 존재 여부:', userCheck);
+        
         setError('아이디 또는 비밀번호가 올바르지 않습니다.');
         refreshCaptcha();
         return;
@@ -126,6 +136,14 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
       if (user.status === 'pending') {
         console.warn('⚠️ 승인 대기 중인 계정:', user.username);
         setError('승인 대기 중인 계정입니다. 잠시 후 다시 시도해주세요.');
+        refreshCaptcha();
+        return;
+      }
+
+      const isPasswordMatch = await bcrypt.compare(loginData.password, user.password_hash);
+      if (!isPasswordMatch) {
+        console.log('❌ 비밀번호 불일치');
+        setError('아이디 또는 비밀번호가 올바르지 않습니다.');
         refreshCaptcha();
         return;
       }

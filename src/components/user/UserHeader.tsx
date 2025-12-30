@@ -33,7 +33,6 @@ import { LanguageSwitcher } from "../admin/LanguageSwitcher";
 
 interface UserHeaderProps {
   user: any;
-  currentRoute: string;
   onRouteChange: (route: string) => void;
   onLogout: () => void;
 }
@@ -43,12 +42,16 @@ interface UserBalance {
   points: number;
 }
 
-export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: UserHeaderProps) {
-  const [balance, setBalance] = useState<UserBalance>({ balance: 0, points: 0 });
+export function UserHeader({ user, onRouteChange, onLogout }: UserHeaderProps) {
+  const [balance, setBalance] = useState<{ balance: number; points: number }>({ balance: 0, points: 0 });
   const [showPointsDialog, setShowPointsDialog] = useState(false);
+  const [conversionPassword, setConversionPassword] = useState(''); // 포인트전환 비밀번호 state 추가
   const balanceChannelRef = useRef<any>(null);
   const isMountedRef = useRef(true);
   const { language, setLanguage, t } = useLanguage();
+
+  // 현재 라우트 가져오기 (hash에서)
+  const currentRoute = window.location.hash.replace('#', '') || '/user/casino';
 
   // ⭐ 메뉴는 항상 표시 (partner_game_access 필터링 안 함)
   const menuItems = [
@@ -139,7 +142,40 @@ export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: User
       return;
     }
 
+    // 포인트전환 비밀번호 확인
+    if (!conversionPassword.trim()) {
+      toast.error('포인트전환 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    if (!/^\d{4}$/.test(conversionPassword.trim())) {
+      toast.error('포인트전환 비밀번호는 숫자 4자리입니다.');
+      return;
+    }
+
     try {
+      // DB에서 사용자의 point_conversion_password 조회
+      const { data: userData, error: userCheckError } = await supabase
+        .from('users')
+        .select('point_conversion_password')
+        .eq('id', user.id)
+        .single();
+
+      if (userCheckError) {
+        throw new Error('사용자 정보를 조회할 수 없습니다.');
+      }
+
+      if (!userData.point_conversion_password) {
+        throw new Error('포인트전환 비밀번호가 설정되지 않았습니다. 고객센터에 문의해주세요.');
+      }
+
+      // 입력한 비밀번호와 DB의 비밀번호 비교
+      if (conversionPassword.trim() !== userData.point_conversion_password) {
+        toast.error('포인트전환 비밀번호가 일치하지 않습니다.');
+        setConversionPassword(''); // 비밀번호 초기화
+        return;
+      }
+
       const pointsToConvert = balance.points;
       
       const { error: userError } = await supabase
@@ -177,6 +213,7 @@ export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: User
 
       await fetchBalance();
       setShowPointsDialog(false);
+      setConversionPassword(''); // 비밀번호 초기화
       toast.success(`${pointsToConvert.toLocaleString()}P가 보유금으로 전환되었습니다.`);
     } catch (error: any) {
       console.error('포인트 전환 오류:', error);
@@ -430,31 +467,54 @@ export function UserHeader({ user, currentRoute, onRouteChange, onLogout }: User
       </div>
 
       {/* 포인트 전환 다이얼로그 */}
-      <AlertDialog open={showPointsDialog} onOpenChange={setShowPointsDialog}>
+      <AlertDialog open={showPointsDialog} onOpenChange={(open) => {
+        setShowPointsDialog(open);
+        if (!open) setConversionPassword(''); // 다이얼로그 닫을 때 비밀번호 초기화
+      }}>
         <AlertDialogContent className="bg-slate-800 border-slate-700">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">{t.user.pointConversion}</AlertDialogTitle>
+            <AlertDialogTitle className="text-white">포인트 전환</AlertDialogTitle>
             <AlertDialogDescription className="text-slate-300">
               {balance.points > 0 ? (
                 <>
-                  {t.user.convertPointsConfirm} <span className="text-yellow-400 font-bold">{formatCurrency(balance.points)}P</span>
-                  {t.user.convertPointsQuestion}
+                  <span className="text-yellow-400 font-bold">{formatCurrency(balance.points)}P</span>를 보유금으로 전환하시겠습니까?
+                  
+                  {/* 포인트전환 비밀번호 입력 필드 */}
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                      포인트전환 비밀번호 (4자리)
+                    </label>
+                    <input
+                      type="password"
+                      value={conversionPassword}
+                      onChange={(e) => setConversionPassword(e.target.value)}
+                      placeholder="숫자 4자리를 입력해주세요"
+                      maxLength={4}
+                      className="w-full px-4 py-2 rounded-lg border border-slate-600 bg-slate-700 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && conversionPassword.length === 4) {
+                          convertPointsToBalance();
+                        }
+                      }}
+                    />
+                  </div>
                 </>
               ) : (
-                <span className="text-slate-400">{t.user.noPointsToConvert}</span>
+                <span className="text-slate-400">전환할 포인트가 없습니다.</span>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600">
-              {balance.points > 0 ? t.user.cancel : t.user.confirm}
+            <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-slate-600" onClick={() => setConversionPassword('')}>
+              {balance.points > 0 ? '취소' : '확인'}
             </AlertDialogCancel>
             {balance.points > 0 && (
               <AlertDialogAction
                 onClick={convertPointsToBalance}
                 className="bg-blue-600 text-white hover:bg-blue-700"
+                disabled={conversionPassword.length !== 4}
               >
-                {t.user.convertPointsButton}
+                전환하기
               </AlertDialogAction>
             )}
           </AlertDialogFooter>

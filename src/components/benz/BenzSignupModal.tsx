@@ -40,7 +40,9 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
     bank_name: '',
     bank_account: '',
     bank_holder: '',
-    referrer_username: ''
+    referrer_username: '',
+    withdrawal_password: '',
+    point_conversion_password: ''
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -138,7 +140,9 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
       bank_name: '',
       bank_account: '',
       bank_holder: '',
-      referrer_username: ''
+      referrer_username: '',
+      withdrawal_password: '',
+      point_conversion_password: ''
     });
     setError(null);
     setNicknameCheck({ status: 'idle', message: '' });
@@ -172,6 +176,28 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
     
     if (!registerData.referrer_username.trim()) {
       setError('추천인을 입력해주세요.');
+      return;
+    }
+
+    // 출금 비밀번호 검증 (숫자 4자리)
+    if (!registerData.withdrawal_password.trim()) {
+      setError('출금 비밀번호를 입력해주세요.');
+      return;
+    }
+    
+    if (!/^\d{4}$/.test(registerData.withdrawal_password.trim())) {
+      setError('출금 비밀번호는 숫자 4자리로 입력해주세요.');
+      return;
+    }
+
+    // 포인트전환 비밀번호 검증 (숫자 4자리)
+    if (!registerData.point_conversion_password.trim()) {
+      setError('포인트전환 비밀번호를 입력해주세요.');
+      return;
+    }
+    
+    if (!/^\d{4}$/.test(registerData.point_conversion_password.trim())) {
+      setError('포인트전환 비밀번호는 숫자 4자리로 입력해주세요.');
       return;
     }
 
@@ -233,6 +259,8 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
           bank_account: registerData.bank_account.trim() || null,
           bank_holder: registerData.bank_holder.trim() || null,
           referrer_id: referrerData.id,
+          withdrawal_password: registerData.withdrawal_password.trim(), // 출금 비밀번호 추가
+          point_conversion_password: registerData.point_conversion_password.trim(), // 포인트전환 비밀번호 추가
           status: 'pending',
           balance: 0,
           points: 0
@@ -276,7 +304,9 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
         bank_name: '',
         bank_account: '',
         bank_holder: '',
-        referrer_username: ''
+        referrer_username: '',
+        withdrawal_password: '',
+        point_conversion_password: ''
       });
       setNicknameCheck({ status: 'idle', message: '' });
       
@@ -598,13 +628,31 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                   />
                 </div>
 
-                {/* 출금 비밀번호 */}
-                <div>
+                {/* 출금 비밀번호 & 포인트전환 비밀번호 (2열) */}
+                <div className="grid grid-cols-2 gap-3">
                   <Input
                     id="withdrawal_password"
                     name="withdrawal_password"
                     type="password"
-                    placeholder="출금 비밀번호 (숫자만 4자리) *"
+                    placeholder="출금 비밀번호 (4자리) *"
+                    value={registerData.withdrawal_password}
+                    onChange={handleRegisterChange}
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
+                    disabled={isLoading}
+                    required
+                  />
+                  <Input
+                    id="point_conversion_password"
+                    name="point_conversion_password"
+                    type="password"
+                    placeholder="포인트전환 비밀번호 (4자리) *"
+                    value={registerData.point_conversion_password}
+                    onChange={handleRegisterChange}
                     className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
                     style={{
                       background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',

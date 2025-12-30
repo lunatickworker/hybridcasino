@@ -29,12 +29,14 @@ import {
   Store,
   User as UserIcon,
   List,
+  Play,
 } from "lucide-react";
 import { Partner, User } from "../../types";
 import { gameApi, Game, GameProvider } from "../../lib/gameApi";
 import { useBalance } from "../../contexts/BalanceContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { supabase } from "../../lib/supabase";
+import { ImageWithFallback } from "../figma/ImageWithFallback";
 
 interface EnhancedGameManagementProps {
   user: Partner;
@@ -95,110 +97,147 @@ function GameCard({
   };
 
   return (
-    <div
-      className={`group relative bg-slate-900/50 border rounded-md overflow-hidden transition-all hover:shadow-md hover:shadow-blue-500/20 ${
-        isSelected
-          ? "border-blue-500 ring-1 ring-blue-500/50"
-          : "border-slate-700 hover:border-slate-600"
-      }`}
-    >
-      <div className="absolute top-2 left-2 z-10">
+    <div className="group relative">
+      {/* 체크박스 - 좌상단 */}
+      <div className="absolute top-2 left-2 z-20">
         <Checkbox
           checked={isSelected}
           onCheckedChange={onToggleSelection}
-          className="bg-slate-900/90 border-slate-600 h-5 w-5"
+          className="bg-black/80 border-slate-500 h-5 w-5"
         />
       </div>
 
-      <div className="aspect-[3/2] bg-slate-800 relative overflow-hidden">
+      {/* Featured 별 - 우상단 */}
+      {game.is_featured && (
+        <div className="absolute top-2 right-2 z-20">
+          <Star className="w-5 h-5 text-yellow-400 fill-yellow-400 drop-shadow-lg" />
+        </div>
+      )}
+
+      <div className="relative aspect-square overflow-hidden rounded-2xl transition-all duration-500" style={{
+        background: '#16161f',
+        boxShadow: isSelected 
+          ? '0 0 0 2px rgba(59, 130, 246, 0.8), 0 8px 32px rgba(0,0,0,0.4)' 
+          : '0 8px 32px rgba(0,0,0,0.4)'
+      }}>
+        {/* 게임 이미지 */}
         {game.image_url ? (
-          <img
+          <ImageWithFallback
             src={game.image_url}
             alt={game.name}
-            loading="lazy"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src =
-                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="67"%3E%3Crect fill="%23334155" width="100" height="67"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" font-size="24" fill="%23475569"%3E🎮%3C/text%3E%3C/svg%3E';
-            }}
+            className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+            style={{ objectPosition: 'center 30%' }}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-3xl opacity-30">
-            🎮
+          <div className="w-full h-full flex items-center justify-center" style={{
+            background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)'
+          }}>
+            <Play className="w-16 h-16 text-white/20" />
           </div>
         )}
-
-        {game.is_featured && (
-          <div className="absolute top-1 right-1">
-            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400 drop-shadow-lg" />
-          </div>
-        )}
-
-        <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onToggleFeatured}
-            className={`h-7 px-2 border-0 text-white text-xs ${
-              game.is_featured
-                ? "bg-amber-600 hover:bg-amber-700"
-                : "bg-slate-700 hover:bg-slate-600"
-            }`}
-            title={game.is_featured ? t.gameManagement.removeFeatured : t.gameManagement.setFeatured}
-          >
-            <Star className={`w-3 h-3 ${game.is_featured ? "fill-white" : ""}`} />
-          </Button>
-        </div>
-      </div>
-
-      <div className="p-2 space-y-1">
-        <div className="min-h-[32px] flex items-center">
-          <div
-            className="text-xs text-slate-200 line-clamp-2 leading-tight"
-            title={game.name}
-          >
+        
+        {/* 그라디언트 오버레이 */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent opacity-70 group-hover:opacity-80 transition-opacity duration-500"></div>
+        
+        {/* 게임명 - 하단 고정 */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 bg-black/50">
+          <p className="text-white text-center line-clamp-2" style={{
+            fontSize: '0.875rem',
+            fontWeight: '700',
+            textShadow: '0 2px 8px rgba(0,0,0,1), 0 0 20px rgba(0,0,0,0.9)',
+            letterSpacing: '-0.01em',
+            lineHeight: '1.3'
+          }}>
             {game.name}
-          </div>
+          </p>
+          
+          {/* RTP 표시 */}
+          {game.rtp && (
+            <p className="text-white/60 text-center mt-1" style={{
+              fontSize: '0.625rem',
+              textShadow: '0 1px 4px rgba(0,0,0,0.8)'
+            }}>
+              RTP {game.rtp}%
+            </p>
+          )}
         </div>
-
-        <div className="flex items-center justify-between pt-1 border-t border-slate-700/50">
-          <div className="flex items-center gap-1">
-            {getStatusIcon()}
-            {game.rtp && (
-              <span className="text-[10px] text-slate-400">RTP {game.rtp}%</span>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <Select
-              value={isBlocked ? "hidden" : game.status}
-              onValueChange={(value: "visible" | "maintenance" | "hidden") =>
-                onChangeStatus(value)
-              }
-            >
-              <SelectTrigger className="h-6 w-20 text-[10px] bg-slate-800 border-slate-600">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="visible">
-                  <div className="flex items-center gap-1 text-xs">
-                    <Eye className="w-3 h-3" />
-                    {t.gameManagement.visible}
-                  </div>
-                </SelectItem>
-                <SelectItem value="maintenance">
-                  <div className="flex items-center gap-1 text-xs">
-                    <AlertTriangle className="w-3 h-3" />
-                    {t.gameManagement.maintenance}
-                  </div>
-                </SelectItem>
-                <SelectItem value="hidden">
-                  <div className="flex items-center gap-1 text-xs">
-                    <EyeOff className="w-3 h-3" />
-                    {t.gameManagement.hidden}
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+        
+        {/* 호버 시 로즈 골드 테두리 */}
+        <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
+          boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
+        }}></div>
+        
+        {/* 호버 시 관리 버튼 */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500">
+          <div className="flex flex-col items-center gap-3">
+            {/* Play 아이콘 */}
+            <div className="w-16 h-16 rounded-full backdrop-blur-xl flex items-center justify-center transition-all duration-500" style={{
+              background: 'rgba(193, 154, 107, 0.15)',
+              boxShadow: '0 0 30px rgba(193, 154, 107, 0.3), inset 0 0 20px rgba(255,255,255,0.1)',
+              border: '2px solid rgba(193, 154, 107, 0.4)'
+            }}>
+              <Play className="w-8 h-8" style={{ color: '#E6C9A8', fill: '#E6C9A8' }} />
+            </div>
+            
+            {/* 버튼들 */}
+            <div className="flex items-center gap-2">
+              {/* Featured 버튼 */}
+              <Button
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleFeatured();
+                }}
+                className={`h-7 px-3 border-0 text-white text-xs transition-all ${
+                  game.is_featured
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : "bg-slate-700 hover:bg-slate-600"
+                }`}
+                title={game.is_featured ? t.gameManagement.removeFeatured : t.gameManagement.setFeatured}
+              >
+                <Star className={`w-3 h-3 ${game.is_featured ? "fill-white" : ""}`} />
+              </Button>
+              
+              {/* 상태 변경 Select */}
+              <Select
+                value={isBlocked ? "hidden" : game.status}
+                onValueChange={(value: "visible" | "maintenance" | "hidden") => {
+                  onChangeStatus(value);
+                }}
+              >
+                <SelectTrigger 
+                  className="h-7 w-24 text-xs bg-slate-800/90 border-slate-600 text-white"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="visible">
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <Eye className="w-3 h-3" />
+                      {t.gameManagement.visible}
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="maintenance">
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <AlertTriangle className="w-3 h-3" />
+                      {t.gameManagement.maintenance}
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="hidden">
+                    <div className="flex items-center gap-1.5 text-xs">
+                      <EyeOff className="w-3 h-3" />
+                      {t.gameManagement.hidden}
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* 상태 아이콘 */}
+            <div className="flex items-center gap-1 bg-black/60 px-2 py-1 rounded">
+              {getStatusIcon()}
+            </div>
           </div>
         </div>
       </div>
@@ -327,7 +366,7 @@ function ProviderSection({
               게임이 없습니다.
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
               {games.map((game) => (
                 <GameCard
                   key={game.id}
@@ -2120,7 +2159,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                           게임이 없습니다.
                                         </div>
                                       ) : (
-                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                                           {providerGames.map((game) => {
                                             const isBlocked = storeBlockedGames.includes(game.id);
                                             return (
@@ -2650,7 +2689,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                           매장에서 허용된 게임이 없습니다.
                                         </div>
                                       ) : (
-                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+                                        <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
                                           {providerGames.map((game) => {
                                             const isBlocked = userBlockedGames.includes(game.id);
                                             return (

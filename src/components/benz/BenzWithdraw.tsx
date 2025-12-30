@@ -194,7 +194,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
 
   const handleSubmit = async () => {
     if (!password) {
-      toast.error('비밀번호를 입력해주세요.');
+      toast.error('출금 비밀번호를 입력해주세요.');
       return;
     }
 
@@ -203,15 +203,24 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
     try {
       const amount = parseFloat(withdrawAmount.replace(/,/g, ''));
 
-      // 비밀번호 확인
-      const { data: authData, error: authError } = await supabase
-        .rpc('user_login', {
-          p_username: user.username,
-          p_password: password
-        });
+      // 출금 비밀번호 확인 (withdrawal_password)
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('withdrawal_password')
+        .eq('id', user.id)
+        .single();
 
-      if (authError || !authData || authData.length === 0) {
-        throw new Error('비밀번호가 일치하지 않습니다.');
+      if (userError) {
+        throw new Error('사용자 정보를 조회할 수 없습니다.');
+      }
+
+      if (!userData.withdrawal_password) {
+        throw new Error('출금 비밀번호가 설정되지 않았습니다. 고객센터에 문의해주세요.');
+      }
+
+      // 입력한 출금 비밀번호와 DB의 출금 비밀번호 비교
+      if (password !== userData.withdrawal_password) {
+        throw new Error('출금 비밀번호가 일치하지 않습니다.');
       }
 
       // 현재 잔고 재조회
@@ -571,7 +580,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
               </div>
               <div className="flex gap-3">
                 <span className="font-bold flex-shrink-0" style={{ color: '#C19A6B' }}>•</span>
-                <span>출금 신청 시 본인 확인을 위해 비밀번호를 입력해야 합니다.</span>
+                <span>출금 신청 시 본인 확인을 위해 출금 비밀번호(숫자 4자리)를 입력해야 합니다.</span>
               </div>
             </div>
           </div>
@@ -821,12 +830,12 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-gray-300 mb-2">비밀번호 *</label>
+                  <label className="block text-gray-300 mb-2">출금 비밀번호 (4자리) *</label>
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="비밀번호를 입력해주세요"
+                    placeholder="출금 비밀번호 4자리를 입력해주세요"
                     className="w-full px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all border-0"
                     style={{
                       background: 'rgba(0, 0, 0, 0.3)',

@@ -7233,6 +7233,10 @@
     color: var(--color-gray-500);
   }
 
+  .placeholder-slate-400::placeholder {
+    color: var(--color-slate-400);
+  }
+
   .opacity-0 {
     opacity: 0;
   }
@@ -7464,16 +7468,6 @@
   @supports (color: color-mix(in lab, red, red)) {
     .shadow-yellow-500\/50 {
       --tw-shadow-color: color-mix(in oklab, color-mix(in oklab, var(--color-yellow-500) 50%, transparent) var(--tw-shadow-alpha), transparent);
-    }
-  }
-
-  .ring-blue-500\/50 {
-    --tw-ring-color: color-mix(in srgb, oklch(.623 .214 259.815) 50%, transparent);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .ring-blue-500\/50 {
-      --tw-ring-color: color-mix(in oklab, var(--color-blue-500) 50%, transparent);
     }
   }
 
@@ -8416,6 +8410,18 @@
   }
 
   @media (hover: hover) {
+    .hover\:bg-cyan-500\/10:hover {
+      background-color: color-mix(in srgb, oklch(.715 .143 215.221) 10%, transparent);
+    }
+
+    @supports (color: color-mix(in lab, red, red)) {
+      .hover\:bg-cyan-500\/10:hover {
+        background-color: color-mix(in oklab, var(--color-cyan-500) 10%, transparent);
+      }
+    }
+  }
+
+  @media (hover: hover) {
     .hover\:bg-destructive\/90:hover {
       background-color: var(--destructive);
     }
@@ -9226,6 +9232,12 @@
   }
 
   @media (hover: hover) {
+    .hover\:text-cyan-300:hover {
+      color: var(--color-cyan-300);
+    }
+  }
+
+  @media (hover: hover) {
     .hover\:text-cyan-400:hover {
       color: var(--color-cyan-400);
     }
@@ -9536,6 +9548,16 @@
     }
   }
 
+  .focus\:border-cyan-500\/60:focus {
+    border-color: color-mix(in srgb, oklch(.715 .143 215.221) 60%, transparent);
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .focus\:border-cyan-500\/60:focus {
+      border-color: color-mix(in oklab, var(--color-cyan-500) 60%, transparent);
+    }
+  }
+
   .focus\:border-green-500:focus {
     border-color: var(--color-green-500);
   }
@@ -9622,6 +9644,16 @@
   @supports (color: color-mix(in lab, red, red)) {
     .focus\:ring-blue-500\/20:focus {
       --tw-ring-color: color-mix(in oklab, var(--color-blue-500) 20%, transparent);
+    }
+  }
+
+  .focus\:ring-cyan-500\/20:focus {
+    --tw-ring-color: color-mix(in srgb, oklch(.715 .143 215.221) 20%, transparent);
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .focus\:ring-cyan-500\/20:focus {
+      --tw-ring-color: color-mix(in oklab, var(--color-cyan-500) 20%, transparent);
     }
   }
 
@@ -11093,12 +11125,6 @@
   }
 
   @media (width >= 64rem) {
-    .lg\:grid-cols-6 {
-      grid-template-columns: repeat(6, minmax(0, 1fr));
-    }
-  }
-
-  @media (width >= 64rem) {
     .lg\:grid-cols-12 {
       grid-template-columns: repeat(12, minmax(0, 1fr));
     }
@@ -11228,12 +11254,6 @@
   @media (width >= 80rem) {
     .xl\:grid-cols-6 {
       grid-template-columns: repeat(6, minmax(0, 1fr));
-    }
-  }
-
-  @media (width >= 80rem) {
-    .xl\:grid-cols-8 {
-      grid-template-columns: repeat(8, minmax(0, 1fr));
     }
   }
 
