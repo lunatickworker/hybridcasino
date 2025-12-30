@@ -217,7 +217,61 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
         }
       }
       
-      setProviders(Array.from(providerMap.values()));
+      const mergedProviders = Array.from(providerMap.values());
+      
+      // 🆕 원하는 순서대로 정렬
+      const casinoOrder = [
+        'evolution', 'pragmatic_live', 'microgaming', 'asiagaming', 
+        'sa gaming', 'ezugi', 'dream gaming', 'playace'
+      ];
+      
+      const sortedProviders = mergedProviders.sort((a, b) => {
+        const normalizeForSort = (provider: GameProvider): string => {
+          const name = (provider.name_ko || provider.name || '').toLowerCase();
+          
+          // Evolution
+          if (name.includes('evolution') || name.includes('에볼루션')) return 'evolution';
+          
+          // Pragmatic Play Live
+          if ((name.includes('pragmatic') || name.includes('프라그마틱')) && 
+              (name.includes('live') || name.includes('라이브'))) return 'pragmatic_live';
+          
+          // Microgaming
+          if (name.includes('microgaming') || name.includes('마이크로')) return 'microgaming';
+          
+          // Asia Gaming
+          if (name.includes('asia') || name.includes('아시아')) return 'asiagaming';
+          
+          // SA Gaming
+          if (name.includes('sa') || name.includes('게이밍')) return 'sa gaming';
+          
+          // Ezugi
+          if (name.includes('ezugi') || name.includes('이주기')) return 'ezugi';
+          
+          // Dream Gaming
+          if (name.includes('dream') || name.includes('드림')) return 'dream gaming';
+          
+          // Play Ace
+          if (name.includes('playace') || name.includes('플레이') || name.includes('에이스')) return 'playace';
+          
+          return name;
+        };
+        
+        const aKey = normalizeForSort(a);
+        const bKey = normalizeForSort(b);
+        const aIndex = casinoOrder.indexOf(aKey);
+        const bIndex = casinoOrder.indexOf(bKey);
+        
+        // 순서에 없는 게임사는 뒤로
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        
+        return aIndex - bIndex;
+      });
+      
+      console.log('🎰 [BenzCasino] 정렬된 게임사:', sortedProviders.map(p => p.name_ko || p.name));
+      
+      setProviders(sortedProviders);
     } catch (error) {
       console.error('❌ 제공사 로드 오류:', error);
       setProviders([]);

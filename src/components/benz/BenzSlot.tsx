@@ -208,7 +208,71 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
         }
       }
       
-      setProviders(Array.from(providerMap.values()));
+      const mergedProviders = Array.from(providerMap.values());
+      
+      console.log('🔍 [BenzSlot] 정렬 전 게임사:', mergedProviders.map(p => ({
+        id: p.id,
+        name: p.name,
+        name_ko: p.name_ko
+      })));
+      
+      // 🆕 원하는 순서대로 정렬
+      const slotOrder = [
+        'pragmatic', 'pg', 'habanero', 'booongo', 
+        'cq9', 'evoplay', 'nolimit', 'jingzibao'
+      ];
+      
+      const sortedProviders = mergedProviders.sort((a, b) => {
+        const normalizeForSort = (provider: GameProvider): string => {
+          const name = (provider.name_ko || provider.name || '').toLowerCase();
+          
+          // Pragmatic Play (모든 프라그마틱)
+          if (name.includes('pragmatic') || name.includes('프라그마틱')) return 'pragmatic';
+          
+          // PG Soft
+          if (name.includes('pg') && !name.includes('pragmatic')) return 'pg';
+          if (name.includes('pocket')) return 'pg';
+          if (name.includes('소프트')) return 'pg';
+          
+          // Habanero
+          if (name.includes('habanero') || name.includes('하바네로')) return 'habanero';
+          
+          // Booongo
+          if (name.includes('booongo') || name.includes('bng') || name.includes('부운고')) return 'booongo';
+          
+          // CQ9
+          if (name.includes('cq9')) return 'cq9';
+          
+          // Evoplay
+          if (name.includes('evoplay') || name.includes('에보플레이')) return 'evoplay';
+          
+          // Nolimit City
+          if (name.includes('nolimit') || name.includes('노리밋')) return 'nolimit';
+          
+          // Jingzibao
+          if (name.includes('jing') || name.includes('진지') || name.includes('바오')) return 'jingzibao';
+          
+          return name;
+        };
+        
+        const aKey = normalizeForSort(a);
+        const bKey = normalizeForSort(b);
+        
+        console.log(`🔍 [BenzSlot] 정렬 비교: ${a.name_ko || a.name} (${aKey}) vs ${b.name_ko || b.name} (${bKey})`);
+        
+        const aIndex = slotOrder.indexOf(aKey);
+        const bIndex = slotOrder.indexOf(bKey);
+        
+        // 순서에 없는 게임사는 뒤로
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        
+        return aIndex - bIndex;
+      });
+      
+      console.log('✅ [BenzSlot] 정렬된 게임사:', sortedProviders.map(p => p.name_ko || p.name));
+      
+      setProviders(sortedProviders);
     } catch (error) {
       console.error('❌ 제공사 로드 오류:', error);
       setProviders([]);

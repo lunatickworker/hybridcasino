@@ -174,8 +174,99 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       const mergedCasino = Array.from(casinoProviderMap.values());
       const mergedSlot = Array.from(slotProviderMap.values());
       
-      setCasinoProviders(mergedCasino.length > 0 ? mergedCasino : FALLBACK_CASINO_PROVIDERS);
-      setSlotProviders(mergedSlot.length > 0 ? mergedSlot : FALLBACK_SLOT_PROVIDERS);
+      console.log('🔍 [BenzMain] 정렬 전 슬롯 게임사:', mergedSlot.map(p => ({
+        id: p.id,
+        name: p.name,
+        name_ko: p.name_ko
+      })));
+      
+      // 🆕 원하는 순서대로 정렬
+      const casinoOrder = [
+        'evolution', 'pragmatic_live', 'microgaming', 'asiagaming', 
+        'sa gaming', 'ezugi', 'dream gaming', 'playace'
+      ];
+      const slotOrder = [
+        'pragmatic', 'pg', 'habanero', 'booongo', 
+        'cq9', 'evoplay', 'nolimit', 'jingzibao'
+      ];
+      
+      const sortProviders = (providers: GameProvider[], order: string[]) => {
+        return providers.sort((a, b) => {
+          const normalizeForSort = (provider: GameProvider): string => {
+            const name = (provider.name_ko || provider.name || '').toLowerCase();
+            
+            // Evolution
+            if (name.includes('evolution') || name.includes('에볼루션')) return 'evolution';
+            
+            // Pragmatic Play (모든 프라그마틱)
+            if (name.includes('pragmatic') || name.includes('프라그마틱')) {
+              if (name.includes('live') || name.includes('라이브')) return 'pragmatic_live';
+              return 'pragmatic'; // 슬롯용
+            }
+            
+            // Microgaming
+            if (name.includes('microgaming') || name.includes('마이크로')) return 'microgaming';
+            
+            // Asia Gaming
+            if (name.includes('asia') || name.includes('아시아')) return 'asiagaming';
+            
+            // SA Gaming
+            if (name.includes('sa') || name.includes('게이밍')) return 'sa gaming';
+            
+            // Ezugi
+            if (name.includes('ezugi') || name.includes('이주기')) return 'ezugi';
+            
+            // Dream Gaming
+            if (name.includes('dream') || name.includes('드림')) return 'dream gaming';
+            
+            // Play Ace
+            if (name.includes('playace') || name.includes('플레이') || name.includes('에이스')) return 'playace';
+            
+            // PG Soft
+            if ((name.includes('pg') && !name.includes('pragmatic')) || name.includes('pocket') || name.includes('소프트')) return 'pg';
+            
+            // Habanero
+            if (name.includes('habanero') || name.includes('하바네로')) return 'habanero';
+            
+            // Booongo
+            if (name.includes('booongo') || name.includes('bng') || name.includes('부운고')) return 'booongo';
+            
+            // CQ9
+            if (name.includes('cq9')) return 'cq9';
+            
+            // Evoplay
+            if (name.includes('evoplay') || name.includes('에보플레이')) return 'evoplay';
+            
+            // Nolimit City
+            if (name.includes('nolimit') || name.includes('노리밋')) return 'nolimit';
+            
+            // Jingzibao
+            if (name.includes('jing') || name.includes('진지') || name.includes('바오')) return 'jingzibao';
+            
+            return name;
+          };
+          
+          const aKey = normalizeForSort(a);
+          const bKey = normalizeForSort(b);
+          const aIndex = order.indexOf(aKey);
+          const bIndex = order.indexOf(bKey);
+          
+          // 순서에 없는 게임사는 뒤로
+          if (aIndex === -1) return 1;
+          if (bIndex === -1) return -1;
+          
+          return aIndex - bIndex;
+        });
+      };
+      
+      const sortedCasino = sortProviders(mergedCasino, casinoOrder);
+      const sortedSlot = sortProviders(mergedSlot, slotOrder);
+      
+      console.log('🎰 [BenzMain] 정렬된 카지노 게임사:', sortedCasino.map(p => p.name_ko || p.name));
+      console.log('🎰 [BenzMain] 정렬된 슬롯 게임사:', sortedSlot.map(p => p.name_ko || p.name));
+      
+      setCasinoProviders(sortedCasino.length > 0 ? sortedCasino : FALLBACK_CASINO_PROVIDERS);
+      setSlotProviders(sortedSlot.length > 0 ? sortedSlot : FALLBACK_SLOT_PROVIDERS);
     } catch (error) {
       console.error('데이터 로드 오류:', error);
       // 오류 시 fallback 사용
