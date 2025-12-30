@@ -929,11 +929,17 @@ export async function syncHonorApiGames(): Promise<{
           }
 
           // 벤더 타입 결정: 게임 type 필드를 기반으로 결정
-          const casinoGameTypes = ['baccarat', 'blackjack', 'roulette', 'sicbo', 'dragontiger', 'poker', 'wheel'];
+          const casinoGameTypes = ['baccarat', 'blackjack', 'roulette', 'sicbo', 'dragontiger', 'poker', 'wheel', 'live'];
+          
+          // ✅ 벤더 이름으로도 카지노 타입 판별 (Evolution, Asia Gaming, Ezugi, SA Gaming 등)
+          const casinoVendorNames = ['evolution', 'asiagaming', 'ezugi', 'sa gaming', 'sagaming', 'pragmatic play live', 'pragmaticplay live', 'dream gaming', 'dreamgaming', 'sexy', 'wm', 'allbet', 'og', 'microgaming'];
+          const vendorNameLower = vendorData.name.toLowerCase();
+          const isCasinoVendor = casinoVendorNames.some(name => vendorNameLower.includes(name));
+          
           const hasCasinoGames = games.some(g => casinoGameTypes.includes(g.type.toLowerCase()));
-          const vendorType: 'slot' | 'casino' = hasCasinoGames ? 'casino' : 'slot';
+          const vendorType: 'slot' | 'casino' = (hasCasinoGames || isCasinoVendor) ? 'casino' : 'slot';
 
-          console.log(`🎮 [HonorAPI] ${vendorData.name} 타입: ${vendorType}`);
+          console.log(`🎮 [HonorAPI] ${vendorData.name} 타입: ${vendorType} (isCasinoVendor: ${isCasinoVendor}, hasCasinoGames: ${hasCasinoGames})`);
 
           // honor_game_providers에 벤더 저장/업데이트
           const { data: existingProvider } = await supabase
@@ -959,7 +965,7 @@ export async function syncHonorApiGames(): Promise<{
 
             providerId = existingProvider.id;
             localUpdatedProviders++;
-            console.log(`✅ [HonorAPI] 제공사 업데이트: ${vendorData.name} (ID: ${providerId})`);
+            console.log(`✅ [HonorAPI] 제공사 업데이트: ${vendorData.name} (ID: ${providerId}, type: ${vendorType})`);
           } else {
             // 신규 제공사 추가
             const { data: newProvider, error: insertError } = await supabase
@@ -1011,7 +1017,9 @@ export async function syncHonorApiGames(): Promise<{
           let localUpdatedGames = 0;
 
           const gamePromises = games.map(async (game) => {
-            const gameType: 'slot' | 'casino' = casinoGameTypes.includes(game.type.toLowerCase()) ? 'casino' : 'slot';
+            // ⭐⭐⭐ 중요: 제공사의 타입(vendorType)을 우선 사용!
+            // Evolution이 'casino'라면, Evolution의 모든 게임은 'casino'로 저장!
+            const gameType: 'slot' | 'casino' = vendorType;
 
             // ✅ game_code만으로 중복 체크 (provider_id 제외)
             const { data: existingGame } = await supabase

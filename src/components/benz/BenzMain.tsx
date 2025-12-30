@@ -9,9 +9,10 @@ import {
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { gameApi } from "../../lib/gameApi";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner@2.0.3";
 
+// Benz Casino & Slot Main Page
 interface BenzMainProps {
   user: any;
   onRouteChange: (route: string) => void;
@@ -27,6 +28,7 @@ interface GameProvider {
   status: string;
   vendor_code?: string;
   api_type?: string;
+  provider_ids?: number[]; // 🆕 통합된 게임사의 모든 provider_id
 }
 
 export function BenzMain({ user, onRouteChange }: BenzMainProps) {
@@ -78,8 +80,98 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         userId: user?.id 
       });
       
-      setCasinoProviders(casinoData.length > 0 ? casinoData : FALLBACK_CASINO_PROVIDERS);
-      setSlotProviders(slotData.length > 0 ? slotData : FALLBACK_SLOT_PROVIDERS);
+      // 🆕 카지노 게임사 통합 (같은 이름끼리 합치기)
+      const casinoProviderMap = new Map<string, GameProvider>();
+      
+      const normalizeCasinoName = (provider: GameProvider): string => {
+        const name = (provider.name_ko || provider.name || '').toLowerCase();
+        
+        // Pragmatic Play Live 통합
+        if (name.includes('pragmatic') || name.includes('프라그마틱')) {
+          if (name.includes('live') || name.includes('라이브')) {
+            return 'pragmatic_live';
+          }
+        }
+        
+        // Evolution 통합
+        if (name.includes('evolution') || name.includes('에볼루션')) {
+          return 'evolution';
+        }
+        
+        // Asia Gaming 통합
+        if (name.includes('asia') || name.includes('아시아')) {
+          return 'asiagaming';
+        }
+        
+        // 다른 게임사들은 name_ko 또는 name 사용
+        return provider.name_ko || provider.name;
+      };
+      
+      for (const provider of casinoData) {
+        const key = normalizeCasinoName(provider);
+        
+        if (casinoProviderMap.has(key)) {
+          // 이미 존재하는 게임사 - provider_ids 배열에 추가
+          const existing = casinoProviderMap.get(key)!;
+          if (!existing.provider_ids) {
+            existing.provider_ids = [existing.id];
+          }
+          existing.provider_ids.push(provider.id);
+        } else {
+          // 새로운 게임사
+          casinoProviderMap.set(key, {
+            ...provider,
+            provider_ids: [provider.id]
+          });
+        }
+      }
+      
+      // 🆕 슬롯 게임사 통합 (같은 이름끼리 합치기)
+      const slotProviderMap = new Map<string, GameProvider>();
+      
+      const normalizeSlotName = (provider: GameProvider): string => {
+        const name = (provider.name_ko || provider.name || '').toLowerCase();
+        
+        // 프라그마틱 관련 통합
+        if (name.includes('pragmatic') || name.includes('프라그마틱')) {
+          if (name.includes('slot') || name.includes('슬롯')) {
+            return 'pragmatic_slot';
+          }
+          if (name.includes('live') || name.includes('라이브')) {
+            return 'pragmatic_live';
+          }
+          // 기본 프라그마틱
+          return 'pragmatic_slot';
+        }
+        
+        // 다른 게임사들은 name_ko 또는 name 사용
+        return provider.name_ko || provider.name;
+      };
+      
+      for (const provider of slotData) {
+        const key = normalizeSlotName(provider);
+        
+        if (slotProviderMap.has(key)) {
+          // 이미 존재하는 게임사 - provider_ids 배열에 추가
+          const existing = slotProviderMap.get(key)!;
+          if (!existing.provider_ids) {
+            existing.provider_ids = [existing.id];
+          }
+          existing.provider_ids.push(provider.id);
+        } else {
+          // 새로운 게임사
+          slotProviderMap.set(key, {
+            ...provider,
+            provider_ids: [provider.id]
+          });
+        }
+      }
+      
+      const mergedCasino = Array.from(casinoProviderMap.values());
+      const mergedSlot = Array.from(slotProviderMap.values());
+      
+      setCasinoProviders(mergedCasino.length > 0 ? mergedCasino : FALLBACK_CASINO_PROVIDERS);
+      setSlotProviders(mergedSlot.length > 0 ? mergedSlot : FALLBACK_SLOT_PROVIDERS);
     } catch (error) {
       console.error('데이터 로드 오류:', error);
       // 오류 시 fallback 사용
@@ -96,6 +188,9 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       setTimeout(() => setShowLoginMessage(false), 3000);
       return;
     }
+    
+    // 🆕 선택한 게임사 정보를 localStorage에 저장
+    localStorage.setItem('benz_selected_provider', JSON.stringify(provider));
     
     if (type === 'casino') {
       onRouteChange('/benz/casino');
@@ -185,7 +280,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
 
       {/* 2단 배경 이미지 - Casino List */}
       <section 
-        className="relative w-[1700]] bg-cover bg-center bg-no-repeat py-8 md:py-16 min-h-[200px] md:min-h-[400px]"
+        className="relative w-[1700px] bg-cover bg-center bg-no-repeat py-8 md:py-16 min-h-[200px] md:min-h-[400px]"
         style={{
           backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-51-03.jpg)',
           backgroundPosition: 'center center'
@@ -222,24 +317,13 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   className="cursor-pointer group"
                   onClick={() => handleProviderClick(provider, 'casino')}
                 >
-                  <div 
-                    className="relative aspect-square rounded-2xl overflow-hidden"
-                    style={{
-                      border: '2px solid rgba(193, 154, 107, 0.5)',
-                    }}
-                  >
-                    {provider.logo_url && (
-                      <img
-                        src={provider.logo_url}
-                        alt=""
-                        className="w-full object-cover"
-                        style={{
-                          height: '105%',
-                          marginTop: '-2.5%'
-                        }}
-                      />
-                    )}
-                  </div>
+                  {provider.logo_url && (
+                    <img
+                      src={provider.logo_url}
+                      alt=""
+                      className="w-[125%] object-contain"
+                    />
+                  )}
                 </motion.div>
               ))
             )}
@@ -252,7 +336,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
 
       {/* 3단 배경 이미지 - Slot List */}
       <section 
-        className="relative w-[1700]] bg-cover bg-center bg-no-repeat py-8 md:py-16 min-h-[200px] md:min-h-[400px]"
+        className="relative w-[1700px] bg-cover bg-center bg-no-repeat py-8 md:py-16 min-h-[200px] md:min-h-[400px]"
         style={{
           backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-50-48.jpg)',
           backgroundPosition: 'center center'
@@ -289,24 +373,13 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   className="cursor-pointer group"
                   onClick={() => handleProviderClick(provider, 'slot')}
                 >
-                  <div 
-                    className="relative aspect-square rounded-2xl overflow-hidden"
-                    style={{
-                      border: '2px solid rgba(193, 154, 107, 0.5)',
-                    }}
-                  >
-                    {provider.logo_url && (
-                      <img
-                        src={provider.logo_url}
-                        alt=""
-                        className="w-full object-cover"
-                        style={{
-                          height: '105%',
-                          marginTop: '-2.5%'
-                        }}
-                      />
-                    )}
-                  </div>
+                  {provider.logo_url && (
+                    <img
+                      src={provider.logo_url}
+                      alt=""
+                      className="w-[120%] object-contain"
+                    />
+                  )}
                 </motion.div>
               ))
             )}

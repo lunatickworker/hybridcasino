@@ -1,5 +1,5 @@
 {
-      "name": "1621 (2)",
+      "name": "1629 (1)",
       "version": "0.1.0",
       "private": true,
       "dependencies": {
@@ -37,7 +37,6 @@
             "cmdk": "^1.1.1",
             "date-fns": "*",
             "embla-carousel-react": "^8.6.0",
-            "framer-motion": "*",
             "input-otp": "^1.4.2",
             "lucide-react": "^0.487.0",
             "motion": "*",

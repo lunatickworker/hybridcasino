@@ -160,6 +160,17 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                       }}
                     ></div>
 
+                    {/* 아이콘 */}
+                    <Icon 
+                      className="relative z-10 transition-all duration-300" 
+                      style={{ 
+                        width: '24px', 
+                        height: '24px',
+                        color: '#C19A6B',
+                        filter: 'drop-shadow(0 2px 4px rgba(193, 154, 107, 0.3))'
+                      }} 
+                    />
+
                     <span 
                       className="relative z-10 font-bold tracking-wide transition-all duration-300"
                       style={{
@@ -229,6 +240,17 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                         opacity: isActive ? 1 : undefined
                       }}
                     ></div>
+
+                    {/* 아이콘 */}
+                    <Icon 
+                      className="relative z-10 transition-all duration-300" 
+                      style={{ 
+                        width: '24px', 
+                        height: '24px',
+                        color: '#C19A6B',
+                        filter: 'drop-shadow(0 2px 4px rgba(193, 154, 107, 0.3))'
+                      }} 
+                    />
 
                     <span 
                       className="relative z-10 font-bold tracking-wide transition-all duration-300"

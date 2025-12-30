@@ -109,6 +109,42 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       isMountedRef.current = false;
     };
   }, []);
+  
+  // 🆕 providers 로드 완료 후 localStorage에서 선택한 provider 자동 로드
+  useEffect(() => {
+    if (providers.length > 0) {
+      const savedProvider = localStorage.getItem('benz_selected_provider');
+      if (savedProvider) {
+        try {
+          const providerData = JSON.parse(savedProvider);
+          
+          // providers 배열에서 매칭되는 provider 찾기 (통합된 provider 기준)
+          const matchingProvider = providers.find(p => {
+            // ID로 매칭
+            if (p.id === providerData.id) return true;
+            
+            // provider_ids 배열에 포함되어 있는지 체크
+            if (p.provider_ids && providerData.provider_ids) {
+              return p.provider_ids.some(id => providerData.provider_ids.includes(id));
+            }
+            
+            return false;
+          });
+          
+          if (matchingProvider) {
+            console.log('🎯 [BenzCasino] localStorage에서 선택한 provider 자동 로드:', matchingProvider);
+            handleProviderClick(matchingProvider);
+          }
+          
+          // localStorage 클리어
+          localStorage.removeItem('benz_selected_provider');
+        } catch (e) {
+          console.error('localStorage provider 파싱 오류:', e);
+          localStorage.removeItem('benz_selected_provider');
+        }
+      }
+    }
+  }, [providers]);
 
   const loadProviders = async () => {
     try {
@@ -145,6 +181,16 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
           }
           // 기본 프라그마틱 (라이브로 간주)
           return 'pragmatic_live';
+        }
+        
+        // Evolution 통합
+        if (name.includes('evolution') || name.includes('에볼루션')) {
+          return 'evolution';
+        }
+        
+        // Asia Gaming 통합
+        if (name.includes('asia') || name.includes('아시아')) {
+          return 'asiagaming';
         }
         
         // 다른 게임사들은 name_ko 또는 name 사용
@@ -206,7 +252,14 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
         }
       }
 
-      setGames(allGames);
+      // 🆕 로비 게임을 맨 앞으로 정렬
+      const sortedGames = allGames.sort((a, b) => {
+        const aIsLobby = (a.name?.toLowerCase().includes('lobby') || a.name_ko?.includes('로비')) ? 1 : 0;
+        const bIsLobby = (b.name?.toLowerCase().includes('lobby') || b.name_ko?.includes('로비')) ? 1 : 0;
+        return bIsLobby - aIsLobby; // 로비가 앞으로
+      });
+
+      setGames(sortedGames);
     } catch (error) {
       console.error('게임 로드 오류:', error);
       setGames([]);
@@ -523,24 +576,17 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                   className="cursor-pointer group"
                   onClick={() => handleProviderClick(provider)}
                 >
-                  <div 
-                    className="relative aspect-square rounded-2xl overflow-hidden"
-                    style={{
-                      border: '2px solid rgba(193, 154, 107, 0.5)',
-                    }}
-                  >
-                    {provider.logo_url && (
-                      <img
-                        src={provider.logo_url}
-                        alt=""
-                        className="w-full object-cover"
-                        style={{
-                          height: '105%',
-                          marginTop: '-2.5%'
-                        }}
-                      />
-                    )}
-                  </div>
+                  {provider.logo_url && (
+                    <img
+                      src={provider.logo_url}
+                      alt=""
+                      className="w-[100%] object-cover"
+                      style={{
+                        height: '100%',
+                        marginTop: '0%'
+                      }}
+                    />
+                  )}
                 </motion.div>
               ))
             )}
@@ -571,8 +617,28 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                 >
                   <div className="relative aspect-square overflow-hidden rounded-2xl transition-all duration-500" style={{
                     background: '#16161f',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                    // 🆕 로비 게임은 골드 테두리로 강조
+                    border: (game.name?.toLowerCase().includes('lobby') || game.name_ko?.includes('로비')) 
+                      ? '3px solid rgba(230, 201, 168, 0.8)' 
+                      : 'none'
                   }}>
+                    {/* 🆕 로비 뱃지 */}
+                    {(game.name?.toLowerCase().includes('lobby') || game.name_ko?.includes('로비')) && (
+                      <div className="absolute top-3 right-3 z-20 px-4 py-2 rounded-full" style={{
+                        background: 'linear-gradient(135deg, rgba(230, 201, 168, 0.95) 0%, rgba(193, 154, 107, 0.95) 100%)',
+                        boxShadow: '0 4px 15px rgba(230, 201, 168, 0.5)',
+                        border: '1px solid rgba(255, 255, 255, 0.3)'
+                      }}>
+                        <span className="text-black font-black text-sm tracking-wider" style={{
+                          fontFamily: 'AsiaHead, -apple-system, sans-serif',
+                          textShadow: '0 1px 2px rgba(255,255,255,0.3)'
+                        }}>
+                          LOBBY
+                        </span>
+                      </div>
+                    )}
+                    
                     {/* 게임 이미지 */}
                     {game.image_url ? (
                       <ImageWithFallback

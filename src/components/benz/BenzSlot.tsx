@@ -109,6 +109,42 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       isMountedRef.current = false;
     };
   }, []);
+  
+  // 🆕 providers 로드 완료 후 localStorage에서 선택한 provider 자동 로드
+  useEffect(() => {
+    if (providers.length > 0) {
+      const savedProvider = localStorage.getItem('benz_selected_provider');
+      if (savedProvider) {
+        try {
+          const providerData = JSON.parse(savedProvider);
+          
+          // providers 배열에서 매칭되는 provider 찾기 (통합된 provider 기준)
+          const matchingProvider = providers.find(p => {
+            // ID로 매칭
+            if (p.id === providerData.id) return true;
+            
+            // provider_ids 배열에 포함되어 있는지 체크
+            if (p.provider_ids && providerData.provider_ids) {
+              return p.provider_ids.some(id => providerData.provider_ids.includes(id));
+            }
+            
+            return false;
+          });
+          
+          if (matchingProvider) {
+            console.log('🎯 [BenzSlot] localStorage에서 선택한 provider 자동 로드:', matchingProvider);
+            handleProviderClick(matchingProvider);
+          }
+          
+          // localStorage 클리어
+          localStorage.removeItem('benz_selected_provider');
+        } catch (e) {
+          console.error('localStorage provider 파싱 오류:', e);
+          localStorage.removeItem('benz_selected_provider');
+        }
+      }
+    }
+  }, [providers]);
 
   const loadProviders = async () => {
     try {
@@ -523,24 +559,17 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                   className="cursor-pointer group"
                   onClick={() => handleProviderClick(provider)}
                 >
-                  <div 
-                    className="relative aspect-square rounded-2xl overflow-hidden"
-                    style={{
-                      border: '2px solid rgba(193, 154, 107, 0.5)',
-                    }}
-                  >
-                    {provider.logo_url && (
-                      <img
-                        src={provider.logo_url}
-                        alt=""
-                        className="w-full object-cover"
-                        style={{
-                          height: '105%',
-                          marginTop: '-2.5%'
-                        }}
-                      />
-                    )}
-                  </div>
+                  {provider.logo_url && (
+                    <img
+                      src={provider.logo_url}
+                      alt=""
+                      className="w-[100] object-cover"
+                      style={{
+                        height: '100%',
+                        marginTop: '-2.5%'
+                      }}
+                    />
+                  )}
                 </motion.div>
               ))
             )}
