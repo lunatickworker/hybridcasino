@@ -512,6 +512,36 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         return;
       }
       
+      // ✅ 강제 지급 시: 관리자(Lv2~Lv6)의 GMS 머니 잔고 검증
+      if (type === 'deposit' && user.level >= 2 && user.level <= 6) {
+        const { data: adminPartner, error: adminPartnerError } = await supabase
+          .from('partners')
+          .select('balance')
+          .eq('id', user.id)
+          .single();
+
+        if (adminPartnerError || !adminPartner) {
+          toast.error('관리자 정보를 찾을 수 없습니다.');
+          setRefreshing(false);
+          return;
+        }
+
+        const adminBalance = parseFloat(adminPartner.balance?.toString() || '0');
+        
+        if (adminBalance < amountNum) {
+          toast.error(`보유금이 부족합니다 (현재: ${adminBalance.toLocaleString()}원, 필요: ${amountNum.toLocaleString()}원)`);
+          setRefreshing(false);
+          return;
+        }
+
+        console.log('✅ 관리자 GMS 머니 잔고 확인:', {
+          level: user.level,
+          currentBalance: adminBalance,
+          requiredAmount: amountNum,
+          afterBalance: adminBalance - amountNum
+        });
+      }
+      
       // OPCODE 정보 조회
       const opcodeInfo = await getAdminOpcode(user);
       
@@ -582,8 +612,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       // ✅ Realtime 이벤트 자동 발생 → UserHeader 즉시 업데이트
       console.log('✅ transactions INSERT 완료 → 트리거가 users.balance 자동 업데이트');
 
-      // ✅ Lv2가 Lv7 사용자에게 입출금하는 경우: GMS 머니(balance) 차감/증가
-      if (user.level === 2) {
+      // ✅ Lv2~Lv6 관리자가 사용자에게 입출금하는 경우: GMS 머니(balance) 차감/증가
+      if (user.level >= 2 && user.level <= 6) {
         const { data: adminPartner, error: adminPartnerError } = await supabase
           .from('partners')
           .select('balance')
@@ -591,7 +621,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           .single();
 
         if (adminPartnerError || !adminPartner) {
-          console.warn('⚠️ Lv2 관리자의 partners 정보를 찾을 수 없습니다.');
+          console.warn(`⚠️ Lv${user.level} 관리자의 partners 정보를 찾을 수 없습니다.`);
         } else {
           const currentBalance = adminPartner.balance || 0;
           const newBalance = type === 'deposit' 
@@ -607,11 +637,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             .eq('id', user.id);
 
           if (updateBalanceError) {
-            console.error('❌ Lv2 balance 업데이트 실패:', updateBalanceError);
+            console.error(`❌ Lv${user.level} balance 업데이트 실패:`, updateBalanceError);
           } else {
-            console.log(`✅ Lv2 balance 업데이트: ${currentBalance} → ${newBalance}`);
+            console.log(`✅ Lv${user.level} balance 업데이트: ${currentBalance} → ${newBalance}`);
             
-            // Lv2 잔고 변경 로그 기록
+            // 관리자 잔고 변경 로그 기록
             await supabase
               .from('partner_balance_logs')
               .insert({

@@ -226,21 +226,10 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
       
       // ⭐ 1. 다른 API 게임이 실행 중인지 체크
       if (activeSession?.isActive && activeSession.api_type !== game.api_type) {
-        const apiNames = {
-          invest: 'Invest API',
-          oroplay: 'OroPlay API',
-          familyapi: 'FamilyAPI',
-          honorapi: 'HonorAPI'
-        };
-        
-        toast.error(
-          `${apiNames[activeSession.api_type!] || activeSession.api_type} 게임이 실행 중입니다.\\\\n` +
-          `현재 게임: ${activeSession.game_name}\\\\n\\\\n` +
-          `다른 API 게임을 실행하려면 현재 게임을 종료해주세요.`,
-          { duration: 5000 }
-        );
+        toast.error('잠시 후 다시 시도해주세요.');
         
         setLaunchingGameId(null);
+        setIsProcessing(false); // 🆕 프로세스 종료
         return;
       }
 

@@ -120,19 +120,9 @@ export function Sample1Slot({ user }: Sample1SlotProps) {
       // 활성 세션 체크
       const activeSession = await gameApi.checkActiveSession(user.id);
       
+      // ⭐ 1. 다른 API 게임이 실행 중인지 체크
       if (activeSession?.isActive && activeSession.api_type !== game.api_type) {
-        const apiNames = {
-          invest: 'Invest API',
-          oroplay: 'OroPlay API',
-          familyapi: 'Family API'
-        };
-        
-        toast.error(
-          `${apiNames[activeSession.api_type!]} 게임이 실행 중입니다.\\n` +
-          `현재 게임: ${activeSession.game_name}\\n\\n` +
-          `다른 API 게임을 실행하려면 현재 게임을 종료해주세요.`,
-          { duration: 5000 }
-        );
+        toast.error('잠시 후 다시 시도해주세요.');
         
         setLaunchingGameId(null);
         return;

@@ -1110,56 +1110,31 @@ export function UserManagement() {
 
       const isSystemAdmin = adminPartner.level === 1;
 
-      // 입금 시 담당 파트너 보유금 검증
-      if (data.type === 'deposit') {
-        console.log('💰 [입금] 담당 파트너 보유금 검증 시작');
+      // ✅ 입금 시 실행자 보유금 검증 (Lv2~Lv6)
+      if (data.type === 'deposit' && adminPartner.level >= 2 && adminPartner.level <= 6) {
+        console.log('💰 [입금] 실행자 보유금 검증 시작');
         
-        // ✅ Lv2: balance (API별 잔고 합계)
-        if (responsiblePartner.level === 2) {
-          const totalBalance = responsiblePartner.balance || 0;
-          console.log(`💰 Lv2 담당 파트너 보유금: ${totalBalance.toLocaleString()}`);
-          
-          if (totalBalance < data.amount) {
-            console.error('❌ Lv2 담당 파트너 보유금 부족:', { 
-              level: responsiblePartner.level,
-              balance: totalBalance, 
-              required: data.amount 
-            });
-            toast.error(`담당 파트너(${responsiblePartner.username})의 보유금이 부족합니다. (보유: ${totalBalance.toLocaleString()}, 필요: ${data.amount.toLocaleString()})`);
-            setUsers(prevUsers => 
-              prevUsers.map(u => 
-                u.id === data.targetId 
-                  ? { ...u, balance: user.balance, updated_at: user.updated_at }
-                  : u
-              )
-            );
-            return;
-          }
-        }
-        // ✅ Lv3~Lv7: balance (통합 지갑)
-        else if (responsiblePartner.level >= 3) {
-          const balance = responsiblePartner.balance || 0;
-          console.log(`💰 Lv${responsiblePartner.level} 담당 파트너 보유금: ${balance.toLocaleString()}`);
-          
-          if (balance < data.amount) {
-            console.error('❌ 담당 파트너 보유금 부족:', { 
-              level: responsiblePartner.level,
-              balance: balance, 
-              required: data.amount 
-            });
-            toast.error(`담당 파트너(${responsiblePartner.username})의 보유금이 부족합니다. (보유: ${balance.toLocaleString()}, 필요: ${data.amount.toLocaleString()})`);
-            setUsers(prevUsers => 
-              prevUsers.map(u => 
-                u.id === data.targetId 
-                  ? { ...u, balance: user.balance, updated_at: user.updated_at }
-                  : u
-              )
-            );
-            return;
-          }
+        const adminBalance = adminPartner.balance || 0;
+        console.log(`💰 Lv${adminPartner.level} 실행자 보유금: ${adminBalance.toLocaleString()}`);
+        
+        if (adminBalance < data.amount) {
+          console.error('❌ 실행자 보유금 부족:', { 
+            level: adminPartner.level,
+            balance: adminBalance, 
+            required: data.amount 
+          });
+          toast.error(`보유금이 부족합니다. (현재: ${adminBalance.toLocaleString()}원, 필요: ${data.amount.toLocaleString()}원)`);
+          setUsers(prevUsers => 
+            prevUsers.map(u => 
+              u.id === data.targetId 
+                ? { ...u, balance: user.balance, updated_at: user.updated_at }
+                : u
+            )
+          );
+          return;
         }
         
-        console.log('✅ 담당 파트너 보유금 검증 통과');
+        console.log('✅ 실행자 보유금 검증 통과');
       }
 
       // 1. 사용자 잔고 계산 (모든 레벨에서 API 호출 없이 내부 거래만)
@@ -1200,77 +1175,122 @@ export function UserManagement() {
 
       if (balanceError) throw balanceError;
 
-      // 4. 담당 파트너 보유금 업데이트 및 로그 기록
-      // ✅ 사용자의 담당 파트너 (referrer_id) 보유금 증감
-      console.log(`💼 담당 파트너 Lv${responsiblePartner.level} 보유금 증감 시작`);
+      // 4. 담당 파트너와 실행자 로그 기록
+      
+      // ✅ 4-1. 담당 파트너 (referrer_id) 로그만 기록 (balance 변경 없음)
+      console.log(`💼 담당 파트너 Lv${responsiblePartner.level} 로그 기록 시작`);
+      
+      const responsibleBalance = responsiblePartner.balance || 0;
       
       if (data.type === 'deposit') {
-        // ✅ 입금: 담당 파트너 보유금 차감
-        const currentBalance = responsiblePartner.balance || 0;
-        const newBalance = currentBalance - data.amount;
-        console.log(`💰 담당 파트너 Lv${responsiblePartner.level} 입금: balance 차감 ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
-        
-        // 담당 파트너 balance 업데이트
-        const { error: updateError } = await supabase
-          .from('partners')
-          .update({ balance: newBalance })
-          .eq('id', responsiblePartnerId);
-
-        if (updateError) {
-          console.error('❌ 담당 파트너 balance 업데이트 실패:', updateError);
-          throw updateError;
-        }
-
-        // 로그 기록 (담당 파트너에게 기록, 작업자는 현재 관리자)
+        // 로그 기록 (담당 파트너 확인용, balance 변경 없음)
         await supabase
           .from('partner_balance_logs')
           .insert({
             partner_id: responsiblePartnerId,
-            balance_before: currentBalance,
-            balance_after: newBalance,
-            amount: -data.amount,
+            balance_before: responsibleBalance,
+            balance_after: responsibleBalance,
+            amount: 0,
             transaction_type: 'user_deposit',
-            from_partner_id: responsiblePartnerId,
+            from_partner_id: authState.user.id,
             to_partner_id: null,
             processed_by: authState.user.id,
             memo: `[회원 강제입금] ${user.username}에게 ${data.amount.toLocaleString()}원 입금 (작업자: ${adminPartner.username})${data.memo ? `: ${data.memo}` : ''}`
           });
 
-        console.log(`✅ 담당 파트너 Lv${responsiblePartner.level} balance 차감 완료: ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
+        console.log(`✅ 담당 파트너 Lv${responsiblePartner.level} 로그 기록 완료 (balance 변경 없음)`);
 
       } else {
-        // ✅ 출금: 담당 파트너 보유금 증가
-        const currentBalance = responsiblePartner.balance || 0;
-        const newBalance = currentBalance + data.amount;
-        console.log(`💰 담당 파트너 Lv${responsiblePartner.level} 출금: balance 증가 ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
-        
-        // 담당 파트너 balance 업데이트
-        const { error: updateError } = await supabase
-          .from('partners')
-          .update({ balance: newBalance })
-          .eq('id', responsiblePartnerId);
-
-        if (updateError) {
-          console.error('❌ 담당 파트너 balance 업데이트 실패:', updateError);
-          throw updateError;
-        }
-
-        // 로그 기록 (담당 파트너에게 기록, 작업자는 현재 관리자)
+        // 로그 기록 (담당 파트너 확인용, balance 변경 없음)
         await supabase
           .from('partner_balance_logs')
           .insert({
             partner_id: responsiblePartnerId,
-            balance_before: currentBalance,
-            balance_after: newBalance,
-            amount: data.amount,
+            balance_before: responsibleBalance,
+            balance_after: responsibleBalance,
+            amount: 0,
             transaction_type: 'user_withdrawal',
             from_partner_id: null,
-            to_partner_id: responsiblePartnerId,
+            to_partner_id: authState.user.id,
             processed_by: authState.user.id,
             memo: `[회원 강제출금] ${user.username}으로부터 ${data.amount.toLocaleString()}원 출금 (작업자: ${adminPartner.username})${data.memo ? `: ${data.memo}` : ''}`
           });
 
-        console.log(`✅ 담당 파트너 Lv${responsiblePartner.level} balance 증가 완료: ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
+        console.log(`✅ 담당 파트너 Lv${responsiblePartner.level} 로그 기록 완료 (balance 변경 없음)`);
+      }
+
+      // ✅ 4-2. 실행자 (adminPartner) 보유금 증감 (Lv2~Lv6만)
+      if (adminPartner.level >= 2 && adminPartner.level <= 6) {
+        console.log(`💼 실행자 Lv${adminPartner.level} 보유금 증감 시작`);
+        
+        if (data.type === 'deposit') {
+          // ✅ 입금: 실행자 보유금 차감
+          const currentBalance = adminPartner.balance || 0;
+          const newBalance = currentBalance - data.amount;
+          console.log(`💰 실행자 Lv${adminPartner.level} 입금: balance 차감 ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
+          
+          // 실행자 balance 업데이트
+          const { error: updateError } = await supabase
+            .from('partners')
+            .update({ balance: newBalance })
+            .eq('id', authState.user.id);
+
+          if (updateError) {
+            console.error('❌ 실행자 balance 업데이트 실패:', updateError);
+            throw updateError;
+          }
+
+          // 로그 기록 (실행자에게 기록)
+          await supabase
+            .from('partner_balance_logs')
+            .insert({
+              partner_id: authState.user.id,
+              balance_before: currentBalance,
+              balance_after: newBalance,
+              amount: -data.amount,
+              transaction_type: 'user_deposit',
+              from_partner_id: authState.user.id,
+              to_partner_id: responsiblePartnerId,
+              processed_by: authState.user.id,
+              memo: `[회원 강제입금] ${user.username}에게 ${data.amount.toLocaleString()}원 입금${data.memo ? `: ${data.memo}` : ''}`
+            });
+
+          console.log(`✅ 실행자 Lv${adminPartner.level} balance 차감 완료: ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
+
+        } else {
+          // ✅ 출금: 실행자 보유금 증가
+          const currentBalance = adminPartner.balance || 0;
+          const newBalance = currentBalance + data.amount;
+          console.log(`💰 실행자 Lv${adminPartner.level} 출금: balance 증가 ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
+          
+          // 실행자 balance 업데이트
+          const { error: updateError } = await supabase
+            .from('partners')
+            .update({ balance: newBalance })
+            .eq('id', authState.user.id);
+
+          if (updateError) {
+            console.error('❌ 실행자 balance 업데이트 실패:', updateError);
+            throw updateError;
+          }
+
+          // 로그 기록 (실행자에게 기록)
+          await supabase
+            .from('partner_balance_logs')
+            .insert({
+              partner_id: authState.user.id,
+              balance_before: currentBalance,
+              balance_after: newBalance,
+              amount: data.amount,
+              transaction_type: 'user_withdrawal',
+              from_partner_id: responsiblePartnerId,
+              to_partner_id: authState.user.id,
+              processed_by: authState.user.id,
+              memo: `[회원 강제출금] ${user.username}으로부터 ${data.amount.toLocaleString()}원 출금${data.memo ? `: ${data.memo}` : ''}`
+            });
+
+          console.log(`✅ 실행자 Lv${adminPartner.level} balance 증가 완료: ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
+        }
       }
 
       // 5. 실시간 업데이트 웹소켓 메시지
@@ -1281,11 +1301,14 @@ export function UserManagement() {
           type: data.type
         });
 
-        sendMessage('partner_balance_updated', {
-          partnerId: responsiblePartnerId,
-          amount: data.type === 'deposit' ? -data.amount : data.amount,
-          type: data.type === 'deposit' ? 'withdrawal' : 'deposit'
-        });
+        // 실행자 balance 업데이트 메시지 (Lv2~Lv6만)
+        if (adminPartner.level >= 2 && adminPartner.level <= 6) {
+          sendMessage('partner_balance_updated', {
+            partnerId: authState.user.id,
+            amount: data.type === 'deposit' ? -data.amount : data.amount,
+            type: data.type === 'deposit' ? 'withdrawal' : 'deposit'
+          });
+        }
       }
 
       // ✅ Realtime 구독이 자동으로 처리하므로 fetchUsers() 제거

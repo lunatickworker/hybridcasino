@@ -61,6 +61,7 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
   const [loading, setLoading] = useState(true);
   const [gamesLoading, setGamesLoading] = useState(false);
   const [launchingGameId, setLaunchingGameId] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false); // 🆕 백엔드 처리 중 상태
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -119,36 +120,35 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
   };
 
   const handleBackToProviders = () => {
+    // 🆕 백그라운드 프로세스 중 또는 게임 실행 중 클릭 방지
+    if (isProcessing || launchingGameId) {
+      toast.error('잠시 후 다시 시도해주세요.');
+      return;
+    }
+
     setSelectedProvider(null);
     setGames([]);
   };
 
   const handleGameClick = async (game: Game) => {
-    // ⭐ 수정: 어떤 게임이든 실행 중이면 차단
-    if (launchingGameId) return;
+    // 🆕 백그라운드 프로세스 중 또는 게임 실행 중 클릭 방지
+    if (isProcessing || launchingGameId) {
+      toast.error('잠시 후 다시 시도해주세요.');
+      return;
+    }
 
     setLaunchingGameId(game.id);
+    setIsProcessing(true); // 🆕 프로세스 시작
     
     try {
       const activeSession = await gameApi.checkActiveSession(user.id);
       
       // ⭐ 1. 다른 API 게임이 실행 중인지 체크
       if (activeSession?.isActive && activeSession.api_type !== game.api_type) {
-        const apiNames = {
-          invest: 'Invest API',
-          oroplay: 'OroPlay API',
-          familyapi: 'FamilyAPI',
-          honorapi: 'HonorAPI'
-        };
-        
-        toast.error(
-          `${apiNames[activeSession.api_type!] || activeSession.api_type} 게임이 실행 중입니다.\\n` +
-          `현재 게임: ${activeSession.game_name}\\n\\n` +
-          `다른 API 게임을 실행하려면 현재 게임을 종료해주세요.`,
-          { duration: 5000 }
-        );
+        toast.error('잠시 후 다시 시도해주세요.');
         
         setLaunchingGameId(null);
+        setIsProcessing(false); // 🆕 프로세스 종료
         return;
       }
 
@@ -254,6 +254,7 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
         }
         
         setLaunchingGameId(null);
+        setIsProcessing(false); // 🆕 프로세스 종료
         return;
       }
       
@@ -349,6 +350,7 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
       toast.error('게임 실행에 실패했습니다.');
     } finally {
       setLaunchingGameId(null);
+      setIsProcessing(false); // 🆕 프로세스 종료
     }
   };
 

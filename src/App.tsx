@@ -1,6 +1,7 @@
 // CRITICAL: 콘솔 필터를 가장 먼저 로드 (GoTrueClient 경고 억제)
 import './lib/consoleFilter';
 
+import React from 'react';
 import { useState, useEffect } from 'react';
 import { Toaster } from './components/ui/sonner';
 import { AdminLogin } from './components/admin/AdminLogin';
@@ -471,7 +472,7 @@ function AppContent() {
           </BalanceProvider>
         </WebSocketProvider>
       )}
-      <Toaster position="top-right" />
+      <Toaster position="bottom-right" />
     </>
   );
 }

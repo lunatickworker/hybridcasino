@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
@@ -11,6 +11,7 @@ import { supabase } from "../../lib/supabase";
 import { gameApi } from "../../lib/gameApi";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner@2.0.3";
+import { createAdminNotification } from '../../lib/notificationHelper';
 
 // Benz Casino & Slot Main Page
 interface BenzMainProps {
@@ -37,6 +38,9 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
   const [loading, setLoading] = useState(true);
   const [showLoginMessage, setShowLoginMessage] = useState(false);
   const [isHoveringBanner, setIsHoveringBanner] = useState(false); // 🆕 배너 hover 상태
+  const [isProcessing, setIsProcessing] = useState(false); // 🆕 백엔드 처리 중 상태
+  const [launchingProviderId, setLaunchingProviderId] = useState<number | null>(null); // 🆕 실행 중인 게임사 ID
+  const closeProcessingRef = useRef<Map<number, boolean>>(new Map()); // 🆕 세션별 종료 처리 상태
 
   // Fallback 데이터
   const FALLBACK_CASINO_PROVIDERS = [
@@ -189,13 +193,316 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       return;
     }
     
-    // 🆕 선택한 게임사 정보를 localStorage에 저장
-    localStorage.setItem('benz_selected_provider', JSON.stringify(provider));
+    // 🆕 백엔드 처리 중 또는 게임 실행 중에는 클릭 방지
+    if (isProcessing || launchingProviderId) {
+      toast.error('잠시 후 다시 시도해주세요.');
+      
+      // ⭐ 관리자 알림 생성
+      createAdminNotification({
+        user_id: user.id,
+        username: user.username || '알 수 없음',
+        user_login_id: user.login_id || '알 수 없음',
+        partner_id: user.referrer_id,
+        message: '게임 실행 중 다른 게임사 클릭 시도',
+        notification_type: 'system_error'
+      });
+      
+      return;
+    }
     
+    // 🆕 카지노의 경우 바로 로비 게임 실행
     if (type === 'casino') {
-      onRouteChange('/benz/casino');
+      launchCasinoLobby(provider);
     } else {
+      // 🆕 슬롯은 기존 방식 유지 (선택한 게임사 정보를 localStorage에 저장)
+      localStorage.setItem('benz_selected_provider', JSON.stringify(provider));
       onRouteChange('/benz/slot');
+    }
+  };
+
+  // 🆕 카지노 로비 게임 자동 실행
+  const launchCasinoLobby = async (provider: GameProvider) => {
+    try {
+      // 로딩 표시
+      toast.info(`${provider.name_ko || provider.name} 로비를 불러오는 중...`);
+      setIsProcessing(true);
+      setLaunchingProviderId(provider.id);
+
+      // 게임사의 모든 provider_id로 게임 로드
+      const providerIds = provider.provider_ids || [provider.id];
+      let allGames: any[] = [];
+
+      for (const providerId of providerIds) {
+        const gamesData = await gameApi.getUserVisibleGames({
+          type: 'casino',
+          provider_id: providerId,
+          userId: user.id
+        });
+
+        if (gamesData && gamesData.length > 0) {
+          allGames = [...allGames, ...gamesData];
+        }
+      }
+
+      // 로비 게임 찾기
+      const lobbyGame = allGames.find(game => 
+        game.name?.toLowerCase().includes('lobby') || 
+        game.name_ko?.includes('로비')
+      );
+
+      if (!lobbyGame) {
+        toast.error('로비 게임을 찾을 수 없습니다. 게임 목록 페이지로 이동합니다.');
+        localStorage.setItem('benz_selected_provider', JSON.stringify(provider));
+        onRouteChange('/benz/casino');
+        return;
+      }
+
+      // 🆕 active 세션 체크
+      const activeSession = await gameApi.checkActiveSession(user.id);
+      
+      // ⭐ 1. 다른 API 게임이 실행 중인지 체크
+      if (activeSession?.isActive && activeSession.api_type !== lobbyGame.api_type) {
+        toast.error('잠시 후 다시 시도해주세요.');
+        
+        // ⭐ 관리자 알림 생성
+        createAdminNotification({
+          user_id: user.id,
+          username: user.username || '알 수 없음',
+          user_login_id: user.login_id || '알 수 없음',
+          partner_id: user.referrer_id,
+          message: `다른 API 게임 실행 중 클릭 시도 (현재: ${activeSession.api_type}, 시도: ${lobbyGame.api_type})`,
+          log_message: `현재 게임: ${activeSession.game_name}`,
+          notification_type: 'game_error'
+        });
+        
+        setIsProcessing(false);
+        setLaunchingProviderId(null);
+        return;
+      }
+
+      // ⭐ 2. 같은 API 내에서 다른 게임으로 전환 시 기존 게임 출금
+      if (activeSession?.isActive && 
+          activeSession.api_type === lobbyGame.api_type && 
+          activeSession.game_id !== parseInt(lobbyGame.id)) {
+        
+        console.log('🔄 [게임 전환] 기존 게임 출금 후 새 게임 실행:', {
+          oldGameId: activeSession.game_id,
+          newGameId: lobbyGame.id
+        });
+        
+        // 기존 게임 출금 + 보유금 동기화
+        const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
+        await syncBalanceOnSessionEnd(user.id, activeSession.api_type);
+        
+        console.log('✅ [게임 전환] 기존 게임 출금 완료, 새 게임 실행 시작');
+      }
+
+      // ⭐ 3. 같은 게임의 active 세션이 있는지 체크 (중복 실행 방지)
+      if (activeSession?.isActive && 
+          activeSession.game_id === parseInt(lobbyGame.id) && 
+          activeSession.status === 'active' && 
+          activeSession.launch_url) {
+        
+        console.log('🔄 [로비 입장] active 세션 재사용 - 기존 URL 사용:', activeSession.session_id);
+        
+        // 기존 launch_url로 게임창 오픈
+        const gameWindow = window.open(
+          activeSession.launch_url,
+          '_blank',
+          'width=1920,height=1080,scrollbars=yes,resizable=yes,fullscreen=yes'
+        );
+
+        if (!gameWindow) {
+          toast.error('차단되었습니다. 팝업 허용 후 다시 클릭해주세요.');
+          
+          const sessionId = activeSession.session_id!;
+          
+          await supabase
+            .from('game_launch_sessions')
+            .update({ 
+              ready_status: 'popup_blocked',
+              last_activity_at: new Date().toISOString()
+            })
+            .eq('id', sessionId);
+            
+          console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료 (active 세션 재사용)');
+        } else {
+          toast.success(`${provider.name_ko || provider.name} 카지노에 입장했습니다.`);
+          
+          const sessionId = activeSession.session_id!;
+          
+          await supabase
+            .from('game_launch_sessions')
+            .update({ 
+              ready_status: 'popup_opened',
+              last_activity_at: new Date().toISOString()
+            })
+            .eq('id', sessionId);
+          
+          if (!(window as any).gameWindows) {
+            (window as any).gameWindows = new Map();
+          }
+          (window as any).gameWindows.set(sessionId, gameWindow);
+          
+          if (!(window as any).gameWindowCheckers) {
+            (window as any).gameWindowCheckers = new Map();
+          }
+          
+          // 🆕 세션별 종료 처리 상태 추적
+          const handleGameWindowClose = async () => {
+            // 🔥 중복 실행 방지 - ref 체크
+            if (closeProcessingRef.current.get(sessionId)) {
+              console.log('⚠️ [중복 방지] 이미 처리 중인 세션:', sessionId);
+              return;
+            }
+            
+            console.log('🔄 [게임 종료] 처리 시작:', sessionId);
+            closeProcessingRef.current.set(sessionId, true);
+            setIsProcessing(true); // 🔥 클릭 방지 활성화
+            
+            try {
+              const checker = (window as any).gameWindowCheckers?.get(sessionId);
+              if (checker) {
+                clearInterval(checker);
+                (window as any).gameWindowCheckers?.delete(sessionId);
+              }
+              
+              (window as any).gameWindows?.delete(sessionId);
+              await (window as any).syncBalanceAfterGame?.(sessionId);
+              
+              console.log('✅ [게임 종료] 처리 완료:', sessionId);
+            } catch (error) {
+              console.error('❌ [게임 종료] 에러:', error);
+            } finally {
+              // 처리 완료 후 플래그 제거
+              closeProcessingRef.current.delete(sessionId);
+              setIsProcessing(false); // 🔥 클릭 방지 해제
+            }
+          };
+          
+          const checkGameWindow = setInterval(() => {
+            try {
+              if (gameWindow.closed) {
+                handleGameWindowClose();
+              }
+            } catch (error) {
+              // 무시
+            }
+          }, 1000);
+          
+          (window as any).gameWindowCheckers.set(sessionId, checkGameWindow);
+        }
+        
+        setIsProcessing(false);
+        setLaunchingProviderId(null);
+        return;
+      }
+
+      // ⭐ 4. 새로운 게임 실행 (API 입금 포함)
+      console.log('🎰 [BenzMain] 로비 게임 실행:', lobbyGame.name);
+      
+      const result = await gameApi.generateGameLaunchUrl(user.id, parseInt(lobbyGame.id));
+      
+      if (result.success && result.launchUrl) {
+        const sessionId = result.sessionId;
+        
+        const gameWindow = window.open(
+          result.launchUrl,
+          '_blank',
+          'width=1920,height=1080,scrollbars=yes,resizable=yes,fullscreen=yes'
+        );
+
+        if (!gameWindow) {
+          toast.error('차단되었습니다. 팝업 허용 후 다시 클릭해주세요.');
+          
+          if (sessionId && typeof sessionId === 'number') {
+            await supabase
+              .from('game_launch_sessions')
+              .update({ 
+                ready_status: 'popup_blocked',
+                last_activity_at: new Date().toISOString()
+              })
+              .eq('id', sessionId);
+              
+            console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료. 재클릭 시 기존 URL 재사용됩니다.');
+          }
+        } else {
+          toast.success(`${provider.name_ko || provider.name} 카지노에 입장했습니다.`);
+          
+          if (sessionId && typeof sessionId === 'number') {
+            await supabase
+              .from('game_launch_sessions')
+              .update({ 
+                ready_status: 'popup_opened',
+                last_activity_at: new Date().toISOString()
+              })
+              .eq('id', sessionId);
+              
+            if (!(window as any).gameWindows) {
+              (window as any).gameWindows = new Map();
+            }
+            (window as any).gameWindows.set(sessionId, gameWindow);
+          }
+          
+          if (sessionId && typeof sessionId === 'number') {
+            if (!(window as any).gameWindowCheckers) {
+              (window as any).gameWindowCheckers = new Map();
+            }
+            
+            // 🆕 세션별 종료 처리 상태 추적
+            const handleGameWindowClose = async () => {
+              // 🔥 중복 실행 방지 - ref 체크
+              if (closeProcessingRef.current.get(sessionId)) {
+                console.log('⚠️ [중복 방지] 이미 처리 중인 세션:', sessionId);
+                return;
+              }
+              
+              console.log('🔄 [게임 종료] 처리 시작:', sessionId);
+              closeProcessingRef.current.set(sessionId, true);
+              setIsProcessing(true); // 🔥 클릭 방지 활성화
+              
+              try {
+                const checker = (window as any).gameWindowCheckers?.get(sessionId);
+                if (checker) {
+                  clearInterval(checker);
+                  (window as any).gameWindowCheckers?.delete(sessionId);
+                }
+                
+                (window as any).gameWindows?.delete(sessionId);
+                await (window as any).syncBalanceAfterGame?.(sessionId);
+                
+                console.log('✅ [게임 종료] 처리 완료:', sessionId);
+              } catch (error) {
+                console.error('❌ [게임 종료] 에러:', error);
+              } finally {
+                // 처리 완료 후 플래그 제거
+                closeProcessingRef.current.delete(sessionId);
+                setIsProcessing(false); // 🔥 클릭 방지 해제
+              }
+            };
+            
+            const checkGameWindow = setInterval(() => {
+              try {
+                if (gameWindow.closed) {
+                  handleGameWindowClose();
+                }
+              } catch (error) {
+                // 무시
+              }
+            }, 1000);
+            
+            (window as any).gameWindowCheckers.set(sessionId, checkGameWindow);
+          }
+        }
+      } else {
+        toast.error(result.message || '게임 실행에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('❌ 카지노 로비 실행 오류:', error);
+      toast.error('게임 실행 중 오류가 발생했습니다.');
+    } finally {
+      setIsProcessing(false);
+      setLaunchingProviderId(null);
     }
   };
 

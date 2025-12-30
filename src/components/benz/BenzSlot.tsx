@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase";
 import { gameApi } from "../../lib/gameApi";
 import { motion } from "motion/react";
 import { toast } from "sonner@2.0.3";
+import { createAdminNotification } from '../../lib/notificationHelper';
 
 interface BenzSlotProps {
   user: any;
@@ -101,6 +102,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   const [launchingGameId, setLaunchingGameId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false); // 🆕 백그라운드 프로세스 상태
   const isMountedRef = useRef(true);
+  const closeProcessingRef = useRef<Map<number, boolean>>(new Map()); // 🆕 세션별 종료 처리 중 상태
 
   useEffect(() => {
     loadProviders();
@@ -252,9 +254,20 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   };
 
   const handleBackToProviders = () => {
-    // 🆕 백그라운드 프로세스 중 클릭 방지
-    if (isProcessing) {
+    // 🆕 백그라운드 프로세스 중 또는 게임 실행 중 클릭 방지
+    if (isProcessing || launchingGameId) {
       toast.error('잠시 후 다시 시도해주세요.');
+      
+      // ⭐ 관리자 알림 생성
+      createAdminNotification({
+        user_id: user.id,
+        username: user.username || '알 수 없음',
+        user_login_id: user.login_id || '알 수 없음',
+        partner_id: user.referrer_id,
+        message: '게임 실행 중 뒤로가기 시도',
+        notification_type: 'system_error'
+      });
+      
       return;
     }
 
@@ -263,13 +276,22 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   };
 
   const handleGameClick = async (game: Game) => {
-    // 🆕 백그라운드 프로세스 중 클릭 방지
-    if (isProcessing) {
+    // 🆕 백그라운드 프로세스 중 또는 게임 실행 중 클릭 방지
+    if (isProcessing || launchingGameId) {
       toast.error('잠시 후 다시 시도해주세요.');
+      
+      // ⭐ 관리자 알림 생성
+      createAdminNotification({
+        user_id: user.id,
+        username: user.username || '알 수 없음',
+        user_login_id: user.login_id || '알 수 없음',
+        partner_id: user.referrer_id,
+        message: '게임 실행 중 다른 게임 클릭 시도',
+        notification_type: 'system_error'
+      });
+      
       return;
     }
-
-    if (launchingGameId === game.id) return;
 
     setLaunchingGameId(game.id);
     setIsProcessing(true); // 🆕 프로세스 시작
@@ -279,19 +301,18 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       
       // ⭐ 1. 다른 API 게임이 실행 중인지 체크
       if (activeSession?.isActive && activeSession.api_type !== game.api_type) {
-        const apiNames = {
-          invest: 'Invest API',
-          oroplay: 'OroPlay API',
-          familyapi: 'FamilyAPI',
-          honorapi: 'HonorAPI'
-        };
+        toast.error('잠시 후 다시 시도해주세요.');
         
-        toast.error(
-          `${apiNames[activeSession.api_type!] || activeSession.api_type} 게임이 실행 중입니다.\\n` +
-          `현재 게임: ${activeSession.game_name}\\n\\n` +
-          `다른 API 게임을 실행하려면 현재 게임을 종료해주세요.`,
-          { duration: 5000 }
-        );
+        // ⭐ 관리자 알림 생성
+        createAdminNotification({
+          user_id: user.id,
+          username: user.username || '알 수 없음',
+          user_login_id: user.login_id || '알 수 없음',
+          partner_id: user.referrer_id,
+          message: `다른 API 게임 실행 중 클릭 시도 (현재: ${activeSession.api_type}, 시도: ${game.api_type})`,
+          log_message: `현재 게임: ${activeSession.game_name}`,
+          notification_type: 'game_error'
+        });
         
         setLaunchingGameId(null);
         setIsProcessing(false); // 🆕 프로세스 종료
@@ -371,19 +392,36 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
             (window as any).gameWindowCheckers = new Map();
           }
           
-          let isProcessing = false;
+          // 🆕 중복 방지를 위해 ref 사용
           const handleGameWindowClose = async () => {
-            if (isProcessing) return;
-            isProcessing = true;
-            
-            const checker = (window as any).gameWindowCheckers?.get(sessionId);
-            if (checker) {
-              clearInterval(checker);
-              (window as any).gameWindowCheckers?.delete(sessionId);
+            // 🔥 중복 실행 방지 - ref 체크
+            if (closeProcessingRef.current.get(sessionId)) {
+              console.log('⚠️ [중복 방지] 이미 처리 중인 세션:', sessionId);
+              return;
             }
             
-            (window as any).gameWindows?.delete(sessionId);
-            await (window as any).syncBalanceAfterGame?.(sessionId);
+            console.log('🔄 [게임 종료] 처리 시작:', sessionId);
+            closeProcessingRef.current.set(sessionId, true);
+            setIsProcessing(true); // 🔥 클릭 방지 활성화
+            
+            try {
+              const checker = (window as any).gameWindowCheckers?.get(sessionId);
+              if (checker) {
+                clearInterval(checker);
+                (window as any).gameWindowCheckers?.delete(sessionId);
+              }
+              
+              (window as any).gameWindows?.delete(sessionId);
+              await (window as any).syncBalanceAfterGame?.(sessionId);
+              
+              console.log('✅ [게임 종료] 처리 완료:', sessionId);
+            } catch (error) {
+              console.error('❌ [게임 종료] 에러:', error);
+            } finally {
+              // 처리 완료 후 플래그 제거
+              closeProcessingRef.current.delete(sessionId);
+              setIsProcessing(false); // 🔥 클릭 방지 해제
+            }
           };
           
           const checkGameWindow = setInterval(() => {
@@ -456,21 +494,38 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
               (window as any).gameWindowCheckers = new Map();
             }
             
-            let isProcessing = false;
+            // 🆕 중복 방지를 위해 ref 사용
             const handleGameWindowClose = async () => {
-              if (isProcessing) return;
-              isProcessing = true;
-              
-              const checker = (window as any).gameWindowCheckers?.get(sessionId);
-              if (checker) {
-                clearInterval(checker);
-                (window as any).gameWindowCheckers?.delete(sessionId);
+              // 🔥 중복 실행 방지 - ref 체크
+              if (closeProcessingRef.current.get(sessionId)) {
+                console.log('⚠️ [중복 방지] 이미 처리 중인 세션:', sessionId);
+                return;
               }
               
-              (window as any).gameWindows?.delete(sessionId);
+              console.log('🔄 [게임 종료] 처리 시작:', sessionId);
+              closeProcessingRef.current.set(sessionId, true);
+              setIsProcessing(true); // 🔥 클릭 방지 활성화
               
-              // withdrawal API 호출 (syncBalanceAfterGame 내부에서 처리)
-              await (window as any).syncBalanceAfterGame?.(sessionId);
+              try {
+                const checker = (window as any).gameWindowCheckers?.get(sessionId);
+                if (checker) {
+                  clearInterval(checker);
+                  (window as any).gameWindowCheckers?.delete(sessionId);
+                }
+                
+                (window as any).gameWindows?.delete(sessionId);
+                
+                // withdrawal API 호출 (syncBalanceAfterGame 내부에서 처리)
+                await (window as any).syncBalanceAfterGame?.(sessionId);
+                
+                console.log('✅ [게임 종료] 처리 완료:', sessionId);
+              } catch (error) {
+                console.error('❌ [게임 종료] 에러:', error);
+              } finally {
+                // 처리 완료 후 플래그 제거
+                closeProcessingRef.current.delete(sessionId);
+                setIsProcessing(false); // 🔥 클릭 방지 해제
+              }
             };
             
             const checkGameWindow = setInterval(() => {
@@ -558,16 +613,12 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                   }}
                   className="cursor-pointer group"
                   onClick={() => handleProviderClick(provider)}
-                >
+                > 
                   {provider.logo_url && (
                     <img
                       src={provider.logo_url}
-                      alt=""
-                      className="w-[100] object-cover"
-                      style={{
-                        height: '100%',
-                        marginTop: '-2.5%'
-                      }}
+                      alt={provider.name_ko || provider.name}
+                      className="w-full h-full object-cover"
                     />
                   )}
                 </motion.div>
