@@ -328,7 +328,7 @@ export function UserManagement() {
     }
   }, [lastMessage]);
 
-  // 강제 입출금 대상 사용자의 소속 파트너 보유금 조회
+  // 강제 입출금 실행자(로그인한 관리자)의 보유금 조회
   useEffect(() => {
     const fetchTargetPartnerBalance = async () => {
       if (!forceTransactionTarget?.id) {
@@ -344,33 +344,31 @@ export function UserManagement() {
       try {
         console.log('🔍 [ForceTransaction] 대상 사용자:', {
           id: forceTransactionTarget.id,
-          username: forceTransactionTarget.username,
-          referrer_id: forceTransactionTarget.referrer_id,
-          referrer: forceTransactionTarget.referrer
+          username: forceTransactionTarget.username
         });
 
-        // 1. referrer_id 가져오기
-        const partnerId = forceTransactionTarget.referrer_id;
-
-        if (!partnerId) {
-          console.error('❌ 사용자의 referrer_id가 없습니다.');
+        // ✅ 강제 입출금 실행자는 로그인한 관리자이므로 로그인한 관리자의 보유금 조회
+        const currentPartnerId = authState.user?.id;
+        
+        if (!currentPartnerId) {
+          console.error('❌ 로그인한 관리자 정보가 없습니다.');
           return;
         }
 
-        // 2. 파트너 정보 조회
+        // 2. 현재 로그인한 관리자(실행자) 정보 조회
         const { data: partnerData, error: partnerError } = await supabase
           .from('partners')
           .select('balance, level, username, invest_balance, oroplay_balance, familyapi_balance')
-          .eq('id', partnerId)
+          .eq('id', currentPartnerId)
           .single();
 
         if (partnerError || !partnerData) {
-          console.error('❌ 파트너 정보 조회 실패:', partnerError);
+          console.error('❌ 현재 관리자 정보 조회 실패:', partnerError);
           return;
         }
 
-        console.log('💰 [ForceTransaction] 소속 파트너 보유금 조회:', {
-          partnerId,
+        console.log('💰 [ForceTransaction] 현재 로그인한 관리자(실행자) 보유금 조회:', {
+          partnerId: currentPartnerId,
           username: partnerData.username,
           level: partnerData.level,
           balance: partnerData.balance
@@ -378,19 +376,19 @@ export function UserManagement() {
 
         setTargetPartnerLevel(partnerData.level);
 
-        // ✅ Lv1의 경우: api_configs에서 실제 보유금 조회 (참고용)
+        // ✅ Lv1의 경우: api_configs에서 실제 보유금 조회
         if (partnerData.level === 1) {
           const { data: apiConfigsData, error: apiConfigsError } = await supabase
             .from('api_configs')
             .select('balance, api_provider')
-            .eq('partner_id', partnerId);
+            .eq('partner_id', currentPartnerId);
 
           if (!apiConfigsError && apiConfigsData) {
             const investBalance = apiConfigsData.find((c: any) => c.api_provider === 'invest')?.balance || 0;
             const oroplayBalance = apiConfigsData.find((c: any) => c.api_provider === 'oroplay')?.balance || 0;
             setTargetPartnerInvestBalance(investBalance);
             setTargetPartnerOroplayBalance(oroplayBalance);
-            console.log('✅ Lv1 소속 파트너 보유금 설정 (api_configs):', {
+            console.log('✅ Lv1 현재 관리자 보유금 설정 (api_configs):', {
               invest: investBalance,
               oroplay: oroplayBalance
             });
@@ -405,7 +403,7 @@ export function UserManagement() {
           setTargetPartnerInvestBalance(partnerData.invest_balance || 0);
           setTargetPartnerOroplayBalance(partnerData.oroplay_balance || 0);
           setTargetPartnerFamilyapiBalance(partnerData.familyapi_balance || 0);
-          console.log('✅ Lv2 소속 파트너 보유금 설정 (세 개 지갑):', {
+          console.log('✅ Lv2 현재 관리자 보유금 설정 (세 개 지갑):', {
             invest_balance: partnerData.invest_balance || 0,
             oroplay_balance: partnerData.oroplay_balance || 0,
             familyapi_balance: partnerData.familyapi_balance || 0
@@ -414,15 +412,15 @@ export function UserManagement() {
         // ✅ Lv3~7의 경우: partners.balance 사용
         else {
           setTargetPartnerBalance(partnerData.balance || 0);
-          console.log('✅ Lv3~7 소속 파트너 보유금 설정:', partnerData.balance || 0);
+          console.log('✅ Lv3~7 현재 관리자 보유금 설정:', partnerData.balance || 0);
         }
       } catch (error) {
-        console.error('❌ 소속 파트너 보유금 조회 실패:', error);
+        console.error('❌ 현재 관리자 보유금 조회 실패:', error);
       }
     };
 
     fetchTargetPartnerBalance();
-  }, [forceTransactionTarget?.id]);
+  }, [forceTransactionTarget?.id, authState.user?.id]);
 
   // 벌크 회원 생성 함수
   const createBulkUsers = async (prefix: string, startNum: number, endNum: number, password: string, bulkFormData: any) => {
@@ -1093,7 +1091,7 @@ export function UserManagement() {
       // 관리자 정보 조회 (현재 작업자)
       const { data: adminPartner, error: adminError } = await supabase
         .from('partners')
-        .select('balance, level, nickname, partner_type, invest_balance, oroplay_balance, username')
+        .select('balance, level, nickname, partner_type, invest_balance, oroplay_balance, familyapi_balance, honorapi_balance, username')
         .eq('id', authState.user.id)
         .single();
 
@@ -1114,8 +1112,27 @@ export function UserManagement() {
       if (data.type === 'deposit' && adminPartner.level >= 2 && adminPartner.level <= 6) {
         console.log('💰 [입금] 실행자 보유금 검증 시작');
         
-        const adminBalance = adminPartner.balance || 0;
-        console.log(`💰 Lv${adminPartner.level} 실행자 보유금: ${adminBalance.toLocaleString()}`);
+        let adminBalance = 0;
+        
+        // Lv2: 4개 지갑의 합계 체크 (외부 API 동기화 잔액)
+        if (adminPartner.level === 2) {
+          adminBalance = (adminPartner.invest_balance || 0) + 
+                        (adminPartner.oroplay_balance || 0) + 
+                        (adminPartner.familyapi_balance || 0) + 
+                        (adminPartner.honorapi_balance || 0);
+          console.log(`💰 Lv2 실행자 보유금 (4개 지갑 합계):`, {
+            invest_balance: adminPartner.invest_balance || 0,
+            oroplay_balance: adminPartner.oroplay_balance || 0,
+            familyapi_balance: adminPartner.familyapi_balance || 0,
+            honorapi_balance: adminPartner.honorapi_balance || 0,
+            total: adminBalance
+          });
+        }
+        // Lv3~6: 단일 balance 체크 (GMS 머니)
+        else {
+          adminBalance = adminPartner.balance || 0;
+          console.log(`💰 Lv${adminPartner.level} 실행자 보유금 (GMS 머니): ${adminBalance.toLocaleString()}`);
+        }
         
         if (adminBalance < data.amount) {
           console.error('❌ 실행자 보유금 부족:', { 
@@ -1219,9 +1236,52 @@ export function UserManagement() {
         console.log(`✅ 담당 파트너 Lv${responsiblePartner.level} 로그 기록 완료 (balance 변경 없음)`);
       }
 
-      // ✅ 4-2. 실행자 (adminPartner) 보유금 증감 (Lv2~Lv6만)
-      if (adminPartner.level >= 2 && adminPartner.level <= 6) {
-        console.log(`💼 실행자 Lv${adminPartner.level} 보유금 증감 시작`);
+      // ✅ 4-2. 실행자 (adminPartner) 처리
+      
+      // Lv2: 로그만 기록 (balance 변동 없음, 외부 API 동기화)
+      if (adminPartner.level === 2) {
+        console.log(`💼 실행자 Lv2 로그 기록 시작 (balance 변동 없음)`);
+        
+        const currentBalance = adminPartner.balance || 0;
+        
+        if (data.type === 'deposit') {
+          await supabase
+            .from('partner_balance_logs')
+            .insert({
+              partner_id: authState.user.id,
+              balance_before: currentBalance,
+              balance_after: currentBalance,
+              amount: 0,
+              transaction_type: 'user_deposit',
+              from_partner_id: authState.user.id,
+              to_partner_id: responsiblePartnerId,
+              processed_by: authState.user.id,
+              memo: `[회원 강제입금] ${user.username}에게 ${data.amount.toLocaleString()}원 입금 (Lv2 외부 API 잔액, balance 변동 없음)${data.memo ? `: ${data.memo}` : ''}`
+            });
+
+          console.log(`✅ 실행자 Lv2 로그 기록 완료 (balance 변동 없음)`);
+        } else {
+          await supabase
+            .from('partner_balance_logs')
+            .insert({
+              partner_id: authState.user.id,
+              balance_before: currentBalance,
+              balance_after: currentBalance,
+              amount: 0,
+              transaction_type: 'user_withdrawal',
+              from_partner_id: responsiblePartnerId,
+              to_partner_id: authState.user.id,
+              processed_by: authState.user.id,
+              memo: `[회원 강제출금] ${user.username}으로부터 ${data.amount.toLocaleString()}원 출금 (Lv2 외부 API 잔액, balance 변동 없음)${data.memo ? `: ${data.memo}` : ''}`
+            });
+
+          console.log(`✅ 실행자 Lv2 로그 기록 완료 (balance 변동 없음)`);
+        }
+      }
+      
+      // Lv3~6: balance 증감 (GMS 머니)
+      if (adminPartner.level >= 3 && adminPartner.level <= 6) {
+        console.log(`💼 실행자 Lv${adminPartner.level} 보유금 증감 시작 (GMS 머니)`);
         
         if (data.type === 'deposit') {
           // ✅ 입금: 실행자 보유금 차감
@@ -1301,8 +1361,8 @@ export function UserManagement() {
           type: data.type
         });
 
-        // 실행자 balance 업데이트 메시지 (Lv2~Lv6만)
-        if (adminPartner.level >= 2 && adminPartner.level <= 6) {
+        // 실행자 balance 업데이트 메시지 (Lv3~Lv6만, Lv2는 제외)
+        if (adminPartner.level >= 3 && adminPartner.level <= 6) {
           sendMessage('partner_balance_updated', {
             partnerId: authState.user.id,
             amount: data.type === 'deposit' ? -data.amount : data.amount,

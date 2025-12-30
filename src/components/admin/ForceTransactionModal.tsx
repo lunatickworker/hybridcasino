@@ -188,8 +188,8 @@ export function ForceTransactionModal({
             : `노출된 게임사의 보유금이 없습니다.`;
         }
       }
-      // Lv3~7 입금: 단일 balance 체크
-      else if (amountNum > currentUserBalance) {
+      // Lv3~7 입금: 실행자의 GMS 머니 체크 (✅ currentUserBalance가 실행자의 잔고여야 함)
+      else if (currentUserLevel && currentUserLevel >= 3 && amountNum > currentUserBalance) {
         errorMessage = `보유금이 부족합니다. (현재: ${currentUserBalance.toLocaleString()}원)`;
       }
     }
