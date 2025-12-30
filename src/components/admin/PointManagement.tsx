@@ -20,6 +20,8 @@ import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { MetricCard } from "./MetricCard";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { getAdminOpcode, isMultipleOpcode } from '../../lib/opcodeHelper';
+import { withdrawFromAccount } from '../../lib/investApi';
 
 interface PointTransaction {
   id: string;
@@ -805,7 +807,6 @@ export function PointManagement() {
         });
 
         // 소속 파트너 기준으로 상위 대본사 opcode 조회
-        const { getAdminOpcode, isMultipleOpcode } = await import('../../lib/opcodeHelper');
         const opcodeInfo = await getAdminOpcode(referrerPartner);
         
         if (isMultipleOpcode(opcodeInfo)) {
@@ -840,8 +841,6 @@ export function PointManagement() {
       }
 
       // 외부 API 출금 호출
-      const { withdrawFromAccount } = await import('../../lib/investApi');
-      
       let apiResult;
       try {
         apiResult = await withdrawFromAccount(

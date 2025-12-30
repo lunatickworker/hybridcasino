@@ -13,6 +13,7 @@ import { useMessageQueue } from '../common/MessageQueueProvider';
 import { investApi } from '../../lib/investApi';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { toast } from 'sonner@2.0.3';
+import { getAdminOpcode, isMultipleOpcode } from '../../lib/opcodeHelper';
 
 interface Transaction {
   id: string;
@@ -160,8 +161,6 @@ export function TransactionApprovalManager({ user }: TransactionApprovalManagerP
         let secretKey = '';
 
         try {
-          const { getAdminOpcode, isMultipleOpcode } = await import('../../lib/opcodeHelper');
-          
           // 파트너 정보가 있으면 opcodeHelper 사용
           if (selectedTransaction.users?.partners) {
             const opcodeInfo = await getAdminOpcode(selectedTransaction.users.partners);

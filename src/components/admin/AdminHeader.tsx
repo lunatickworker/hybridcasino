@@ -40,9 +40,14 @@ import { AnimatedCurrency } from "../common/AnimatedNumber";
 // import { getInfo } from "../../lib/investApi"; // ❌ 사용 중지
 import { getAgentBalance, getOroPlayToken } from "../../lib/oroplayApi";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { getInvestCredentials, updateInvestBalance, updateOroplayBalance } from "../../lib/apiConfigHelper";
+import { getInvestCredentials, updateInvestBalance, updateOroplayBalance, getLv1HonorApiCredentials, updateHonorApiBalance } from "../../lib/apiConfigHelper";
 import { getTodayStartUTC, getCachedTimezoneOffset, convertUTCToSystemTime } from "../../utils/timezone";
 import { NotificationsModal } from "./NotificationsModal";
+import { getUnreadNotificationCount } from '../../lib/notificationHelper';
+import * as investApiModule from '../../lib/investApi';
+import { checkApiActiveByPartnerId } from '../../lib/apiStatusChecker';
+import * as familyApiModule from '../../lib/familyApi';
+import * as honorApiModule from '../../lib/honorApi';
 
 interface AdminHeaderProps {
   user: Partner;
@@ -139,7 +144,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   const loadNotificationCount = async () => {
     try {
       console.log('🔔 [알림 개수 로드] 현재 관리자 ID:', user.id, '레벨:', user.level);
-      const { getUnreadNotificationCount } = await import('../../lib/notificationHelper');
       const count = await getUnreadNotificationCount(user.id); // ✅ partnerId 전달
       console.log('🔔 [알림 개수 로드] 결과:', count);
       setNotificationCount(count);
@@ -159,10 +163,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     setIsSyncingInvest(true);
     try {
       console.log('💰 [AdminHeader] Invest 보유금 수동 동기화 시작');
-
-      // Dynamic import
-      const investApiModule = await import('../../lib/investApi');
-      const { checkApiActiveByPartnerId } = await import('../../lib/apiStatusChecker');
       
       // Lv1의 API 설정 조회 (Lv2도 Lv1의 API 설정 사용)
       let partnerId = user.id;
@@ -272,7 +272,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       }
 
       // ✅ OroPlay API 활성화 체크
-      const { checkApiActiveByPartnerId } = await import('../../lib/apiStatusChecker');
       const isOroPlayActive = await checkApiActiveByPartnerId(partnerId, 'oroplay');
       if (!isOroPlayActive) {
         toast.info('OroPlay API가 비활성화되어 있습니다.');
@@ -331,15 +330,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       console.log('💰 [AdminHeader] FamilyAPI 보유금 수동 동기화 시작');
 
       // ✅ FamilyAPI 활성화 체크
-      const { checkApiActiveByPartnerId } = await import('../../lib/apiStatusChecker');
       const isFamilyApiActive = await checkApiActiveByPartnerId(user.id, 'familyapi');
       if (!isFamilyApiActive) {
         toast.info('FamilyAPI가 비활성화되어 있습니다.');
         return;
       }
-
-      // Dynamic import
-      const familyApiModule = await import('../../lib/familyApi');
       
       // API Key와 Token 조회
       const config = await familyApiModule.getFamilyApiConfig();
@@ -410,16 +405,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       const partnerId = lv1Partner.id;
 
       // ✅ HonorAPI 활성화 체크
-      const { checkApiActiveByPartnerId } = await import('../../lib/apiStatusChecker');
       const isHonorApiActive = await checkApiActiveByPartnerId(partnerId, 'honorapi');
       if (!isHonorApiActive) {
         toast.info('HonorAPI가 비활성화되어 있습니다.');
         return;
       }
-
-      // Dynamic import
-      const honorApiModule = await import('../../lib/honorApi');
-      const { getLv1HonorApiCredentials, updateHonorApiBalance } = await import('../../lib/apiConfigHelper');
       
       // API Key 조회
       const credentials = await getLv1HonorApiCredentials(partnerId);

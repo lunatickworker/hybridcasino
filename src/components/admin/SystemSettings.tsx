@@ -17,6 +17,9 @@ import { Partner } from "../../types";
 import { supabase } from "../../lib/supabase";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { refreshTimezoneCache } from "../../utils/timezone";
+import { gameApi } from "../../lib/gameApi";
+import { createOroPlayToken } from "../../lib/oroplayApi";
+import { md5Hash } from "../../lib/investApi";
 
 interface SystemSetting {
   id: string;
@@ -527,7 +530,6 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
 
     try {
       setSyncingApi(apiType);
-      const { gameApi } = await import('../../lib/gameApi');
 
       // ✅ 각 API별로 독립적인 제공사 및 게임 동기화
       toast.info(`${apiType.toUpperCase()} 제공사 및 게임 동기화 중...`);
@@ -561,7 +563,6 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
         }
 
         // 2️⃣ 토큰 생성 (기존 토큰이 있어도 새로 생성)
-        const { createOroPlayToken } = await import('../../lib/oroplayApi');
         const tokenResponse = await createOroPlayToken(
           oroplayConfig.client_id,
           oroplayConfig.client_secret
@@ -610,6 +611,29 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
     } catch (error) {
       console.error(`❌ ${apiType} 동기화 실패:`, error);
       toast.error(`${apiType.toUpperCase()} 동기화 중 오류가 발생했습니다.`);
+    } finally {
+      setSyncingApi(null);
+    }
+  };
+
+  // 🆕 특정 OroPlay 제공사만 동기화 (예: dreamtech)
+  const handleSyncSpecificOroPlayProvider = async (vendorCode: string, providerName: string) => {
+    if (user.level !== 1) {
+      toast.error('Lv1 권한이 필요합니다.');
+      return;
+    }
+
+    try {
+      setSyncingApi(`oroplay-${vendorCode}`);
+
+      toast.info(`${providerName} 제공사 동기화 중...`);
+
+      const result = await gameApi.syncSpecificOroPlayProvider(vendorCode);
+      
+      toast.success(`${providerName} 동기화 완료: 신규 ${result.newGames}개, 업데이트 ${result.updatedGames}개, 총 ${result.totalGames}개`);
+    } catch (error: any) {
+      console.error(`❌ ${providerName} 동기화 실패:`, error);
+      toast.error(`${providerName} 동기화 중 오류가 발생했습니다: ${error.message}`);
     } finally {
       setSyncingApi(null);
     }
@@ -708,8 +732,6 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
     try {
       setEvolutionLoading(true);
       
-      const { md5Hash } = await import('../../lib/investApi');
-      
       // ✅ Lv1의 api_configs를 조회 (Lv2도 Lv1의 설정을 사용)
       const { data: lv1Partner, error: lv1Error } = await supabase
         .from('partners')
@@ -778,8 +800,6 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
   const saveEvolutionLimit = async () => {
     try {
       setEvolutionLoading(true);
-
-      const { md5Hash } = await import('../../lib/investApi');
       
       // ✅ api_configs에서 조회
       const { data: apiConfig, error: configError } = await supabase
@@ -979,24 +999,49 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                       />
                     </div>
                     {useOroplayApi && (
-                      <Button
-                        onClick={() => handleInitializeAndSyncApi('oroplay')}
-                        disabled={syncingApi !== null}
-                        className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:opacity-90"
-                        size="sm"
-                      >
-                        {syncingApi === 'oroplay' ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                            제공사 및 게임 동기화 중...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            제공사 및 게임 동기화
-                          </>
-                        )}
-                      </Button>
+                      <>
+                        <Button
+                          onClick={() => handleInitializeAndSyncApi('oroplay')}
+                          disabled={syncingApi !== null}
+                          className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:opacity-90"
+                          size="sm"
+                        >
+                          {syncingApi === 'oroplay' ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              제공사 및 게임 동기화 중...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2" />
+                              전체 제공사 동기화
+                            </>
+                          )}
+                        </Button>
+                        
+                        {/* 🆕 특정 제공사만 동기화 */}
+                        <div className="mt-2 p-3 bg-slate-700/30 rounded border border-slate-600">
+                          <p className="text-xs text-slate-400 mb-2">특정 제공사만 동기화:</p>
+                          <Button
+                            onClick={() => handleSyncSpecificOroPlayProvider('slot-dreamtech', 'DreamTech')}
+                            disabled={syncingApi !== null}
+                            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90"
+                            size="sm"
+                          >
+                            {syncingApi === 'oroplay-slot-dreamtech' ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                DreamTech 동기화 중...
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                DreamTech 슬롯 동기화
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </>
                     )}
                   </div>
 

@@ -12,6 +12,7 @@ import { supabase } from "../../lib/supabase";
 import { getGameHistory } from "../../lib/investApi";
 import { Partner } from "../../types";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { getAdminOpcode, isMultipleOpcode } from '../../lib/opcodeHelper';
 
 interface BettingManagementProps {
   user: Partner;
@@ -171,8 +172,6 @@ export function BettingManagement({ user }: BettingManagementProps) {
   const syncBettingFromApi = async () => {
     try {
       setSyncLoading(true);
-      
-      const { getAdminOpcode, isMultipleOpcode } = await import('../../lib/opcodeHelper');
       
       let opcode: string;
       let secretKey: string;

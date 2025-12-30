@@ -635,7 +635,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
               src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Banner-Text.png?t=20241229"
               alt="LIVE CASINO"
               className="w-full h-auto object-contain"
-              style={{ maxWidth: '600px' }}
+              style={{ maxWidth: '330px' }}
             />
             
             {/* 이미지 내 버튼 위치에 클릭 영역 */}
@@ -691,7 +691,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
           src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Casino-game-list.png"
           alt="Casino Game List"
           className="absolute z-20 w-[200px] md:w-auto"
-          style={{ top: '-70px', left: '50px' }}
+          style={{ top: '-35px', left: '18px' }}
         />
         
         <div className="relative z-10 px-4 md:px-16">
@@ -747,7 +747,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
           src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Slot-game-list.png"
           alt="Slot Game List"
           className="absolute z-20 w-[200px] md:w-auto"
-          style={{ top: '-80px', left: '50px' }}
+          style={{ top: '-37px', left: '17px' }}
         />
         
         <div className="relative z-10 px-4 md:px-16">

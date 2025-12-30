@@ -6,6 +6,7 @@ import * as oroplayApi from '../../lib/oroplayApi';
 import { callWithRateLimit } from '../../lib/rateLimiter';
 import * as opcodeHelper from '../../lib/opcodeHelper';
 import { Partner } from '../../types';
+import * as honorApiModule from '../../lib/honorApi';
 
 interface BettingHistorySyncProps {
   user: Partner;
@@ -542,9 +543,6 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
 const syncHonorApiBettingHistory = async (partnerId: string) => {
   try {
     console.log('🎮 [HONORAPI-SYNC] Betting history sync started');
-
-    // HonorAPI 모듈 동적 임포트
-    const honorApiModule = await import('../../lib/honorApi');
     
     // 베팅 내역 동기화 실행
     const result = await honorApiModule.syncHonorApiBettingHistory();

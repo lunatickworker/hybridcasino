@@ -28,6 +28,7 @@ import { Label } from "../ui/label";
 import { PasswordChangeSection } from "./PasswordChangeSection";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useAuth } from "../../contexts/AuthContext";
+import { md5Hash } from "../../lib/investApi";
 
 interface UserDetailModalProps {
   user: any;
@@ -480,8 +481,6 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
     try {
       setEvolutionLoading(true);
       
-      const { md5Hash } = await import('../../lib/investApi');
-      
       // ✅ API 설정 조회 - api_configs 테이블에서 조회 (배열로 받아서 invest 찾기)
       const { data: apiConfig, error: configError } = await supabase
         .from('api_configs')
@@ -537,8 +536,6 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
   const saveEvolutionLimit = async () => {
     try {
       setEvolutionLoading(true);
-
-      const { md5Hash } = await import('../../lib/investApi');
       
       // ✅ API 설정 조회 - api_configs 테이블에서 조회 (배열로 받아서 invest 찾기)
       const { data: apiConfig, error: configError } = await supabase

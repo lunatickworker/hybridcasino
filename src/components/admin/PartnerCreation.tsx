@@ -122,8 +122,9 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     if (user.partner_type === 'system_admin') {
       loadAvailableParents();
     }
-    // 초기 상위 파트너 목록 로드 (대본사 생성 기본값)
-    loadUpperLevelPartners(2);
+    // 초기 상위 파트너 목록 로드 - 기본 파트너 타입의 레벨 사용
+    const defaultType = getDefaultPartnerType();
+    loadUpperLevelPartners(defaultType.level, true);
 
     // ✅ Supabase Realtime 구독 - partners 테이블 변경사항 실시간 감지
     const partnersSubscription = supabase
@@ -775,12 +776,30 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="upper_partner" className="text-lg">상위 파트너</Label>
-                <Input
-                  id="upper_partner"
-                  value={user.nickname || user.username}
-                  readOnly
-                  className="bg-muted text-lg py-6"
-                />
+                {upperLevelPartners.length > 0 ? (
+                  <Select 
+                    value={formData.parent_id || ''} 
+                    onValueChange={(value) => handleInputChange('parent_id', value)}
+                  >
+                    <SelectTrigger className="text-lg py-6" id="upper_partner">
+                      <SelectValue placeholder="상위 파트너를 선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent className="text-lg">
+                      {upperLevelPartners.map((partner) => (
+                        <SelectItem key={partner.id} value={partner.id} className="text-lg py-3">
+                          {partner.nickname || partner.username}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="upper_partner"
+                    value={user.nickname || user.username}
+                    readOnly
+                    className="bg-muted text-lg py-6"
+                  />
+                )}
               </div>
             </div>
 
