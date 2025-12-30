@@ -376,7 +376,11 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
 
         {hasChildren && isExpanded && (
           <div className="ml-2 mt-1 space-y-1">
-            {item.children!.map(child => renderMenuItem(child, depth + 1))}
+            {item.children!.map(child => (
+              <div key={child.id}>
+                {renderMenuItem(child, depth + 1)}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -406,7 +410,11 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
           </div>
         ) : (
           <>
-            {menuItems.map(item => renderMenuItem(item))}
+            {menuItems.map(item => (
+              <div key={item.id}>
+                {renderMenuItem(item)}
+              </div>
+            ))}
           </>
         )}
       </div>

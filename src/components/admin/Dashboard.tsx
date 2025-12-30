@@ -94,7 +94,7 @@ export function Dashboard({ user }: DashboardProps) {
   // =====================================================
   const handleSyncOroplayBalance = async () => {
     if (user.level !== 1) {
-      toast.error('Lv1 시스템관리자만 API 잔고를 조회할 수 있습니다.');
+      toast.error('API 잔고를 조회할 수 있는 권한이 없습니다.');
       return;
     }
 

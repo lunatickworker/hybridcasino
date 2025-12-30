@@ -59,26 +59,6 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
-  const [formData, setFormData] = useState<PartnerFormData>({
-    username: '',
-    nickname: '',
-    password: '',
-    partner_type: 'head_office',
-    parent_id: user.id,
-    level: 2,
-    commission_rolling: 0,
-    commission_losing: 0,
-    casino_rolling_commission: 0,
-    casino_losing_commission: 0,
-    slot_rolling_commission: 0,
-    slot_losing_commission: 0,
-    withdrawal_fee: 0,
-    selected_parent_id: undefined,
-    timezone_offset: 9, // 기본값 명시적으로 설정
-    selected_apis: [], // API 선택 초기값
-    game_access: [], // 게임 접근 권한 초기값
-  });
 
   // 사용 가능한 API 목록
   const availableApis = [
@@ -95,6 +75,36 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     { value: 'distributor', label: t.partnerCreation.partnerTypes.distributor, level: 5 },
     { value: 'store', label: t.partnerCreation.partnerTypes.store, level: 6 },
   ], [t]);
+
+  // 🎯 현재 사용자의 바로 아래 레벨의 파트너 타입을 기본값으로 설정
+  const getDefaultPartnerType = () => {
+    const nextLevel = user.level + 1;
+    const defaultType = partnerTypes.find(type => type.level === nextLevel);
+    return defaultType || partnerTypes[0];
+  };
+  
+  const [formData, setFormData] = useState<PartnerFormData>(() => {
+    const defaultType = getDefaultPartnerType();
+    return {
+      username: '',
+      nickname: '',
+      password: '',
+      partner_type: defaultType.value,
+      parent_id: user.id,
+      level: defaultType.level,
+      commission_rolling: 0,
+      commission_losing: 0,
+      casino_rolling_commission: 0,
+      casino_losing_commission: 0,
+      slot_rolling_commission: 0,
+      slot_losing_commission: 0,
+      withdrawal_fee: 0,
+      selected_parent_id: undefined,
+      timezone_offset: 9, // 기본값 명시적으로 설정
+      selected_apis: [], // API 선택 초기값
+      game_access: [], // 게임 접근 권한 초기값
+    };
+  });
 
   const timezoneOptions = useMemo(() => 
     Array.from({ length: 27 }, (_, i) => {
@@ -162,14 +172,21 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         .select('*')
         .order('created_at', { ascending: false });
 
-      // 시스템관리자가 아니면 본인과 하위 파트너만 조회
-      if (user.level > 1) {
+      // 🎯 모든 사용자: 본인과 하위 파트너 조회
+      if (user.level === 1) {
+        // 시스템 관리자는 모든 파트너 조회 (제한 없음)
+      } else {
+        // 다른 레벨은 본인 + 하위 파트너만 조회
         query = query.or(`parent_id.eq.${user.id},id.eq.${user.id}`);
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
+      
+      console.log('✅ [파트너생성관리] 로드된 파트너 수:', data?.length, '현재 사용자 ID:', user.id);
+      console.log('✅ [파트너생성관리] 파트너 목록:', data);
+      
       setPartners(data || []);
     } catch (error) {
       console.error('Failed to load partners:', error);
@@ -215,8 +232,8 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       const selectedType = partnerTypes.find(type => type.value === value);
       if (selectedType) {
         setFormData(prev => ({ ...prev, level: selectedType.level, parent_id: '' }));
-        // 상위 레벨 파트너 목록 로드
-        loadUpperLevelPartners(selectedType.level);
+        // 상위 레벨 파트너 목록 로드 (자동 선택 포함)
+        loadUpperLevelPartners(selectedType.level, true);
       }
     }
 
@@ -227,7 +244,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
   };
 
   // 상위 레벨 파트너 목록 로드
-  const loadUpperLevelPartners = async (selectedLevel: number) => {
+  const loadUpperLevelPartners = async (selectedLevel: number, autoSelect: boolean = false) => {
     try {
       // 선택된 레벨의 상위 레벨 계산 (예: Lv3 선택 시 Lv2 파트너 목록)
       const upperLevel = selectedLevel - 1;
@@ -236,6 +253,8 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         setUpperLevelPartners([]);
         return;
       }
+
+      let partnersData: Partner[] = [];
 
       // 시스템 관리자(Lv1) 포함 조회
       if (upperLevel === 1) {
@@ -246,7 +265,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
           .eq('status', 'active')
           .order('created_at', { ascending: true });
         
-        setUpperLevelPartners(data || []);
+        partnersData = data || [];
       } else {
         // Lv2 이상 파트너 조회
         const { data } = await supabase
@@ -256,7 +275,16 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
           .eq('status', 'active')
           .order('created_at', { ascending: true });
         
-        setUpperLevelPartners(data || []);
+        partnersData = data || [];
+      }
+
+      setUpperLevelPartners(partnersData);
+
+      // 🎯 자동 선택: 현재 로그인한 계정이 목록에 있으면 선택, 없으면 첫 번째 선택
+      if (autoSelect && partnersData.length > 0) {
+        const currentUserInList = partnersData.find(p => p.id === user.id);
+        const defaultParentId = currentUserInList ? user.id : partnersData[0].id;
+        setFormData(prev => ({ ...prev, parent_id: defaultParentId }));
       }
     } catch (error) {
       console.error('상위 레벨 파트너 로드 실패:', error);
@@ -556,6 +584,18 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     return levelTexts[String(level)] || t.partnerCreation.levelText.unknown;
   };
 
+  const getPartnerTypeText = (partner_type: string): string => {
+    const typeTexts: Record<string, string> = {
+      'system_admin': t.partnerCreation.partnerTypes.system_admin,
+      'head_office': t.partnerCreation.partnerTypes.head_office,
+      'main_office': t.partnerCreation.partnerTypes.main_office,
+      'sub_office': t.partnerCreation.partnerTypes.sub_office,
+      'distributor': t.partnerCreation.partnerTypes.distributor,
+      'store': t.partnerCreation.partnerTypes.store,
+    };
+    return typeTexts[partner_type] || '';
+  };
+
   const partnerColumns = [
     {
       key: "username",
@@ -572,7 +612,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       title: t.partnerCreation.grade,
       cell: (partner: Partner) => (
         <Badge variant={partner.level === 2 ? 'default' : 'secondary'} className="text-base py-2 px-3">
-          {getPartnerLevelText(partner.level)}
+          {getPartnerTypeText(partner.partner_type)}
         </Badge>
       ),
     },
@@ -591,16 +631,13 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       cell: (partner: Partner) => (
         <div className="text-right font-mono">
           {(() => {
-            // ✅ Lv1, Lv2: 활성화된 API 잔고 합산
+            // ✅ Lv1, Lv2: 4개 지갑 모두 합산
             if (partner.level === 1 || partner.level === 2) {
-              const selectedApis = partner.selected_apis || [];
               let total = 0;
-              
-              // 활성화된 API들의 잔고만 합산
-              if (selectedApis.includes('invest')) total += (partner.invest_balance || 0);
-              if (selectedApis.includes('oroplay')) total += (partner.oroplay_balance || 0);
-              if (selectedApis.includes('familyapi')) total += (partner.familyapi_balance || 0);
-              if (selectedApis.includes('honorapi')) total += (partner.honorapi_balance || 0);
+              total += (partner.invest_balance || 0);
+              total += (partner.oroplay_balance || 0);
+              total += (partner.familyapi_balance || 0);
+              total += (partner.honorapi_balance || 0);
               
               return new Intl.NumberFormat('ko-KR').format(total);
             }
@@ -729,7 +766,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                       })
                       .map((type) => (
                         <SelectItem key={type.value} value={type.value} className="text-lg py-3">
-                          {type.label} ({t.partnerCreation.level} {type.level})
+                          {type.label}
                         </SelectItem>
                       ))}
                   </SelectContent>
@@ -738,33 +775,9 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="upper_partner" className="text-lg">상위 파트너</Label>
-                <Select 
-                  value={formData.parent_id || ''} 
-                  onValueChange={(value) => handleInputChange('parent_id', value)}
-                  disabled={upperLevelPartners.length === 0}
-                >
-                  <SelectTrigger className="text-lg py-6">
-                    <SelectValue placeholder={upperLevelPartners.length === 0 ? '파트너 등급을 먼저 선택하세요' : '상위 파트너 선택'} />
-                  </SelectTrigger>
-                  <SelectContent className="text-lg">
-                    {upperLevelPartners.map((partner) => (
-                      <SelectItem key={partner.id} value={partner.id} className="text-lg py-3">
-                        {partner.nickname || partner.username} ({getPartnerLevelText(partner.level)})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {upperLevelPartners.length > 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    레벨 {formData.level - 1} 파트너 목록입니다.
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-lg">{t.partnerCreation.level}</Label>
                 <Input
-                  value={`${t.partnerCreation.level} ${formData.level}`}
+                  id="upper_partner"
+                  value={user.nickname || user.username}
                   readOnly
                   className="bg-muted text-lg py-6"
                 />

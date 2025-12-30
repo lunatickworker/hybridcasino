@@ -628,7 +628,7 @@ export function PartnerManagementV2() {
           color="purple"
         />
         
-        {/* 대본사(2): 본사 */}
+        {/* 운영사(2): 본사 */}
         {authState.user?.level === 2 && (
           <MetricCard
             title={t.partnerManagement.mainOffice}
@@ -661,7 +661,7 @@ export function PartnerManagementV2() {
           />
         )}
         
-        {/* 대본사(2): 부본사/총판/매장 */}
+        {/* 운영사(2): 부본사/총판/매장 */}
         {authState.user?.level === 2 && (
           <MetricCard
             title={t.partnerManagement.subOfficeDistributorStore}
@@ -1056,6 +1056,8 @@ export function PartnerManagementV2() {
         onOpenChange={setShowCreateDialog}
         mode="create"
         userLevel={authState.user?.level}
+        currentUserId={authState.user?.id}
+        currentUserNickname={authState.user?.nickname}
         onSuccess={() => {
           fetchPartners();
         }}

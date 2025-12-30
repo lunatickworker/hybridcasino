@@ -474,7 +474,7 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           .maybeSingle();
         
         if (!oroConfig?.client_id || !oroConfig?.client_secret) {
-          const errorMsg = `Lv1 시스템관리자의 OroPlay credentials가 설정되지 않았습니다. api_configs 테이블을 확인하세요.`;
+          const errorMsg = `OroPlay credentials가 설정되지 않았습니다. api_configs 테이블을 확인하세요.`;
           console.error('❌ [Balance]', errorMsg);
           throw new Error(errorMsg);
         }

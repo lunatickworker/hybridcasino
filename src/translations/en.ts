@@ -170,7 +170,7 @@ export const en = {
     username: 'Username',
     nickname: 'Nickname',
     realName: 'Real Name',
-    level: 'Level',
+    level: '',
     balance: 'Balance',
     points: 'Points',
     referrer: 'Referrer',
@@ -203,7 +203,7 @@ export const en = {
     block: 'Block',
     unblock: 'Unblock',
     searchPlaceholder: 'Search by username, nickname, email, phone, bank info, balance, points, memo',
-    filterByLevel: 'Filter by Level',
+    filterByLevel: '',
     filterByStatus: 'Filter by Status',
     statusFilter: 'Status Filter',
     totalBalance: 'Total Balance',
@@ -281,13 +281,13 @@ export const en = {
     partnerName: 'Partner Name',
     partnerUsername: 'Username',
     partnerNickname: 'Nickname',
-    level: 'Level',
-    lv1: 'Lv1 System Admin',
-    lv2: 'Lv2 Master Agent',
-    lv3: 'Lv3 Senior Agent',
-    lv4: 'Lv4 Sub Agent',
-    lv5: 'Lv5 Distributor',
-    lv6: 'Lv6 Store',
+    level: '',
+    lv1: '',
+    lv2: 'Master Agent',
+    lv3: 'Senior Agent',
+    lv4: 'Sub Agent',
+    lv5: 'Distributor',
+    lv6: 'Store',
     parentPartner: 'Parent Partner',
     childPartners: 'Child Partners',
     childCount: 'Child Count',
@@ -387,7 +387,7 @@ export const en = {
     totalPartners: 'Total Partners',
     totalMembers: 'Total Members',
     totalApiBalance: 'Total API Balance',
-    levelDistribution: 'Level Distribution',
+    levelDistribution: '',
     
     // Messages
     confirmDelete: 'Are you sure you want to delete?',
@@ -507,8 +507,8 @@ export const en = {
     activeMembers: 'Active Members',
     topPerformingPartners: 'Top Performing Partners',
     managedMembers: 'Managed Members',
-    partnerLevelDistribution: 'Partner Level Distribution',
-    levelDistributionDesc: 'Total balance of users owned by partners at each level',
+    partnerLevelDistribution: 'Partner Distribution',
+    levelDistributionDesc: 'Total balance of users owned by partners',
     totalUserBalance: 'Total User Balance',
     noSubPartners: 'No sub partners',
     
@@ -1566,8 +1566,8 @@ export const en = {
     contentPlaceholder: 'Enter announcement content\n\n• Write detailed announcement content\n• You can attach images if needed',
     statusLabel: 'Status',
     targetLabel: 'Target',
-    targetLevelLabel: 'Target Level',
-    targetLevelPlaceholder: 'Specific level only (1-6)',
+    targetLevelLabel: '',
+    targetLevelPlaceholder: '',
     displayOrderLabel: 'Display Order',
     startDateLabel: 'Start Date',
     endDateLabel: 'End Date',
@@ -1615,7 +1615,7 @@ export const en = {
     // Badges & Labels
     popupBadge: 'Popup',
     adminBadge: 'Admin',
-    levelBadge: 'Level {{level}}',
+    levelBadge: '',
     unknown: 'Unknown',
     
     // Toast Messages
@@ -1870,7 +1870,7 @@ export const en = {
     features: {
       onlyActiveMenus: 'Show only enabled menus',
       toggleMenus: 'Enable/disable individual menus',
-      levelBasedMenus: 'Only level-appropriate menus available',
+      levelBasedMenus: '',
       realtimeUpdate: 'Real-time sidebar updates',
     },
     menuActivated: '{{menu}} enabled successfully',
@@ -1933,12 +1933,12 @@ export const en = {
     
     // Partner Level Text
     levelText: {
-      '1': 'System Admin',
+      '1': '', // Remove "System Admin" text
       '2': 'Head Office',
-      '3': 'Main Office',
-      '4': 'Sub Office',
-      '5': 'Distributor',
-      '6': 'Store',
+      '3': '3', // "Main Office" → "3"
+      '4': '4', // "Sub Office" → "4"
+      '5': '5', // "Distributor" → "5"
+      '6': '6', // "Store" → "6"
       unknown: 'Unknown',
     },
     
@@ -1951,7 +1951,7 @@ export const en = {
     passwordPlaceholder: 'Password (min. 6 characters)',
     partnerGrade: 'Partner Grade',
     selectGrade: 'Select Grade',
-    level: 'Level',
+    level: '',
     selectParentLabel: 'Select Parent Partner',
     selectParentPlaceholder: 'Select parent partner',
     parentDescription: 'Will be added under the selected partner.',
@@ -2043,7 +2043,7 @@ export const en = {
     
     // Partner Info
     parentLabel: 'Parent',
-    levelPrefix: 'LV.',
+    levelPrefix: '',
     
     // Connection Status
     online: '🟢 Online',
@@ -2325,7 +2325,7 @@ export const en = {
     profileSubtitle: 'Manage your account information',
     basicInfo: 'Basic Information',
     accountInfo: 'Account Information',
-    vipLevel: 'VIP Level',
+    vipLevel: 'VIP',
     status: 'Status',
     registeredDate: 'Registered Date',
     lastLogin: 'Last Login',
@@ -2354,7 +2354,7 @@ export const en = {
     basicInfoTitle: 'Basic Information',
     userId: 'User ID',
     vipGrade: 'VIP Grade',
-    level: 'Level',
+    level: '',
     transactionHistory: 'Transaction History',
     noTransactionHistory: 'No transaction history',
     balanceBefore: 'Before',

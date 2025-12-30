@@ -16,7 +16,7 @@ export enum HierarchyLevel {
 
 // 레벨별 한국어 이름
 export const HIERARCHY_NAMES = {
-  [HierarchyLevel.SYSTEM_ADMIN]: '시스템관리자',
+  [HierarchyLevel.SYSTEM_ADMIN]: '',
   [HierarchyLevel.HEADQUARTERS]: '대본사',
   [HierarchyLevel.MAIN_OFFICE]: '본사',
   [HierarchyLevel.SUB_OFFICE]: '부본사',

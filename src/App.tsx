@@ -1,6 +1,7 @@
 // CRITICAL: 콘솔 필터를 가장 먼저 로드 (GoTrueClient 경고 억제)
 import './lib/consoleFilter';
 
+// v2.5.1 - Partner level text update
 import React from 'react';
 import { useState, useEffect } from 'react';
 import { Toaster } from './components/ui/sonner';

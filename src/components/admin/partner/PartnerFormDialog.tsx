@@ -23,6 +23,8 @@ interface PartnerFormDialogProps {
   userLevel?: number;
   onSuccess: () => void;
   onWebSocketUpdate?: (data: any) => void;
+  currentUserId?: string; // 현재 로그인한 사용자 ID
+  currentUserNickname?: string; // 현재 로그인한 사용자 닉네임
 }
 
 export function PartnerFormDialog({
@@ -32,7 +34,9 @@ export function PartnerFormDialog({
   partner,
   userLevel,
   onSuccess,
-  onWebSocketUpdate
+  onWebSocketUpdate,
+  currentUserId,
+  currentUserNickname
 }: PartnerFormDialogProps) {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
@@ -46,11 +50,21 @@ export function PartnerFormDialog({
     nickname?: string;
   } | null>(null);
 
+  // userLevel에 따른 기본 partner_type 결정
+  const getDefaultPartnerType = (): Partner['partner_type'] => {
+    if (userLevel === 1) return 'main_office'; // Lv1은 본사부터 시작
+    if (userLevel === 2) return 'main_office';
+    if (userLevel === 3) return 'sub_office';
+    if (userLevel === 4) return 'distributor';
+    if (userLevel === 5) return 'store';
+    return 'head_office';
+  };
+
   const [formData, setFormData] = useState({
     username: "",
     nickname: "",
     password: "",
-    partner_type: "head_office" as Partner['partner_type'],
+    partner_type: getDefaultPartnerType() as Partner['partner_type'],
     parent_id: "",
     opcode: "",
     secret_key: "",
@@ -70,9 +84,16 @@ export function PartnerFormDialog({
   useEffect(() => {
     if (mode === 'edit' && partner) {
       loadPartnerData();
+    } else if (mode === 'create' && open) {
+      // 생성 모드일 때 다이얼로그가 열릴 때마다 기본값 설정
+      setFormData(prev => ({
+        ...prev,
+        partner_type: getDefaultPartnerType(),
+        parent_id: currentUserId || '' // Lv1/Lv2가 파트너 생성 시 자동으로 본인이 상위 파트너가 됨
+      }));
     }
     // ✅ 생성 모드일 때는 resetForm 호출하지 않음 (마지막 입력값 유지)
-  }, [mode, partner, open]);
+  }, [mode, partner, open, userLevel, currentUserId]);
 
   // 파트너 데이터 로드 (수정 모드)
   const loadPartnerData = async () => {
@@ -352,7 +373,12 @@ export function PartnerFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {userLevel === 1 && (
-                    <SelectItem value="head_office" className="text-base py-3">{t.partnerManagement.headOffice}</SelectItem>
+                    <>
+                      <SelectItem value="main_office" className="text-base py-3">{t.partnerManagement.mainOffice}</SelectItem>
+                      <SelectItem value="sub_office" className="text-base py-3">{t.partnerManagement.subOffice}</SelectItem>
+                      <SelectItem value="distributor" className="text-base py-3">{t.partnerManagement.distributor}</SelectItem>
+                      <SelectItem value="store" className="text-base py-3">{t.partnerManagement.store}</SelectItem>
+                    </>
                   )}
                   {userLevel === 2 && (
                     <SelectItem value="main_office" className="text-base py-3">{t.partnerManagement.mainOffice}</SelectItem>
@@ -378,6 +404,37 @@ export function PartnerFormDialog({
             </div>
           )}
 
+          {/* 상위 파트너 선택 (생성시에만) */}
+          {mode === 'create' && (
+            <div className="space-y-3">
+              <Label htmlFor="parent_partner" className="text-lg">상위 파트너</Label>
+              <Select 
+                value={formData.parent_id} 
+                onValueChange={(value: string) => {
+                  setFormData(prev => ({ ...prev, parent_id: value }));
+                }}
+                disabled={!formData.partner_type || formData.partner_type === 'head_office'}
+              >
+                <SelectTrigger className="h-12 text-base">
+                  <SelectValue placeholder={!formData.partner_type ? "먼저 파트너 등급을 선택하세요" : "상위 파트너를 선택하세요"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Lv1(운영사)이 본사/부본사/총판/매장을 생성할 때는 본인만 표시 */}
+                  {userLevel === 1 && currentUserId && (
+                    <SelectItem value={currentUserId} className="text-base py-3">
+                      {currentUserNickname || '현재 계정'}
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              {!formData.partner_type && (
+                <p className="text-sm text-muted-foreground">
+                  파트너 등급을 먼저 선택해주세요.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* 커미션 설정 */}
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -399,7 +456,7 @@ export function PartnerFormDialog({
                     🏢
                   </div>
                   <div>
-                    <p className="text-base font-medium text-purple-300">대본사 계정</p>
+                    <p className="text-base font-medium text-purple-300">운영사 계정</p>
                     <p className="text-sm text-purple-400/80 mt-1.5">
                       최상위 파트너로 커미션이 100%로 고정됩니다.
                     </p>
@@ -539,7 +596,7 @@ export function PartnerFormDialog({
                 className={`bg-slate-800/50 border-slate-600 text-base h-12 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
               />
               <p className="text-sm text-slate-500">
-                {formData.partner_type === 'head_office' ? '대본사 고정값' : t.partnerManagement.withdrawalFeeDesc}
+                {formData.partner_type === 'head_office' ? '운영사 고정값' : t.partnerManagement.withdrawalFeeDesc}
               </p>
             </div>
           </div>

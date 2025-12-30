@@ -170,7 +170,7 @@ export const ko = {
     username: '아이디',
     nickname: '닉네임',
     realName: '실명',
-    level: '레벨',
+    level: '',
     balance: '보유금',
     points: '포인트',
     referrer: '추천인',
@@ -203,7 +203,7 @@ export const ko = {
     block: '차단',
     unblock: '차단 해제',
     searchPlaceholder: '아이디, 닉네임, 이메일, 전화번호, 은행정보, 잔고, 포인트, 메모 검색',
-    filterByLevel: '레벨별 필터',
+    filterByLevel: '',
     filterByStatus: '상태별 필터',
     statusFilter: '상태 필터',
     totalBalance: '총 보유금',
@@ -281,13 +281,13 @@ export const ko = {
     partnerName: '파트너명',
     partnerUsername: '아이디',
     partnerNickname: '닉네임',
-    level: '레벨',
-    lv1: 'Lv1 시스템관리자',
-    lv2: 'Lv2 대본사',
-    lv3: 'Lv3 본사',
-    lv4: 'Lv4 부본사',
-    lv5: 'Lv5 총판',
-    lv6: 'Lv6 매장',
+    level: '',
+    lv1: '',
+    lv2: '대본사',
+    lv3: '본사',
+    lv4: '부본사',
+    lv5: '총판',
+    lv6: '매장',
     parentPartner: '상위 파트너',
     childPartners: '하위 파트너',
     childCount: '하위 파트너 수',
@@ -327,7 +327,7 @@ export const ko = {
     
     // 파트너 유형
     systemAdmin: '시스템관리자',
-    headOffice: '대본사',
+    headOffice: '운영사',
     mainOffice: '본사',
     subOffice: '부본사',
     distributor: '총판',
@@ -387,7 +387,7 @@ export const ko = {
     totalPartners: '전체 파트너',
     totalMembers: '전체 회원',
     totalApiBalance: '전체 API 보유금',
-    levelDistribution: '레벨별 분포',
+    levelDistribution: '',
     
     // 메시지
     confirmDelete: '정말 삭제하시겠습니까?',
@@ -508,8 +508,8 @@ export const ko = {
     activeMembers: '활성 회원 수',
     topPerformingPartners: '상위 성과 파트너',
     managedMembers: '관리 회원',
-    partnerLevelDistribution: '파트너 레벨별 분포',
-    levelDistributionDesc: '각 레벨 파트너들이 보유한 사용자들의 총 보유금',
+    partnerLevelDistribution: '파트너별 분포',
+    levelDistributionDesc: '각 파트너들이 보유한 사용자들의 총 보유금',
     totalUserBalance: '총 사용자 보유금',
     noSubPartners: '하위 파트너가 없습니다',
     
@@ -1694,8 +1694,8 @@ export const ko = {
     contentPlaceholder: '공지사항 내용을 입력하세요\n\n• 공지사항 내용을 상세히 작성하세요\n• 필요시 이미지를 첨부할 수 있습니다',
     statusLabel: '상태',
     targetLabel: '대상',
-    targetLevelLabel: '대상 레벨',
-    targetLevelPlaceholder: '특정 레벨만 (1-6)',
+    targetLevelLabel: '',
+    targetLevelPlaceholder: '',
     displayOrderLabel: '표시 순서',
     startDateLabel: '시작일',
     endDateLabel: '종료일',
@@ -1743,7 +1743,7 @@ export const ko = {
     // Badge & Labels
     popupBadge: '팝업',
     adminBadge: '관리자',
-    levelBadge: 'Level {{level}}',
+    levelBadge: '',
     unknown: '알 수 없음',
     
     // 토스트 메시지
@@ -1998,7 +1998,7 @@ export const ko = {
     features: {
       onlyActiveMenus: '활성화된 메뉴만 표시',
       toggleMenus: '메뉴별 활성화/비활성화 설정',
-      levelBasedMenus: '레벨에 맞는 메뉴만 선택 가능',
+      levelBasedMenus: '',
       realtimeUpdate: '실시간 사이드바 반영',
     },
     menuActivated: '{{menu}} 활성화 완료',
@@ -2052,7 +2052,7 @@ export const ko = {
     // 파트너 타입
     partnerTypes: {
       system_admin: '시스템관리자',
-      head_office: '대본사',
+      head_office: '운영사',
       main_office: '본사',
       sub_office: '부본사',
       distributor: '총판',
@@ -2061,13 +2061,13 @@ export const ko = {
     
     // 파트너 레벨 텍스트
     levelText: {
-      '1': '시스템관리자',
-      '2': '대본사',
-      '3': '본사',
-      '4': '부본사',
-      '5': '총판',
-      '6': '매장',
-      unknown: '알 수 없음',
+      '1': '', // 시스템관리자 텍스트 제거
+      '2': '운영사',
+      '3': '3', // "본사" → "3"
+      '4': '4', // "부본사" → "4"
+      '5': '5', // "총판" → "5"
+      '6': '6', // "매장" → "6"
+      unknown: '',
     },
     
     // 폼 필드
@@ -2079,7 +2079,7 @@ export const ko = {
     passwordPlaceholder: '비밀번호 (6자 이상)',
     partnerGrade: '파트너 등급',
     selectGrade: '등급 선택',
-    level: '레벨',
+    level: '',
     selectParentLabel: '소속 파트너 선택',
     selectParentPlaceholder: '상위 파트너를 선택하세요',
     parentDescription: '선택한 파트너의 하위로 추가됩니다.',
@@ -2171,7 +2171,7 @@ export const ko = {
     
     // 파트너 정보
     parentLabel: '상위',
-    levelPrefix: 'LV.',
+    levelPrefix: '',
     
     // 접속 상태
     online: '🟢 온라인',
@@ -2397,7 +2397,7 @@ export const ko = {
     realName: '실명',
     email: '이메일',
     phone: '전화번호',
-    level: '레벨',
+    level: '',
     status: '상태',
     balance: '보유금',
     investBalance: 'Invest 보유금',
@@ -2490,7 +2490,7 @@ export const ko = {
     unavailable: '이미 사용 중',
     availableNickname: '사용 가능한 닉네임입니다.',
     unavailableNickname: '이미 사용 중인 닉네임입니다.',
-    email: '이메일',
+    email: '이메���',
     enterEmail: '이메일을 입력하세요',
     phone: '연락처',
     enterPhone: '연락처를 입력하세요',
@@ -2601,7 +2601,7 @@ export const ko = {
     basicInfo: '기본 정보',
     username2: '아이디',
     accountInfo: '계정 정보',
-    vipLevel: 'VIP 레벨',
+    vipLevel: 'VIP',
     status: '상태',
     registeredDate: '가입일',
     lastLogin: '마지막 로그인',
@@ -2640,7 +2640,7 @@ export const ko = {
     accountNumber2: '계좌번호',
     accountHolder2: '예금주명',
     vipGrade: 'VIP 등급',
-    level: '레벨',
+    level: '',
     transactionHistory: '입출금 내역',
     deposit2: '입금',
     withdrawal: '출금',
