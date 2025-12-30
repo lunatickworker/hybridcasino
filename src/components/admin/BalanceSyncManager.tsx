@@ -65,7 +65,20 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
         isOnlineSyncingRef.current = true;
         lastOnlineSyncTimeRef.current = now;
 
-        // opcode 정보 조회
+        // ✅ Invest API 활성화 체크 (OPCODE는 invest 전용)
+        const { data: investConfig } = await supabase
+          .from('api_configs')
+          .select('is_active')
+          .eq('partner_id', user.id)
+          .eq('api_provider', 'invest')
+          .maybeSingle();
+
+        if (!investConfig?.is_active) {
+          // ⭐ Invest API 비활성화 시 조용히 스킵
+          return;
+        }
+
+        // opcode 정보 조회 (invest 전용)
         const opcodeInfo = await opcodeHelper.getAdminOpcode(user);
         
         let opcode: string;
@@ -74,7 +87,7 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
 
         if (opcodeHelper.isMultipleOpcode(opcodeInfo)) {
           if (opcodeInfo.opcodes.length === 0) {
-            console.warn('⚠️ [OnlineBalanceSync] 사용 가능한 OPCODE 없음 - 동기화 스킵');
+            // ⭐ 조용히 스킵 (경고 메시지 제거)
             return;
           }
           opcode = opcodeInfo.opcodes[0].opcode;
@@ -263,7 +276,20 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
         isSyncingRef.current = true;
         lastSyncTimeRef.current = now;
 
-        // opcode 정보 조회
+        // ✅ Invest API 활성화 체크 (OPCODE는 invest 전용)
+        const { data: investConfig } = await supabase
+          .from('api_configs')
+          .select('is_active')
+          .eq('partner_id', user.id)
+          .eq('api_provider', 'invest')
+          .maybeSingle();
+
+        if (!investConfig?.is_active) {
+          // ⭐ Invest API 비활성화 시 조용히 스킵
+          return;
+        }
+
+        // opcode 정보 조회 (invest 전용)
         const opcodeInfo = await opcodeHelper.getAdminOpcode(user);
         
         let opcode: string;

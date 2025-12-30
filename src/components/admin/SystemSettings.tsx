@@ -541,7 +541,57 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
         const totalUpdated = result.results.reduce((sum: number, r: any) => sum + r.updatedGames, 0);
         toast.success(`Invest 동기화 완료: 신규 ${totalAdded}개, 업데이트 ${totalUpdated}개`);
       } else if (apiType === 'oroplay') {
-        // ✅ OroPlay: 제공사 동기화 + 게임 동기화
+        // ✅ OroPlay: 토큰 생성 + 제공사 동기화 + 게임 동기화
+        toast.info('OroPlay 토큰 생성 중...');
+        
+        // 1️⃣ api_configs에서 client_id, client_secret 조회
+        const { data: oroplayConfig, error: configError } = await supabase
+          .from('api_configs')
+          .select('client_id, client_secret, token')
+          .eq('partner_id', user.id)
+          .eq('api_provider', 'oroplay')
+          .maybeSingle();
+
+        if (configError || !oroplayConfig) {
+          throw new Error('OroPlay API 설정을 찾을 수 없습니다.');
+        }
+
+        if (!oroplayConfig.client_id || !oroplayConfig.client_secret) {
+          throw new Error('OroPlay client_id 또는 client_secret이 설정되지 않았습니다.');
+        }
+
+        // 2️⃣ 토큰 생성 (기존 토큰이 있어도 새로 생성)
+        const { createOroPlayToken } = await import('../../lib/oroplayApi');
+        const tokenResponse = await createOroPlayToken(
+          oroplayConfig.client_id,
+          oroplayConfig.client_secret
+        );
+
+        console.log('✅ [OroPlay] 토큰 생성 성공:', {
+          token: tokenResponse.token.substring(0, 20) + '...',
+          expiration: tokenResponse.expiration
+        });
+
+        // 3️⃣ DB에 토큰 저장
+        const expiresAt = new Date(Date.now() + tokenResponse.expiration * 1000).toISOString();
+        const { error: updateError } = await supabase
+          .from('api_configs')
+          .update({
+            token: tokenResponse.token,
+            token_expires_at: expiresAt,
+            updated_at: new Date().toISOString()
+          })
+          .eq('partner_id', user.id)
+          .eq('api_provider', 'oroplay');
+
+        if (updateError) {
+          console.error('❌ [OroPlay] 토큰 저장 실패:', updateError);
+          throw new Error('토큰 저장 중 오류가 발생했습니다.');
+        }
+
+        toast.success('OroPlay 토큰 생성 완료!');
+
+        // 4️⃣ 제공사 및 게임 동기화
         await gameApi.syncOroPlayProviders();
         result = await gameApi.syncOroPlayGames();
         toast.success(`OroPlay 동기화 완료: 신규 ${result.newGames}개, 업데이트 ${result.updatedGames}개`);
@@ -580,43 +630,60 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
 
     setApiSettingsLoading(true);
     try {
-      // ✅ is_active 컬럼 업데이트
-      const updates = [];
+      console.log('📝 [API Settings] 저장 시작:', {
+        user_id: user.id,
+        invest: useInvestApi,
+        oroplay: useOroplayApi,
+        familyapi: useFamilyApi,
+        honorapi: useHonorApi
+      });
 
-      // invest API 업데이트
-      const investUpdate = supabase
+      // ✅ 각 API 업데이트 (에러 체크 추가)
+      const { error: investError } = await supabase
         .from('api_configs')
         .update({ is_active: useInvestApi })
         .eq('partner_id', user.id)
         .eq('api_provider', 'invest');
-      updates.push(investUpdate);
+      
+      if (investError) {
+        console.error('❌ Invest API 업데이트 실패:', investError);
+        throw new Error(`Invest API 업데이트 실패: ${investError.message}`);
+      }
 
-      // oroplay API 업데이트
-      const oroplayUpdate = supabase
+      const { error: oroplayError } = await supabase
         .from('api_configs')
         .update({ is_active: useOroplayApi })
         .eq('partner_id', user.id)
         .eq('api_provider', 'oroplay');
-      updates.push(oroplayUpdate);
+      
+      if (oroplayError) {
+        console.error('❌ Oroplay API 업데이트 실패:', oroplayError);
+        throw new Error(`Oroplay API 업데이트 실패: ${oroplayError.message}`);
+      }
 
-      // familyapi API 업데이트
-      const familyUpdate = supabase
+      const { error: familyError } = await supabase
         .from('api_configs')
         .update({ is_active: useFamilyApi })
         .eq('partner_id', user.id)
         .eq('api_provider', 'familyapi');
-      updates.push(familyUpdate);
+      
+      if (familyError) {
+        console.error('❌ FamilyAPI 업데이트 실패:', familyError);
+        throw new Error(`FamilyAPI 업데이트 실패: ${familyError.message}`);
+      }
 
-      // honorapi API 업데이트
-      const honorUpdate = supabase
+      const { error: honorError } = await supabase
         .from('api_configs')
         .update({ is_active: useHonorApi })
         .eq('partner_id', user.id)
         .eq('api_provider', 'honorapi');
-      updates.push(honorUpdate);
-
-      await Promise.all(updates);
       
+      if (honorError) {
+        console.error('❌ HonorAPI 업데이트 실패:', honorError);
+        throw new Error(`HonorAPI 업데이트 실패: ${honorError.message}`);
+      }
+      
+      console.log('✅ [API Settings] 모든 API 업데이트 완료');
       toast.success(t.systemSettings.apiSettingsSaved);
       
       console.log('✅ API 설정 저장 완료:', {
@@ -630,7 +697,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
       await loadApiSettings();
     } catch (error: any) {
       console.error('❌ API 설정 저장 실패:', error);
-      toast.error(t.systemSettings.apiSettingsSaveFailed);
+      toast.error(error.message || t.systemSettings.apiSettingsSaveFailed);
     } finally {
       setApiSettingsLoading(false);
     }

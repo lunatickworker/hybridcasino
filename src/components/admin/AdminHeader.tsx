@@ -4,14 +4,25 @@ import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { 
   LogOut, Bell,
-  TrendingUp, TrendingDown, Users, Wallet, AlertTriangle
+  TrendingUp, TrendingDown, Users, Wallet, AlertTriangle, Key, DollarSign
 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "../ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 import {
   Tooltip,
   TooltipContent,
@@ -221,9 +232,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         }
       }
 
-      // ✅ BalanceContext 상태 갱신
-      await syncBalance();
-
       toast.success(`Invest 보유금 동기화 완료: ${formatCurrency(balance)}`);
     } catch (error: any) {
       console.error('❌ [AdminHeader] Invest 보유금 동기화 실패:', error);
@@ -301,9 +309,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         }
       }
 
-      // ✅ BalanceContext 상태 갱신
-      await syncBalance();
-
       toast.success(`OroPlay 보유금 동기화 완료: ${formatCurrency(balance)}`);
     } catch (error: any) {
       console.error('❌ [AdminHeader] OroPlay 보유금 동기화 실패:', error);
@@ -368,9 +373,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       if (updateError) {
         throw new Error('DB 업데이트 실패');
       }
-
-      // ✅ BalanceContext 상태 갱신
-      await syncBalance();
 
       toast.success(`FamilyAPI 보유금 동기화 완료: ${formatCurrency(balance)}`);
     } catch (error: any) {
@@ -456,9 +458,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         }
       }
 
-      // ✅ BalanceContext 상태 갱신
-      await syncBalance();
-
       toast.success(`HonorAPI 보유금 동기화 완료: ${formatCurrency(balance)}`);
     } catch (error: any) {
       console.error('❌ [AdminHeader] HonorAPI 보유금 동기화 실패:', error);
@@ -483,7 +482,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           const { data: allUsers } = await supabase
             .from('users')
             .select('id');
-          allowedUserIds = allUsers?.map(u => u.id) || [];
+          allowedUserIds = allUsers?.map(u => u.id).filter(id => id != null) || [];
         } else {
           // Partner: child partners + own users
           const { data: hierarchicalPartners, error: hierarchyError } = await supabase
@@ -509,7 +508,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             console.error('❌ Partner users fetch failed:', usersError);
           }
           
-          allowedUserIds = partnerUsers?.map(u => u.id) || [];
+          allowedUserIds = partnerUsers?.map(u => u.id).filter(id => id != null) || [];
         }
 
         // No users = empty stats (normal situation)
@@ -995,6 +994,108 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     }
   };
 
+  // =====================================================
+  // 비밀번호 변경 모달
+  // =====================================================
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handlePasswordChange = async () => {
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      toast.error('모든 필드를 입력해주세요.');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('새 비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      toast.error('새 비밀번호는 최소 6자 이상이어야 합니다.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      // 현재 비밀번호 확인
+      const { data: partnerData, error: fetchError } = await supabase
+        .from('partners')
+        .select('password')
+        .eq('id', user.id)
+        .single();
+
+      if (fetchError || !partnerData) {
+        throw new Error('사용자 정보를 불러올 수 없습니다.');
+      }
+
+      // 현재 비밀번호 검증
+      if (partnerData.password !== passwordForm.currentPassword) {
+        throw new Error('현재 비밀번호가 올바르지 않습니다.');
+      }
+
+      // 비밀번호 업데이트
+      const { error: updateError } = await supabase
+        .from('partners')
+        .update({
+          password: passwordForm.newPassword,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (updateError) {
+        throw new Error('비밀번호 변경에 실패했습니다.');
+      }
+
+      toast.success('비밀번호가 성공적으로 변경되었습니다.');
+      setShowPasswordModal(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (error: any) {
+      console.error('❌ 비밀번호 변경 실패:', error);
+      toast.error(error.message || '비밀번호 변경에 실패했습니다.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  // =====================================================
+  // 커미션 정보 모달
+  // =====================================================
+  const [showCommissionModal, setShowCommissionModal] = useState(false);
+  const [commissionData, setCommissionData] = useState<any>(null);
+  const [isLoadingCommission, setIsLoadingCommission] = useState(false);
+
+  const loadCommissionInfo = async () => {
+    setIsLoadingCommission(true);
+    try {
+      const { data, error } = await supabase
+        .from('partners')
+        .select(`
+          casino_rolling_commission,
+          casino_losing_commission,
+          slot_rolling_commission,
+          slot_losing_commission
+        `)
+        .eq('id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      setCommissionData(data);
+      setShowCommissionModal(true);
+    } catch (error: any) {
+      console.error('❌ 커미션 정보 로드 실패:', error);
+      toast.error('커미션 정보를 불러올 수 없습니다.');
+    } finally {
+      setIsLoadingCommission(false);
+    }
+  };
+
   // Lv2 전용: 보유금 5% 경고 체크 (✅ 비활성화)
   const checkLv2Warning = (totalUsersBalance: number) => {
     // ✅ 경고 배너 비활성화
@@ -1281,6 +1382,15 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     <p className="text-base text-slate-400">{user.username}</p>
                     <p className="text-base text-slate-500 mt-0.5">관리자 계정</p>
                   </div>
+                  <DropdownMenuItem onClick={() => setShowPasswordModal(true)} className="text-slate-300 cursor-pointer hover:bg-slate-700">
+                    <Key className="h-4 w-4 mr-2" />
+                    비밀번호 변경
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={loadCommissionInfo} disabled={isLoadingCommission} className="text-slate-300 cursor-pointer hover:bg-slate-700">
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    {isLoadingCommission ? '로딩 중...' : '커미션 정보'}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="bg-slate-700" />
                   <DropdownMenuItem onClick={handleLogout} className="text-rose-400 cursor-pointer hover:bg-slate-700">
                     <LogOut className="h-4 w-4 mr-2" />
                     로그아웃
@@ -1299,6 +1409,104 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         onNotificationCountChange={setNotificationCount}
         currentPartnerId={user.id}
       />
+
+      {/* 비밀번호 변경 모달 */}
+      <Dialog open={showPasswordModal} onOpenChange={setShowPasswordModal}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle>비밀번호 변경</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              관리자 계정의 비밀번호를 변경합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword" className="text-slate-300">현재 비밀번호</Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                className="bg-slate-700 border-slate-600 text-white"
+                placeholder="현재 비밀번호를 입력하세요"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newPassword" className="text-slate-300">새 비밀번호</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                className="bg-slate-700 border-slate-600 text-white"
+                placeholder="새 비밀번호를 입력하세요 (최소 6자)"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword" className="text-slate-300">새 비밀번호 확인</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                className="bg-slate-700 border-slate-600 text-white"
+                placeholder="새 비밀번호를 다시 입력하세요"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPasswordModal(false)} className="bg-slate-700 border-slate-600 hover:bg-slate-600">
+              취소
+            </Button>
+            <Button onClick={handlePasswordChange} disabled={isChangingPassword} className="bg-blue-600 hover:bg-blue-700">
+              {isChangingPassword ? '변경 중...' : '변경하기'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 커미션 정보 모달 */}
+      <Dialog open={showCommissionModal} onOpenChange={setShowCommissionModal}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle>커미션 정보</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              현재 설정된 커미션 비율을 확인합니다.
+            </DialogDescription>
+          </DialogHeader>
+          {commissionData ? (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2 p-4 rounded-lg bg-slate-700/50 border border-slate-600">
+                  <h4 className="text-sm font-medium text-cyan-400">카지노 롤링 커미션</h4>
+                  <p className="text-2xl font-bold text-white">{commissionData.casino_rolling_commission}%</p>
+                </div>
+                <div className="space-y-2 p-4 rounded-lg bg-slate-700/50 border border-slate-600">
+                  <h4 className="text-sm font-medium text-orange-400">카지노 루징 커미션</h4>
+                  <p className="text-2xl font-bold text-white">{commissionData.casino_losing_commission}%</p>
+                </div>
+                <div className="space-y-2 p-4 rounded-lg bg-slate-700/50 border border-slate-600">
+                  <h4 className="text-sm font-medium text-purple-400">슬롯 롤링 커미션</h4>
+                  <p className="text-2xl font-bold text-white">{commissionData.slot_rolling_commission}%</p>
+                </div>
+                <div className="space-y-2 p-4 rounded-lg bg-slate-700/50 border border-slate-600">
+                  <h4 className="text-sm font-medium text-red-400">슬롯 루징 커미션</h4>
+                  <p className="text-2xl font-bold text-white">{commissionData.slot_losing_commission}%</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-slate-400">
+              커미션 정보를 불러오는 중...
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setShowCommissionModal(false)} className="bg-slate-700 border-slate-600 hover:bg-slate-600">
+              닫기
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

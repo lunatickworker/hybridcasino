@@ -79,6 +79,7 @@ export function useAuthProvider() {
       
       // 🔍 DEBUG: 실제 DB에서 가져온 데이터 확인
       console.log('🔍 partnerData 원본:', partnerData);
+      console.log('🔍 partnerData.id 타입:', typeof partnerData.id, '값:', partnerData.id);
       console.log('🔍 카지노/슬롯 커미션 확인:', {
         casino_rolling: partnerData.casino_rolling_commission,
         casino_losing: partnerData.casino_losing_commission,
@@ -86,6 +87,15 @@ export function useAuthProvider() {
         slot_losing: partnerData.slot_losing_commission,
         withdrawal_fee: partnerData.withdrawal_fee
       });
+
+      // ❌ ID가 없으면 로그인 실패
+      if (!partnerData.id) {
+        console.error('❌ 로그인 실패: partner ID가 없습니다!', partnerData);
+        return {
+          success: false,
+          error: '사용자 데이터가 올바르지 않습니다. DB를 확인하세요.'
+        };
+      }
       
       const systemAdminUser: Partner = {
         id: partnerData.id,

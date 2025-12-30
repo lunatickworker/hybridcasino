@@ -87,7 +87,7 @@ export async function getAdminOpcode(admin: Partner): Promise<OpcodeInfo | Multi
     }
 
     if (opcodeList.length === 0) {
-      console.warn('⚠️ [OPCODE] 사용 가능한 OPCODE가 없습니다. api_configs 테이블을 설정해주세요.');
+      // ⭐ 조용히 실패 (경고 제거, 에러만 throw)
       throw new Error('사용 가능한 OPCODE가 없습니다. api_configs 테이블을 설정해주세요.');
     }
 

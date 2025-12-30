@@ -23,6 +23,12 @@ export function AdminGameRecordsSync({ user }: AdminGameRecordsSyncProps) {
   }>({});
 
   useEffect(() => {
+    // user.id가 없으면 동기화 비활성화
+    if (!user.id) {
+      console.warn('⚠️ AdminGameRecordsSync: user.id가 없어서 동기화를 시작할 수 없습니다.');
+      return;
+    }
+
     // Presence 채널 생성 (관리자 세션 추적)
     const channelName = 'admin-sync-presence';
     const channel = supabase.channel(channelName, {

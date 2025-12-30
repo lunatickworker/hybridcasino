@@ -67,6 +67,7 @@ export function MenuManagement({ user }: MenuManagementProps) {
   const [menuLoading, setMenuLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [rollbackLoading, setRollbackLoading] = useState(false);
 
   // 파트너 목록 로드 (계층 구조 고려)
   const loadPartners = async () => {
@@ -406,6 +407,76 @@ export function MenuManagement({ user }: MenuManagementProps) {
       setExpandedGroups(allGroups);
     } else {
       setExpandedGroups(new Set());
+    }
+  };
+
+  // 백업에서 롤백
+  const handleRollback = async () => {
+    if (!confirm('⚠️ 경고: backup_menu_permissions 테이블의 데이터로 menu_permissions를 복원합니다.\n\n현재 menu_permissions의 모든 데이터가 삭제되고 백업 데이터로 교체됩니다.\n\n계속하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      setRollbackLoading(true);
+      console.log('🔄 [메뉴 롤백] 시작...');
+
+      // 1. 백업 테이블 확인
+      const { data: backupData, error: backupError, count } = await supabase
+        .from('backup_menu_permissions')
+        .select('*', { count: 'exact' });
+
+      if (backupError) {
+        throw new Error(`백업 데이터 조회 실패: ${backupError.message}`);
+      }
+
+      if (!backupData || backupData.length === 0) {
+        throw new Error('백업 데이터가 없습니다. backup_menu_permissions 테이블을 확인하세요.');
+      }
+
+      console.log(`✅ 백업 데이터 ${backupData.length}개 확인`);
+
+      // 2. 현재 menu_permissions 삭제
+      const { error: deleteError } = await supabase
+        .from('menu_permissions')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // 모든 행 삭제
+
+      if (deleteError) {
+        throw new Error(`기존 데이터 삭제 실패: ${deleteError.message}`);
+      }
+
+      console.log('✅ 기존 menu_permissions 데이터 삭제 완료');
+
+      // 3. 백업 데이터 삽입
+      const { error: insertError } = await supabase
+        .from('menu_permissions')
+        .insert(backupData);
+
+      if (insertError) {
+        throw new Error(`백업 데이터 복원 실패: ${insertError.message}`);
+      }
+
+      console.log(`✅ 백업 데이터 ${backupData.length}개 복원 완료`);
+
+      toast.success(`롤백 완료! ${backupData.length}개 메뉴가 복원되었습니다.`, {
+        description: 'backup_menu_permissions에서 menu_permissions로 데이터를 복원했습니다.',
+        duration: 5000
+      });
+
+      // 4. 메뉴 목록 새로고침
+      await loadMenuPermissions();
+      if (selectedPartnerId) {
+        await loadPartnerMenuPermissions(selectedPartnerId);
+      }
+
+    } catch (error: any) {
+      console.error('❌ 롤백 실패:', error);
+      toast.error(`롤백 실패: ${error.message}`, {
+        description: '문제가 지속되면 SQL Editor에서 수동으로 복원하세요.',
+        duration: 7000
+      });
+    } finally {
+      setRollbackLoading(false);
     }
   };
 

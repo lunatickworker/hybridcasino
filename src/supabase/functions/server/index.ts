@@ -871,11 +871,11 @@ async function syncLv2Balances(): Promise<any> {
       // 1. Invest Balance 동기화
       // ========================================
       try {
-        // ✅ Invest API 설정이 있고 활성화되어 있는지 확인
+        // ✅ Lv2 자신의 Invest API 설정 확인 (parent_id가 아닌 자신의 id)
         const { data: investConfig } = await supabase
           .from('api_configs')
           .select('id, is_active')
-          .eq('partner_id', partner.parent_id)
+          .eq('partner_id', partner.id)
           .eq('api_provider', 'invest')
           .maybeSingle();
 
@@ -898,16 +898,16 @@ async function syncLv2Balances(): Promise<any> {
       // 2. OroPlay Balance 동기화
       // ========================================
       try {
-        // ✅ OroPlay API가 활성화되어 있는지 확인
+        // ✅ Lv2 자신의 OroPlay API 설정 확인
         const { data: oroConfig } = await supabase
           .from('api_configs')
           .select('is_active')
-          .eq('partner_id', partner.parent_id)
+          .eq('partner_id', partner.id)
           .eq('api_provider', 'oroplay')
           .maybeSingle();
 
         if (oroConfig && oroConfig.is_active !== false) {
-          const oroToken = await getOroPlayToken(partner.parent_id);
+          const oroToken = await getOroPlayToken(partner.id);
           const oroBalance = await getAgentBalance(oroToken);
           balances.oroplay_balance = oroBalance;
           console.log(`💰 Partner ${partner.id} OroPlay: ${oroBalance}`);
@@ -924,16 +924,16 @@ async function syncLv2Balances(): Promise<any> {
       // 3. FamilyAPI Balance 동기화
       // ========================================
       try {
-        // ✅ FamilyAPI가 활성화되어 있는지 확인
+        // ✅ Lv2 자신의 FamilyAPI 설정 확인
         const { data: familyConfig } = await supabase
           .from('api_configs')
           .select('api_key, is_active')
-          .eq('partner_id', partner.parent_id)
+          .eq('partner_id', partner.id)
           .eq('api_provider', 'familyapi')
           .maybeSingle();
 
         if (familyConfig && familyConfig.api_key && familyConfig.is_active !== false) {
-          const familyToken = await getFamilyApiToken(partner.parent_id);
+          const familyToken = await getFamilyApiToken(partner.id);
           const familyBalance = await getFamilyApiAgentBalance(familyConfig.api_key, familyToken);
           balances.familyapi_balance = familyBalance;
           console.log(`💰 Partner ${partner.id} FamilyAPI: ${familyBalance}`);
@@ -950,11 +950,11 @@ async function syncLv2Balances(): Promise<any> {
       // 4. HonorAPI Balance 동기화
       // ========================================
       try {
-        // ✅ HonorAPI가 활성화되어 있는지 확인
+        // ✅ Lv2 자신의 HonorAPI 설정 확인
         const { data: honorConfig } = await supabase
           .from('api_configs')
           .select('api_key, is_active')
-          .eq('partner_id', partner.parent_id)
+          .eq('partner_id', partner.id)
           .eq('api_provider', 'honorapi')
           .maybeSingle();
 

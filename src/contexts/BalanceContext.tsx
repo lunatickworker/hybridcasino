@@ -133,6 +133,14 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           console.error('❌ [Balance] HonorAPI api_config 조회 실패:', honorapiError);
         }
 
+        console.log('📊 [Balance] Lv1 api_configs 조회 결과:', {
+          user_id: user.id,
+          invest: investData,
+          oroplay: oroplayData,
+          familyapi: familyapiData,
+          honorapi: honorapiData
+        });
+
         const investRaw = investData?.balance;
         const oroRaw = oroplayData?.balance;
         const familyRaw = familyapiData?.balance;

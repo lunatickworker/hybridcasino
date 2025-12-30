@@ -130,8 +130,8 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
   useEffect(() => {
     loadMenusFromDB();
     
-    // ✅ Realtime 구독: 메뉴 권한 변경 감지
-    const channel = supabase
+    // ✅ Realtime 구독 1: 메뉴 권한 변경 감지
+    const permissionsChannel = supabase
       .channel('menu_permissions_changes')
       .on(
         'postgres_changes',
@@ -149,8 +149,27 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       )
       .subscribe();
 
+    // ✅ Realtime 구독 2: 메뉴 마스터 데이터 변경 감지
+    const menuMasterChannel = supabase
+      .channel('menu_master_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'menu_permissions'
+        },
+        (payload) => {
+          console.log('🔄 메뉴 마스터 변경 감지:', payload);
+          // 메뉴 다시 로드
+          loadMenusFromDB();
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(permissionsChannel);
+      supabase.removeChannel(menuMasterChannel);
     };
   }, [user.id, language]);
 
@@ -159,41 +178,21 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
     
     setLoadingMenus(true);
     try {
-      // ✅ 1단계: partner_menu_permissions에서 활성화된 메뉴만 조회
-      const { data: partnerMenus, error: menuError } = await supabase
-        .from('partner_menu_permissions')
-        .select(`
-          menu_permission_id,
-          is_enabled,
-          menu_permission:menu_permissions(
-            id,
-            menu_name,
-            menu_name_en,
-            menu_path,
-            parent_menu,
-            parent_menu_en,
-            display_order,
-            partner_level
-          )
-        `)
-        .eq('partner_id', user.id)
-        .eq('is_enabled', true);
-
+      // ✅ DB에서 메뉴 데이터 조회
+      console.log('📋 [메뉴 로드] DB에서 메뉴 조회 시작');
+      
+      const { data: dbMenus, error: menuError } = await supabase
+        .from('menu_permissions')
+        .select('*')
+        .order('display_order', { ascending: true });
+      
       if (menuError) {
-        // Supabase 연결 안 됨 - 조용히 실패하고 기본 메뉴 표시
-        if (menuError?.message?.includes('Failed to fetch')) {
-          setMenuItems([{
-            id: 'dashboard',
-            title: t.menu.dashboard,
-            icon: LayoutDashboard,
-            path: '/admin/dashboard',
-            minLevel: 6
-          }]);
-          setLoadingMenus(false);
-          return;
-        }
-        console.error('메뉴 권한 조회 오류:', menuError);
-        // 오류 발생 시 기본 대시보드만 표시
+        console.error('❌ 메뉴 조회 실패:', menuError);
+        throw menuError;
+      }
+      
+      if (!dbMenus || dbMenus.length === 0) {
+        console.warn('⚠️ DB에 메뉴 데이터가 없습니다. 기본 대시보드만 표시합니다.');
         setMenuItems([{
           id: 'dashboard',
           title: t.menu.dashboard,
@@ -204,103 +203,22 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
         setLoadingMenus(false);
         return;
       }
-
-      // ✅ 2단계: DB 조회 결과가 없으면 하드코딩된 메뉴 사용
-      if (!partnerMenus || partnerMenus.length === 0) {
-        console.log('⚠️ DB에 메뉴 권한이 없습니다. 하드코딩 메뉴 사용');
-        
-        // 전체 메뉴 구조 (menufunction.md 기준)
-        const hardcodedMenus: DbMenuItem[] = [
-          // 1. 대시보드 (root)
-          { menu_id: 'dashboard', menu_name: '대시보드', menu_name_en: 'Dashboard', menu_path: '/admin/dashboard', parent_menu: null, parent_menu_en: null, display_order: 1 },
-          
-          // 2. 회원 관리 그룹
-          { menu_id: 'users', menu_name: '회원 관리', menu_name_en: 'User Management', menu_path: '/admin/users', parent_menu: '회원 관리', parent_menu_en: 'User Management', display_order: 2 },
-          { menu_id: 'blacklist', menu_name: '블랙회원 관리', menu_name_en: 'Blacklist Management', menu_path: '/admin/blacklist', parent_menu: '회원 관리', parent_menu_en: 'User Management', display_order: 3 },
-          { menu_id: 'points', menu_name: '포인트 관리', menu_name_en: 'Point Management', menu_path: '/admin/points', parent_menu: '회원 관리', parent_menu_en: 'User Management', display_order: 4 },
-          { menu_id: 'online', menu_name: '온라인 현황', menu_name_en: 'Online Users', menu_path: '/admin/online-users', parent_menu: '회원 관리', parent_menu_en: 'User Management', display_order: 5 },
-          { menu_id: 'logs', menu_name: '로그 관리', menu_name_en: 'Log Management', menu_path: '/admin/logs', parent_menu: '회원 관리', parent_menu_en: 'User Management', display_order: 6 },
-          
-          // 3. 파트너 관리 그룹
-          { menu_id: 'partner-creation', menu_name: '파트너생성관리', menu_name_en: 'Partner Creation', menu_path: '/admin/partner-creation', parent_menu: '파트너 관리', parent_menu_en: 'Partner Management', display_order: 7 },
-          { menu_id: 'partner-hierarchy', menu_name: '파트너 계층 관리', menu_name_en: 'Partner Hierarchy', menu_path: '/admin/partner-hierarchy', parent_menu: '파트너 관리', parent_menu_en: 'Partner Management', display_order: 8 },
-          { menu_id: 'partner-transactions', menu_name: '파트너 입출금 관리', menu_name_en: 'Partner Transaction Management', menu_path: '/admin/partners/transactions', parent_menu: '파트너 관리', parent_menu_en: 'Partner Management', display_order: 9 },
-          { menu_id: 'partner-status', menu_name: '파트너별 접속 현황', menu_name_en: 'Partner Connection Status', menu_path: '/admin/partner-connection-status', parent_menu: '파트너 관리', parent_menu_en: 'Partner Management', display_order: 10 },
-          
-          // 4. 정산 및 거래 그룹
-          { menu_id: 'settlement', menu_name: '수수료 정산', menu_name_en: 'Commission Settlement', menu_path: '/admin/settlement/commission', parent_menu: '정산 및 거래', parent_menu_en: 'Settlement & Transactions', display_order: 11 },
-          { menu_id: 'integrated-settlement', menu_name: '통합 정산', menu_name_en: 'Integrated Settlement', menu_path: '/admin/settlement/integrated', parent_menu: '정산 및 거래', parent_menu_en: 'Settlement & Transactions', display_order: 12 },
-          { menu_id: 'settlement-history', menu_name: '정산 내역', menu_name_en: 'Settlement History', menu_path: '/admin/settlement/history', parent_menu: '정산 및 거래', parent_menu_en: 'Settlement & Transactions', display_order: 13 },
-          { menu_id: 'transactions', menu_name: '입출금 관리', menu_name_en: 'Transaction Management', menu_path: '/admin/transactions', parent_menu: '정산 및 거래', parent_menu_en: 'Settlement & Transactions', display_order: 14 },
-          
-          // 5. 게임 관리 그룹
-          { menu_id: 'games', menu_name: '게임 리스트', menu_name_en: 'Game Lists', menu_path: '/admin/games', parent_menu: '게임 관리', parent_menu_en: 'Game Management', display_order: 15 },
-          { menu_id: 'betting', menu_name: '베팅 내역', menu_name_en: 'Betting History', menu_path: '/admin/betting-history', parent_menu: '게임 관리', parent_menu_en: 'Game Management', display_order: 16 },
-          { menu_id: 'call-cycle', menu_name: '콜 주기', menu_name_en: 'Call Cycle', menu_path: '/admin/call-cycle', parent_menu: '게임 관리', parent_menu_en: 'Game Management', display_order: 17 },
-          { menu_id: 'auto-sync', menu_name: '자동 동기화', menu_name_en: 'Auto Sync Monitor', menu_path: '/admin/auto-sync-monitor', parent_menu: '게임 관리', parent_menu_en: 'Game Management', display_order: 18 },
-          
-          // 6. 커뮤니케이션 그룹
-          { menu_id: 'support', menu_name: '고객 센터', menu_name_en: 'Customer Support', menu_path: '/admin/support', parent_menu: '커뮤니케이션', parent_menu_en: 'Communication', display_order: 19 },
-          { menu_id: 'announcements', menu_name: '공지사항', menu_name_en: 'Announcements', menu_path: '/admin/announcements', parent_menu: '커뮤니케이션', parent_menu_en: 'Communication', display_order: 20 },
-          { menu_id: 'messages', menu_name: '메시지 센터', menu_name_en: 'Message Center', menu_path: '/admin/messages', parent_menu: '커뮤니케이션', parent_menu_en: 'Communication', display_order: 21 },
-          { menu_id: 'banners', menu_name: '배너 관리', menu_name_en: 'Banner Management', menu_path: '/admin/banners', parent_menu: '커뮤니케이션', parent_menu_en: 'Communication', display_order: 22 },
-          
-          // 7. 시스템 설정 그룹
-          { menu_id: 'settings', menu_name: '설정', menu_name_en: 'Settings', menu_path: '/admin/settings', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 23 },
-          { menu_id: 'system-info', menu_name: '시스템 정보', menu_name_en: 'System Info', menu_path: '/admin/system-info', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 24 },
-          { menu_id: 'api-tester', menu_name: 'API 테스터', menu_name_en: 'API Tester', menu_path: '/admin/api-tester', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 25 },
-          { menu_id: 'menu-management', menu_name: '메뉴 관리', menu_name_en: 'Menu Management', menu_path: '/admin/menu-management', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 26 },
-          { menu_id: 'activity-logs', menu_name: '접속 및 사용 기록', menu_name_en: 'Activity Logs', menu_path: '/admin/activity-logs', parent_menu: '시스템 설정', parent_menu_en: 'System Settings', display_order: 27 }
-        ];
-
-        const converted = convertDbMenusToMenuItems(hardcodedMenus);
-        const hasDashboard = converted.some(m => m.path === '/admin/dashboard');
-        const dashboardMenu: MenuItem = {
-          id: 'dashboard',
-          title: t.menu.dashboard,
-          icon: LayoutDashboard,
-          path: '/admin/dashboard',
-          minLevel: 6
-        };
-        setMenuItems(hasDashboard ? converted : [dashboardMenu, ...converted]);
-        setLoadingMenus(false);
-        return;
-      }
-
-      // ✅ 3단계: DB에서 조회한 활성화된 메뉴만 변환
       
-      const dbMenus: DbMenuItem[] = partnerMenus
-        .filter(pm => pm.menu_permission) // menu_permission이 있는 것만
-        .map(pm => {
-          const menu = Array.isArray(pm.menu_permission) ? pm.menu_permission[0] : pm.menu_permission;
-          return {
-            menu_id: menu.id,
-            menu_name: menu.menu_name,
-            menu_name_en: menu.menu_name_en || menu.menu_name,
-            menu_path: menu.menu_path,
-            parent_menu: menu.parent_menu,
-            parent_menu_en: menu.parent_menu_en || menu.parent_menu,
-            display_order: menu.display_order || 999
-          };
-        });
-
+      console.log(`✅ [메뉴 로드] ${dbMenus.length}개 메뉴 조회 완료`);
+      
       const converted = convertDbMenusToMenuItems(dbMenus);
-      
-      // 대시보드가 없으면 강제로 추가 (기본 메뉴)
       const hasDashboard = converted.some(m => m.path === '/admin/dashboard');
-      if (!hasDashboard) {
-        converted.unshift({
-          id: 'dashboard',
-          title: t.menu.dashboard,
-          icon: LayoutDashboard,
-          path: '/admin/dashboard',
-          minLevel: 6
-        });
-      }
-      
-      setMenuItems(converted);
+      const dashboardMenu: MenuItem = {
+        id: 'dashboard',
+        title: t.menu.dashboard,
+        icon: LayoutDashboard,
+        path: '/admin/dashboard',
+        minLevel: 6
+      };
+      setMenuItems(hasDashboard ? converted : [dashboardMenu, ...converted]);
+      setLoadingMenus(false);
     } catch (error) {
-      console.error('메뉴 로드 실패:', error);
+      console.error('❌ 메뉴 로드 실패:', error);
       setMenuItems([{
         id: 'dashboard',
         title: t.menu.dashboard,
@@ -487,7 +405,9 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
             <p className="text-xs text-slate-400 mt-2" style={{ fontFamily: 'AsiHead, Arial, sans-serif' }}>{language === 'en' ? 'Loading menu...' : '메뉴 로딩 중...'}</p>
           </div>
         ) : (
-          menuItems.map(item => renderMenuItem(item))
+          <>
+            {menuItems.map(item => renderMenuItem(item))}
+          </>
         )}
       </div>
 

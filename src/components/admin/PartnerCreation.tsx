@@ -406,14 +406,12 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
             {
               partner_id: newPartner.id,
               api_provider: 'invest',
-              credentials: {},
               balance: 0,
               is_active: true,
             },
             {
               partner_id: newPartner.id,
               api_provider: 'oroplay',
-              credentials: {},
               balance: 0,
               is_active: false,
             }
@@ -431,7 +429,6 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         const apiConfigData = formData.selected_apis.map(api => ({
           partner_id: newPartner.id,
           api_provider: api,
-          credentials: {},
           balance: 0,
           is_active: true,
         }));
