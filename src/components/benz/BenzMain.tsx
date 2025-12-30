@@ -280,7 +280,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
 
       {/* 2단 배경 이미지 - Casino List */}
       <section 
-        className="relative w-[1700px] bg-cover bg-center bg-no-repeat py-8 md:py-16 min-h-[200px] md:min-h-[400px]"
+        className="relative w-full bg-cover bg-center bg-no-repeat py-8 md:py-16 min-h-[200px] md:min-h-[400px]"
         style={{
           backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-51-03.jpg)',
           backgroundPosition: 'center center'
@@ -321,7 +321,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                     <img
                       src={provider.logo_url}
                       alt=""
-                      className="w-[125%] object-contain"
+                      className="w-full object-contain"
                     />
                   )}
                 </motion.div>
@@ -336,7 +336,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
 
       {/* 3단 배경 이미지 - Slot List */}
       <section 
-        className="relative w-[1700px] bg-cover bg-center bg-no-repeat py-8 md:py-16 min-h-[200px] md:min-h-[400px]"
+        className="relative w-full bg-cover bg-center bg-no-repeat py-8 md:py-16 min-h-[200px] md:min-h-[400px]"
         style={{
           backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-50-48.jpg)',
           backgroundPosition: 'center center'
