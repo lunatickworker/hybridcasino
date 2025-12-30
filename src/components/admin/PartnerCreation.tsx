@@ -8,7 +8,7 @@ import { Textarea } from "../ui/textarea";
 import { Badge } from "../ui/badge";
 import { DataTableLarge } from "../common/DataTableLarge";
 import { 
-  UserPlus, Save, Eye, EyeOff, Building2, 
+  UserPlus, Save, Building2, 
   Database, Shield, Trash2, Edit, RefreshCw, 
   AlertCircle, Users, Gamepad2, CreditCard
 } from "lucide-react";
@@ -730,25 +730,14 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="password" className="text-lg">{t.partnerCreation.password}</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={(e) => handleInputChange('password', e.target.value)}
-                    placeholder={t.partnerCreation.passwordPlaceholder}
-                    className="text-lg py-6 pr-12"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />}
-                  </Button>
-                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  placeholder={t.partnerCreation.passwordPlaceholder}
+                  className="text-lg py-6"
+                />
               </div>
 
               <div className="space-y-2">

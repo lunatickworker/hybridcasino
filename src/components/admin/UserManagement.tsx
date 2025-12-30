@@ -122,7 +122,7 @@ export function UserManagement() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [processingUserId, setProcessingUserId] = useState<string | null>(null);
   const [createUserLoading, setCreateUserLoading] = useState(false);
-  const [availablePartners, setAvailablePartners] = useState<any[]>([]); // Lv1이 회원 생성 시 선택 가능한 파트너 목록
+  const [availablePartners, setAvailablePartners] = useState<any[]>([]); // 회원 생성 시 선택 가능한 파트너 목록 (Lv1: 전체, Lv2~Lv5: 본인+하위, Lv6: 본인)
   const [currentUserBalance, setCurrentUserBalance] = useState(0); // 현재 관리자의 보유금
   
   // 입출금 대상 사용자의 소속 파트너 보유금 (강제 입출금 모달용)
@@ -140,7 +140,7 @@ export function UserManagement() {
     bank_name: '',
     bank_account: '',
     memo: '',
-    selected_referrer_id: '', // Lv1이 회원 생성 시 소속 파트너 선택
+    selected_referrer_id: '', // 회원 생성 시 소속 파트너 선택 (Lv1~Lv6 모두 사용)
     bulk_mode: false, // 벌크 생성 모드
     bulk_start: '', // 벌크 시작 (예: dev1)
     bulk_end: '', // 벌크 종료 (예: dev40)
@@ -252,26 +252,89 @@ export function UserManagement() {
   useEffect(() => {
     fetchUsers();
     fetchCurrentUserBalance();
-    // Lv1(시스템관리자)인 경우 선택 가능한 파트너 목록 로드
-    if (authState.user?.level === 1) {
+    // Lv1~Lv6 모두 선택 가능한 파트너 목록 로드
+    if (authState.user?.level) {
       loadAvailablePartners();
     }
   }, [authState.user?.id, authState.user?.level]);
 
   /**
-   * Lv1(시스템관리자)이 회원 생성 시 선택 가능한 파트너 목록 로드
+   * 회원 생성 시 선택 가능한 파트너 목록 로드
+   * - Lv1: 모든 파트너
+   * - Lv2~Lv5: 본인 포함 + 본인의 모든 하위 조직
+   * - Lv6: 본인만 (하위 조직 없음)
    */
   const loadAvailablePartners = async () => {
     try {
-      const { data } = await supabase
-        .from('partners')
-        .select('id, username, nickname, partner_type, level')
-        .in('partner_type', ['head_office', 'main_office', 'sub_office', 'distributor', 'store'])
-        .eq('status', 'active')
-        .order('level', { ascending: true })
-        .order('created_at', { ascending: true });
+      if (!authState.user?.id || !authState.user?.level) return;
 
-      setAvailablePartners(data || []);
+      const currentLevel = authState.user.level;
+
+      // Lv1: 모든 파트너 조회
+      if (currentLevel === 1) {
+        const { data } = await supabase
+          .from('partners')
+          .select('id, username, nickname, partner_type, level')
+          .in('partner_type', ['head_office', 'main_office', 'sub_office', 'distributor', 'store'])
+          .eq('status', 'active')
+          .order('level', { ascending: true })
+          .order('created_at', { ascending: true });
+
+        setAvailablePartners(data || []);
+        return;
+      }
+
+      // Lv2~Lv5: 본인 + 모든 하위 조직 조회
+      if (currentLevel >= 2 && currentLevel <= 5) {
+        // 1. 본인 정보 먼저 조회
+        const { data: selfData } = await supabase
+          .from('partners')
+          .select('id, username, nickname, partner_type, level')
+          .eq('id', authState.user.id)
+          .single();
+
+        if (!selfData) return;
+
+        // 2. 재귀적으로 모든 하위 조직 조회
+        const getAllDescendants = async (partnerId: string): Promise<any[]> => {
+          const { data: children } = await supabase
+            .from('partners')
+            .select('id, username, nickname, partner_type, level, parent_id')
+            .eq('parent_id', partnerId)
+            .eq('status', 'active')
+            .order('level', { ascending: true })
+            .order('created_at', { ascending: true });
+
+          if (!children || children.length === 0) return [];
+
+          // 각 자식의 하위 조직도 재귀 조회
+          const allDescendants = [...children];
+          for (const child of children) {
+            const grandChildren = await getAllDescendants(child.id);
+            allDescendants.push(...grandChildren);
+          }
+
+          return allDescendants;
+        };
+
+        const descendants = await getAllDescendants(authState.user.id);
+        
+        // 본인 + 하위 조직 합치기
+        const allPartners = [selfData, ...descendants];
+        setAvailablePartners(allPartners);
+        return;
+      }
+
+      // Lv6: 본인만
+      if (currentLevel === 6) {
+        const { data: selfData } = await supabase
+          .from('partners')
+          .select('id, username, nickname, partner_type, level')
+          .eq('id', authState.user.id)
+          .single();
+
+        setAvailablePartners(selfData ? [selfData] : []);
+      }
     } catch (error) {
       console.error('소속 파트너 목록 로드 실패:', error);
     }
@@ -460,9 +523,7 @@ export function UserManagement() {
     toast.loading(`벌크 회원 생성 시작: ${count}개 (${prefix}${startNum} ~ ${prefix}${endNum})`, { id: 'bulk-create' });
     
     try {
-      const actualReferrerId = (authState.user?.level === 1 && bulkFormData.selected_referrer_id) 
-        ? bulkFormData.selected_referrer_id 
-        : authState.user?.id;
+      const actualReferrerId = bulkFormData.selected_referrer_id || authState.user?.id;
       
       for (let i = startNum; i <= endNum; i++) {
         const username = `${prefix}${i}`;
@@ -682,10 +743,8 @@ export function UserManagement() {
 
       toast.loading(`[2/4] DB에 회원 정보 저장 중... (${userData.username})`, { id: 'create-user' });
 
-      // 실제 referrer_id 결정 (Lv1이 선택한 파트너 또는 현재 사용자)
-      const actualReferrerId = (authState.user?.level === 1 && userData.selected_referrer_id) 
-        ? userData.selected_referrer_id 
-        : authState.user?.id;
+      // 실제 referrer_id 결정 (선택한 파트너 또는 현재 사용자)
+      const actualReferrerId = userData.selected_referrer_id || authState.user?.id;
 
       // 1. DB에 사용자 생성 (api_account_status = 'pending')
       const { data: newUser, error: insertError } = await supabase
@@ -1974,7 +2033,14 @@ export function UserManagement() {
             {t.userManagement.description}
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)} className="btn-premium-primary text-lg px-6 py-3 h-auto">
+        <Button onClick={() => {
+          // 모달 열 때 기본값으로 본인 ID 설정
+          setFormData(prev => ({
+            ...prev,
+            selected_referrer_id: authState.user?.id || ''
+          }));
+          setShowCreateDialog(true);
+        }} className="btn-premium-primary text-lg px-6 py-3 h-auto">
           <Plus className="h-6 w-6 mr-2" />
           {t.userManagement.newUser}
         </Button>
@@ -2260,8 +2326,8 @@ export function UserManagement() {
               </div>
             </div>
             
-            {/* Lv1(시스템관리자)이 회원 생성 시 소속 파트너 선택 */}
-            {authState.user?.level === 1 && availablePartners.length > 0 && (
+            {/* 회원 생성 시 소속 파트너 선택 (Lv1~Lv6 모두 표시) */}
+            {availablePartners.length > 0 && (
               <div className="space-y-5">
                 <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
                   <div className="w-1.5 h-6 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
@@ -2276,7 +2342,7 @@ export function UserManagement() {
                   onValueChange={(value) => setFormData(prev => ({ ...prev, selected_referrer_id: value }))}
                 >
                   <SelectTrigger className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12">
-                    <SelectValue placeholder={t.userManagement.selectPartnerOptional} />
+                    <SelectValue placeholder={authState.user?.level === 1 ? t.userManagement.selectPartnerOptional : "소속 파트너 선택"} />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-800 border-slate-700">
                     {availablePartners.map(partner => {
@@ -2288,13 +2354,14 @@ export function UserManagement() {
                         6: t.partnerManagement.store
                       };
                       const levelText = levelMap[partner.level] || `Level ${partner.level}`;
+                      const isSelf = partner.id === authState.user?.id;
                       return (
                         <SelectItem 
                           key={partner.id} 
                           value={partner.id} 
                           className="text-slate-200 focus:bg-slate-700 focus:text-slate-100 text-lg py-3"
                         >
-                          {partner.nickname || partner.username} ({levelText})
+                          {partner.nickname || partner.username} ({levelText}){isSelf ? ' ⭐ 본인' : ''}
                         </SelectItem>
                       );
                     })}

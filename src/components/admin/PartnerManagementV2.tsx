@@ -359,23 +359,23 @@ export function PartnerManagementV2() {
                 {/* Casino 커미션 */}
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-slate-400 w-14">카지노</span>
-                  <Badge variant="outline" className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40 text-sm px-3 py-1.5">
+                  <Badge variant="outline" className="text-slate-300 border-slate-600 text-sm px-3 py-1.5">
                     롤링 {partner.casino_rolling_commission || 0}%
                   </Badge>
-                  <Badge variant="outline" className="bg-orange-500/15 text-orange-300 border-orange-500/40 text-sm px-3 py-1.5">
+                  <Badge variant="outline" className="text-slate-300 border-slate-600 text-sm px-3 py-1.5">
                     루징 {partner.casino_losing_commission || 0}%
                   </Badge>
                 </div>
                 {/* Slot 커미션 */}
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-slate-400 w-14">슬롯</span>
-                  <Badge variant="outline" className="bg-emerald-500/15 text-emerald-300 border-emerald-500/40 text-sm px-3 py-1.5">
+                  <Badge variant="outline" className="text-slate-300 border-slate-600 text-sm px-3 py-1.5">
                     롤링 {partner.slot_rolling_commission || 0}%
                   </Badge>
-                  <Badge variant="outline" className="bg-orange-500/15 text-orange-300 border-orange-500/40 text-sm px-3 py-1.5">
+                  <Badge variant="outline" className="text-slate-300 border-slate-600 text-sm px-3 py-1.5">
                     루징 {partner.slot_losing_commission || 0}%
                   </Badge>
-                  <Badge variant="outline" className="bg-blue-500/15 text-blue-300 border-blue-500/40 text-sm px-3 py-1.5">
+                  <Badge variant="outline" className="text-slate-300 border-slate-600 text-sm px-3 py-1.5">
                     수수료 {partner.withdrawal_fee || 0}%
                   </Badge>
                 </div>

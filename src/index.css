@@ -2590,16 +2590,6 @@
     }
   }
 
-  .border-blue-500\/40 {
-    border-color: color-mix(in srgb, oklch(.623 .214 259.815) 40%, transparent);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .border-blue-500\/40 {
-      border-color: color-mix(in oklab, var(--color-blue-500) 40%, transparent);
-    }
-  }
-
   .border-blue-500\/50 {
     border-color: color-mix(in srgb, oklch(.623 .214 259.815) 50%, transparent);
   }
@@ -2655,16 +2645,6 @@
   @supports (color: color-mix(in lab, red, red)) {
     .border-emerald-500\/30 {
       border-color: color-mix(in oklab, var(--color-emerald-500) 30%, transparent);
-    }
-  }
-
-  .border-emerald-500\/40 {
-    border-color: color-mix(in srgb, oklch(.696 .17 162.48) 40%, transparent);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .border-emerald-500\/40 {
-      border-color: color-mix(in oklab, var(--color-emerald-500) 40%, transparent);
     }
   }
 
@@ -2817,16 +2797,6 @@
   @supports (color: color-mix(in lab, red, red)) {
     .border-orange-500\/30 {
       border-color: color-mix(in oklab, var(--color-orange-500) 30%, transparent);
-    }
-  }
-
-  .border-orange-500\/40 {
-    border-color: color-mix(in srgb, oklch(.705 .213 47.604) 40%, transparent);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .border-orange-500\/40 {
-      border-color: color-mix(in oklab, var(--color-orange-500) 40%, transparent);
     }
   }
 
@@ -3490,16 +3460,6 @@
     }
   }
 
-  .bg-blue-500\/15 {
-    background-color: color-mix(in srgb, oklch(.623 .214 259.815) 15%, transparent);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-blue-500\/15 {
-      background-color: color-mix(in oklab, var(--color-blue-500) 15%, transparent);
-    }
-  }
-
   .bg-blue-500\/20 {
     background-color: color-mix(in srgb, oklch(.623 .214 259.815) 20%, transparent);
   }
@@ -3605,16 +3565,6 @@
   @supports (color: color-mix(in lab, red, red)) {
     .bg-emerald-500\/10 {
       background-color: color-mix(in oklab, var(--color-emerald-500) 10%, transparent);
-    }
-  }
-
-  .bg-emerald-500\/15 {
-    background-color: color-mix(in srgb, oklch(.696 .17 162.48) 15%, transparent);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-emerald-500\/15 {
-      background-color: color-mix(in oklab, var(--color-emerald-500) 15%, transparent);
     }
   }
 
@@ -3807,16 +3757,6 @@
   @supports (color: color-mix(in lab, red, red)) {
     .bg-orange-500\/10 {
       background-color: color-mix(in oklab, var(--color-orange-500) 10%, transparent);
-    }
-  }
-
-  .bg-orange-500\/15 {
-    background-color: color-mix(in srgb, oklch(.705 .213 47.604) 15%, transparent);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-orange-500\/15 {
-      background-color: color-mix(in oklab, var(--color-orange-500) 15%, transparent);
     }
   }
 
