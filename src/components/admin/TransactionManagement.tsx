@@ -427,43 +427,54 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       if (action === 'approve') {
         const amount = Math.floor(parseFloat(transaction.amount.toString()));
         
-        // 입금 승인: 파트너 보유금 확인
+        // 입금 승인: 로그인한 관리자의 보유금 확인 (✅ 상위 권한자 입출금 가능)
         if (transaction.transaction_type === 'deposit') {
-          // 사용자의 소속 파트너 조회
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('referrer_id')
-            .eq('id', transaction.user_id)
-            .single();
-
-          if (userError || !userData) {
-            throw new Error(t.transactionManagement.userInfoNotFound);
-          }
-
-          // 파트너 보유금 조회
-          const { data: partnerData, error: partnerError } = await supabase
+          // 로그인한 관리자의 보유금 조회
+          const { data: adminPartnerData, error: adminPartnerError } = await supabase
             .from('partners')
-            .select('balance, nickname')
-            .eq('id', userData.referrer_id)
+            .select('balance, username, level, invest_balance, oroplay_balance, familyapi_balance, honorapi_balance')
+            .eq('id', user.id)
             .single();
 
-          if (partnerError || !partnerData) {
-            throw new Error('파트너 정보를 찾을 수 없습니다.');
+          if (adminPartnerError || !adminPartnerData) {
+            throw new Error('관리자 정보를 찾을 수 없습니다.');
           }
 
-          const partnerBalance = parseFloat(partnerData.balance?.toString() || '0');
+          let adminBalance = 0;
+          
+          // 레벨별 보유금 계산
+          if (adminPartnerData.level === 1) {
+            // Lv1: api_configs에서 실제 보유금 조회
+            const { data: apiConfigsData } = await supabase
+              .from('api_configs')
+              .select('balance')
+              .eq('partner_id', user.id);
+            
+            adminBalance = apiConfigsData?.reduce((sum: number, config: any) => sum + (parseFloat(config.balance?.toString() || '0')), 0) || 0;
+          } else if (adminPartnerData.level === 2) {
+            // Lv2: 4개 지갑 합계
+            adminBalance = (parseFloat(adminPartnerData.invest_balance?.toString() || '0') || 0) +
+                          (parseFloat(adminPartnerData.oroplay_balance?.toString() || '0') || 0) +
+                          (parseFloat(adminPartnerData.familyapi_balance?.toString() || '0') || 0) +
+                          (parseFloat(adminPartnerData.honorapi_balance?.toString() || '0') || 0);
+          } else {
+            // Lv3~Lv6: GMS 머니
+            adminBalance = parseFloat(adminPartnerData.balance?.toString() || '0');
+          }
 
           // 보유금 검증
-          if (partnerBalance < amount) {
-            toast.error('매장 보유금을 확인하세요');
+          if (adminBalance < amount) {
+            toast.error(`보유금이 부족합니다. (현재: ${adminBalance.toLocaleString()}원, 필요: ${amount.toLocaleString()}원)`);
             setRefreshing(false);
             return;
           }
 
           console.log('✅ 입금 승인 가능:', {
-            partnerBalance,
+            adminUsername: adminPartnerData.username,
+            adminLevel: adminPartnerData.level,
+            adminBalance,
             amount,
-            remaining: partnerBalance - amount
+            remaining: adminBalance - amount
           });
         }
         
@@ -573,35 +584,43 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           match: updatedUser?.balance === newBalance
         });
 
-        // 4️⃣ 파트너 보유금 조정
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('referrer_id')
-          .eq('id', transaction.user_id)
-          .single();
+        // 4️⃣ 로그인한 관리자의 보유금 조정 (✅ 상위 권한자가 하위 조직 입출금 가능)
+        const responsiblePartnerId = user.id; // 로그인한 관리자
 
-        if (userError || !userData?.referrer_id) {
-          console.error('❌ [담당 관리자 조회 실패]:', userError);
-          throw new Error('회원의 담당 관리자를 찾을 수 없습니다.');
-        }
-
-        const responsiblePartnerId = userData.referrer_id;
-
-        // 5️⃣ 담당 관리자의 보유금 조회
+        // 5️⃣ 로그인한 관리자의 보유금 조회
         const { data: partnerData, error: partnerQueryError } = await supabase
           .from('partners')
-          .select('balance, username, level')
+          .select('balance, username, level, invest_balance, oroplay_balance, familyapi_balance, honorapi_balance')
           .eq('id', responsiblePartnerId)
           .single();
 
         if (partnerQueryError) {
-          console.error('❌ [파트너 보유금 조회 실패]:', partnerQueryError);
-          throw new Error('담당 관리자 보유금을 조회할 수 없습니다.');
+          console.error('❌ [관리자 보유금 조회 실패]:', partnerQueryError);
+          throw new Error('관리자 보유금을 조회할 수 없습니다.');
         }
 
-        const currentPartnerBalance = parseFloat(partnerData?.balance?.toString() || '0');
+        // 레벨별 보유금 계산
+        let currentPartnerBalance = 0;
+        if (partnerData.level === 1) {
+          // Lv1: api_configs에서 실제 보유금 조회
+          const { data: apiConfigsData } = await supabase
+            .from('api_configs')
+            .select('balance')
+            .eq('partner_id', responsiblePartnerId);
+          
+          currentPartnerBalance = apiConfigsData?.reduce((sum: number, config: any) => sum + (parseFloat(config.balance?.toString() || '0')), 0) || 0;
+        } else if (partnerData.level === 2) {
+          // Lv2: 4개 지갑 합계
+          currentPartnerBalance = (parseFloat(partnerData.invest_balance?.toString() || '0') || 0) +
+                        (parseFloat(partnerData.oroplay_balance?.toString() || '0') || 0) +
+                        (parseFloat(partnerData.familyapi_balance?.toString() || '0') || 0) +
+                        (parseFloat(partnerData.honorapi_balance?.toString() || '0') || 0);
+        } else {
+          // Lv3~Lv6: GMS 머니
+          currentPartnerBalance = parseFloat(partnerData?.balance?.toString() || '0');
+        }
 
-        console.log('💰 [담당 관리자 정보]:', {
+        console.log('💰 [로그인한 관리자 정보]:', {
           partner_id: responsiblePartnerId,
           username: partnerData?.username,
           level: partnerData?.level,
@@ -631,11 +650,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             .eq('id', responsiblePartnerId);
 
           if (partnerUpdateError) {
-            console.error('❌ [파트너 보유금 차감 실패]:', partnerUpdateError);
-            throw new Error('담당 관리자 보유금 차감에 실패했습니다.');
+            console.error('❌ [관리자 보유금 차감 실패]:', partnerUpdateError);
+            throw new Error('관리자 보유금 차감에 실패했습니다.');
           }
 
-          console.log('✅ [파트너 보유금 차감 완료]:', {
+          console.log('✅ [관리자 보유금 차감 완료]:', {
             partner_id: responsiblePartnerId,
             partner_username: partnerData?.username,
             before: currentPartnerBalance,
@@ -643,7 +662,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             deducted: amount
           });
 
-          // 파트너 잔고 변경 로그 기록
+          // 관리자 잔고 변경 로그 기록
           await supabase.from('partner_balance_logs').insert({
             partner_id: responsiblePartnerId,
             balance_before: currentPartnerBalance,
@@ -655,7 +674,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           });
 
         } else if (transaction.transaction_type === 'withdrawal') {
-          // 출금: 파트너 보유금 증가
+          // 출금: 관리자 보유금 증가
           const newPartnerBalance = currentPartnerBalance + amount;
 
           const { error: partnerUpdateError } = await supabase
@@ -667,11 +686,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             .eq('id', responsiblePartnerId);
 
           if (partnerUpdateError) {
-            console.error('❌ [파트너 보유금 증가 실패]:', partnerUpdateError);
-            throw new Error('담당 관리자 보유금 증가에 실패했습니다.');
+            console.error('❌ [관리자 보유금 증가 실패]:', partnerUpdateError);
+            throw new Error('관리자 보유금 증가에 실패했습니다.');
           }
 
-          console.log('✅ [파트너 보유금 증가 완료]:', {
+          console.log('✅ [관리자 보유금 증가 완료]:', {
             partner_id: responsiblePartnerId,
             partner_username: partnerData?.username,
             before: currentPartnerBalance,
@@ -679,7 +698,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             added: amount
           });
 
-          // 파트너 잔고 변경 로그 기록
+          // 관리자 잔고 변경 로그 기록
           await supabase.from('partner_balance_logs').insert({
             partner_id: responsiblePartnerId,
             balance_before: currentPartnerBalance,
@@ -1033,19 +1052,19 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     filterBySearch(t)
   );
 
-  // 입출금내역: 사용자가 요청한 입출금만 (deposit, withdrawal)
+  // 입출금내역: 사용자가 요청한 입출금만 (deposit, withdrawal) - completed와 rejected 포함
   const completedTransactions = transactions.filter(t => 
     (t.transaction_type === 'deposit' || t.transaction_type === 'withdrawal') &&
-    t.status === 'completed' &&
+    (t.status === 'completed' || t.status === 'rejected') &&
     filterBySearch(t)
   );
 
-  // 관리자 입출금내역: 관리자가 강제 처리한 입출금만 (admin_deposit, admin_withdrawal, admin_adjustment)
+  // 관리자 입출금내역: 관리자가 강제 처리한 입출금만 (admin_deposit, admin_withdrawal, admin_adjustment) - completed와 rejected 포함
   const adminTransactions = transactions.filter(t => 
     (t.transaction_type === 'admin_deposit' || 
      t.transaction_type === 'admin_withdrawal' || 
      t.transaction_type === 'admin_adjustment') &&
-    t.status === 'completed' &&
+    (t.status === 'completed' || t.status === 'rejected') &&
     filterBySearch(t)
   );
   
@@ -1085,16 +1104,16 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       header: t.transactionManagement.transactionType,
       cell: (row: Transaction) => {
         const typeMap: any = {
-          deposit: { text: t.transactionManagement.deposit, color: 'bg-green-500' },
-          withdrawal: { text: t.transactionManagement.withdrawal, color: 'bg-red-500' },
-          admin_deposit: { text: t.transactionManagement.adminDeposit, color: 'bg-green-600' },
-          admin_withdrawal: { text: t.transactionManagement.adminWithdrawal, color: 'bg-red-600' },
+          deposit: { text: t.transactionManagement.deposit, color: 'bg-emerald-600' },
+          withdrawal: { text: t.transactionManagement.withdrawal, color: 'bg-orange-600' },
+          admin_deposit: { text: t.transactionManagement.adminDeposit, color: 'bg-teal-600' },
+          admin_withdrawal: { text: t.transactionManagement.adminWithdrawal, color: 'bg-rose-600' },
           admin_adjustment: { 
             text: row.memo?.includes('강제 출금') ? t.transactionManagement.withdrawal : t.transactionManagement.deposit, 
-            color: row.memo?.includes('강제 출금') ? 'bg-red-600' : 'bg-green-600'
+            color: row.memo?.includes('강제 출금') ? 'bg-rose-600' : 'bg-teal-600'
           }
         };
-        const type = typeMap[row.transaction_type] || { text: row.transaction_type, color: 'bg-gray-500' };
+        const type = typeMap[row.transaction_type] || { text: row.transaction_type, color: 'bg-slate-600' };
         return <Badge className={`${type.color} text-white text-sm px-3 py-1`}>{type.text}</Badge>;
       }
     },
@@ -1107,7 +1126,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                              (row.transaction_type === 'admin_adjustment' && row.memo?.includes('강제 출금'));
         return (
           <span className={cn(
-            "font-mono font-semibold text-base",
+            "font-mono font-semibold text-2xl",
             isWithdrawal ? 'text-red-400' : 'text-green-400'
           )}>
             {isWithdrawal ? '-' : '+'}
@@ -1119,7 +1138,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     {
       header: t.transactionManagement.balanceAfter,
       cell: (row: Transaction) => (
-        <span className="font-mono text-cyan-400 text-base">
+        <span className="font-mono text-cyan-400 text-2xl">
           {formatCurrency(parseFloat(row.balance_after?.toString() || '0'))}
         </span>
       )
@@ -1128,11 +1147,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       header: t.transactionManagement.status,
       cell: (row: Transaction) => {
         const statusMap: any = {
-          pending: { text: t.transactionManagement.pending, color: 'bg-yellow-500' },
-          completed: { text: t.transactionManagement.completed, color: 'bg-green-500' },
-          rejected: { text: t.transactionManagement.rejected, color: 'bg-red-500' }
+          pending: { text: t.transactionManagement.pending, color: 'bg-amber-600' },
+          completed: { text: t.transactionManagement.completed, color: 'bg-emerald-600' },
+          rejected: { text: t.transactionManagement.rejected, color: 'bg-rose-600' }
         };
-        const status = statusMap[row.status] || { text: row.status, color: 'bg-gray-500' };
+        const status = statusMap[row.status] || { text: row.status, color: 'bg-slate-600' };
         return <Badge className={`${status.color} text-white text-sm px-3 py-1`}>{status.text}</Badge>;
       }
     },

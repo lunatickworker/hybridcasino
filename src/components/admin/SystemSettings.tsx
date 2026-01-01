@@ -17,7 +17,7 @@ import { Partner } from "../../types";
 import { supabase } from "../../lib/supabase";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { refreshTimezoneCache } from "../../utils/timezone";
-import { gameApi } from "../../lib/gameApi";
+import * as gameApi from "../../lib/gameApi";
 import { createOroPlayToken } from "../../lib/oroplayApi";
 import { md5Hash } from "../../lib/investApi";
 
@@ -639,6 +639,29 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
     }
   };
 
+  // 🆕 특정 HonorAPI 제공사만 동기화 (예: skywind)
+  const handleSyncSpecificHonorApiProvider = async (vendorNameOrCode: string, providerName: string) => {
+    if (user.level !== 1) {
+      toast.error('Lv1 권한이 필요합니다.');
+      return;
+    }
+
+    try {
+      setSyncingApi(`honorapi-${vendorNameOrCode}`);
+
+      toast.info(`${providerName} 제공사 동기화 중...`);
+
+      const result = await gameApi.syncSpecificHonorApiProvider(vendorNameOrCode);
+      
+      toast.success(`${providerName} 동기화 완료: 신규 ${result.newGames}개, 업데이트 ${result.updatedGames}개, 총 ${result.totalGames}개`);
+    } catch (error: any) {
+      console.error(`❌ ${providerName} 동기화 실패:`, error);
+      toast.error(`${providerName} 동기화 중 오류가 발생했습니다: ${error.message}`);
+    } finally {
+      setSyncingApi(null);
+    }
+  };
+
   // API 활성화 설정 저장 (Lv1 전용)
   const saveApiSettings = async () => {
     if (user.level !== 1) {
@@ -1025,24 +1048,23 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                           )}
                         </Button>
                         
-                        {/* 🆕 특정 제공사만 동기화 */}
                         <div className="mt-2 p-3 bg-slate-700/30 rounded border border-slate-600">
                           <p className="text-xs text-slate-400 mb-2">특정 제공사만 동기화:</p>
                           <Button
-                            onClick={() => handleSyncSpecificOroPlayProvider('slot-dreamtech', 'DreamTech')}
+                            onClick={() => handleSyncSpecificOroPlayProvider('dream', 'Dream Gaming')}
                             disabled={syncingApi !== null}
-                            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90"
+                            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:opacity-90"
                             size="sm"
                           >
-                            {syncingApi === 'oroplay-slot-dreamtech' ? (
+                            {syncingApi === 'oroplay-dream' ? (
                               <>
                                 <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                                DreamTech 동기화 중...
+                                Dream Gaming 동기화 중...
                               </>
                             ) : (
                               <>
                                 <RefreshCw className="w-4 h-4 mr-2" />
-                                DreamTech 슬롯 동기화
+                                Dream Gaming 카지노 동기화
                               </>
                             )}
                           </Button>
@@ -1102,24 +1124,48 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                       />
                     </div>
                     {useHonorApi && (
-                      <Button
-                        onClick={() => handleInitializeAndSyncApi('honorapi')}
-                        disabled={syncingApi !== null}
-                        className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:opacity-90"
-                        size="sm"
-                      >
-                        {syncingApi === 'honorapi' ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                            제공사 및 게임 동기화 중...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="w-4 h-4 mr-2" />
-                            제공사 및 게임 동기화
-                          </>
-                        )}
-                      </Button>
+                      <>
+                        <Button
+                          onClick={() => handleInitializeAndSyncApi('honorapi')}
+                          disabled={syncingApi !== null}
+                          className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:opacity-90"
+                          size="sm"
+                        >
+                          {syncingApi === 'honorapi' ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              제공사 및 게임 동기화 중...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2" />
+                              제공사 및 게임 동기화
+                            </>
+                          )}
+                        </Button>
+                        
+                        <div className="mt-2 p-3 bg-slate-700/30 rounded border border-slate-600">
+                          <p className="text-xs text-slate-400 mb-2">특정 제공사만 동기화:</p>
+                          <Button
+                            onClick={() => handleSyncSpecificHonorApiProvider('skywind', 'Skywind Live')}
+                            disabled={syncingApi !== null}
+                            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90"
+                            size="sm"
+                          >
+                            {syncingApi === 'honorapi-skywind' ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                                Skywind Live 동기화 중...
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                                Skywind Live 카지노 동기화
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>

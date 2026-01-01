@@ -1943,11 +1943,6 @@ export function UserManagement() {
       }
     },
     {
-      key: "created_at_old",
-      header: "가입일",
-      cell: (row: any) => new Date(row.created_at).toLocaleDateString('ko-KR')
-    },
-    {
       key: "actions",
       header: t.common.actions,
       cell: (row: any) => {

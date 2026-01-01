@@ -14,6 +14,7 @@ const PartnerTransactions = lazy(() => import("../admin/PartnerTransactions").th
 const CommissionSettlement = lazy(() => import("../admin/CommissionSettlement").then(m => ({ default: m.CommissionSettlement })));
 const IntegratedSettlement = lazy(() => import("../admin/IntegratedSettlement").then(m => ({ default: m.IntegratedSettlement })));
 const SettlementHistory = lazy(() => import("../admin/SettlementHistory").then(m => ({ default: m.SettlementHistory })));
+const AdvancedSettlement = lazy(() => import("../admin/AdvancedSettlement").then(m => ({ default: m.default })));
 const TransactionManagement = lazy(() => import("../admin/TransactionManagement").then(m => ({ default: m.TransactionManagement })));
 const TransactionApprovalManager = lazy(() => import("../admin/TransactionApprovalManager").then(m => ({ default: m.TransactionApprovalManager })));
 const EnhancedGameManagement = lazy(() => import("../admin/EnhancedGameManagement").then(m => ({ default: m.EnhancedGameManagement })));
@@ -23,7 +24,7 @@ const CallCycle = lazy(() => import("../admin/CallCycle").then(m => ({ default: 
 const CustomerSupport = lazy(() => import("../admin/CustomerSupport").then(m => ({ default: m.CustomerSupport })));
 const Announcements = lazy(() => import("../admin/Announcements").then(m => ({ default: m.Announcements })));
 const MessageCenter = lazy(() => import("../admin/MessageCenter").then(m => ({ default: m.MessageCenter })));
-const SystemSettings = lazy(() => import("../admin/SystemSettings").then(m => ({ default: m.SystemSettings })));
+const SystemSettings = lazy(() => import("../admin/SystemSettings"));
 const BannerManagement = lazy(() => import("../admin/BannerManagement").then(m => ({ default: m.BannerManagement })));
 const MenuManagement = lazy(() => import("../admin/MenuManagement").then(m => ({ default: m.MenuManagement })));
 const ApiTester = lazy(() => import("../admin/ApiTester").then(m => ({ default: m.ApiTester })));
@@ -92,6 +93,9 @@ export function AdminRoutes({ currentRoute, user }: AdminRoutesProps) {
     case '/admin/settlement-history':
     case '/admin/settlement/history':
       return <SettlementHistory user={user} />;
+    case '/admin/advanced-settlement':
+    case '/admin/settlement/advanced':
+      return <AdvancedSettlement user={user} />;
     case '/admin/transactions':
     case '/admin/transaction-approval':
       return <TransactionManagement user={user} />;

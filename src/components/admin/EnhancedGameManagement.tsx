@@ -1439,6 +1439,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
           .upsert({
             partner_id: selectedStore.id,
             api_provider: game.api_type,
+            game_provider_id: null, // ⭐ 명시적으로 NULL 설정!
             game_id: gameId, // ✅ 숫자 타입으로 전달
             access_type: "game",
             is_allowed: false,
@@ -1601,8 +1602,8 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       }
 
       if (showAll) {
-        // 전체 노출: 제공사 레코드 삭제
-        const providerIdsToRemove = filteredProviders.map(p => String(p.id));
+        // ✅ 새로운 방식: 제공사 레코드만 삭제!
+        const providerIdsToRemove = filteredProviders.map(p => p.id);
         const { error } = await supabase
           .from("partner_game_access")
           .delete()
@@ -1616,73 +1617,33 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
           throw error;
         }
 
-        // ✅ 제공사의 모든 게임 레코드도 삭제
-        const providerGameIds = games
-          .filter(g => filteredProviders.some(p => p.id === g.provider_id))
-          .map(g => g.id);
-
-        if (providerGameIds.length > 0) {
-          const { error: gameError } = await supabase
-            .from("partner_game_access")
-            .delete()
-            .eq("partner_id", selectedStore.id)
-            .is("user_id", null)
-            .eq("access_type", "game")
-            .in("game_id", providerGameIds);
-
-          if (gameError) {
-            console.error("게임 레코드 삭제 실패:", gameError);
-          }
-        }
-
         toast.success(`${apiLabel} ${typeLabel} 제공사 ${filteredProviders.length}개를 전체 노출했습니다.`);
       } else {
-        // 전체 숨김: 제공사 + 게임 레코드 한번에 생성
+        // ✅ 새로운 방식: 제공사 레코드만 생성!
         const providerRecords = filteredProviders.map(provider => ({
           partner_id: selectedStore.id,
           api_provider: provider.api_type,
           game_provider_id: provider.id,
+          game_id: null,
           access_type: "provider" as const,
           is_allowed: false,
         }));
 
-        const providerGames = games.filter(g => 
-          filteredProviders.some(p => p.id === g.provider_id)
-        );
-
-        const gameRecords = providerGames.map(game => ({
-          partner_id: selectedStore.id,
-          api_provider: game.api_type,
-          game_id: game.id,
-          access_type: "game" as const,
-          is_allowed: false,
-        }));
-
-        // 기존 레코드 삭제 (제공사 + 게임)
+        // 1단계: 기존 제공사 레코드 삭제
         const providerIdsToRemove = filteredProviders.map(p => p.id);
         await supabase
           .from("partner_game_access")
           .delete()
           .eq("partner_id", selectedStore.id)
           .is("user_id", null)
+          .eq("api_provider", selectedApi)
           .eq("access_type", "provider")
           .in("game_provider_id", providerIdsToRemove);
 
-        if (providerGames.length > 0) {
-          const gameIds = providerGames.map(g => g.id);
-          await supabase
-            .from("partner_game_access")
-            .delete()
-            .eq("partner_id", selectedStore.id)
-            .is("user_id", null)
-            .eq("access_type", "game")
-            .in("game_id", gameIds);
-        }
-
-        // 한번에 INSERT (제공사 + 게임)
+        // 2단계: 새 제공사 레코드만 생성
         const { error } = await supabase
           .from("partner_game_access")
-          .insert([...providerRecords, ...gameRecords]);
+          .insert(providerRecords);
 
         if (error) {
           setStoreBlockedProviders(previousBlockedProviders);
@@ -1949,6 +1910,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
           .upsert({
             user_id: selectedUser.id, // ✅ 사용자별 설정: user_id만, partner_id는 NULL
             api_provider: game.api_type,
+            game_provider_id: null, // ⭐ 명시적으로 NULL 설정!
             game_id: gameId,
             access_type: "game",
             is_allowed: false,
@@ -2082,6 +2044,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
             user_id: selectedUser.id,
             api_provider: game!.api_type,
             game_provider_id: providerId,
+            game_id: null, // ⭐ 명시적으로 NULL 설정!
             access_type: "provider" as const,
             is_allowed: false,
           };
@@ -2091,19 +2054,44 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
         const gameRecords = gamesToBlock.map(g => ({
           user_id: selectedUser.id,
           api_provider: g.api_type,
+          game_provider_id: null, // ⭐ 명시적으로 NULL 설정!
           game_id: g.id,
           access_type: "game" as const,
           is_allowed: false,
         }));
 
-        // 한번에 UPSERT (제공사 + 게임)
+        // ✅ 1단계: 기존 레코드 삭제 (중복 방지)
         if (providerRecords.length > 0 || gameRecords.length > 0) {
+          // 제공사 레코드 삭제
+          const providerIdsToDelete = affectedProviders;
+          if (providerIdsToDelete.length > 0) {
+            await supabase
+              .from("partner_game_access")
+              .delete()
+              .is("partner_id", null)
+              .eq("user_id", selectedUser.id)
+              .eq("api_provider", selectedApi)
+              .eq("access_type", "provider")
+              .in("game_provider_id", providerIdsToDelete);
+          }
+          
+          // 게임 레코드 삭제
+          const gameIdsToDelete = gamesToBlock.map(g => g.id);
+          if (gameIdsToDelete.length > 0) {
+            await supabase
+              .from("partner_game_access")
+              .delete()
+              .is("partner_id", null)
+              .eq("user_id", selectedUser.id)
+              .eq("api_provider", selectedApi)
+              .eq("access_type", "game")
+              .in("game_id", gameIdsToDelete);
+          }
+          
+          // ✅ 2단계: 새 레코드 생성
           const { error } = await supabase
             .from("partner_game_access")
-            .upsert([...providerRecords, ...gameRecords], {
-              onConflict: 'partner_id,user_id,api_provider,game_provider_id,game_id,access_type',
-              ignoreDuplicates: false
-            });
+            .insert([...providerRecords, ...gameRecords]);
 
           if (error) throw error;
         }
@@ -2513,41 +2501,33 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                         onClick={async () => {
                                           if (!selectedStore) return;
                                           try {
-                                            // 해당 제공사의 모든 게임 ID
-                                            const allProviderGameIds = games
-                                              .filter(g => g.provider_id === provider.id)
-                                              .map(g => String(g.id));
-                                            
-                                            if (allProviderGameIds.length === 0) {
-                                              toast.error("게임이 없습니다.");
-                                              return;
-                                            }
-
                                             console.log("🚫 매장별 전체 차단:", { 
                                               provider: provider.name, 
                                               providerId: provider.id,
                                               storeId: selectedStore.id
                                             });
 
-                                            // 전체 차단 = 제공사 단위로 차단 레코드 생성 (access_type: 'provider')
+                                            // ✅ 새로운 방식: provider 레코드 1개만 생성!
                                             const providerAccessRecord = {
                                               partner_id: selectedStore.id,
                                               api_provider: provider.api_type,
-                                              game_provider_id: provider.id, // ✅ 숫자 타입으로 전달
+                                              game_provider_id: provider.id,
+                                              game_id: null,
                                               access_type: "provider",
                                               is_allowed: false,
                                             };
 
-                                            // 먼저 기존 제공사 차단 레코드 삭제 (중복 방지)
+                                            // 1단계: 기존 제공사 레코드 삭제
                                             await supabase
                                               .from("partner_game_access")
                                               .delete()
                                               .eq("partner_id", selectedStore.id)
                                               .is("user_id", null)
-                                              .eq("api_provider", provider.api_type) // ⭐ 추가!
-                                              .eq("game_provider_id", provider.id) // ✅ 숫자 타입으로 전달
+                                              .eq("api_provider", provider.api_type)
+                                              .eq("game_provider_id", provider.id)
                                               .eq("access_type", "provider");
 
+                                            // 2단계: 새 provider 레코드 1개만 생성
                                             const { error } = await supabase
                                               .from("partner_game_access")
                                               .insert([providerAccessRecord]);
@@ -2557,38 +2537,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                               throw error;
                                             }
 
-                                            // ✅ 제공사의 모든 게임에 대한 차단 레코드도 생성
-                                            const providerGames = games.filter(g => g.provider_id === provider.id);
-                                            const gameAccessRecords = providerGames.map(game => ({
-                                              partner_id: selectedStore.id,
-                                              api_provider: game.api_type,
-                                              game_id: game.id,
-                                              access_type: "game" as const,
-                                              is_allowed: false,
-                                            }));
-
-                                            if (gameAccessRecords.length > 0) {
-                                              // 기존 게임 레코드 삭제
-                                              await supabase
-                                                .from("partner_game_access")
-                                                .delete()
-                                                .eq("partner_id", selectedStore.id)
-                                                .is("user_id", null)
-                                                .eq("api_provider", provider.api_type) // ⭐ 추가!
-                                                .eq("access_type", "game")
-                                                .in("game_id", allProviderGameIds);
-
-                                              // 새로운 게임 레코드 생성
-                                              const { error: gameError } = await supabase
-                                                .from("partner_game_access")
-                                                .insert(gameAccessRecords);
-
-                                              if (gameError) {
-                                                console.error("❌ 게임 레코드 생성 오류:", gameError);
-                                              }
-                                            }
-                                            
-                                            console.log("✅ 차단 완료");
+                                            console.log("✅ 차단 완료 (provider 레코드 1개만 생성)");
                                             
                                             await loadStoreGameAccess(selectedStore.id);
                                             toast.success(`${provider.name}의 모든 게임을 차단했습니다.`);
@@ -3032,57 +2981,29 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                         onClick={async () => {
                                           if (!selectedUser || !selectedStore) return;
                                           try {
-                                            // ✅ 해당 제공사의 차단된 게임들 (매장에서 허용된 것 중)
-                                            const providerGames = games.filter(g => 
-                                              g.provider_id === provider.id && 
-                                              g.status === "visible" && 
-                                              !storeBlockedGames.includes(g.id)
-                                            );
-                                            const blockedGames = providerGames.filter(g => userBlockedGames.includes(g.id));
-                                            
-                                            if (blockedGames.length === 0) {
-                                              toast.info("차단된 게임이 없습니다.");
-                                              return;
-                                            }
-
-                                            console.log(`전체 허용: ${blockedGames.length}개`);
-                                            
                                             // Optimistic Update
-                                            const previousBlockedGames = userBlockedGames;
                                             const previousBlockedProviders = userBlockedProviders;
-                                            setUserBlockedGames(prev => prev.filter(id => !blockedGames.some(g => g.id === id)));
                                             setUserBlockedProviders(prev => prev.filter(id => id !== provider.id));
                                             
-                                            // 제공사 차단 레코드 삭제
-                                            await supabase
-                                              .from("partner_game_access")
-                                              .delete()
-                                              .is("partner_id", null)
-                                              .eq("user_id", selectedUser.id)
-                                              .eq("api_provider", provider.api_type) // ⭐ 추가!
-                                              .eq("game_provider_id", provider.id)
-                                              .eq("access_type", "provider");
-                                            
-                                            // 개별 게임 차단 레코드들 삭제 (Bulk)
-                                            const gameIds = blockedGames.map(g => g.id);
+                                            // ✅ 새로운 방식: provider 레코드만 삭제!
                                             const { error } = await supabase
                                               .from("partner_game_access")
                                               .delete()
                                               .is("partner_id", null)
                                               .eq("user_id", selectedUser.id)
-                                              .eq("api_provider", provider.api_type) // ⭐ 추가!
-                                              .in("game_id", gameIds)
-                                              .eq("access_type", "game");
+                                              .eq("api_provider", provider.api_type)
+                                              .eq("game_provider_id", provider.id)
+                                              .eq("access_type", "provider");
                                             
                                             if (error) {
                                               console.error("DELETE 오류:", error);
-                                              setUserBlockedGames(previousBlockedGames);
                                               setUserBlockedProviders(previousBlockedProviders);
                                               throw error;
                                             }
                                             
-                                            console.log(`허용 완료: 제공사 1개 + 게임 ${blockedGames.length}개`);
-                                            toast.success(`${provider.name}의 ${blockedGames.length}개 게임을 허용했습니다.`);
+                                            await loadUserGameAccess(selectedUser.id);
+                                            console.log(`허용 완료: provider 레코드만 삭제`);
+                                            toast.success(`${provider.name}의 모든 게임을 허용했습니다.`);
                                           } catch (error) {
                                             console.error("❌ 전체 허용 실패:", error);
                                             toast.error("일괄 허용에 실패했습니다.");
@@ -3115,63 +3036,44 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                               userId: selectedUser.id 
                                             });
 
-                                            // ✅ 각 게임마다 개별 차단 (이미 작동하는 로직 재사용)
-                                            const providerGames = games.filter(g => 
-                                              g.provider_id === provider.id && 
-                                              g.status === "visible" && 
-                                              !storeBlockedGames.includes(g.id)
-                                            );
-                                            const allowedGames = providerGames.filter(g => !userBlockedGames.includes(g.id));
-                                            
-                                            if (allowedGames.length === 0) {
-                                              toast.info("이미 모두 차단되었습니다.");
-                                              return;
-                                            }
-
-                                            console.log(`전체 차단: ${allowedGames.length}개`);
-                                            
                                             // Optimistic Update
-                                            const previousBlockedGames = userBlockedGames;
                                             const previousBlockedProviders = userBlockedProviders;
-                                            setUserBlockedGames(prev => [...new Set([...prev, ...allowedGames.map(g => g.id)])]);
                                             setUserBlockedProviders(prev => [...new Set([...prev, provider.id])]);
                                             
-                                            // 제공사 차단 레코드
+                                            // ✅ 새로운 방식: provider 레코드 1개만 생성!
                                             const providerRecord = {
                                               user_id: selectedUser.id,
                                               api_provider: provider.api_type,
                                               game_provider_id: provider.id,
+                                              game_id: null,
                                               access_type: "provider" as const,
-                                              is_allowed: false, // ⭐ 추가!
+                                              is_allowed: false,
                                             };
                                             
-                                            // 개별 게임 차단 레코드들 (Bulk)
-                                            const gameRecords = allowedGames.map(game => ({
-                                              user_id: selectedUser.id,
-                                              api_provider: game.api_type,
-                                              game_id: game.id,
-                                              access_type: "game" as const,
-                                              is_allowed: false,
-                                            }));
+                                            // 1단계: 기존 제공사 레코드 삭제
+                                            await supabase
+                                              .from("partner_game_access")
+                                              .delete()
+                                              .is("partner_id", null)
+                                              .eq("user_id", selectedUser.id)
+                                              .eq("api_provider", provider.api_type)
+                                              .eq("game_provider_id", provider.id)
+                                              .eq("access_type", "provider");
                                             
-                                            // 한번에 UPSERT (제공사 + 게임들)
-                                            // ⭐ ON CONFLICT: 이미 있으면 is_allowed만 업데이트
+                                            // 2단계: 새 provider 레코드 1개만 생성
                                             const { error } = await supabase
                                               .from("partner_game_access")
-                                              .upsert([providerRecord, ...gameRecords], {
-                                                onConflict: 'partner_id,user_id,api_provider,game_provider_id,game_id,access_type',
-                                                ignoreDuplicates: false
-                                              });
+                                              .insert([providerRecord]);
                                             
                                             if (error) {
                                               console.error("INSERT 오류:", error);
-                                              setUserBlockedGames(previousBlockedGames);
                                               setUserBlockedProviders(previousBlockedProviders);
                                               throw error;
                                             }
                                             
-                                            console.log(`차단 완료: 제공사 1개 + 게임 ${allowedGames.length}개`);
-                                            toast.success(`${provider.name}의 ${allowedGames.length}개 게임을 차단했습니다.`);
+                                            await loadUserGameAccess(selectedUser.id);
+                                            console.log(`차단 완료: provider 레코드 1개만 생성`);
+                                            toast.success(`${provider.name}의 모든 게임을 차단했습니다.`);
                                           } catch (error) {
                                             console.error("❌ 전체 차단 실패:", error);
                                             toast.error("일괄 차단에 실패했습니다.");

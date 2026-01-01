@@ -1730,6 +1730,25 @@ export async function syncHonorApiGames(): Promise<SyncResult> {
   };
 }
 
+/**
+ * 🆕 HonorAPI 특정 제공사만 동기화 (예: skywind)
+ * @param vendorNameOrCode - 제공사 이름 또는 vendor_code (예: 'skywind')
+ */
+export async function syncSpecificHonorApiProvider(vendorNameOrCode: string): Promise<SyncResult> {
+  console.log(`🔄 HonorAPI 특정 제공사 동기화 시작: ${vendorNameOrCode}`);
+  
+  const { syncSpecificHonorApiProvider: syncSpecific } = await import('./honorApi');
+  const result = await syncSpecific(vendorNameOrCode);
+  
+  return {
+    newGames: result.newGames,
+    updatedGames: result.updatedGames,
+    totalGames: result.newGames + result.updatedGames,
+    newProviders: result.newProviders,
+    updatedProviders: result.updatedProviders
+  };
+}
+
 // ============================================
 // 3. 게임 조회
 // ============================================
@@ -3715,6 +3734,34 @@ async function launchOroPlayGame(
       }
     } catch (depositError) {
       console.error('❌ 입금 중 오류 발생:', depositError);
+      
+      // ADMIN_ALERT 형식의 에러인지 확인
+      const errorMsg = depositError instanceof Error ? depositError.message : '입금 처리 중 오류가 발생했습니다.';
+      
+      if (errorMsg.startsWith('ADMIN_ALERT:')) {
+        // ADMIN_ALERT:원래메시지||사용자메시지 형식 파싱
+        const parts = errorMsg.replace('ADMIN_ALERT:', '').split('||');
+        const adminMessage = parts[0] || '시스템 점검 중입니다 (Agent 잔고 부족)';
+        const userMessage = parts[1] || '관리자에게 문의하세요.';
+        
+        // 관리자 알림 전송
+        try {
+          await supabase.from('admin_notifications').insert([{
+            message: `[OroPlay API 에러] ${adminMessage}`,
+            type: 'error',
+            is_read: false,
+            created_at: new Date().toISOString()
+          }]);
+        } catch (notifError) {
+          console.error('❌ 관리자 알림 전송 실패:', notifError);
+        }
+        
+        return {
+          success: false,
+          error: userMessage
+        };
+      }
+      
       return {
         success: false,
         error: '입금 처리 중 오류가 발생했습니다.'

@@ -170,9 +170,20 @@ export async function handleChangeBalanceCallback(
     // 게임 기록 저장
     const { data: gameData } = await supabase
       .from('games')
-      .select('id, provider_id, game_type') // ✅ game_type 추가
+      .select('id, provider_id, game_type, name') // ✅ name 추가
       .eq('vendor_code', vendorKey)
       .maybeSingle();
+
+    // ✅ game_providers 테이블에서 제공사 이름 조회
+    let providerName = null;
+    if (gameData?.provider_id) {
+      const { data: providerData } = await supabase
+        .from('game_providers')
+        .select('name')
+        .eq('id', gameData.provider_id)
+        .maybeSingle();
+      providerName = providerData?.name || null;
+    }
 
     await supabase.from('game_records').insert({
       user_id: user.id,
@@ -185,6 +196,8 @@ export async function handleChangeBalanceCallback(
       vendor_key: vendorKey,
       game_key: gameKey,
       game_type: gameData?.game_type || gameType || 'casino', // ✅ games 테이블에서 가져온 game_type 우선 사용
+      game_name: gameData?.name || null, // ✅ 게임명 추가
+      game_provider_name: providerName, // ✅ 제공사명 추가
       tran_type: tranType,
       bet_amount: debit || 0,
       win_amount: credit || 0,
@@ -313,10 +326,21 @@ export async function handleChangeBalanceSlotCallback(
     // 게임 기록 저장 (game_code로 매칭)
     const { data: gameData } = await supabase
       .from('games')
-      .select('id, provider_id, game_type') // ✅ game_type 추가
+      .select('id, provider_id, game_type, name') // ✅ name 추가
       .eq('game_code', gameKey)
       .eq('vendor_code', vendorKey)
       .maybeSingle();
+
+    // ✅ game_providers 테이블에서 제공사 이름 조회
+    let providerName = null;
+    if (gameData?.provider_id) {
+      const { data: providerData } = await supabase
+        .from('game_providers')
+        .select('name')
+        .eq('id', gameData.provider_id)
+        .maybeSingle();
+      providerName = providerData?.name || null;
+    }
 
     await supabase.from('game_records').insert({
       user_id: user.id,
@@ -329,6 +353,8 @@ export async function handleChangeBalanceSlotCallback(
       vendor_key: vendorKey,
       game_key: gameKey,
       game_type: gameData?.game_type || gameType || 'slot', // ✅ games 테이블에서 가져온 game_type 우선 사용
+      game_name: gameData?.name || null, // ✅ 게임명 추가
+      game_provider_name: providerName, // ✅ 제공사명 추가
       tran_type: tranType,
       bet_amount: debit || 0,
       win_amount: credit || 0,

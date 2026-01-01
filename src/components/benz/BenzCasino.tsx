@@ -35,15 +35,13 @@ interface Game {
   api_type?: string;
 }
 
-const FALLBACK_PROVIDERS = [
+const FALLBACK_PROVIDERS: GameProvider[] = [
   { id: 1, name: 'Evolution', name_ko: '에볼루션', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evolution.jpg', status: 'visible' },
   { id: 2, name: 'Pragmatic Play Live', name_ko: '프라그마틱 라이브', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticlive.jpg', status: 'visible' },
-  { id: 3, name: 'Microgaming', name_ko: '마이크로 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg', status: 'visible' },
-  { id: 4, name: 'Asia Gaming', name_ko: '아시아 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/asiagaming.jpg', status: 'visible' },
-  { id: 5, name: 'SA Gaming', name_ko: 'SA 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/sagaming.jpg', status: 'visible' },
-  { id: 6, name: 'Ezugi', name_ko: '이주기', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/ezugi.jpg', status: 'visible' },
-  { id: 7, name: 'Dream Gaming', name_ko: '드림 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/dreamgaming.jpg', status: 'visible' },
-  { id: 8, name: 'Play Ace', name_ko: '플레이 에이스', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg', status: 'visible' },
+  { id: 3, name: 'Skywind Live', name_ko: '스카이윈드', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/skywind.jpg', status: 'visible' },
+  { id: 4, name: 'Ezugi', name_ko: '이주기', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/ezugi.jpg', status: 'visible' },
+  { id: 5, name: 'Play Ace', name_ko: '플레이 에이스', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg', status: 'visible' },
+  { id: 6, name: 'Microgaming', name_ko: '마이크로 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg', status: 'visible' },
 ];
 
 // 게임사 이름으로 logo_url 찾기
@@ -58,29 +56,21 @@ const getLogoUrlByProviderName = (provider: GameProvider): string | undefined =>
   if ((name.includes('pragmatic') || name.includes('프라그마틱')) && (name.includes('live') || name.includes('라이브'))) {
     return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticlive.jpg';
   }
-  // Microgaming
-  if (name.includes('microgaming') || name.includes('마이크로')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg';
-  }
-  // Asia Gaming
-  if (name.includes('asia') || name.includes('아시아')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/asiagaming.jpg';
-  }
-  // SA Gaming
-  if (name.includes('sa gaming') || name.includes('sa게이밍') || name === 'sa') {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/sagaming.jpg';
+  // Skywind Live
+  if (name.includes('skywind') || name.includes('스카이윈드')) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/skywind.jpg';
   }
   // Ezugi
   if (name.includes('ezugi') || name.includes('이주기')) {
     return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/ezugi.jpg';
   }
-  // Dream Gaming
-  if (name.includes('dream') || name.includes('드림')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/dreamgaming.jpg';
-  }
   // Play Ace
   if (name.includes('playace') || name.includes('플레이') || name.includes('에이스')) {
     return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg';
+  }
+  // Microgaming
+  if (name.includes('microgaming') || name.includes('마이크로')) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg';
   }
   
   return provider.logo_url;
@@ -200,6 +190,14 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       };
       
       for (const provider of providersData) {
+        const name = (provider.name_ko || provider.name || '').toLowerCase();
+        
+        // ⭐ SA Gaming만 제외
+        if (name.includes('sa gaming') || name.includes('sa게이밍') || name === 'sa') {
+          console.log('🚫 [BenzCasino] 제외된 게임사:', provider.name_ko || provider.name);
+          continue; // 이 게임사는 건너뜁니다
+        }
+        
         const key = normalizeProviderName(provider);
         
         if (providerMap.has(key)) {
@@ -222,8 +220,8 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       
       // 🆕 원하는 순서대로 정렬
       const casinoOrder = [
-        'evolution', 'pragmatic_live', 'microgaming', 'asiagaming', 
-        'sa gaming', 'ezugi', 'dream gaming', 'playace'
+        'evolution', 'pragmatic_live', 'skywind', 'ezugi', 
+        'playace', 'microgaming'
       ];
       
       const sortedProviders = mergedProviders.sort((a, b) => {
@@ -237,23 +235,17 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
           if ((name.includes('pragmatic') || name.includes('프라그마틱')) && 
               (name.includes('live') || name.includes('라이브'))) return 'pragmatic_live';
           
-          // Microgaming
-          if (name.includes('microgaming') || name.includes('마이크로')) return 'microgaming';
-          
-          // Asia Gaming
-          if (name.includes('asia') || name.includes('아시아')) return 'asiagaming';
-          
-          // SA Gaming
-          if (name.includes('sa') || name.includes('게이밍')) return 'sa gaming';
+          // Skywind Live
+          if (name.includes('skywind') || name.includes('스카이윈드')) return 'skywind';
           
           // Ezugi
           if (name.includes('ezugi') || name.includes('이주기')) return 'ezugi';
           
-          // Dream Gaming
-          if (name.includes('dream') || name.includes('드림')) return 'dream gaming';
-          
           // Play Ace
           if (name.includes('playace') || name.includes('플레이') || name.includes('에이스')) return 'playace';
+          
+          // Microgaming
+          if (name.includes('microgaming') || name.includes('마이크로')) return 'microgaming';
           
           return name;
         };
@@ -320,7 +312,41 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
 
       setGames(sortedGames);
       
-      // 🆕 로비 게임 자동 실행
+      // 🆕 에볼루션은 "Top Games" 게임을 자동 실행
+      const providerName = (provider.name || '').toLowerCase();
+      const providerNameKo = (provider.name_ko || '').toLowerCase();
+      const isEvolution = providerName.includes('evolution') || providerNameKo.includes('에볼루션');
+      
+      if (isEvolution) {
+        console.log('🎰 [BenzCasino] Evolution - Top Games 검색');
+        console.log('🎰 [BenzCasino] 사용 가능한 게임 목록:', sortedGames.map(g => ({ id: g.id, name: g.name, name_ko: g.name_ko })));
+        
+        // "Top Games" 게임 찾기 (더 넓은 검색 조건)
+        const topGamesGame = sortedGames.find(game => {
+          const gameName = (game.name || '').toLowerCase();
+          const gameNameKo = (game.name_ko || '').toLowerCase();
+          
+          return gameName.includes('top games') || 
+                 gameName.includes('top') ||
+                 gameNameKo.includes('탑 게임') ||
+                 gameNameKo.includes('탑게임') ||
+                 gameNameKo.includes('인기 게임') ||
+                 gameNameKo.includes('인기게임');
+        });
+        
+        if (topGamesGame) {
+          console.log('🎰 [BenzCasino] Evolution Top Games 자동 실행:', topGamesGame.name);
+          setGamesLoading(false);
+          await handleGameClick(topGamesGame);
+        } else {
+          console.log('⚠️ [BenzCasino] Evolution Top Games를 찾을 수 없음, 게임 목록 표시');
+          setGamesLoading(false);
+          toast.info(`${provider.name_ko || provider.name} 게임 목록`);
+        }
+        return;
+      }
+      
+      // 🆕 다른 게임사는 로비 게임 자동 실행
       const lobbyGame = sortedGames.find(game => 
         game.name?.toLowerCase().includes('lobby') || 
         game.name_ko?.includes('로비')

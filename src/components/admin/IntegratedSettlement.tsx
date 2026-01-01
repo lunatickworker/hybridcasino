@@ -664,22 +664,28 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
             <h3 className="text-2xl text-white">입출금 현황</h3>
           </div>
           <div className="space-y-2">
-            <div className="flex justify-between items-center p-3 bg-slate-900/50 rounded">
-              <span className="text-lg text-slate-300">총 입금</span>
-              <div className="text-right">
-                <div className="text-2xl text-emerald-400 font-semibold">₩{detailedStats.totalDeposit.toLocaleString()}</div>
-                {detailedStats.forceDeposit > 0 && (
-                  <div className="text-sm text-orange-400">강제입금: ₩{detailedStats.forceDeposit.toLocaleString()}</div>
-                )}
+            <div className="p-3 bg-slate-900/50 rounded">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-lg text-slate-300">총 입금</span>
+                <span className="text-2xl text-emerald-400 font-semibold">₩{detailedStats.totalDeposit.toLocaleString()}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pl-4 pt-2 border-t border-slate-700/50">
+                <div className="text-base text-slate-400">신청 입금:</div>
+                <div className="text-right text-lg text-emerald-300">₩{(detailedStats.totalDeposit - detailedStats.forceDeposit).toLocaleString()}</div>
+                <div className="text-base text-slate-400">강제 입금:</div>
+                <div className="text-right text-lg text-orange-400">₩{detailedStats.forceDeposit.toLocaleString()}</div>
               </div>
             </div>
-            <div className="flex justify-between items-center p-3 bg-slate-900/50 rounded">
-              <span className="text-lg text-slate-300">총 출금</span>
-              <div className="text-right">
-                <div className="text-2xl text-red-400 font-semibold">₩{detailedStats.totalWithdrawal.toLocaleString()}</div>
-                {detailedStats.forceWithdrawal > 0 && (
-                  <div className="text-sm text-orange-400">강제출금: ₩{detailedStats.forceWithdrawal.toLocaleString()}</div>
-                )}
+            <div className="p-3 bg-slate-900/50 rounded">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-lg text-slate-300">총 출금</span>
+                <span className="text-2xl text-red-400 font-semibold">₩{detailedStats.totalWithdrawal.toLocaleString()}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pl-4 pt-2 border-t border-slate-700/50">
+                <div className="text-base text-slate-400">신청 출금:</div>
+                <div className="text-right text-lg text-red-300">₩{(detailedStats.totalWithdrawal - detailedStats.forceWithdrawal).toLocaleString()}</div>
+                <div className="text-base text-slate-400">강제 출금:</div>
+                <div className="text-right text-lg text-orange-400">₩{detailedStats.forceWithdrawal.toLocaleString()}</div>
               </div>
             </div>
             <div className="flex justify-between items-center p-3 bg-slate-900/50 rounded border border-blue-500/30">
@@ -722,55 +728,99 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
       {/* 커미션 수입 & 하위 지급 - 2열 그리드 */}
       <div className="grid grid-cols-2 gap-3">
-        {/* 내 커미션 수입 */}
-        <div className="bg-gradient-to-br from-emerald-900/30 to-green-900/30 rounded-lg p-4 border border-emerald-500/40">
-          <div className="flex items-center gap-2 mb-3">
-            <ArrowDownCircle className="h-7 w-7 text-emerald-400" />
-            <h3 className="text-2xl text-white">내 커미션 수입</h3>
+        {/* 내 커미션 수입 - 운영사(레벨2)는 숨김 */}
+        {user.level !== 2 && (
+          <div className="bg-gradient-to-br from-emerald-900/30 to-green-900/30 rounded-lg p-4 border border-emerald-500/40">
+            <div className="flex items-center gap-2 mb-3">
+              <ArrowDownCircle className="h-7 w-7 text-emerald-400" />
+              <h3 className="text-2xl text-white">내 커미션 수입</h3>
+            </div>
+            <div className="space-y-2">
+              <div className="p-3 bg-slate-900/40 rounded">
+                <div className="text-base text-slate-400 mb-1">
+                  🎰 카지노 (롤링 {currentPartner.casino_rolling_commission ?? 0}% / 루징 {currentPartner.casino_losing_commission ?? 0}%)
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-lg text-slate-300">롤링:</span>
+                  <span className="text-xl text-emerald-400 font-semibold">₩{summary.myCasinoRollingIncome.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-lg text-slate-300">루징:</span>
+                  <span className="text-xl text-emerald-400 font-semibold">₩{summary.myCasinoLosingIncome.toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="p-3 bg-slate-900/40 rounded">
+                <div className="text-base text-slate-400 mb-1">
+                  🎲 슬롯 (롤링 {currentPartner.slot_rolling_commission ?? 0}% / 루징 {currentPartner.slot_losing_commission ?? 0}%)
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-lg text-slate-300">롤링:</span>
+                  <span className="text-xl text-emerald-400 font-semibold">₩{summary.mySlotRollingIncome.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-lg text-slate-300">루징:</span>
+                  <span className="text-xl text-emerald-400 font-semibold">₩{summary.mySlotLosingIncome.toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="p-3 bg-slate-900/40 rounded">
+                <div className="text-base text-slate-400 mb-1">
+                  환전 수수료 ({currentPartner.withdrawal_fee ?? 0}%)
+                </div>
+                <div className="text-2xl text-emerald-400 font-bold">
+                  ₩{summary.myWithdrawalIncome.toLocaleString()}
+                </div>
+              </div>
+              <div className="p-3 bg-emerald-500/20 rounded border border-emerald-500/40">
+                <div className="flex justify-between items-center">
+                  <span className="text-xl text-slate-200 font-semibold">총 수입</span>
+                  <span className="text-3xl text-emerald-400 font-bold">₩{summary.myTotalIncome.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="space-y-2">
-            <div className="p-3 bg-slate-900/40 rounded">
-              <div className="text-base text-slate-400 mb-1">
-                🎰 카지노 (롤링 {currentPartner.casino_rolling_commission ?? 0}% / 루징 {currentPartner.casino_losing_commission ?? 0}%)
-              </div>
-              <div className="flex justify-between">
-                <span className="text-lg text-slate-300">롤링:</span>
-                <span className="text-xl text-emerald-400 font-semibold">₩{summary.myCasinoRollingIncome.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-lg text-slate-300">루징:</span>
-                <span className="text-xl text-emerald-400 font-semibold">₩{summary.myCasinoLosingIncome.toLocaleString()}</span>
-              </div>
+        )}
+
+        {/* 베팅 상세 통계 - 운영사(레벨2)일 때 커미션 카드 자리에 표시 */}
+        {user.level === 2 && (
+          <div className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/40">
+            <div className="flex items-center gap-2 mb-3">
+              <Info className="h-7 w-7 text-cyan-400" />
+              <h3 className="text-2xl text-white">베팅 상세 통계</h3>
             </div>
-            <div className="p-3 bg-slate-900/40 rounded">
-              <div className="text-base text-slate-400 mb-1">
-                🎲 슬롯 (롤링 {currentPartner.slot_rolling_commission ?? 0}% / 루징 {currentPartner.slot_losing_commission ?? 0}%)
+            <div className="space-y-3">
+              <div className="p-3 bg-slate-900/40 rounded">
+                <div className="text-lg text-slate-300 mb-2">🎰 카지노</div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-base text-slate-400">베팅:</span>
+                  <span className="text-xl text-slate-300 font-semibold">₩{detailedStats.casinoBetAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-base text-slate-400">승리:</span>
+                  <span className="text-xl text-emerald-400 font-semibold">₩{detailedStats.casinoWinAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base text-slate-400">손실:</span>
+                  <span className="text-xl text-red-400 font-semibold">₩{detailedStats.casinoLossAmount.toLocaleString()}</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-lg text-slate-300">롤링:</span>
-                <span className="text-xl text-emerald-400 font-semibold">₩{summary.mySlotRollingIncome.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-lg text-slate-300">루징:</span>
-                <span className="text-xl text-emerald-400 font-semibold">₩{summary.mySlotLosingIncome.toLocaleString()}</span>
-              </div>
-            </div>
-            <div className="p-3 bg-slate-900/40 rounded">
-              <div className="text-base text-slate-400 mb-1">
-                환전 수수료 ({currentPartner.withdrawal_fee ?? 0}%)
-              </div>
-              <div className="text-2xl text-emerald-400 font-bold">
-                ₩{summary.myWithdrawalIncome.toLocaleString()}
-              </div>
-            </div>
-            <div className="p-3 bg-emerald-500/20 rounded border border-emerald-500/40">
-              <div className="flex justify-between items-center">
-                <span className="text-xl text-slate-200 font-semibold">총 수입</span>
-                <span className="text-3xl text-emerald-400 font-bold">₩{summary.myTotalIncome.toLocaleString()}</span>
+              <div className="p-3 bg-slate-900/40 rounded">
+                <div className="text-lg text-slate-300 mb-2">🎲 슬롯</div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-base text-slate-400">베팅:</span>
+                  <span className="text-xl text-slate-300 font-semibold">₩{detailedStats.slotBetAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-base text-slate-400">승리:</span>
+                  <span className="text-xl text-emerald-400 font-semibold">₩{detailedStats.slotWinAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base text-slate-400">손실:</span>
+                  <span className="text-xl text-red-400 font-semibold">₩{detailedStats.slotLossAmount.toLocaleString()}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* 하위 파트너 지급 */}
         {user.level !== 6 && (
@@ -819,45 +869,47 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         )}
       </div>
 
-      {/* 베팅 상세 통계 - 축소 */}
-      <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
-        <h3 className="text-lg text-slate-300 mb-2 flex items-center gap-2">
-          <Info className="h-5 w-5" />
-          베팅 상세 통계
-        </h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <div className="text-base text-slate-400">🎰 카지노</div>
-            <div className="flex justify-between text-base">
-              <span className="text-slate-500">베팅:</span>
-              <span className="text-slate-300">₩{detailedStats.casinoBetAmount.toLocaleString()}</span>
+      {/* 베팅 상세 통계 - 레벨2가 아닐 때만 하단에 축소 버전 표시 */}
+      {user.level !== 2 && (
+        <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
+          <h3 className="text-lg text-slate-300 mb-2 flex items-center gap-2">
+            <Info className="h-5 w-5" />
+            베팅 상세 통계
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <div className="text-base text-slate-400">🎰 카지노</div>
+              <div className="flex justify-between text-base">
+                <span className="text-slate-500">베팅:</span>
+                <span className="text-slate-300">₩{detailedStats.casinoBetAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-base">
+                <span className="text-slate-500">승리:</span>
+                <span className="text-emerald-400">₩{detailedStats.casinoWinAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-base">
+                <span className="text-slate-500">손실:</span>
+                <span className="text-red-400">₩{detailedStats.casinoLossAmount.toLocaleString()}</span>
+              </div>
             </div>
-            <div className="flex justify-between text-base">
-              <span className="text-slate-500">승리:</span>
-              <span className="text-emerald-400">₩{detailedStats.casinoWinAmount.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-base">
-              <span className="text-slate-500">손실:</span>
-              <span className="text-red-400">₩{detailedStats.casinoLossAmount.toLocaleString()}</span>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-base text-slate-400">🎲 슬롯</div>
-            <div className="flex justify-between text-base">
-              <span className="text-slate-500">베팅:</span>
-              <span className="text-slate-300">₩{detailedStats.slotBetAmount.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-base">
-              <span className="text-slate-500">승리:</span>
-              <span className="text-emerald-400">₩{detailedStats.slotWinAmount.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-base">
-              <span className="text-slate-500">손실:</span>
-              <span className="text-red-400">₩{detailedStats.slotLossAmount.toLocaleString()}</span>
+            <div className="space-y-1">
+              <div className="text-base text-slate-400">🎲 슬롯</div>
+              <div className="flex justify-between text-base">
+                <span className="text-slate-500">베팅:</span>
+                <span className="text-slate-300">₩{detailedStats.slotBetAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-base">
+                <span className="text-slate-500">승리:</span>
+                <span className="text-emerald-400">₩{detailedStats.slotWinAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-base">
+                <span className="text-slate-500">손실:</span>
+                <span className="text-red-400">₩{detailedStats.slotLossAmount.toLocaleString()}</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
