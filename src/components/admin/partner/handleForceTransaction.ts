@@ -108,17 +108,12 @@ export async function handleForceTransaction(
           return;
         }
       }
-      // Lv2 → Lv3 GMS 입금 시: oroplay_balance만 검증
-      else if (isLv2ToLv3 && !data.apiType) {
-        const oroplayBalance = adminPartner.oroplay_balance || 0;
-        
-        if (data.amount > oroplayBalance) {
-          toast.error(`OroPlay API 보유금이 부족합니다. (현재: ${oroplayBalance.toLocaleString()}원)`);
-          return;
-        }
+      // ✅ Lv2 → Lv3+ 입금 시: 보유금 검증 건너뜀 (API 동기화로 관리)
+      else if (adminPartner.level === 2) {
+        console.log('💰 [입금] Lv2는 보유금 검증 건너뜀 (API 동기화로 관리)');
       }
-      // 일반 검증 (Lv3~6)
-      else if (!isLv1ToLv2 && !isLv2ToLv3 && adminPartner.balance < data.amount) {
+      // 일반 검증 (Lv3~6만)
+      else if (adminPartner.level >= 3 && adminPartner.balance < data.amount) {
         toast.error(t.partnerManagement.balanceInsufficientError.replace('{{balance}}', adminPartner.balance.toLocaleString()));
         return;
       }
@@ -126,13 +121,50 @@ export async function handleForceTransaction(
 
     // ✅ 5. Lv1 → Lv2 입금은 외부 API 호출 없이 DB만 업데이트
     if (isLv1ToLv2 && data.type === 'deposit' && data.apiType) {
-      console.log('✅ [Lv1→Lv2 입금] Lv1 외부 지갑은 변경하지 않고 Lv2에게만 할당');
+      console.log('✅ [Lv1→Lv2 입금] Lv1의 api_configs 차감 + Lv2 지갑 증가');
       
       const balanceField = data.apiType === 'invest' ? 'invest_balance' : 'oroplay_balance';
       const currentBalance = (data.apiType === 'invest' ? targetPartner.invest_balance : targetPartner.oroplay_balance) || 0;
       const newBalance = currentBalance + data.amount;
 
-      // ✅ partners 테이블 API별 잔고 업데이트
+      // ✅ 1) Lv1의 api_configs.balance 차감
+      const { data: apiConfig, error: apiConfigError } = await supabase
+        .from('api_configs')
+        .select('balance')
+        .eq('partner_id', authUserId)
+        .eq('api_provider', data.apiType)
+        .maybeSingle();
+
+      if (apiConfigError || !apiConfig) {
+        toast.error('API 설정을 찾을 수 없습니다.');
+        console.error('❌ API 설정 조회 실패:', apiConfigError);
+        return;
+      }
+
+      const lv1NewBalance = (apiConfig.balance || 0) - data.amount;
+
+      const { error: lv1UpdateError } = await supabase
+        .from('api_configs')
+        .update({ 
+          balance: lv1NewBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('partner_id', authUserId)
+        .eq('api_provider', data.apiType);
+
+      if (lv1UpdateError) {
+        toast.error('Lv1 API 잔고 차감 실패');
+        console.error('❌ Lv1 api_configs 업데이트 실패:', lv1UpdateError);
+        return;
+      }
+
+      console.log(`✅ Lv1 api_configs.${data.apiType}.balance 차감:`, {
+        before: apiConfig.balance,
+        after: lv1NewBalance,
+        amount: -data.amount
+      });
+
+      // ✅ 2) Lv2 partners 테이블 API별 잔고 증가
       const { error: updateError } = await supabase
         .from('partners')
         .update({ 
@@ -181,13 +213,13 @@ export async function handleForceTransaction(
 
     // ✅ 6. Lv1 → Lv2 출금도 외부 API 호출 없이 DB만 업데이트
     if (isLv1ToLv2 && data.type === 'withdrawal' && data.apiType) {
-      console.log('✅ [Lv1→Lv2 출금] Lv1 외부 지갑은 변경하지 않고 Lv2에서만 회수');
+      console.log('✅ [Lv1→Lv2 출금] Lv1의 api_configs 증가 + Lv2 지갑 차감');
 
       const balanceField = data.apiType === 'invest' ? 'invest_balance' : 'oroplay_balance';
       const currentBalance = (data.apiType === 'invest' ? targetPartner.invest_balance : targetPartner.oroplay_balance) || 0;
       const newBalance = currentBalance - data.amount;
 
-      // Lv2 partners 테이블 API별 잔고 업데이트
+      // ✅ 1) Lv2 partners 테이블 API별 잔고 차감
       const { error: updateError } = await supabase
         .from('partners')
         .update({ 
@@ -206,6 +238,43 @@ export async function handleForceTransaction(
         before: currentBalance,
         after: newBalance,
         amount: -data.amount
+      });
+
+      // ✅ 2) Lv1의 api_configs.balance 증가
+      const { data: apiConfig, error: apiConfigError } = await supabase
+        .from('api_configs')
+        .select('balance')
+        .eq('partner_id', authUserId)
+        .eq('api_provider', data.apiType)
+        .maybeSingle();
+
+      if (apiConfigError || !apiConfig) {
+        toast.error('API 설정을 찾을 수 없습니다.');
+        console.error('❌ API 설정 조회 실패:', apiConfigError);
+        return;
+      }
+
+      const lv1NewBalance = (apiConfig.balance || 0) + data.amount;
+
+      const { error: lv1UpdateError } = await supabase
+        .from('api_configs')
+        .update({ 
+          balance: lv1NewBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('partner_id', authUserId)
+        .eq('api_provider', data.apiType);
+
+      if (lv1UpdateError) {
+        toast.error('Lv1 API 잔고 증가 실패');
+        console.error('❌ Lv1 api_configs 업데이트 실패:', lv1UpdateError);
+        return;
+      }
+
+      console.log(`✅ Lv1 api_configs.${data.apiType}.balance 증가:`, {
+        before: apiConfig.balance,
+        after: lv1NewBalance,
+        amount: data.amount
       });
 
       // 로그 기록
@@ -278,22 +347,11 @@ export async function handleForceTransaction(
         fetchPartners();
         return;
       }
-      // ✅ Lv2 → Lv4~6 입금: Lv2의 두 개 지갑 중 하나 차감, Lv4~6 증가
-      if (adminPartner.level === 2 && targetPartner.level >= 4 && data.apiType) {
-        // Lv2의 invest_balance 또는 oroplay_balance 차감
-        const balanceField = data.apiType === 'invest' ? 'invest_balance' : 'oroplay_balance';
-        const currentBalance = (data.apiType === 'invest' ? adminPartner.invest_balance : adminPartner.oroplay_balance) || 0;
-        const newLv2Balance = currentBalance - data.amount;
+      // ✅ Lv2 → Lv4~6 입금: Lv2 보유금 변동 없음 (4초마다 API 동기화), Lv4~6만 증가
+      if (adminPartner.level === 2 && targetPartner.level >= 4) {
+        console.log('✅ [Lv2→Lv4~6 입금] Lv2 보유금 변동 없음, 대상만 증가');
         
-        await supabase
-          .from('partners')
-          .update({ 
-            [balanceField]: newLv2Balance,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', authUserId);
-
-        // 대상 파트너(Lv4~6) balance 증가
+        // 대상 파트너(Lv4~6) balance 증가만
         targetNewBalance = targetPartner.balance + data.amount;
         await supabase
           .from('partners')
@@ -312,10 +370,16 @@ export async function handleForceTransaction(
             from_partner_id: authUserId,
             to_partner_id: data.targetId,
             processed_by: authUserId,
-            memo: `[강제입금] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 입금${data.memo ? `: ${data.memo}` : ''}`
+            memo: `[강제입금] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 입금 (Lv2는 API 동기화로 관리)${data.memo ? `: ${data.memo}` : ''}`
           });
+
+        toast.success(t.partnerManagement.depositCompleted
+          .replace('{{nickname}}', targetPartner.nickname)
+          .replace('{{amount}}', data.amount.toLocaleString()));
+        fetchPartners();
+        return;
       }
-      // 일반 입금: 관리자 차감, 파트너 증가
+      // Lv3~6 일반 입금: 관리자 차감, 파트너 증가
       else {
         adminNewBalance = adminPartner.balance - data.amount;
         await supabase
@@ -384,27 +448,16 @@ export async function handleForceTransaction(
         fetchPartners();
         return;
       }
-      // ✅ Lv2 → Lv4~6 출금: Lv4~6 차감, Lv2의 두 개 지갑 중 하나 증가
-      if (adminPartner.level === 2 && targetPartner.level >= 4 && data.apiType) {
-        // 대상 파트너(Lv4~6) balance 차감
+      // ✅ Lv2 → Lv4~6 출금: Lv2 보유금 변동 없음 (4초마다 API 동기화), Lv4~6만 차감
+      if (adminPartner.level === 2 && targetPartner.level >= 4) {
+        console.log('✅ [Lv2→Lv4~6 회수] Lv2 보유금 변동 없음, 대상만 차감');
+        
+        // 대상 파트너(Lv4~6) balance 차감만
         targetNewBalance = targetPartner.balance - data.amount;
         await supabase
           .from('partners')
           .update({ balance: targetNewBalance, updated_at: new Date().toISOString() })
           .eq('id', data.targetId);
-
-        // Lv2의 invest_balance 또는 oroplay_balance 증가
-        const balanceField = data.apiType === 'invest' ? 'invest_balance' : 'oroplay_balance';
-        const currentBalance = (data.apiType === 'invest' ? adminPartner.invest_balance : adminPartner.oroplay_balance) || 0;
-        const newLv2Balance = currentBalance + data.amount;
-        
-        await supabase
-          .from('partners')
-          .update({ 
-            [balanceField]: newLv2Balance,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', authUserId);
 
         // ✅ 로그 기록
         await supabase
@@ -418,10 +471,16 @@ export async function handleForceTransaction(
             from_partner_id: data.targetId,
             to_partner_id: authUserId,
             processed_by: authUserId,
-            memo: `[강제출금] ${adminPartner.nickname}에게 ${data.amount.toLocaleString()}원 출금${data.memo ? `: ${data.memo}` : ''}`
+            memo: `[강제출금] ${adminPartner.nickname}에게 ${data.amount.toLocaleString()}원 출금 (Lv2는 API 동기화로 관리)${data.memo ? `: ${data.memo}` : ''}`
           });
+
+        toast.success(t.partnerManagement.withdrawalCompleted
+          .replace('{{nickname}}', targetPartner.nickname)
+          .replace('{{amount}}', data.amount.toLocaleString()));
+        fetchPartners();
+        return;
       }
-      // 일반 출금: 파트너 차감, 관리자 증가
+      // Lv3~6 일반 출금: 파트너 차감, 관리자 증가
       else {
         targetNewBalance = targetPartner.balance - data.amount;
         await supabase

@@ -50,6 +50,8 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   const fetchBalance = async () => {
     if (!user?.id || !isMountedRef.current) return;
     
+    console.log('🔍 [Benz] 보유금 조회 시작 - user_id:', user.id);
+    
     try {
       const { data, error } = await supabase
         .from('users')
@@ -57,16 +59,24 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         .eq('id', user.id)
         .single();
 
-      if (error) throw error;
+      console.log('📊 [Benz] DB 조회 결과:', { data, error });
+
+      if (error) {
+        console.error('❌ [Benz] 보유금 조회 오류:', error);
+        throw error;
+      }
       
       if (data && isMountedRef.current) {
-        setUserBalance({
+        const newBalance = {
           balance: parseFloat(data.balance) || 0,
           points: parseFloat(data.points) || 0
-        });
+        };
+        
+        console.log('✅ [Benz] 보유금 설정:', newBalance);
+        setUserBalance(newBalance);
       }
     } catch (error) {
-      console.error('잔고 조회 오류:', error);
+      console.error('❌ [Benz] 잔고 조회 오류:', error);
     }
   };
 
@@ -74,15 +84,24 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   // 보유금 실시간 구독
   // ==========================================================================
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      // ⚠️ 로그인 전에는 정상적으로 user가 없음 (경고 레벨로 변경)
+      return; // 조용히 종료
+    }
 
     // ⭐ 컴포넌트 마운트 상태 초기화
     isMountedRef.current = true;
 
+    console.log('🔵 [Benz] 보유금 실시간 구독 시작:', {
+      userId: user.id,
+      username: user.username,
+      channelName: `benz_user_balance_${user.id}`
+    });
+
     // 초기 잔고 조회
     fetchBalance();
 
-    // Realtime 구독 설정
+    // ⭐ UserHeader와 완전히 동일한 방식으로 구독 (filter 사용)
     balanceChannelRef.current = supabase
       .channel(`benz_user_balance_${user.id}`)
       .on(
@@ -91,21 +110,40 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           event: 'UPDATE',
           schema: 'public',
           table: 'users',
-          filter: `id=eq.${user.id}`
+          filter: `id=eq.${user.id}`  // ⭐ filter 복원
         },
         (payload) => {
+          console.log('💰💰💰 [Benz] ========================================');
+          console.log('💰 [Benz] Realtime 보유금 업데이트 수신!!!');
+          console.log('💰 [Benz] Payload:', JSON.stringify(payload, null, 2));
+          console.log('💰 [Benz] isMountedRef.current:', isMountedRef.current);
+          console.log('💰💰💰 [Benz] ========================================');
+          
           if (isMountedRef.current) {
             const newData = payload.new as any;
-            setUserBalance({
+            const newBalance = {
               balance: parseFloat(newData.balance) || 0,
               points: parseFloat(newData.points) || 0
-            });
+            };
+            
+            console.log('✅ [Benz] 보유금 상태 업데이트:', newBalance);
+            setUserBalance(newBalance);
+          } else {
+            console.warn('⚠️ [Benz] 컴포넌트 언마운트됨 - 업데이트 스킵');
           }
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log('📡📡📡 [Benz] ========================================');
+        console.log('📡 [Benz] Realtime 구독 상태 변경:', status);
+        if (err) {
+          console.error('❌ [Benz] Realtime 구독 오류:', err);
+        }
+        console.log('📡📡📡 [Benz] ========================================');
+      });
 
     return () => {
+      console.log('🔴 [Benz] 보유금 실시간 구독 해제:', user.id);
       isMountedRef.current = false;
       if (balanceChannelRef.current) {
         supabase.removeChannel(balanceChannelRef.current);
@@ -115,7 +153,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   }, [user?.id]);
 
   // ==========================================================================
-  // 보유금 동기화 함수
+  // 보유금 동기화 함수 (단순 조회만 - Realtime ended 이벤트용)
   // ==========================================================================
   const syncBalanceForSession = async (sessionId: number) => {
     if (syncingSessionsRef.current.has(sessionId)) {
@@ -197,22 +235,38 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         return;
       }
 
-      // 4. Lv1 파트너의 api_configs에서 credential 조회
+      // 4. 게임 세션의 api_type 확인
+      const { data: sessionData, error: sessionDataError } = await supabase
+        .from('game_launch_sessions')
+        .select('api_type')
+        .eq('id', sessionId)
+        .single();
+
+      if (sessionDataError || !sessionData) {
+        console.error(`❌ [Benz 보유금 동기화] 세션 api_type 조회 실패:`, sessionDataError);
+        return;
+      }
+
+      // 5. Lv1 파트너의 api_configs에서 credential 조회
+      const apiProvider = sessionData.api_type === 'invest' ? 'invest' : 
+                         sessionData.api_type === 'oroplay' ? 'oroplay' :
+                         sessionData.api_type === 'familyapi' ? 'familyapi' : 'honorapi';
+      
       const { data: apiConfig, error: configError } = await supabase
         .from('api_configs')
         .select('opcode, token, secret_key')
         .eq('partner_id', topLevelPartnerId)
-        .eq('api_provider', 'invest')
+        .eq('api_provider', apiProvider)
         .single();
 
       if (configError || !apiConfig || !apiConfig.opcode || !apiConfig.token || !apiConfig.secret_key) {
-        console.error(`❌ [Benz 보유금 동기화] API 설정 누락: partner_id=${topLevelPartnerId}`, configError);
+        console.error(`❌ [Benz 보유금 동기화] API 설정 누락: partner_id=${topLevelPartnerId}, api_type=${sessionData.api_type}`, configError);
         return;
       }
 
-      console.log(`   📍 사용 credential: partner_id=${topLevelPartnerId}`);
+      console.log(`   📍 사용 credential: partner_id=${topLevelPartnerId}, api_type=${sessionData.api_type}`);
 
-      // 5. 보유금 조회
+      // 6. 보유금 조회 (출금 없이 조회만)
       const balanceResult = await getUserBalanceWithConfig(
         apiConfig.opcode,
         username,
@@ -257,6 +311,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
       try {
         console.log('🔄 [Benz 게임창 닫힘] 세션 종료:', sessionId);
         
+        // ⭐ 1. 세션 정보 조회 (user_id, api_type, status 확인)
         const { data: session, error: sessionError } = await supabase
           .from('game_launch_sessions')
           .select('user_id, api_type, status')
@@ -268,17 +323,34 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           return;
         }
 
+        // ⭐ active 상태만 처리 (이미 종료된 세션은 무시)
         if (session.status !== 'active') {
           console.log(`⏭️ [Benz 게임창 닫힘] 이미 종료된 세션: status=${session.status}`);
           return;
         }
 
-        const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
-        await syncBalanceOnSessionEnd(session.user_id, session.api_type);
-        
-        console.log('✅ [Benz 게임창 닫힘] 처리 완료');
+        // ⭐ 중복 실행 방지
+        if (syncingSessionsRef.current.has(sessionId)) {
+          console.log(`⏭️ [Benz 게임창 닫힘] 이미 처리 중인 세션: ${sessionId}`);
+          return;
+        }
+
+        syncingSessionsRef.current.add(sessionId);
+
+        try {
+          // ⭐ 2. lib/gameApi.ts의 syncBalanceOnSessionEnd 호출 (완전한 출금 로직)
+          const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
+          await syncBalanceOnSessionEnd(session.user_id, session.api_type);
+          
+          console.log('✅ [Benz 게임창 닫힘] 처리 완료');
+        } finally {
+          syncingSessionsRef.current.delete(sessionId);
+        }
       } catch (error) {
         console.error('❌ [Benz 게임창 닫힘 오류]:', error);
+        syncingSessionsRef.current.delete(sessionId);
+        
+        // 에러 발생 시에도 세션은 종료
         try {
           await supabase
             .from('game_launch_sessions')
@@ -288,7 +360,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
             })
             .eq('id', sessionId);
         } catch (e) {
-          console.error('❌ [세션 종료 실패]:', e);
+          console.error('❌ [Benz 세션 종료 실패]:', e);
         }
       }
     };
@@ -326,7 +398,10 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
             
             console.log('🛑 [Benz 세션 종료]', newSession.id, newSession.status);
             
+            // 게임창 닫기
             (window as any).forceCloseGameWindow?.(newSession.id);
+            
+            // 보유금 동기화
             await syncBalanceForSession(newSession.id);
             
             if (newSession.status === 'force_ended') {

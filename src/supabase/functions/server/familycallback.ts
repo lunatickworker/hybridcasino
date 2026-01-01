@@ -193,7 +193,7 @@ export async function handleChangeBalanceCallback(
       is_cancel: isCancel === 1,
       is_bonus: isBonus === 1,
       created_at: new Date(requestAt).toISOString()
-    });
+    } as any);  // ⭐ id는 자동 생성되므로 제외
 
     const responseData = {
       result_code: '0',
@@ -337,7 +337,7 @@ export async function handleChangeBalanceSlotCallback(
       is_cancel: isCancel === 1,
       is_bonus: isBonus === 1,
       created_at: new Date(requestAt).toISOString()
-    });
+    } as any);  // ⭐ id는 자동 생성되므로 제외
 
     const responseData = {
       result_code: '0',

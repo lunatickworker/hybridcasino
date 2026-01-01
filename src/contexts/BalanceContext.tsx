@@ -61,11 +61,15 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
 
     try {
       // partners 테이블에서 기본 balance 조회
+      console.log('🔍 [Balance] partners 조회 시작:', { userId: user.id, level: user.level });
+      
       const { data, error: dbError } = await supabase
         .from('partners')
         .select('balance')
         .eq('id', user.id)
-        .single();
+        .maybeSingle(); // ⭐ single() → maybeSingle() (0개 결과 허용)
+
+      console.log('🔍 [Balance] partners 조회 결과:', { data, error: dbError });
 
       if (dbError) {
         // Supabase 연결 안 됨 - 조용히 실패
@@ -75,6 +79,23 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         }
         console.error('❌ [Balance] partners 테이블 조회 실패:', dbError);
         setError(dbError.message);
+        return;
+      }
+
+      // ⭐ 데이터가 없으면 조용히 0으로 설정
+      if (!data) {
+        console.warn('⚠️ [Balance] partners 데이터 없음 (user.id:', user.id, ')');
+        
+        // 🔍 추가 디버깅: RLS 때문인지 확인
+        console.log('🔍 [Balance] RLS 정책 확인 중...');
+        const { count, error: countError } = await supabase
+          .from('partners')
+          .select('*', { count: 'exact', head: true });
+        
+        console.log('🔍 [Balance] 전체 partners 테이블 레코드 수:', count, '에러:', countError);
+        
+        setBalance(0);
+        setLoading(false);
         return;
       }
 
@@ -391,10 +412,14 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           .eq('level', 1)
           .order('created_at', { ascending: true })
           .limit(1)
-          .single();
+          .maybeSingle(); // ⭐ single() → maybeSingle()
         
         if (!lv1Partner) {
-          throw new Error('Lv1 파트너를 찾을 수 없습니다');
+          console.warn('⚠️ [Balance] Lv1 파트너를 찾을 수 없습니다');
+          if (isManual) {
+            toast.error('Lv1 파트너가 존재하지 않습니다. 시스템 관리자에게 문의하세요.');
+          }
+          return;
         }
         partnerId = lv1Partner.id;
       }

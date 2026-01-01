@@ -277,7 +277,7 @@ export function Dashboard({ user }: DashboardProps) {
         .select('id')
         .eq('referrer_id', user.id);
       
-      directUserIds = directUsersData?.map(u => u.id) || [];
+      directUserIds = directUsersData?.map(u => u.id).filter(id => id && id !== 'null') || [];
       
       // ✅ 하위 파트너 회원 ID 목록 (referrer_id가 하위 파트너들)
       let subPartnerUserIds: string[] = [];
@@ -289,7 +289,7 @@ export function Dashboard({ user }: DashboardProps) {
           .select('id')
           .in('referrer_id', subPartnerIds);
         
-        subPartnerUserIds = subUsersData?.map(u => u.id) || [];
+        subPartnerUserIds = subUsersData?.map(u => u.id).filter(id => id && id !== 'null') || [];
       }
 
       // 1️⃣ 직속 회원 입금

@@ -1,29 +1,27 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import { useState, useEffect, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
-import { Label } from "../ui/label";
-import { Switch } from "../ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
+import { Switch } from "../ui/switch";
 import { 
   Settings, 
   RefreshCw, 
-  AlertCircle, 
   CheckCircle, 
-  Shield, 
   Menu as MenuIcon,
-  ChevronDown,
+  Search,
+  Save,
   ChevronRight,
   Eye,
   EyeOff,
-  Layers,
-  Building2
+  CheckSquare,
+  Square,
+  Users
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { Partner } from "../../types";
 import { supabase } from "../../lib/supabase";
 import { getPartnerLevelText } from "../../lib/utils";
-import { useLanguage } from "../../contexts/LanguageContext";
 
 interface MenuPermission {
   id: string;
@@ -34,18 +32,6 @@ interface MenuPermission {
   display_order: number;
   parent_menu?: string;
   description?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface PartnerMenuPermission {
-  id: string;
-  partner_id: string;
-  menu_permission_id: string;
-  is_enabled: boolean;
-  created_at: string;
-  updated_at: string;
-  menu_permission?: MenuPermission;
 }
 
 interface MenuManagementProps {
@@ -53,799 +39,583 @@ interface MenuManagementProps {
 }
 
 interface GroupedMenus {
-  [key: string]: PartnerMenuPermission[];
+  [key: string]: {
+    menu: MenuPermission;
+    isEnabled: boolean;
+  }[];
 }
 
 export function MenuManagement({ user }: MenuManagementProps) {
-  const { t } = useLanguage();
   const [partners, setPartners] = useState<Partner[]>([]);
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>("");
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
-  const [menuPermissions, setMenuPermissions] = useState<MenuPermission[]>([]);
-  const [partnerMenuPermissions, setPartnerMenuPermissions] = useState<PartnerMenuPermission[]>([]);
+  const [allMenus, setAllMenus] = useState<MenuPermission[]>([]);
+  const [enabledMenuPaths, setEnabledMenuPaths] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [menuLoading, setMenuLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [rollbackLoading, setRollbackLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [hasChanges, setHasChanges] = useState(false);
+  const [showHiddenMenus, setShowHiddenMenus] = useState(false);
 
-  // 파트너 목록 로드 (계층 구조 고려)
-  const loadPartners = async () => {
+  // 파트너 목록 로드
+  const loadPartners = useCallback(async () => {
     try {
       setLoading(true);
       
-      // 시스템관리자는 모든 파트너 조회
-      if (user.level === 1) {
-        const { data, error } = await supabase
-          .from('partners')
-          .select('id, username, nickname, level, status')
-          .eq('status', 'active')
-          .order('level', { ascending: true })
-          .order('nickname', { ascending: true });
+      // ✅ 자기보다 하위 레벨 파트너만 조회 (레벨 숫자가 큰 것)
+      const { data, error } = await supabase
+        .from('partners')
+        .select('*')
+        .eq('status', 'active')
+        .gt('level', user.level)  // 자기보다 레벨이 높은 숫자 (하위 파트너)
+        .order('level', { ascending: true })
+        .order('nickname', { ascending: true });
 
-        if (error) throw error;
-        
-        setPartners(data || []);
-        
-        if (!data || data.length === 0) {
-          toast.warning(t.menuManagement.noActivePartners);
-        }
-      } else {
-        // 대본사 등: 모든 하위 파트너 재귀 조회 (자기 자신 제외)
-        const { data, error } = await supabase
-          .rpc('get_hierarchical_partners', { p_partner_id: user.id });
-
-        if (error) {
-          console.error('하위 파트너 조회 실패:', error);
-          // RPC 실패 시 직접 하위만 조회
-          const { data: directChildren, error: directError } = await supabase
-            .from('partners')
-            .select('id, username, nickname, level, status')
-            .eq('status', 'active')
-            .eq('parent_id', user.id)
-            .order('level', { ascending: true })
-            .order('nickname', { ascending: true });
-
-          if (directError) {
-            console.error('직접 하위 조회도 실패:', directError);
-            setPartners([]);
-          } else {
-            setPartners(directChildren || []);
-            if (!directChildren || directChildren.length === 0) {
-              toast.warning(t.menuManagement.noPartners);
-            }
-          }
-        } else {
-          const activePartners = (data || []).filter((p: any) => p.status === 'active');
-          setPartners(activePartners);
-          
-          console.log('✅ 계층 파트너 조회 완료:', {
-            total: activePartners.length,
-            by_level: activePartners.reduce((acc: any, p: any) => {
-              acc[p.level] = (acc[p.level] || 0) + 1;
-              return acc;
-            }, {})
-          });
-          
-          if (activePartners.length === 0) {
-            toast.warning(t.menuManagement.noPartners);
-          }
-        }
-      }
-    } catch (error) {
+      if (error) throw error;
+      setPartners(data || []);
+    } catch (error: any) {
       console.error('파트너 목록 로드 실패:', error);
-      toast.error(t.menuManagement.loadPartnersFailed);
+      toast.error('파트너 목록을 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
-  // 기본 메뉴 권한 목록 로드
-  const loadMenuPermissions = async () => {
+  // 전체 메뉴 목록 로드
+  const loadAllMenus = useCallback(async () => {
     try {
-      // ✅ 모든 파트너가 모든 메뉴를 볼 수 있도록 변경
-      const { data, error, count } = await supabase
+      let query = supabase
         .from('menu_permissions')
-        .select('*', { count: 'exact' })
-        .eq('is_visible', true)
+        .select('*');
+      
+      // Lv1: showHiddenMenus 옵션에 따라 필터링
+      // Lv2 이상: 항상 노출된 메뉴만
+      if (user.level === 1) {
+        if (!showHiddenMenus) {
+          query = query.eq('is_visible', true);
+        }
+      } else {
+        query = query.eq('is_visible', true);
+      }
+      
+      const { data, error } = await query
         .order('display_order', { ascending: true })
         .order('menu_name', { ascending: true });
 
-      console.log('메뉴 권한 조회 결과:', { 
-        success: !error, 
-        count: count, 
-        dataLength: data?.length,
-        error: error 
-      });
-
-      if (error) {
-        console.error('메뉴 권한 목록 로드 에러:', error);
-        
-        if (error.code === 'PGRST116' || error.message?.includes('permission')) {
-          toast.error('메뉴 데이터 접근 권한이 없습니다.');
-        } else {
-          toast.error(`메뉴 권한 목록을 불러오는데 실패했습니다: ${error.message}`);
-        }
-        
-        setMenuPermissions([]);
-        return;
-      }
-      
-      setMenuPermissions(data || []);
-      
-      if (!data || data.length === 0) {
-        toast.warning('메뉴 권한 데이터가 없습니다. DB 스키마(205번)를 실행해주세요.', {
-          description: 'Supabase SQL Editor에서 database/205_menu-management-schema.sql 파일을 실행하세요.'
-        });
-      } else {
-        console.log(`✅ 메뉴 권한 ${data.length}개 로드 성공`);
-      }
+      if (error) throw error;
+      setAllMenus(data || []);
     } catch (error: any) {
-      console.error('메뉴 권한 목록 로드 실패:', error);
-      toast.error('메뉴 권한 목록을 불러오는데 실패했습니다.');
-      setMenuPermissions([]);
+      console.error('메뉴 목록 로드 실패:', error);
+      toast.error('메뉴 목록을 불러오는데 실패했습니다.');
     }
-  };
+  }, [showHiddenMenus, user.level]);
 
   // 선택된 파트너의 메뉴 권한 로드
-  const loadPartnerMenuPermissions = async (partnerId: string) => {
+  const loadPartnerMenus = useCallback(async (partnerId: string) => {
     if (!partnerId) {
-      setPartnerMenuPermissions([]);
+      setEnabledMenuPaths([]);
       setSelectedPartner(null);
       return;
     }
 
     try {
-      setMenuLoading(true);
+      setLoading(true);
       
-      // 선택된 파트너 정보 설정
       const partner = partners.find(p => p.id === partnerId);
       setSelectedPartner(partner || null);
 
-      if (!partner) {
-        toast.error('선택된 파트너 정보를 찾을 수 없습니다.');
-        return;
-      }
+      // partners 테이블에서 menu_permissions JSONB 컬럼 조회
+      const { data, error } = await supabase
+        .from('partners')
+        .select('menu_permissions')
+        .eq('id', partnerId)
+        .single();
 
-      // ✅ 하위 조직의 경우 상위 파트너가 활성화한 메뉴만 표시
-      let availableMenus = menuPermissions;
-      
-      // 시스템관리자(level 1)가 아닌 하위 파트너를 관리하는 경우
-      if (user.level !== 1 && partner.parent_id) {
-        // 상위 파트너의 활성화된 메뉴만 조회
-        const { data: parentMenus, error: parentError } = await supabase
-          .from('partner_menu_permissions')
-          .select(`
-            menu_permission_id,
-            is_enabled,
-            menu_permission:menu_permissions(*)
-          `)
-          .eq('partner_id', partner.parent_id)
-          .eq('is_enabled', true);
+      if (error) throw error;
 
-        if (parentError) {
-          console.error('상위 파트너 메뉴 조회 오류:', parentError);
-        } else if (parentMenus && parentMenus.length > 0) {
-          // 상위 파트너가 활성화한 메뉴만 필터링
-          const parentMenuIds = new Set(parentMenus.map(pm => pm.menu_permission_id));
-          availableMenus = menuPermissions.filter(menu => parentMenuIds.has(menu.id));
-        }
-      }
-      
-      // 기존 파트너별 메뉴 권한 조회
-      const { data: existingPermissions, error: permError } = await supabase
-        .from('partner_menu_permissions')
-        .select(`
-          *,
-          menu_permission:menu_permissions(*)
-        `)
-        .eq('partner_id', partnerId);
-
-      if (permError) throw permError;
-
-      // 기존 권한이 없는 메뉴들에 대해 기본 권한 생성
-      const missingMenus = availableMenus.filter(menu => 
-        !existingPermissions?.some(pmp => pmp.menu_permission_id === menu.id)
-      );
-
-      if (missingMenus.length > 0) {
-        // ✅ 레벨별로 메뉴 기본 활성화 여부 결정
-        // 파트너의 level이 menu의 partner_level 이하면 기본 활성화
-        const newPermissions = missingMenus.map(menu => ({
-          partner_id: partnerId,
-          menu_permission_id: menu.id,
-          is_enabled: partner.level <= menu.partner_level  // 레벨별 기본 활성화
-        }));
-
-        const { error: insertError } = await supabase
-          .from('partner_menu_permissions')
-          .insert(newPermissions);
-
-        if (insertError) {
-          console.error('기본 메뉴 권한 생성 실패:', insertError);
-        }
-      }
-
-      // 다시 조회하여 최신 데이터 가져오기
-      const { data: updatedPermissions, error: updatedError } = await supabase
-        .from('partner_menu_permissions')
-        .select(`
-          *,
-          menu_permission:menu_permissions(*)
-        `)
-        .eq('partner_id', partnerId);
-
-      if (updatedError) throw updatedError;
-
-      const formattedPermissions = (updatedPermissions || []).map(pmp => ({
-        ...pmp,
-        menu_permission: Array.isArray(pmp.menu_permission) 
-          ? pmp.menu_permission[0] 
-          : pmp.menu_permission
-      }));
-
-      // ✅ 상위 파트너가 활성화한 메뉴만 표시 (availableMenus 기준으로 필터링)
-      const availableMenuIds = new Set(availableMenus.map(m => m.id));
-      const filteredPermissions = formattedPermissions.filter(pmp => 
-        availableMenuIds.has(pmp.menu_permission_id)
-      );
-
-      setPartnerMenuPermissions(filteredPermissions);
-      
-      // 모든 그룹 기본적으로 펼치기
-      const groups = new Set(filteredPermissions
-        .map(pmp => pmp.menu_permission?.parent_menu || '기본 메뉴')
-        .filter(Boolean));
-      setExpandedGroups(groups);
-
-    } catch (error) {
+      // JSONB에서 메뉴 ID 배열 추출
+      const menuPermissions = data?.menu_permissions || [];
+      setEnabledMenuPaths(Array.isArray(menuPermissions) ? menuPermissions : []);
+      setHasChanges(false);
+    } catch (error: any) {
       console.error('파트너 메뉴 권한 로드 실패:', error);
       toast.error('파트너 메뉴 권한을 불러오는데 실패했습니다.');
-      setPartnerMenuPermissions([]);
     } finally {
-      setMenuLoading(false);
+      setLoading(false);
+    }
+  }, [partners]);
+
+  // 메뉴 권한 토글
+  const toggleMenuPermission = (menuPath: string, enabled: boolean) => {
+    setEnabledMenuPaths(prev => {
+      if (enabled) {
+        return [...prev, menuPath];
+      } else {
+        return prev.filter(path => path !== menuPath);
+      }
+    });
+    setHasChanges(true);
+  };
+
+  // 메뉴 노출/비노출 토글 (Lv1만 가능)
+  const toggleMenuVisibility = async (menuId: string, visible: boolean) => {
+    if (user.level !== 1) {
+      toast.error('시스템 관리자만 메뉴 노출 설정을 변경할 수 있습니다.');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('menu_permissions')
+        .update({ is_visible: visible })
+        .eq('id', menuId);
+
+      if (error) throw error;
+
+      toast.success(`메뉴가 ${visible ? '노출' : '비노출'} 상태로 변경되었습니다.`);
+      loadAllMenus();
+      
+      // 현재 선택된 파트너 메뉴도 다시 로드
+      if (selectedPartnerId) {
+        loadPartnerMenus(selectedPartnerId);
+      }
+    } catch (error: any) {
+      console.error('메뉴 노출 설정 변경 실패:', error);
+      toast.error('메뉴 노출 설정 변경에 실패했습니다.');
     }
   };
 
-  // 파트너 메뉴 권한 업데이트
-  const updatePartnerMenuPermission = async (permission: PartnerMenuPermission, enabled: boolean) => {
+  // 전체 선택/해제
+  const toggleAllMenus = (enabled: boolean) => {
+    if (enabled) {
+      setEnabledMenuPaths(allMenus.map(m => m.menu_path));
+    } else {
+      setEnabledMenuPaths([]);
+    }
+    setHasChanges(true);
+  };
+
+  // 그룹별 선택/해제
+  const toggleGroupMenus = (groupName: string, enabled: boolean) => {
+    const groupMenus = allMenus.filter(m => (m.parent_menu || '기본 메뉴') === groupName);
+    const groupMenuPaths = groupMenus.map(m => m.menu_path);
+
+    if (enabled) {
+      setEnabledMenuPaths(prev => {
+        const newPaths = [...prev];
+        groupMenuPaths.forEach(path => {
+          if (!newPaths.includes(path)) {
+            newPaths.push(path);
+          }
+        });
+        return newPaths;
+      });
+    } else {
+      setEnabledMenuPaths(prev => prev.filter(path => !groupMenuPaths.includes(path)));
+    }
+    setHasChanges(true);
+  };
+
+  // 저장
+  const saveChanges = async () => {
+    if (!selectedPartnerId) {
+      toast.error('파트너를 선택해주세요.');
+      return;
+    }
+
     try {
       setSaving(true);
 
-      const menuName = permission.menu_permission?.menu_name || '메뉴';
-      
-      // ✅ 디버깅 로그 추가
-      console.log('🔧 메뉴 권한 업데이트 시작:', {
-        menu_name: menuName,
-        pmp_id: permission.id,
-        menu_permission_id: permission.menu_permission_id,
-        current_enabled: permission.is_enabled,
-        new_enabled: enabled,
-        has_menu_permission: !!permission.menu_permission
-      });
-
-      // ✅ ID 유효성 검증
-      if (!permission.id) {
-        console.error('❌ PMP ID가 없습니다:', permission);
-        toast.error(`${menuName}: ID가 없어 업데이트할 수 없습니다.`);
-        return;
-      }
-
-      if (!permission.menu_permission_id) {
-        console.error('❌ menu_permission_id가 없습니다:', permission);
-        toast.error(`${menuName}: menu_permission_id가 없어 업데이트할 수 없습니다.`);
-        return;
-      }
-
+      // partners 테이블의 menu_permissions JSONB 컬럼 업데이트
       const { error } = await supabase
-        .from('partner_menu_permissions')
+        .from('partners')
         .update({ 
-          is_enabled: enabled,
+          menu_permissions: enabledMenuPaths,
           updated_at: new Date().toISOString()
         })
-        .eq('id', permission.id);
+        .eq('id', selectedPartnerId);
 
-      if (error) {
-        console.error('❌ DB 업데이트 실패:', {
-          menu_name: menuName,
-          error_code: error.code,
-          error_message: error.message,
-          error_details: error.details
-        });
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('✅ DB 업데이트 성공:', {
-        menu_name: menuName,
-        new_enabled: enabled
-      });
-
-      // 로컬 상태 업데이트
-      setPartnerMenuPermissions(prev => 
-        prev.map(pmp => 
-          pmp.id === permission.id 
-            ? { ...pmp, is_enabled: enabled }
-            : pmp
-        )
-      );
-
-      toast.success(
-        `${menuName} ${enabled ? '활성화' : '비활성화'} 완료`,
-        {
-          description: `메뉴 권한이 성공적으로 ${enabled ? '활성화' : '비활성화'}되었습니다.`
-        }
-      );
-
+      toast.success('메뉴 권한이 저장되었습니다.');
+      setHasChanges(false);
     } catch (error: any) {
-      const menuName = permission.menu_permission?.menu_name || '메뉴';
-      console.error('❌ 메뉴 권한 업데이트 실패:', error);
-      toast.error(`${menuName} 업데이트 실패: ${error.message || '알 수 없는 오류'}`);
+      console.error('메뉴 권한 저장 실패:', error);
+      toast.error('메뉴 권한 저장에 실패했습니다.');
     } finally {
       setSaving(false);
     }
   };
 
-  // 그룹 토글
-  const toggleGroup = (groupName: string) => {
-    setExpandedGroups(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(groupName)) {
-        newSet.delete(groupName);
-      } else {
-        newSet.add(groupName);
-      }
-      return newSet;
-    });
-  };
-
-  // 모든 그룹 펼치기/접기
-  const toggleAllGroups = (expand: boolean) => {
-    if (expand) {
-      const allGroups = new Set(partnerMenuPermissions
-        .map(pmp => pmp.menu_permission?.parent_menu || '기본 메뉴')
-        .filter(Boolean));
-      setExpandedGroups(allGroups);
-    } else {
-      setExpandedGroups(new Set());
-    }
-  };
-
-  // 백업에서 롤백
-  const handleRollback = async () => {
-    if (!confirm('⚠️ 경고: backup_menu_permissions 테이블의 데이터로 menu_permissions를 복원합니다.\n\n현재 menu_permissions의 모든 데이터가 삭제되고 백업 데이터로 교체됩니다.\n\n계속하시겠습니까?')) {
-      return;
-    }
-
-    try {
-      setRollbackLoading(true);
-      console.log('🔄 [메뉴 롤백] 시작...');
-
-      // 1. 백업 테이블 확인
-      const { data: backupData, error: backupError, count } = await supabase
-        .from('backup_menu_permissions')
-        .select('*', { count: 'exact' });
-
-      if (backupError) {
-        throw new Error(`백업 데이터 조회 실패: ${backupError.message}`);
-      }
-
-      if (!backupData || backupData.length === 0) {
-        throw new Error('백업 데이터가 없습니다. backup_menu_permissions 테이블을 확인하세요.');
-      }
-
-      console.log(`✅ 백업 데이터 ${backupData.length}개 확인`);
-
-      // 2. 현재 menu_permissions 삭제
-      const { error: deleteError } = await supabase
-        .from('menu_permissions')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // 모든 행 삭제
-
-      if (deleteError) {
-        throw new Error(`기존 데이터 삭제 실패: ${deleteError.message}`);
-      }
-
-      console.log('✅ 기존 menu_permissions 데이터 삭제 완료');
-
-      // 3. 백업 데이터 삽입
-      const { error: insertError } = await supabase
-        .from('menu_permissions')
-        .insert(backupData);
-
-      if (insertError) {
-        throw new Error(`백업 데이터 복원 실패: ${insertError.message}`);
-      }
-
-      console.log(`✅ 백업 데이터 ${backupData.length}개 복원 완료`);
-
-      toast.success(`롤백 완료! ${backupData.length}개 메뉴가 복원되었습니다.`, {
-        description: 'backup_menu_permissions에서 menu_permissions로 데이터를 복원했습니다.',
-        duration: 5000
-      });
-
-      // 4. 메뉴 목록 새로고침
-      await loadMenuPermissions();
-      if (selectedPartnerId) {
-        await loadPartnerMenuPermissions(selectedPartnerId);
-      }
-
-    } catch (error: any) {
-      console.error('❌ 롤백 실패:', error);
-      toast.error(`롤백 실패: ${error.message}`, {
-        description: '문제가 지속되면 SQL Editor에서 수동으로 복원하세요.',
-        duration: 7000
-      });
-    } finally {
-      setRollbackLoading(false);
-    }
-  };
-
-  // 초기 데이터 로드
-  useEffect(() => {
-    // 메뉴 관리 페이지에 접근 가능한 모든 사용자가 사용 가능
-    loadPartners();
-    loadMenuPermissions();
-  }, [user.id]);
-
-  // 선택된 파트너 변경 시 메뉴 권한 로드
-  useEffect(() => {
-    if (selectedPartnerId && menuPermissions.length > 0) {
-      // 선택된 파트너 정보 저장
-      const partner = partners.find(p => p.id === selectedPartnerId);
-      setSelectedPartner(partner || null);
-      
-      loadPartnerMenuPermissions(selectedPartnerId);
-    }
-  }, [selectedPartnerId, menuPermissions, partners]);
-
-  // 메뉴를 그룹별로 정리
-  const groupedMenus: GroupedMenus = partnerMenuPermissions.reduce((acc, pmp) => {
-    const groupName = pmp.menu_permission?.parent_menu || '기본 메뉴';
+  // 메뉴 그룹화
+  const groupedMenus: GroupedMenus = allMenus.reduce((acc, menu) => {
+    const groupName = menu.parent_menu || '기본 메뉴';
     if (!acc[groupName]) {
       acc[groupName] = [];
     }
-    acc[groupName].push(pmp);
+
+    acc[groupName].push({
+      menu,
+      isEnabled: enabledMenuPaths.includes(menu.menu_path)
+    });
+
     return acc;
   }, {} as GroupedMenus);
 
-  // 레벨별 색상
-  const getLevelColor = (level: number) => {
-    switch (level) {
-      case 1: return 'metric-gradient-ruby';
-      case 2: return 'metric-gradient-sapphire';
-      case 3: return 'metric-gradient-emerald';
-      case 4: return 'metric-gradient-cyan';
-      case 5: return 'metric-gradient-purple';
-      case 6: return 'metric-gradient-amber';
-      default: return 'metric-gradient-platinum';
-    }
+  // 필터링된 파트너
+  const filteredPartners = partners.filter(p => 
+    p.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.nickname.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // 통계
+  const stats = {
+    totalMenus: allMenus.length,
+    enabledMenus: enabledMenuPaths.length,
   };
 
-  const getLevelBadgeColor = (level: number) => {
-    switch (level) {
-      case 1: return 'badge-premium-danger';
-      case 2: return 'badge-premium-primary';
-      case 3: return 'badge-premium-success';
-      default: return 'badge-premium-warning';
+  useEffect(() => {
+    loadPartners();
+    loadAllMenus();
+  }, [loadPartners, loadAllMenus]);
+
+  useEffect(() => {
+    if (selectedPartnerId && allMenus.length > 0) {
+      loadPartnerMenus(selectedPartnerId);
     }
-  };
+  }, [selectedPartnerId, allMenus, loadPartnerMenus]);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden p-4 space-y-3">
-      {/* 헤더 - 최소화 */}
-      <div className="flex items-center justify-between px-4 py-2 rounded-lg bg-slate-900/50 border border-blue-500/30 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-400/30">
-            <Settings className="h-5 w-5 text-blue-400" />
-          </div>
-          <div>
-            <h1 className="text-slate-100">{t.menu.menuManagement}</h1>
-            <p className="text-xs text-slate-400">{user.nickname}</p>
-          </div>
+    <div className="space-y-6 p-6">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl flex items-center gap-2">
+            <Settings className="w-6 h-6" />
+            메뉴 관리
+          </h1>
+          <p className="text-gray-400 mt-1">하위 파트너의 메뉴 노출 권한을 관리합니다</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {user.level === 1 && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-700 rounded-lg">
+              <Switch
+                checked={showHiddenMenus}
+                onCheckedChange={setShowHiddenMenus}
+              />
+              <span className="text-sm">비노출 메뉴 표시</span>
+            </div>
+          )}
+          <Button onClick={() => { loadPartners(); loadAllMenus(); }} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            새로고침
+          </Button>
         </div>
       </div>
 
-      {/* 파트너 선택 - 컴팩트 */}
-      <div className="glass-card p-3 flex-shrink-0">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-blue-400" />
-            <span className="text-sm text-slate-200">
-              {user.level === 1 ? t.menuManagement.selectHeadOffice : t.menuManagement.selectPartner}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {loading && <RefreshCw className="h-3 w-3 animate-spin text-blue-400" />}
-            <Badge variant="outline" className="border-blue-400/30 text-blue-300 text-xs h-5">
-              <Layers className="h-3 w-3 mr-1" />
-              {partners.length}개
-            </Badge>
-          </div>
-        </div>
-        <div>
-          {loading ? (
-            <div className="flex items-center justify-center py-4 border border-slate-700/50 rounded-lg bg-slate-900/30">
-              <RefreshCw className="h-4 w-4 animate-spin mr-2 text-blue-400" />
-              <span className="text-sm text-slate-300">{t.common.loading}</span>
-            </div>
-          ) : partners.length === 0 ? (
-            <div className="text-center py-6 border border-slate-700/50 rounded-lg bg-slate-900/30">
-              <AlertCircle className="h-8 w-8 mx-auto mb-2 text-slate-500" />
-              <p className="text-sm text-slate-300 mb-2">{t.menuManagement.noActivePartners}</p>
-              <Button onClick={loadPartners} variant="outline" size="sm">
-                <RefreshCw className="h-3 w-3 mr-1" />
-                {t.menuManagement.retry}
-              </Button>
-            </div>
-          ) : (
-            <Select
-              value={selectedPartnerId}
-              onValueChange={setSelectedPartnerId}
-              disabled={loading}
-            >
-              <SelectTrigger className="w-full input-premium h-9 text-sm">
-                <SelectValue placeholder={
-                  user.level === 1 
-                    ? t.menuManagement.selectHeadOfficePlaceholder 
-                    : t.menuManagement.selectPartnerPlaceholder
-                } />
-              </SelectTrigger>
-              <SelectContent className="bg-slate-900 border-slate-700">
-                {partners
-                  .sort((a, b) => {
-                    // 레벨로 먼저 정렬, 같은 레벨이면 닉네임으로 정렬
-                    if (a.level !== b.level) return a.level - b.level;
-                    return a.nickname.localeCompare(b.nickname);
-                  })
-                  .map((partner) => {
-                    // 레벨에 따른 들여쓰기 (시스템관리자는 제외)
-                    const indentLevel = Math.max(0, partner.level - 2);
-                    const indent = indentLevel > 0 ? `${indentLevel * 1.5}rem` : '0';
-                    
-                    return (
-                      <SelectItem 
-                        key={partner.id} 
-                        value={partner.id}
-                        className="text-slate-200 focus:bg-slate-800 py-1"
-                        style={{ paddingLeft: `calc(0.5rem + ${indent})` }}
-                      >
+      <div className="grid grid-cols-12 gap-6">
+        {/* 왼쪽: 파트너 목록 */}
+        <div className="col-span-12 lg:col-span-4">
+          <Card className="bg-slate-800/50 border-slate-700">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Users className="w-5 h-5" />
+                파트너 선택
+              </CardTitle>
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="파트너 검색..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-slate-700 border-slate-600"
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2 max-h-[600px] overflow-y-auto">
+              {loading ? (
+                <div className="text-center py-8 text-gray-400">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                  로딩 중...
+                </div>
+              ) : filteredPartners.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  파트너가 없습니다
+                </div>
+              ) : (
+                filteredPartners.map(partner => (
+                  <button
+                    key={partner.id}
+                    onClick={() => setSelectedPartnerId(partner.id)}
+                    className={`w-full text-left p-4 rounded-lg border transition-all ${
+                      selectedPartnerId === partner.id
+                        ? 'bg-purple-600/20 border-purple-500'
+                        : 'bg-slate-700/50 border-slate-600 hover:bg-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          {indentLevel > 0 && (
-                            <span className="text-slate-600 text-xs">
-                              {'└─'.repeat(1)}
-                            </span>
-                          )}
-                          <Badge className={`${getLevelBadgeColor(partner.level)} text-xs h-4`}>
-                            L{partner.level}
+                          <span className="font-medium">{partner.username}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {getPartnerLevelText(partner.level)}
                           </Badge>
-                          <span className="text-sm">{partner.nickname}</span>
-                          <span className="text-slate-400 text-xs">({partner.username})</span>
                         </div>
-                      </SelectItem>
-                    );
-                  })}
-              </SelectContent>
-            </Select>
+                        <div className="text-sm text-gray-400 mt-1">{partner.nickname}</div>
+                      </div>
+                      {selectedPartnerId === partner.id && (
+                        <ChevronRight className="w-5 h-5 text-purple-400" />
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 오른쪽: 메뉴 권한 관리 */}
+        <div className="col-span-12 lg:col-span-8">
+          {!selectedPartner ? (
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <MenuIcon className="w-16 h-16 text-gray-600 mb-4" />
+                <p className="text-gray-400 text-lg">왼쪽에서 파트너를 선택해주세요</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {/* 통계 카드 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="bg-gradient-to-br from-blue-600 to-blue-700 border-0">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-3">
+                      <MenuIcon className="w-10 h-10 text-blue-100" />
+                      <div>
+                        <div className="text-sm text-blue-100">전체 메뉴</div>
+                        <div className="text-3xl text-white">{stats.totalMenus}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-green-600 to-green-700 border-0">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-3">
+                      <Eye className="w-10 h-10 text-green-100" />
+                      <div>
+                        <div className="text-sm text-green-100">활성화된 메뉴</div>
+                        <div className="text-3xl text-white">{stats.enabledMenus}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-gray-600 to-gray-700 border-0">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-3">
+                      <EyeOff className="w-10 h-10 text-gray-100" />
+                      <div>
+                        <div className="text-sm text-gray-100">비활성화된 메뉴</div>
+                        <div className="text-3xl text-white">{stats.totalMenus - stats.enabledMenus}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* 메뉴 권한 */}
+              <Card className="bg-slate-800/50 border-slate-700">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <MenuIcon className="w-5 h-5" />
+                        {selectedPartner.nickname} - 메뉴 권한 설정
+                      </CardTitle>
+                      <p className="text-sm text-gray-400 mt-1">
+                        체크된 메뉴만 해당 파트너에게 표시됩니다
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleAllMenus(true)}
+                        disabled={loading}
+                      >
+                        <CheckSquare className="w-4 h-4 mr-2" />
+                        전체 선택
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => toggleAllMenus(false)}
+                        disabled={loading}
+                      >
+                        <Square className="w-4 h-4 mr-2" />
+                        전체 해제
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {loading ? (
+                    <div className="text-center py-8 text-gray-400">
+                      <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                      메뉴 로딩 중...
+                    </div>
+                  ) : Object.keys(groupedMenus).length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      메뉴 데이터가 없습니다
+                    </div>
+                  ) : (
+                    Object.entries(groupedMenus).map(([groupName, menus]) => {
+                      const allEnabled = menus.every(m => m.isEnabled);
+                      const someEnabled = menus.some(m => m.isEnabled) && !allEnabled;
+
+                      return (
+                        <div key={groupName} className="space-y-3">
+                          {/* 그룹 헤더 */}
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-700">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-medium text-purple-400">{groupName}</h3>
+                              <Badge variant="outline" className="text-xs">
+                                {menus.filter(m => m.isEnabled).length} / {menus.length}
+                              </Badge>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleGroupMenus(groupName, !allEnabled)}
+                              className="text-xs"
+                            >
+                              {allEnabled ? (
+                                <>
+                                  <Square className="w-3 h-3 mr-1" />
+                                  그룹 해제
+                                </>
+                              ) : (
+                                <>
+                                  <CheckSquare className="w-3 h-3 mr-1" />
+                                  그룹 선택
+                                </>
+                              )}
+                            </Button>
+                          </div>
+
+                          {/* 메뉴 목록 */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {menus.map(({ menu, isEnabled }) => (
+                              <div
+                                key={menu.id}
+                                className={`p-4 rounded-lg border transition-all ${
+                                  isEnabled
+                                    ? 'bg-green-500/10 border-green-500/50'
+                                    : 'bg-slate-700/30 border-slate-600'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-sm">
+                                        {menu.menu_name}
+                                      </span>
+                                      {!menu.is_visible && (
+                                        <Badge variant="outline" className="text-xs bg-red-500/20 border-red-500">
+                                          비노출
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-gray-400 mt-1">
+                                      {menu.menu_path}
+                                    </div>
+                                    {menu.description && (
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        {menu.description}
+                                      </div>
+                                    )}
+                                    {user.level === 1 && (
+                                      <div className="flex items-center gap-2 mt-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 text-xs"
+                                          onClick={() => toggleMenuVisibility(menu.id, !menu.is_visible)}
+                                        >
+                                          {menu.is_visible ? (
+                                            <>
+                                              <EyeOff className="w-3 h-3 mr-1" />
+                                              숨기기
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Eye className="w-3 h-3 mr-1" />
+                                              표시
+                                            </>
+                                          )}
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <Switch
+                                    checked={isEnabled}
+                                    onCheckedChange={(checked) => 
+                                      toggleMenuPermission(menu.menu_path, checked)
+                                    }
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* 저장 버튼 */}
+              {hasChanges && (
+                <div className="flex items-center justify-end gap-4 p-4 bg-yellow-500/10 border border-yellow-500/50 rounded-lg">
+                  <div className="flex items-center gap-2 text-yellow-400">
+                    <CheckCircle className="w-5 h-5" />
+                    <span>변경사항이 있습니다</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => loadPartnerMenus(selectedPartnerId)}
+                      disabled={saving}
+                    >
+                      취소
+                    </Button>
+                    <Button
+                      onClick={saveChanges}
+                      disabled={saving}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {saving ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          저장 중...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-2" />
+                          저장
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
-
-      {/* 메뉴 권한 관리 - 스크롤 가능 영역 */}
-      {selectedPartnerId && (
-        <div className="glass-card flex flex-col flex-1 overflow-hidden">
-          <div className="flex items-center justify-between p-3 border-b border-slate-700/50 flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <MenuIcon className="h-4 w-4 text-emerald-400" />
-              <div>
-                <h3 className="text-sm text-slate-200">
-                  {selectedPartner?.nickname} {t.menuManagement.menuVisibilitySettings}
-                </h3>
-                <p className="text-xs text-slate-400">
-                  {t.menuManagement.visibilityDescription}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="border-emerald-400/30 text-emerald-300 text-xs h-5">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                {partnerMenuPermissions.filter(pmp => pmp.is_enabled).length}/{partnerMenuPermissions.length}
-              </Badge>
-              <Button
-                onClick={() => loadPartnerMenuPermissions(selectedPartnerId)}
-                variant="outline"
-                size="sm"
-                disabled={menuLoading}
-                className="border-blue-400/30 hover:bg-blue-500/10 h-7 text-xs px-2"
-              >
-                <RefreshCw className={`h-3 w-3 mr-1 ${menuLoading ? 'animate-spin' : ''}`} />
-                {t.common.refresh}
-              </Button>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3">
-            {menuLoading ? (
-              <div className="flex flex-col items-center justify-center py-8">
-                <div className="loading-premium mb-4"></div>
-                <span className="text-sm text-slate-300">{t.menuManagement.loadingMenus}</span>
-              </div>
-            ) : partnerMenuPermissions.length === 0 ? (
-              <div className="text-center py-8 border border-slate-700/50 rounded-lg bg-slate-900/30">
-                <AlertCircle className="h-12 w-12 mx-auto mb-3 text-slate-500" />
-                <p className="text-sm text-slate-300 mb-2">{t.menuManagement.noMenuData}</p>
-                <p className="text-xs text-slate-400 mb-3">
-                  {menuPermissions.length === 0 
-                    ? 'menu_permissions 테이블에 기본 메뉴 데이터가 없습니다.' 
-                    : '해당 파트너에게 할당 가능한 메뉴가 없거나 데이터를 불러올 수 없습니다.'}
-                </p>
-                <div className="space-y-2 mb-4">
-                  <div className="text-xs text-slate-500">
-                    <p>• {t.menuManagement.baseMenus}: {menuPermissions.length}개</p>
-                    <p>• {t.menuManagement.partnerMenus}: {partnerMenuPermissions.length}개</p>
-                  </div>
-                  {menuPermissions.length === 0 && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-left">
-                      <p className="text-xs text-amber-300 mb-1">⚠️ {t.menuManagement.actionRequired}</p>
-                      <p className="text-xs text-slate-400">
-                        {t.menuManagement.sqlRequired}
-                      </p>
-                    </div>
-                  )}
-                </div>
-                <Button 
-                  onClick={() => {
-                    loadMenuPermissions();
-                    loadPartnerMenuPermissions(selectedPartnerId);
-                  }}
-                  variant="outline"
-                  size="sm"
-                  className="btn-premium-primary"
-                >
-                  <RefreshCw className="h-3 w-3 mr-1" />
-                  {t.menuManagement.retry}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {Object.entries(groupedMenus).map(([groupName, menus]) => {
-                  const enabledCount = menus.filter(m => m.is_enabled).length;
-                  
-                  return (
-                    <div key={groupName} className="glass-card border-slate-700/50">
-                      {/* 그룹 헤더 - 컴팩트 */}
-                      <div className="px-3 py-1.5 bg-slate-800/50 border-b border-slate-700/50 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Layers className="h-3 w-3 text-blue-400" />
-                          <h4 className="text-xs text-slate-200">{groupName}</h4>
-                          <Badge variant="outline" className="border-slate-600/50 text-slate-400 text-[10px] h-4 px-1">
-                            {menus.length}개
-                          </Badge>
-                        </div>
-                        <Badge 
-                          className={`text-[10px] h-4 px-1 ${
-                            enabledCount === menus.length 
-                              ? 'badge-premium-success' 
-                              : enabledCount > 0 
-                                ? 'badge-premium-warning'
-                                : 'badge-premium-danger'
-                          }`}
-                        >
-                          {enabledCount} / {menus.length} 활성
-                        </Badge>
-                      </div>
-
-                      {/* 메뉴 리스트 - 2-3단 그리드 */}
-                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 p-2">
-                        {menus
-                          .sort((a, b) => {
-                            const orderA = a.menu_permission?.display_order ?? 999;
-                            const orderB = b.menu_permission?.display_order ?? 999;
-                            return orderA - orderB;
-                          })
-                          .map((pmp) => {
-                            const menu = pmp.menu_permission;
-                            if (!menu) return null;
-                          
-                          return (
-                            <div
-                              key={pmp.id}
-                              className={`
-                                px-2 py-1.5 rounded-lg border transition-all
-                                ${pmp.is_enabled 
-                                  ? 'bg-emerald-500/5 border-emerald-500/30 hover:bg-emerald-500/10' 
-                                  : 'bg-slate-800/20 border-slate-700/30 hover:bg-slate-800/40'
-                                }
-                              `}
-                            >
-                              {/* 메뉴 정보 */}
-                              <div className="flex items-start justify-between gap-2 mb-1.5">
-                                <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                  {pmp.is_enabled ? (
-                                    <Eye className="h-3 w-3 text-emerald-400 flex-shrink-0 mt-0.5" />
-                                  ) : (
-                                    <EyeOff className="h-3 w-3 text-slate-500 flex-shrink-0 mt-0.5" />
-                                  )}
-                                  
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1 mb-0.5">
-                                      <span className="text-xs text-slate-200 truncate">
-                                        {menu.menu_name}
-                                      </span>
-                                      <Badge className={`text-[8px] px-1 py-0 h-3 flex-shrink-0 ${getLevelBadgeColor(menu.partner_level)}`}>
-                                        L{menu.partner_level}
-                                      </Badge>
-                                    </div>
-                                    <p className="text-[9px] text-slate-400 truncate">
-                                      {menu.menu_path}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                {/* 스위치 */}
-                                <Switch
-                                  checked={pmp.is_enabled}
-                                  disabled={saving}
-                                  onCheckedChange={(enabled) =>
-                                    updatePartnerMenuPermission(pmp, enabled)
-                                  }
-                                  className="flex-shrink-0 scale-75"
-                                />
-                              </div>
-
-                              {/* 상태 표시 */}
-                              {pmp.is_enabled && (
-                                <div className="flex items-center justify-end">
-                                  <Badge className="badge-premium-success text-[9px] h-3.5 px-1">
-                                    활성
-                                  </Badge>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 선택 안내 - 컴팩트 */}
-      {!selectedPartnerId && (
-        <div className="glass-card flex-1 flex items-center justify-center">
-          <div className="text-center max-w-md px-4 space-y-3">
-            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-400/20 inline-block">
-              <Settings className="h-12 w-12 text-blue-400" />
-            </div>
-            <h3 className="text-lg text-slate-200">
-              {user.level === 1 ? t.menuManagement.selectHeadOfficePrompt : t.menuManagement.selectPartnerPrompt}
-            </h3>
-            <p className="text-xs text-slate-400">
-              {user.level === 1 ? t.menuManagement.selectHeadOffice : t.menuManagement.selectPartner} 항목을 선택하여 메뉴를 관리하세요
-            </p>
-              <div className="pt-4 space-y-2 text-left">
-                <div className="flex items-start gap-3 text-sm text-slate-400">
-                  <CheckCircle className="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span>{t.menuManagement.features.onlyActiveMenus}</span>
-                </div>
-                <div className="flex items-start gap-3 text-sm text-slate-400">
-                  <CheckCircle className="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span>{t.menuManagement.features.toggleMenus}</span>
-                </div>
-                <div className="flex items-start gap-3 text-sm text-slate-400">
-                  <CheckCircle className="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span>{t.menuManagement.features.levelBasedMenus}</span>
-                </div>
-                <div className="flex items-start gap-3 text-sm text-slate-400">
-                  <CheckCircle className="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span>{t.menuManagement.features.realtimeUpdate}</span>
-                </div>
-              </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
+
+export default MenuManagement;

@@ -93,13 +93,13 @@ export function AdminRoutes({ currentRoute, user }: AdminRoutesProps) {
     case '/admin/settlement/history':
       return <SettlementHistory user={user} />;
     case '/admin/transactions':
-      return <TransactionManagement user={user} />;
     case '/admin/transaction-approval':
-      return <TransactionApprovalManager user={user} />;
+      return <TransactionManagement user={user} />;
 
     // 게임 관리
     case '/admin/games':
     case '/admin/game-lists':
+    case '/admin/game-list-management':
       return <EnhancedGameManagement user={user} />;
     case '/admin/betting':
     case '/admin/betting-history':

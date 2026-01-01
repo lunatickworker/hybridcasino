@@ -148,6 +148,8 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
               if (isProcessing) return;
               isProcessing = true;
               
+              console.log('🎮 [게임창 닫힘 감지] 세션:', sessionId);
+              
               setLoadingStage('withdraw');
               setShowLoadingPopup(true);
               
@@ -158,7 +160,13 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
               }
               
               (window as any).gameWindows?.delete(sessionId);
-              await (window as any).syncBalanceAfterGame?.(sessionId);
+              
+              console.log('🔄 [게임창 닫힘] syncBalanceAfterGame 호출 시작');
+              if ((window as any).syncBalanceAfterGame) {
+                await (window as any).syncBalanceAfterGame(sessionId);
+              } else {
+                console.error('❌ syncBalanceAfterGame 함수가 등록되지 않음!');
+              }
               
               setTimeout(() => {
                 setShowLoadingPopup(false);
@@ -167,15 +175,20 @@ export function Sample1Casino({ user }: Sample1CasinoProps) {
             
             const checkGameWindow = setInterval(() => {
               try {
-                if (popup.closed) {
+                // ⭐ gameWindows에서 참조 가져오기 (클로저 문제 해결)
+                const gameWindow = (window as any).gameWindows?.get(sessionId);
+                if (gameWindow && gameWindow.closed) {
+                  console.log('🚪 [게임창 닫힘] 팝업창 closed 감지, sessionId:', sessionId);
                   handleGameWindowClose();
+                  clearInterval(checkGameWindow);
                 }
               } catch (error) {
-                // 무시
+                console.error('❌ [게임창 체크 에러]:', error);
               }
             }, 1000);
             
             (window as any).gameWindowCheckers.set(sessionId, checkGameWindow);
+            console.log('✅ [게임창 모니터링 시작] sessionId:', sessionId);
           }
         }
       } else {

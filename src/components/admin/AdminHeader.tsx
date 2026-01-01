@@ -4,7 +4,7 @@ import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { 
   LogOut, Bell,
-  TrendingUp, TrendingDown, Users, Wallet, AlertTriangle, Key, DollarSign
+  TrendingUp, TrendingDown, Users, Wallet, AlertTriangle, Key, DollarSign, ArrowRightLeft
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -21,6 +21,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../ui/popover";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import {
@@ -33,7 +38,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useBalance } from "../../contexts/BalanceContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { Partner, DashboardStats } from "../../types";
-import { formatCurrency, formatNumber } from "../../lib/utils";
+import { formatCurrency, formatNumber, cn } from "../../lib/utils";
 import { toast } from "sonner@2.0.3";
 import { supabase } from "../../lib/supabase";
 import { AnimatedCurrency } from "../common/AnimatedNumber";
@@ -43,11 +48,14 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { getInvestCredentials, updateInvestBalance, updateOroplayBalance, getLv1HonorApiCredentials, updateHonorApiBalance } from "../../lib/apiConfigHelper";
 import { getTodayStartUTC, getCachedTimezoneOffset, convertUTCToSystemTime } from "../../utils/timezone";
 import { NotificationsModal } from "./NotificationsModal";
+import { CommissionConvertModal } from "./CommissionConvertModal";
 import { getUnreadNotificationCount } from '../../lib/notificationHelper';
 import * as investApiModule from '../../lib/investApi';
 import { checkApiActiveByPartnerId } from '../../lib/apiStatusChecker';
 import * as familyApiModule from '../../lib/familyApi';
 import * as honorApiModule from '../../lib/honorApi';
+import { calculateMyIncome, getDescendantUserIds } from '../../lib/settlementCalculator';
+import { getBettingStatsByGameType } from '../../lib/settlementCalculatorV2';
 
 interface AdminHeaderProps {
   user: Partner;
@@ -174,10 +182,12 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           .eq('level', 1)
           .order('created_at', { ascending: true })
           .limit(1)
-          .single();
+          .maybeSingle(); // ⭐ single() → maybeSingle()
         
         if (!lv1Partner) {
-          throw new Error('Lv1 파트너를 찾을 수 없습니다');
+          console.warn('⚠️ Lv1 파트너를 찾을 수 없습니다 (Invest 동기화)');
+          toast.error('Lv1 파트너가 존재하지 않습니다. 시스템 관리자에게 문의하세요.');
+          return;
         }
         partnerId = lv1Partner.id;
       }
@@ -233,6 +243,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       }
 
       toast.success(`Invest 보유금 동기화 완료: ${formatCurrency(balance)}`);
+      
+      // ✅ BalanceContext 업데이트
+      await syncBalance();
     } catch (error: any) {
       console.error('❌ [AdminHeader] Invest 보유금 동기화 실패:', error);
       toast.error(`Invest 보유금 동기화 실패: ${error.message}`);
@@ -263,10 +276,12 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           .eq('level', 1)
           .order('created_at', { ascending: true })
           .limit(1)
-          .single();
+          .maybeSingle(); // ⭐ single() → maybeSingle()
         
         if (!lv1Partner) {
-          throw new Error('Lv1 파트너를 찾을 수 없습니다');
+          console.warn('⚠️ Lv1 파트너를 찾을 수 없습니다 (OroPlay 동기화)');
+          toast.error('Lv1 파트너가 존재하지 않습니다. 시스템 관리자에게 문의하세요.');
+          return;
         }
         partnerId = lv1Partner.id;
       }
@@ -309,6 +324,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       }
 
       toast.success(`OroPlay 보유금 동기화 완료: ${formatCurrency(balance)}`);
+      
+      // ✅ BalanceContext 업데이트
+      await syncBalance();
     } catch (error: any) {
       console.error('❌ [AdminHeader] OroPlay 보유금 동기화 실패:', error);
       toast.error(`OroPlay 보유금 동기화 실패: ${error.message}`);
@@ -370,6 +388,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       }
 
       toast.success(`FamilyAPI 보유금 동기화 완료: ${formatCurrency(balance)}`);
+      
+      // ✅ BalanceContext 업데이트
+      await syncBalance();
     } catch (error: any) {
       console.error('❌ [AdminHeader] FamilyAPI 보유금 동기화 실패:', error);
       toast.error(`FamilyAPI 보유금 동기화 실패: ${error.message}`);
@@ -449,6 +470,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       }
 
       toast.success(`HonorAPI 보유금 동기화 완료: ${formatCurrency(balance)}`);
+      
+      // ✅ BalanceContext 업데이트
+      await syncBalance();
     } catch (error: any) {
       console.error('❌ [AdminHeader] HonorAPI 보유금 동기화 실패:', error);
       toast.error(`HonorAPI 보유금 동기화 실패: ${error.message}`);
@@ -680,8 +704,23 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           table: 'transactions'
         },
         (payload) => {
-          console.log('💰 [헤더 알림] transactions 변경 감지:', payload.eventType);
+          console.log('💰 [헤더 알림] transactions 변경 감지:', payload.eventType, payload);
           fetchHeaderStats(); // 즉시 갱신
+          
+          // UPDATE 이벤트: 승인/거절 처리
+          if (payload.eventType === 'UPDATE' && payload.new && payload.old) {
+            const oldTx = payload.old as any;
+            const newTx = payload.new as any;
+            
+            // pending -> completed/rejected 상태 변경 감지
+            if (oldTx.status === 'pending' && newTx.status !== 'pending') {
+              console.log('✅ [헤더 알림] 거래 처리 완료:', {
+                type: newTx.transaction_type,
+                status: newTx.status,
+                oldPending: oldTx.status
+              });
+            }
+          }
           
           // 새 입금/출금 요청 시 토스트 알림
           if (payload.eventType === 'INSERT' && payload.new) {
@@ -814,17 +853,81 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         {
           event: '*',
           schema: 'public',
-          table: 'notifications'
+          table: 'notifications' // ⭐ notifications 테이블 사용
         },
         (payload) => {
-          console.log('🔔 [헤더 알림] notifications 변경 감지:', payload.eventType);
-          loadNotificationCount(); // 알림 개수 갱신
+          console.log('🔔 [헤더 알림] notifications 변경 감지:', {
+            event: payload.eventType,
+            old: payload.old,
+            new: payload.new
+          });
+          
+          // INSERT: 새 알림 추가
+          if (payload.eventType === 'INSERT') {
+            const newNotification = payload.new as any;
+            // 내가 받을 알림인지 확인
+            if (newNotification.recipient_id === user.id && newNotification.is_read === false) {
+              console.log('🔔 [알림 증가] 새 알림:', newNotification.id);
+              loadNotificationCount(); // 알림 개수 즉시 업데이트
+            }
+          }
+          
+          // UPDATE: 알림 읽음 처리
+          else if (payload.eventType === 'UPDATE') {
+            const oldNotification = payload.old as any;
+            const newNotification = payload.new as any;
+            
+            console.log('🔔 [알림 업데이트 상세]:', {
+              old_is_read: oldNotification?.is_read,
+              new_is_read: newNotification?.is_read,
+              recipient_id: newNotification?.recipient_id,
+              current_user_id: user.id,
+              is_mine: newNotification?.recipient_id === user.id
+            });
+            
+            // is_read: false -> true 상태 변경 감지
+            if (oldNotification?.is_read === false && newNotification?.is_read === true && newNotification?.recipient_id === user.id) {
+              console.log('✅ [알림 감소] 읽음 처리:', newNotification.id);
+              loadNotificationCount(); // 알림 개수 즉시 업데이트
+            }
+          }
+          
+          // DELETE: 알림 삭제
+          else if (payload.eventType === 'DELETE') {
+            const deletedNotification = payload.old as any;
+            if (deletedNotification?.recipient_id === user.id && deletedNotification?.is_read === false) {
+              console.log('🔔 [알림 감소] 알림 삭제:', deletedNotification.id);
+              loadNotificationCount(); // 알림 개수 즉시 업데이트
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // ✅ settlements 테이블 실시간 구독 추가 (INSERT만 구독)
+    const settlementsChannel = supabase
+      .channel('settlements_updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'settlements',
+          filter: `partner_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('💰 [정산 생성 감지]:', payload.eventType);
+          // 새로운 정산이 생성될 때마다 커미션 정보 갱신
+          loadLatestCommissions();
         }
       )
       .subscribe();
 
     // 초기 알림 개수 로드
     loadNotificationCount();
+    
+    // ✅ 초기 커미션 정보 로드
+    loadLatestCommissions();
 
     return () => {
       console.log('🔕 헤더 Realtime 구독 해제');
@@ -834,6 +937,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(gameSessionsChannel);
       supabase.removeChannel(notificationsChannel);
+      supabase.removeChannel(settlementsChannel);
     };
   }, [user.id]);
 
@@ -951,14 +1055,14 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
   const handleDepositClick = () => {
     if (onRouteChange) {
-      onRouteChange('/admin/transactions#deposit-request');
+      onRouteChange('/admin/transaction-approval');
       toast.info('입금 관리 페이지로 이동합니다.');
     }
   };
 
   const handleWithdrawalClick = () => {
     if (onRouteChange) {
-      onRouteChange('/admin/transactions#withdrawal-request');
+      onRouteChange('/admin/transaction-approval');
       toast.info('출금 관리 페이지로 이동합니다.');
     }
   };
@@ -1059,6 +1163,32 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   const [showCommissionModal, setShowCommissionModal] = useState(false);
   const [commissionData, setCommissionData] = useState<any>(null);
   const [isLoadingCommission, setIsLoadingCommission] = useState(false);
+  
+  // ✅ 커미션 잔액 정보 추가 (실시간 로드)
+  const [commissionBalances, setCommissionBalances] = useState({
+    casino_rolling: 0,
+    casino_losing: 0,
+    slot_rolling: 0,
+    slot_losing: 0
+  });
+  const [latestSettlements, setLatestSettlements] = useState<any[]>([]);
+  
+  // ✅ 커미션 요율 정보
+  const [commissionRates, setCommissionRates] = useState({
+    casino_rolling_rate: 0,
+    casino_losing_rate: 0,
+    slot_rolling_rate: 0,
+    slot_losing_rate: 0
+  });
+  
+  // ✅ 보유금 전환 모달
+  const [showConvertDialog, setShowConvertDialog] = useState(false);
+  const [selectedCommission, setSelectedCommission] = useState<{
+    settlementId: string;
+    type: 'casino_rolling' | 'casino_losing' | 'slot_rolling' | 'slot_losing';
+    amount: number;
+  } | null>(null);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
 
   const loadCommissionInfo = async () => {
     setIsLoadingCommission(true);
@@ -1077,12 +1207,303 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       if (error) throw error;
 
       setCommissionData(data);
+      
+      // ✅ 최신 정산 내역에서 전환 가능한 커미션 조회
+      await loadLatestCommissions();
+      
       setShowCommissionModal(true);
     } catch (error: any) {
       console.error('❌ 커미션 정보 로드 실패:', error);
       toast.error('커미션 정보를 불러올 수 없습니다.');
     } finally {
       setIsLoadingCommission(false);
+    }
+  };
+  
+  // ✅ 실시간 커미션 계산 + 과거 미전환 커미션 조회
+  const loadLatestCommissions = async () => {
+    try {
+      console.log('💰 [실시간 커미션 조회] 시작 - partner_id:', user.id);
+      
+      // 1️⃣ 파트너의 현재 커미션 요율 조회
+      const { data: partnerData, error: partnerError } = await supabase
+        .from('partners')
+        .select('casino_rolling_commission, casino_losing_commission, slot_rolling_commission, slot_losing_commission')
+        .eq('id', user.id)
+        .single();
+      
+      if (partnerError || !partnerData) {
+        console.error('❌ [커미션 조회] 파트너 정보 조회 실패:', partnerError);
+        throw partnerError;
+      }
+      
+      const commissionRates = {
+        casino_rolling: partnerData.casino_rolling_commission || 0,
+        casino_losing: partnerData.casino_losing_commission || 0,
+        slot_rolling: partnerData.slot_rolling_commission || 0,
+        slot_losing: partnerData.slot_losing_commission || 0
+      };
+      
+      console.log('💰 [실시간 커미션] 파트너 요율:', commissionRates);
+      
+      // 2️⃣ 실시간 커미션 계산 (오늘 00:00부터 현재까지)
+      const todayStart = getTodayStartUTC();
+      const now = new Date().toISOString();
+      
+      console.log('💰 [실시간 커미션] 기간:', { todayStart, now });
+      
+      // 하위 사용자 ID 조회
+      const descendantUserIds = await getDescendantUserIds(user.id);
+      console.log('💰 [실시간 커미션] 하위 사용자 수:', descendantUserIds.length);
+      
+      let realtimeCommission = {
+        casino_rolling: 0,
+        casino_losing: 0,
+        slot_rolling: 0,
+        slot_losing: 0
+      };
+      
+      if (descendantUserIds.length > 0) {
+        // 베팅 통계 조회 (카지노/슬롯 구분)
+        const stats = await getBettingStatsByGameType(descendantUserIds, todayStart, now, 'all');
+        
+        console.log('💰 [실시간 커미션] 베팅 통계:', stats);
+        
+        // 커미션 계산
+        realtimeCommission = {
+          casino_rolling: stats.casino.betAmount * (commissionRates.casino_rolling / 100),
+          casino_losing: stats.casino.lossAmount * (commissionRates.casino_losing / 100),
+          slot_rolling: stats.slot.betAmount * (commissionRates.slot_rolling / 100),
+          slot_losing: stats.slot.lossAmount * (commissionRates.slot_losing / 100)
+        };
+        
+        console.log('💰 [실시간 커미션] 계산 결과:', realtimeCommission);
+      }
+      
+      // 3️⃣ 과거 정산 내역 조회 (오늘 이전)
+      const { data, error } = await supabase
+        .from('settlements')
+        .select('*')
+        .eq('partner_id', user.id)
+        .lt('period_end', todayStart.split('T')[0]) // 오늘 이전의 정산만
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('❌ [커미션 조회] settlements 조회 에러:', error);
+        throw error;
+      }
+      
+      console.log('🔥🔥🔥 [CRITICAL-DEBUG] 과거 정산 조회 완료:', {
+        count: data?.length || 0,
+        settlements: data?.map(s => ({
+          id: s.id,
+          period: `${s.period_start} ~ ${s.period_end}`,
+          casino_rolling: s.casino_rolling_commission,
+          casino_losing: s.casino_losing_commission,
+          slot_rolling: s.slot_rolling_commission,
+          slot_losing: s.slot_losing_commission
+        }))
+      });
+      
+      // 4️⃣ 과거 정산 중 전환되지 않은 커미션 합산
+      let pastCommission = {
+        casino_rolling: 0,
+        casino_losing: 0,
+        slot_rolling: 0,
+        slot_losing: 0
+      };
+      
+      let settlementsWithConversion: any[] = [];
+      
+      if (data && data.length > 0) {
+        // 커미션 전환 기록 조회
+        const settlementIds = data.map(s => s.id);
+        const { data: conversionLogs, error: conversionError } = await supabase
+          .from('commission_conversion_logs')
+          .select('settlement_id, commission_type')
+          .in('settlement_id', settlementIds);
+        
+        if (conversionError) {
+          console.error('❌ [커미션 조회] 전환 기록 조회 에러:', conversionError);
+        }
+        
+        console.log('🔥🔥🔥 [CRITICAL-DEBUG] 전환 기록 조회 결과:', {
+          settlementIds,
+          conversionLogs,
+          logsCount: conversionLogs?.length || 0
+        });
+        
+        // 전환 기록을 Map으로 변환
+        const conversionMap = new Map<string, Set<string>>();
+        conversionLogs?.forEach(log => {
+          if (!conversionMap.has(log.settlement_id)) {
+            conversionMap.set(log.settlement_id, new Set());
+          }
+          conversionMap.get(log.settlement_id)?.add(log.commission_type);
+        });
+        
+        console.log('💰 [과거 정산] 전환 맵:', Array.from(conversionMap.entries()).map(([id, types]) => ({
+          settlement_id: id,
+          converted_types: Array.from(types)
+        })));
+        
+        // 각 정산에 전환 상태 추가
+        settlementsWithConversion = data.map(settlement => ({
+          ...settlement,
+          conversion_status: {
+            casino_rolling: conversionMap.get(settlement.id)?.has('casino_rolling') || false,
+            casino_losing: conversionMap.get(settlement.id)?.has('casino_losing') || false,
+            slot_rolling: conversionMap.get(settlement.id)?.has('slot_rolling') || false,
+            slot_losing: conversionMap.get(settlement.id)?.has('slot_losing') || false
+          }
+        }));
+        
+        console.log('💰 [과거 정산] 각 정산의 전환 상태:', settlementsWithConversion.map(s => ({
+          id: s.id,
+          period: s.period_start + ' ~ ' + s.period_end,
+          casino_rolling: { amount: s.casino_rolling_commission, converted: s.conversion_status.casino_rolling },
+          casino_losing: { amount: s.casino_losing_commission, converted: s.conversion_status.casino_losing },
+          slot_rolling: { amount: s.slot_rolling_commission, converted: s.conversion_status.slot_rolling },
+          slot_losing: { amount: s.slot_losing_commission, converted: s.conversion_status.slot_losing }
+        })));
+        
+        // 전환되지 않은 커미션만 합산
+        settlementsWithConversion.forEach(settlement => {
+          if (!settlement.conversion_status.casino_rolling && (settlement.casino_rolling_commission || 0) > 0) {
+            pastCommission.casino_rolling += parseFloat(settlement.casino_rolling_commission) || 0;
+          }
+          if (!settlement.conversion_status.casino_losing && (settlement.casino_losing_commission || 0) > 0) {
+            pastCommission.casino_losing += parseFloat(settlement.casino_losing_commission) || 0;
+          }
+          if (!settlement.conversion_status.slot_rolling && (settlement.slot_rolling_commission || 0) > 0) {
+            pastCommission.slot_rolling += parseFloat(settlement.slot_rolling_commission) || 0;
+          }
+          if (!settlement.conversion_status.slot_losing && (settlement.slot_losing_commission || 0) > 0) {
+            pastCommission.slot_losing += parseFloat(settlement.slot_losing_commission) || 0;
+          }
+        });
+        
+        console.log('💰 [과거 정산] 미전환 커미션:', pastCommission);
+      }
+      
+      setLatestSettlements(settlementsWithConversion);
+      
+      // 5️⃣ 실시간 커미션 + 과거 미전환 커미션 = 총 커미션
+      const totalCommission = {
+        casino_rolling: realtimeCommission.casino_rolling + pastCommission.casino_rolling,
+        casino_losing: realtimeCommission.casino_losing + pastCommission.casino_losing,
+        slot_rolling: realtimeCommission.slot_rolling + pastCommission.slot_rolling,
+        slot_losing: realtimeCommission.slot_losing + pastCommission.slot_losing
+      };
+      
+      console.log('💰 [총 커미션] 실시간 + 과거:', totalCommission);
+      
+      setCommissionBalances(totalCommission);
+      
+      // 6️⃣ 커미션 요율 설정 (partners 테이블의 현재 요율)
+      setCommissionRates({
+        casino_rolling_rate: commissionRates.casino_rolling,
+        casino_losing_rate: commissionRates.casino_losing,
+        slot_rolling_rate: commissionRates.slot_rolling,
+        slot_losing_rate: commissionRates.slot_losing
+      });
+    } catch (error) {
+      console.error('❌ 최신 커미션 조회 실패:', error);
+      // ✅ 에러 발생 시에도 모두 0으로 설정
+      setLatestSettlements([]);
+      setCommissionBalances({
+        casino_rolling: 0,
+        casino_losing: 0,
+        slot_rolling: 0,
+        slot_losing: 0
+      });
+      setCommissionRates({
+        casino_rolling_rate: 0,
+        casino_losing_rate: 0,
+        slot_rolling_rate: 0,
+        slot_losing_rate: 0
+      });
+    }
+  };
+  
+  // ✅ 커미션 클릭 핸들러
+  const handleCommissionClick = (
+    settlement: any,
+    type: 'casino_rolling' | 'casino_losing' | 'slot_rolling' | 'slot_losing', 
+    amount: number
+  ) => {
+    // ✅ conversion_status 확인 (별도 테이블 기반)
+    const isConverted = settlement.conversion_status?.[type] || false;
+    
+    if (isConverted) {
+      toast.info('이미 보유금으로 전환된 커미션입니다.\n전환이 완료된 커미션은 다시 전환할 수 없습니다.');
+      return;
+    }
+    
+    if (amount <= 0) {
+      toast.error('전환할 수 있는 커미션이 없습니다.');
+      return;
+    }
+    
+    setSelectedCommission({ settlementId: settlement.id, type, amount });
+    setShowConvertDialog(true);
+  };
+  
+  // ✅ 커미션 -> 보유금 전환 (RPC 함수 사용)
+  const handleConvertToBalance = async () => {
+    if (!selectedCommission) return;
+
+    try {
+      setConvertingId(selectedCommission.settlementId);
+      setShowConvertDialog(false);
+
+      const commissionTypeText = {
+        casino_rolling: '카지노 롤링 커미션',
+        casino_losing: '카지노 루징 커미션',
+        slot_rolling: '슬롯 롤링 커미션',
+        slot_losing: '슬롯 루징 커미션'
+      }[selectedCommission.type];
+
+      console.log('💰 [커미션 전환] 시작:', {
+        partner_id: user.id,
+        settlement_id: selectedCommission.settlementId,
+        type: selectedCommission.type,
+        amount: selectedCommission.amount
+      });
+
+      // ✅ RPC 함수 호출
+      const { data, error } = await supabase.rpc('convert_commission_to_balance', {
+        p_partner_id: user.id,
+        p_settlement_id: selectedCommission.settlementId,
+        p_commission_type: selectedCommission.type,
+        p_amount: selectedCommission.amount
+      });
+
+      if (error) {
+        console.error('❌ [커미션 전환] RPC 에러:', error);
+        
+        // 에러 메시지 한글화
+        let errorMessage = '보유금 전환에 실패했습니다.';
+        if (error.message?.includes('Commission already converted')) {
+          errorMessage = '이미 보유금으로 전환된 커미션입니다.\n전환이 완료된 커미션은 다시 전환할 수 없습니다.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      console.log('✅ [커미션 전환] 성공:', data);
+      toast.success(`${commissionTypeText} ${formatCurrency(selectedCommission.amount)}이(가) 보유금으로 전환되었습니다.\n전환된 금액은 즉시 사용 가능합니다.`);
+
+      // ✅ 커미션 정보 새로고침
+      await loadLatestCommissions();
+      setSelectedCommission(null);
+    } catch (error: any) {
+      console.error('❌ 보유금 전환 실패:', error);
+      toast.error(error.message || '보유금 전환에 실패했습니다.');
+    } finally {
+      setConvertingId(null);
     }
   };
 
@@ -1265,11 +1686,14 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div 
-                      className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
+                      className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
                       onClick={() => onRouteChange?.('/admin/users')}
                     >
-                      <div className="text-lg text-cyan-300 font-medium text-center">{t.header.signupApproval}</div>
-                      <div className="text-lg font-bold text-white text-center">{stats.pending_approvals}</div>
+                      <div className="text-sm text-cyan-300 font-medium text-center mb-1">{t.header.signupApproval}</div>
+                      <div className="text-2xl font-bold text-white text-center">{stats.pending_approvals}</div>
+                      {stats.pending_approvals > 0 && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                      )}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>{t.header.signupApproval}</TooltipContent>
@@ -1281,11 +1705,14 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div 
-                      className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
+                      className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
                       onClick={() => onRouteChange?.('/admin/customer-service')}
                     >
-                      <div className="text-lg text-purple-300 font-medium text-center">{t.header.customerInquiry}</div>
-                      <div className="text-lg font-bold text-white text-center">{stats.pending_messages}</div>
+                      <div className="text-sm text-purple-300 font-medium text-center mb-1">{t.header.customerInquiry}</div>
+                      <div className="text-2xl font-bold text-white text-center">{stats.pending_messages}</div>
+                      {stats.pending_messages > 0 && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                      )}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>{t.header.customerInquiry}</TooltipContent>
@@ -1297,11 +1724,14 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div 
-                      className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
+                      className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
                       onClick={() => onRouteChange?.('/admin/transactions#deposit-request')}
                     >
-                      <div className="text-lg text-emerald-300 font-medium text-center">{t.dashboard.pendingDeposits}</div>
-                      <div className="text-lg font-bold text-white text-center">{stats.pending_deposits}</div>
+                      <div className="text-sm text-emerald-300 font-medium text-center mb-1">{t.dashboard.pendingDeposits}</div>
+                      <div className="text-2xl font-bold text-white text-center">{stats.pending_deposits}</div>
+                      {stats.pending_deposits > 0 && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                      )}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>{t.dashboard.pendingDeposits}</TooltipContent>
@@ -1313,11 +1743,14 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div 
-                      className="px-2 py-1.5 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 hover:scale-105 transition-all cursor-pointer min-w-[80px]"
+                      className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
                       onClick={() => onRouteChange?.('/admin/transactions#withdrawal-request')}
                     >
-                      <div className="text-lg text-orange-300 font-medium text-center">{t.dashboard.pendingWithdrawals}</div>
-                      <div className="text-lg font-bold text-white text-center">{stats.pending_withdrawals}</div>
+                      <div className="text-sm text-orange-300 font-medium text-center mb-1">{t.dashboard.pendingWithdrawals}</div>
+                      <div className="text-2xl font-bold text-white text-center">{stats.pending_withdrawals}</div>
+                      {stats.pending_withdrawals > 0 && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                      )}
                     </div>
                   </TooltipTrigger>
                   <TooltipContent>{t.dashboard.pendingWithdrawals}</TooltipContent>
@@ -1355,9 +1788,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               {/* 언어 전환 */}
               <LanguageSwitcher />
 
-              {/* 사용자 메뉴 */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              {/* ✅ 사용자 프로필 Popover (클릭 시 표시) */}
+              <Popover>
+                <PopoverTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-full hover:bg-slate-700">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-500 text-white font-semibold text-sm">
@@ -1365,28 +1798,179 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       </AvatarFallback>
                     </Avatar>
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
-                  <div className="px-2 py-2 border-b border-slate-700">
-                    <p className="text-xl font-semibold text-slate-100">{user.nickname}</p>
-                    <p className="text-base text-slate-400">{user.username}</p>
-                    <p className="text-base text-slate-500 mt-0.5">관리자 계정</p>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-[440px] bg-gradient-to-br from-slate-800/95 to-slate-900/95 border-2 border-purple-500/40 p-4 shadow-2xl shadow-purple-500/30">
+                {/* 상단: 사용자 정보 + 로그아웃 */}
+                <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-700">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-14 w-14 ring-2 ring-purple-500/50">
+                      <AvatarFallback className="bg-gradient-to-br from-cyan-500 to-blue-500 text-white font-bold text-xl">
+                        {user.nickname.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-2xl font-bold text-white">{user.nickname}</p>
+                      <p className="text-lg text-slate-400">{user.username}</p>
+                    </div>
                   </div>
-                  <DropdownMenuItem onClick={() => setShowPasswordModal(true)} className="text-slate-300 cursor-pointer hover:bg-slate-700">
-                    <Key className="h-4 w-4 mr-2" />
-                    비밀번호 변경
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={loadCommissionInfo} disabled={isLoadingCommission} className="text-slate-300 cursor-pointer hover:bg-slate-700">
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    {isLoadingCommission ? '로딩 중...' : '커미션 정보'}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator className="bg-slate-700" />
-                  <DropdownMenuItem onClick={handleLogout} className="text-rose-400 cursor-pointer hover:bg-slate-700">
-                    <LogOut className="h-4 w-4 mr-2" />
+                  <Button 
+                    onClick={handleLogout}
+                    className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 h-12 px-6 text-lg font-semibold shadow-lg shadow-red-500/30"
+                  >
+                    <LogOut className="h-6 w-6 mr-2" />
                     로그아웃
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  </Button>
+                </div>
+
+                {/* 중단: 커미션 잔액 */}
+                <div className="space-y-2 mb-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <DollarSign className="h-6 w-6 text-emerald-400" />
+                    <h3 className="text-lg font-semibold text-slate-300">전환 가능 커미션</h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadLatestCommissions}
+                      className="h-7 px-2 text-xs hover:bg-slate-700"
+                    >
+                      새로고침
+                    </Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* 카지노 롤링 */}
+                    <div 
+                      onClick={() => {
+                        const settlement = latestSettlements.find(s => 
+                          (s.casino_rolling_commission || 0) > 0 && 
+                          !s.conversion_status?.casino_rolling
+                        );
+                        if (settlement) {
+                          handleCommissionClick(settlement, 'casino_rolling', commissionBalances.casino_rolling);
+                        } else {
+                          toast.info('전환 가능한 카지노 롤링 커미션이 없습니다.');
+                        }
+                      }}
+                      className={cn(
+                        "p-2 rounded-lg border cursor-pointer transition-all",
+                        commissionBalances.casino_rolling > 0 
+                          ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20 hover:scale-105" 
+                          : "bg-slate-700/30 border-slate-600/30 opacity-50"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm text-slate-400">🎰 카지노 롤링</span>
+                        <span className="text-xs text-slate-500">{commissionRates.casino_rolling_rate}%</span>
+                      </div>
+                      <div className="text-xl font-bold text-emerald-400">
+                        ₩{commissionBalances.casino_rolling.toLocaleString()}
+                      </div>
+                    </div>
+
+                    {/* 카지노 루징 */}
+                    <div 
+                      onClick={() => {
+                        const settlement = latestSettlements.find(s => 
+                          (s.casino_losing_commission || 0) > 0 && 
+                          !s.conversion_status?.casino_losing
+                        );
+                        if (settlement) {
+                          handleCommissionClick(settlement, 'casino_losing', commissionBalances.casino_losing);
+                        } else {
+                          toast.info('전환 가능한 카지노 루징 커미션이 없습니다.');
+                        }
+                      }}
+                      className={cn(
+                        "p-2 rounded-lg border cursor-pointer transition-all",
+                        commissionBalances.casino_losing > 0 
+                          ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20 hover:scale-105" 
+                          : "bg-slate-700/30 border-slate-600/30 opacity-50"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm text-slate-400">🎰 카지노 루징</span>
+                        <span className="text-xs text-slate-500">{commissionRates.casino_losing_rate}%</span>
+                      </div>
+                      <div className="text-xl font-bold text-emerald-400">
+                        ₩{commissionBalances.casino_losing.toLocaleString()}
+                      </div>
+                    </div>
+
+                    {/* 슬롯 롤링 */}
+                    <div 
+                      onClick={() => {
+                        const settlement = latestSettlements.find(s => 
+                          (s.slot_rolling_commission || 0) > 0 && 
+                          !s.conversion_status?.slot_rolling
+                        );
+                        if (settlement) {
+                          handleCommissionClick(settlement, 'slot_rolling', commissionBalances.slot_rolling);
+                        } else {
+                          toast.info('전환 가능한 슬롯 롤링 커미션이 없습니다.');
+                        }
+                      }}
+                      className={cn(
+                        "p-2 rounded-lg border cursor-pointer transition-all",
+                        commissionBalances.slot_rolling > 0 
+                          ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20 hover:scale-105" 
+                          : "bg-slate-700/30 border-slate-600/30 opacity-50"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm text-slate-400">🎲 슬롯 롤링</span>
+                        <span className="text-xs text-slate-500">{commissionRates.slot_rolling_rate}%</span>
+                      </div>
+                      <div className="text-xl font-bold text-emerald-400">
+                        ₩{commissionBalances.slot_rolling.toLocaleString()}
+                      </div>
+                    </div>
+
+                    {/* 슬롯 루징 */}
+                    <div 
+                      onClick={() => {
+                        const settlement = latestSettlements.find(s => 
+                          (s.slot_losing_commission || 0) > 0 && 
+                          !s.conversion_status?.slot_losing
+                        );
+                        if (settlement) {
+                          handleCommissionClick(settlement, 'slot_losing', commissionBalances.slot_losing);
+                        } else {
+                          toast.info('전환 가능한 슬롯 루징 커미션이 없습니다.');
+                        }
+                      }}
+                      className={cn(
+                        "p-2 rounded-lg border cursor-pointer transition-all",
+                        commissionBalances.slot_losing > 0 
+                          ? "bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20 hover:scale-105" 
+                          : "bg-slate-700/30 border-slate-600/30 opacity-50"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm text-slate-400">🎲 슬롯 루징</span>
+                        <span className="text-xs text-slate-500">{commissionRates.slot_losing_rate}%</span>
+                      </div>
+                      <div className="text-xl font-bold text-emerald-400">
+                        ₩{commissionBalances.slot_losing.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-slate-500 text-center mt-2">
+                    💡 커미션을 클릭하면 보유금으로 전환됩니다
+                  </div>
+                </div>
+
+                {/* 하단: 비밀번호 변경 버튼 */}
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPasswordModal(true)}
+                  className="w-full bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-lg h-11"
+                >
+                  <Key className="h-5 w-5 mr-2" />
+                  비밀번호 변경
+                </Button>
+              </PopoverContent>
+            </Popover>
             </div>
           </div>
         </div>
@@ -1497,6 +2081,15 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ✅ 보유금 전환 확인 모달 */}
+      <CommissionConvertModal
+        open={showConvertDialog}
+        onOpenChange={setShowConvertDialog}
+        selectedCommission={selectedCommission}
+        onConvert={handleConvertToBalance}
+        converting={!!convertingId}
+      />
     </>
   );
 }

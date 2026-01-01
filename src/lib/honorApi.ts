@@ -809,7 +809,7 @@ export async function syncHonorApiBettingHistory(): Promise<{
             time_category: 'recent',
             currency: 'KRW',
             external: external  // ✅ 게임 상세 결과 저장
-          });
+          } as any);  // ⭐ id는 자동 생성되므로 제외
 
         if (insertError) {
           // unique constraint 위반은 정상 (이미 저장된 데이터)
@@ -1336,7 +1336,7 @@ export function extractBalanceFromResponse(response: any, username: string): num
     return typeof response.balance === 'number' ? response.balance : parseFloat(response.balance) || 0;
   }
   
-  // amount 필드가 있을 수 있음 (출금 응답)
+  // amount 필드가 있을 수 있음 (출��� 응답)
   if (response?.amount !== undefined) {
     return typeof response.amount === 'number' ? response.amount : parseFloat(response.amount) || 0;
   }

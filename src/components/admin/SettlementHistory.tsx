@@ -8,7 +8,6 @@ import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Calendar } from "../ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle } from "./AdminDialog";
 import { toast } from "sonner@2.0.3";
 import { Partner } from "../../types";
 import { supabase } from "../../lib/supabase";
@@ -17,6 +16,7 @@ import { format, subDays, startOfMonth, endOfMonth, startOfDay, endOfDay } from 
 import { ko } from "date-fns/locale";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
+import { CommissionConvertModal } from "./CommissionConvertModal";
 
 interface SettlementHistoryProps {
   user: Partner;
@@ -569,7 +569,7 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
                           onClick={() => handleCommissionClick(settlement, 'casino_rolling', Math.round(settlement.casino_rolling_commission || 0))}
                         >
                           <div className="flex items-center justify-end gap-2">
-                            <span className="font-mono text-lg font-semibold">₩{Math.round(settlement.casino_rolling_commission || 0).toLocaleString()}</span>
+                            <span className="font-mono text-xl font-bold tracking-tight">₩{Math.round(settlement.casino_rolling_commission || 0).toLocaleString()}</span>
                             {casinoRollingConverted && <CheckCircle2 className="h-5 w-5 text-green-400" />}
                           </div>
                         </td>
@@ -583,7 +583,7 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
                           onClick={() => handleCommissionClick(settlement, 'casino_losing', Math.round(settlement.casino_losing_commission || 0))}
                         >
                           <div className="flex items-center justify-end gap-2">
-                            <span className="font-mono text-lg font-semibold">₩{Math.round(settlement.casino_losing_commission || 0).toLocaleString()}</span>
+                            <span className="font-mono text-xl font-bold tracking-tight">₩{Math.round(settlement.casino_losing_commission || 0).toLocaleString()}</span>
                             {casinoLosingConverted && <CheckCircle2 className="h-5 w-5 text-green-400" />}
                           </div>
                         </td>
@@ -597,7 +597,7 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
                           onClick={() => handleCommissionClick(settlement, 'slot_rolling', Math.round(settlement.slot_rolling_commission || 0))}
                         >
                           <div className="flex items-center justify-end gap-2">
-                            <span className="font-mono text-lg font-semibold">₩{Math.round(settlement.slot_rolling_commission || 0).toLocaleString()}</span>
+                            <span className="font-mono text-xl font-bold tracking-tight">₩{Math.round(settlement.slot_rolling_commission || 0).toLocaleString()}</span>
                             {slotRollingConverted && <CheckCircle2 className="h-5 w-5 text-green-400" />}
                           </div>
                         </td>
@@ -611,15 +611,15 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
                           onClick={() => handleCommissionClick(settlement, 'slot_losing', Math.round(settlement.slot_losing_commission || 0))}
                         >
                           <div className="flex items-center justify-end gap-2">
-                            <span className="font-mono text-lg font-semibold">₩{Math.round(settlement.slot_losing_commission || 0).toLocaleString()}</span>
+                            <span className="font-mono text-xl font-bold tracking-tight">₩{Math.round(settlement.slot_losing_commission || 0).toLocaleString()}</span>
                             {slotLosingConverted && <CheckCircle2 className="h-5 w-5 text-green-400" />}
                           </div>
                         </td>
-                        <td className="p-6 text-right text-green-400 whitespace-nowrap font-mono text-lg font-semibold">
+                        <td className="p-6 text-right text-green-400 whitespace-nowrap font-mono text-xl font-bold tracking-tight">
                           ₩{Math.round(settlement.withdrawal_commission).toLocaleString()}
                         </td>
                         <td className="p-6 text-right whitespace-nowrap">
-                          <span className="text-orange-400 font-mono font-bold text-xl">
+                          <span className="text-orange-400 font-mono font-bold text-2xl tracking-tight">
                             ₩{totalAmount.toLocaleString()}
                           </span>
                         </td>
@@ -696,65 +696,13 @@ export function SettlementHistory({ user }: SettlementHistoryProps) {
       </Card>
 
       {/* 보유금 전환 다이얼로그 */}
-      <Dialog open={showConvertDialog} onOpenChange={setShowConvertDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-2xl flex items-center gap-2">
-              <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center">
-                <ArrowRightLeft className="h-5 w-5 text-white" />
-              </div>
-              보유금 전환
-            </DialogTitle>
-            <DialogDescription className="text-base pt-4">
-              선택한 커미션을 보유금으로 전환하시겠습니까?
-            </DialogDescription>
-          </DialogHeader>
-          {selectedCommission && (
-            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700 rounded-lg p-6 my-4 space-y-4">
-              <div className="flex justify-between items-center pb-3 border-b border-slate-700">
-                <span className="text-slate-400">커미션 종류</span>
-                <span className="text-white font-semibold">
-                  {selectedCommission.type === 'casino_rolling' && '🎰 카지노 롤링'}
-                  {selectedCommission.type === 'casino_losing' && '🎰 카지노 루징'}
-                  {selectedCommission.type === 'slot_rolling' && '🎮 슬롯 롤링'}
-                  {selectedCommission.type === 'slot_losing' && '🎮 슬�� 루징'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-400">전환 금액</span>
-                <span className="text-2xl font-bold text-gradient bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                  ₩{selectedCommission.amount.toLocaleString()}
-                </span>
-              </div>
-            </div>
-          )}
-          <DialogFooter className="gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowConvertDialog(false)}
-              className="text-base px-6 h-11"
-            >
-              취소
-            </Button>
-            <Button
-              type="button"
-              onClick={handleConvertToBalance}
-              disabled={convertingId !== null}
-              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-base px-6 h-11"
-            >
-              {convertingId !== null ? (
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  전환 중...
-                </div>
-              ) : (
-                '전환하기'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CommissionConvertModal
+        open={showConvertDialog}
+        onOpenChange={setShowConvertDialog}
+        selectedCommission={selectedCommission}
+        onConvert={handleConvertToBalance}
+        converting={!!convertingId}
+      />
     </div>
   );
 }

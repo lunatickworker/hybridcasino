@@ -434,9 +434,9 @@ export function BannerManagement({ user }: BannerManagementProps) {
       sortable: true,
       cell: (banner: Banner) => (
         <div className="max-w-xs">
-          <p className="font-medium truncate">{banner.title}</p>
+          <p className="text-base font-bold truncate">{banner.title}</p>
           {banner.image_url && (
-            <p className="text-xs text-muted-foreground">{t.bannerManagement.imageIncluded}</p>
+            <p className="text-sm text-slate-400 mt-0.5">{t.bannerManagement.imageIncluded}</p>
           )}
         </div>
       ),
@@ -445,7 +445,7 @@ export function BannerManagement({ user }: BannerManagementProps) {
       key: "banner_type",
       title: t.bannerManagement.bannerType,
       cell: (banner: Banner) => (
-        <Badge variant={banner.banner_type === 'popup' ? 'default' : 'secondary'}>
+        <Badge variant={banner.banner_type === 'popup' ? 'default' : 'secondary'} className="text-sm px-3 py-1 font-semibold">
           {banner.banner_type === 'popup' ? t.bannerManagement.popup : t.bannerManagement.banner}
         </Badge>
       ),
@@ -455,12 +455,12 @@ export function BannerManagement({ user }: BannerManagementProps) {
       title: t.bannerManagement.targetAudience,
       cell: (banner: Banner) => (
         <div className="space-y-1">
-          <Badge variant="outline">
+          <Badge variant="outline" className="text-sm px-3 py-1 font-semibold">
             {banner.target_audience === 'all' ? 'All' : 
              banner.target_audience === 'users' ? 'Users' : 'Partners'}
           </Badge>
           {banner.target_level && (
-            <p className="text-xs text-muted-foreground">Level {banner.target_level}</p>
+            <p className="text-sm text-slate-400 mt-0.5">Level {banner.target_level}</p>
           )}
         </div>
       ),
@@ -469,7 +469,7 @@ export function BannerManagement({ user }: BannerManagementProps) {
       key: "status",
       title: t.common.status,
       cell: (banner: Banner) => (
-        <Badge variant={banner.status === 'active' ? 'default' : 'secondary'}>
+        <Badge variant={banner.status === 'active' ? 'default' : 'secondary'} className="text-sm px-3 py-1 font-semibold">
           {banner.status === 'active' ? t.bannerManagement.active : t.bannerManagement.inactive}
         </Badge>
       ),
@@ -478,6 +478,9 @@ export function BannerManagement({ user }: BannerManagementProps) {
       key: "display_order",
       title: t.bannerManagement.order,
       sortable: true,
+      cell: (banner: Banner) => (
+        <span className="text-base font-semibold">{banner.display_order}</span>
+      ),
     },
     {
       key: "actions",
@@ -489,24 +492,27 @@ export function BannerManagement({ user }: BannerManagementProps) {
             variant="outline"
             size="sm"
             title={t.bannerManagement.preview}
+            className="h-9 w-9 p-0"
           >
-            <Eye className="h-4 w-4" />
+            <Eye className="h-5 w-5" />
           </Button>
           <Button
             onClick={() => editBanner(banner)}
             variant="outline"
             size="sm"
             title={t.common.edit}
+            className="h-9 w-9 p-0"
           >
-            <Edit className="h-4 w-4" />
+            <Edit className="h-5 w-5" />
           </Button>
           <Button
             onClick={() => deleteBanner(banner.id)}
             variant="outline"
             size="sm"
             title={t.common.delete}
+            className="h-9 w-9 p-0"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-5 w-5" />
           </Button>
         </div>
       ),
@@ -519,25 +525,25 @@ export function BannerManagement({ user }: BannerManagementProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-slate-100">{t.bannerManagement.title}</h1>
-          <p className="text-sm text-slate-400">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold text-slate-100">{t.bannerManagement.title}</h1>
+          <p className="text-base text-slate-300">
             {t.bannerManagement.subtitle} ({user.level <= 5 ? t.bannerManagement.accessRestricted : t.bannerManagement.accessDenied})
           </p>
         </div>
         {user.level <= 5 && (
           <Button 
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 h-12 px-6 text-base font-bold"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-5 w-5" />
             {t.bannerManagement.createNew}
           </Button>
         )}
       </div>
 
       {/* 통계 카드 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <MetricCard
           title={t.bannerManagement.totalBanners}
           value={banners.length.toLocaleString()}
@@ -576,13 +582,13 @@ export function BannerManagement({ user }: BannerManagementProps) {
         <DialogContent className="!max-w-[min(1600px,95vw)] w-[95vw] max-h-[85vh] overflow-y-auto glass-card p-0">
           {/* 헤더 - 강조된 디자인 */}
           <DialogHeader className="pb-5 border-b border-slate-700/50 bg-gradient-to-r from-blue-500/10 to-purple-500/10 px-8 pt-6 rounded-t-lg sticky top-0 z-10">
-            <DialogTitle className="flex items-center gap-3 text-2xl text-slate-50">
+            <DialogTitle className="flex items-center gap-3 text-3xl text-slate-50">
               <div className="p-2.5 bg-blue-500/20 rounded-lg">
-                <Image className="h-7 w-7 text-blue-400" />
+                <Image className="h-8 w-8 text-blue-400" />
               </div>
               {editingBanner ? t.bannerManagement.edit : t.bannerManagement.createNew}
             </DialogTitle>
-            <DialogDescription className="text-slate-300 mt-2 text-base">
+            <DialogDescription className="text-slate-200 mt-2 text-lg">
               {t.bannerManagement.optimizedDescription}
             </DialogDescription>
           </DialogHeader>
@@ -594,12 +600,12 @@ export function BannerManagement({ user }: BannerManagementProps) {
               <div className="space-y-4 p-5 border border-slate-700/50 rounded-xl bg-gradient-to-br from-slate-900/50 to-slate-800/30 shadow-lg">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="h-1 w-8 bg-blue-500 rounded-full"></div>
-                  <h4 className="font-semibold text-slate-100">{t.bannerManagement.basicInfo}</h4>
+                  <h4 className="text-lg font-bold text-slate-100">{t.bannerManagement.basicInfo}</h4>
                 </div>
                 
                 <div className="space-y-3">
-                  <Label htmlFor="banner_title" className="text-slate-200 flex items-center gap-2">
-                    <FileText className="h-3.5 w-3.5 text-blue-400" />
+                  <Label htmlFor="banner_title" className="text-base text-slate-100 flex items-center gap-2 font-semibold">
+                    <FileText className="h-4 w-4 text-blue-400" />
                     {t.bannerManagement.bannerTitle} *
                   </Label>
                   <Input
@@ -607,43 +613,43 @@ export function BannerManagement({ user }: BannerManagementProps) {
                     value={bannerForm.title || ''}
                     onChange={(e) => setBannerForm(prev => ({ ...prev, title: e.target.value }))}
                     placeholder={t.bannerManagement.titlePlaceholder}
-                    className="input-premium h-11 text-base border-slate-600 focus:border-blue-500 bg-slate-800/50"
+                    className="input-premium h-12 text-base border-slate-600 focus:border-blue-500 bg-slate-800/50"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-3">
-                    <Label className="text-slate-200">{t.bannerManagement.bannerType}</Label>
+                    <Label className="text-base text-slate-100 font-semibold">{t.bannerManagement.bannerType}</Label>
                     <Select
                       value={bannerForm.banner_type}
                       onValueChange={(value: 'popup' | 'banner') => 
                         setBannerForm(prev => ({ ...prev, banner_type: value }))
                       }
                     >
-                      <SelectTrigger className="h-11 bg-slate-800/50 border-slate-600 hover:border-blue-500 transition-colors">
+                      <SelectTrigger className="h-12 text-base bg-slate-800/50 border-slate-600 hover:border-blue-500 transition-colors">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-slate-700">
-                        <SelectItem value="popup">🔔 {t.bannerManagement.popup}</SelectItem>
-                        <SelectItem value="banner">📌 {t.bannerManagement.banner}</SelectItem>
+                        <SelectItem value="popup" className="text-base">🔔 {t.bannerManagement.popup}</SelectItem>
+                        <SelectItem value="banner" className="text-base">📌 {t.bannerManagement.banner}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-slate-200">{t.common.status}</Label>
+                    <Label className="text-base text-slate-100 font-semibold">{t.common.status}</Label>
                     <Select
                       value={bannerForm.status}
                       onValueChange={(value: 'active' | 'inactive') => 
                         setBannerForm(prev => ({ ...prev, status: value }))
                       }
                     >
-                      <SelectTrigger className="h-11 bg-slate-800/50 border-slate-600 hover:border-blue-500 transition-colors">
+                      <SelectTrigger className="h-12 text-base bg-slate-800/50 border-slate-600 hover:border-blue-500 transition-colors">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-slate-700">
-                        <SelectItem value="active">✅ {t.bannerManagement.active}</SelectItem>
-                        <SelectItem value="inactive">⏸️ {t.bannerManagement.inactive}</SelectItem>
+                        <SelectItem value="active" className="text-base">✅ {t.bannerManagement.active}</SelectItem>
+                        <SelectItem value="inactive" className="text-base">⏸️ {t.bannerManagement.inactive}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -651,63 +657,63 @@ export function BannerManagement({ user }: BannerManagementProps) {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-3">
-                    <Label className="text-slate-200">{t.bannerManagement.targetAudience}</Label>
+                    <Label className="text-base text-slate-100 font-semibold">{t.bannerManagement.targetAudience}</Label>
                     <Select
                       value={bannerForm.target_audience}
                       onValueChange={(value: 'all' | 'users' | 'partners') => 
                         setBannerForm(prev => ({ ...prev, target_audience: value }))
                       }
                     >
-                      <SelectTrigger className="h-11 bg-slate-800/50 border-slate-600 hover:border-blue-500 transition-colors">
+                      <SelectTrigger className="h-12 text-base bg-slate-800/50 border-slate-600 hover:border-blue-500 transition-colors">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-slate-900 border-slate-700">
-                        <SelectItem value="all">👥 All</SelectItem>
-                        <SelectItem value="users">👤 Users</SelectItem>
-                        <SelectItem value="partners">🤝 Partners</SelectItem>
+                        <SelectItem value="all" className="text-base">👥 All</SelectItem>
+                        <SelectItem value="users" className="text-base">👤 Users</SelectItem>
+                        <SelectItem value="partners" className="text-base">🤝 Partners</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-slate-200">{t.bannerManagement.displayOrder}</Label>
+                    <Label className="text-base text-slate-100 font-semibold">{t.bannerManagement.displayOrder}</Label>
                     <Input
                       id="display_order"
                       type="number"
                       value={bannerForm.display_order || 0}
                       onChange={(e) => setBannerForm(prev => ({ ...prev, display_order: parseInt(e.target.value) }))}
                       placeholder="0"
-                      className="input-premium h-11 bg-slate-800/50 border-slate-600 focus:border-blue-500"
+                      className="input-premium h-12 text-base bg-slate-800/50 border-slate-600 focus:border-blue-500"
                     />
                   </div>
                 </div>
 
                 {/* 날짜 설정 */}
                 <div className="space-y-3 pt-3 border-t border-slate-700/30">
-                  <Label className="text-slate-200 flex items-center gap-2">
-                    <Calendar className="h-3.5 w-3.5 text-blue-400" />
+                  <Label className="text-base text-slate-100 flex items-center gap-2 font-semibold">
+                    <Calendar className="h-4 w-4 text-blue-400" />
                     {t.bannerManagement.displayPeriod}
                   </Label>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label htmlFor="start_date" className="text-xs text-slate-400">{t.bannerManagement.startDate}</Label>
+                      <Label htmlFor="start_date" className="text-sm text-slate-300">{t.bannerManagement.startDate}</Label>
                       <Input
                         id="start_date"
                         type="datetime-local"
                         value={bannerForm.start_date || ''}
                         onChange={(e) => setBannerForm(prev => ({ ...prev, start_date: e.target.value }))}
-                        className="h-10 bg-slate-800/50 border-slate-600 text-sm"
+                        className="h-11 text-sm bg-slate-800/50 border-slate-600"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="end_date" className="text-xs text-slate-400">{t.bannerManagement.endDate}</Label>
+                      <Label htmlFor="end_date" className="text-sm text-slate-300">{t.bannerManagement.endDate}</Label>
                       <Input
                         id="end_date"
                         type="datetime-local"
                         value={bannerForm.end_date || ''}
                         onChange={(e) => setBannerForm(prev => ({ ...prev, end_date: e.target.value }))}
-                        className="h-10 bg-slate-800/50 border-slate-600 text-sm"
+                        className="h-11 text-sm bg-slate-800/50 border-slate-600"
                       />
                     </div>
                   </div>
@@ -721,7 +727,7 @@ export function BannerManagement({ user }: BannerManagementProps) {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="h-1 w-8 bg-purple-500 rounded-full"></div>
-                    <h4 className="font-semibold text-slate-100">{t.bannerManagement.bannerImage}</h4>
+                    <h4 className="text-lg font-bold text-slate-100">{t.bannerManagement.bannerImage}</h4>
                   </div>
                   {imagePreview && (
                     <Button
@@ -729,7 +735,7 @@ export function BannerManagement({ user }: BannerManagementProps) {
                       variant="ghost"
                       size="sm"
                       onClick={handleImageRemove}
-                      className="h-8 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                      className="h-9 text-sm font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10"
                     >
                       <X className="h-4 w-4 mr-1" />
                       {t.bannerManagement.removeImage}
@@ -739,8 +745,8 @@ export function BannerManagement({ user }: BannerManagementProps) {
 
                 <div className="space-y-3">
                   <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                    <p className="text-xs text-blue-300 flex items-center gap-2">
-                      <Info className="h-3.5 w-3.5" />
+                    <p className="text-sm text-blue-200 flex items-center gap-2 font-medium">
+                      <Info className="h-4 w-4" />
                       {t.bannerManagement.recommendedRatio}
                     </p>
                   </div>
@@ -814,12 +820,12 @@ export function BannerManagement({ user }: BannerManagementProps) {
               <div className="space-y-4 p-5 border border-slate-700/50 rounded-xl bg-gradient-to-br from-slate-900/50 to-slate-800/30 shadow-lg h-full flex flex-col">
                 <div className="flex items-center gap-2">
                   <div className="h-1 w-8 bg-green-500 rounded-full"></div>
-                  <h4 className="font-semibold text-slate-100">{t.bannerManagement.bannerContent}</h4>
+                  <h4 className="text-lg font-bold text-slate-100">{t.bannerManagement.bannerContent}</h4>
                 </div>
                 
                 <div className="space-y-3 flex-1 flex flex-col">
-                  <Label htmlFor="banner_content" className="text-slate-200 flex items-center gap-2">
-                    <FileText className="h-3.5 w-3.5 text-green-400" />
+                  <Label htmlFor="banner_content" className="text-base text-slate-100 flex items-center gap-2 font-semibold">
+                    <FileText className="h-4 w-4 text-green-400" />
                     {t.common.content} *
                   </Label>
                   <Textarea
@@ -830,10 +836,10 @@ export function BannerManagement({ user }: BannerManagementProps) {
                     className="flex-1 min-h-[320px] bg-slate-800/50 border-slate-600 focus:border-green-500 resize-none text-base leading-relaxed"
                   />
                   <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      💡 <strong className="text-slate-300">{t.bannerManagement.availableTags}:</strong>
+                    <p className="text-sm text-slate-300 leading-relaxed font-medium">
+                      💡 <strong className="text-slate-200">{t.bannerManagement.availableTags}:</strong>
                       <br />
-                      &lt;p&gt; &lt;br&gt; &lt;strong&gt; &lt;em&gt; &lt;span&gt; &lt;div&gt; &lt;a&gt; &lt;ul&gt; &lt;li&gt;
+                      <span className="text-slate-400">&lt;p&gt; &lt;br&gt; &lt;strong&gt; &lt;em&gt; &lt;span&gt; &lt;div&gt; &lt;a&gt; &lt;ul&gt; &lt;li&gt;</span>
                     </p>
                   </div>
                 </div>

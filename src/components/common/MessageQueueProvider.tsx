@@ -35,7 +35,7 @@ interface MessageQueueContextValue {
   // 메시지 큐 관련
   pendingMessages: MessageQueueMessage[];
   sendMessage: (type: string, data: any, priority?: number) => Promise<boolean>;
-  processMessages: () => Promise<void>;
+  processMessages: (silent: boolean) => Promise<void>;
   
   // 알림 관련
   notifications: RealtimeNotification[];
@@ -155,7 +155,7 @@ export const MessageQueueProvider = React.memo(({ children, userType, userId }: 
 
       if (error) throw error;
 
-      // WebSocket으로도 실시간 전송
+      // WebSocket으로도 실시간 전송 (타입은 이미 sendWebSocketMessage의 첫 번째 매개변수로 전달됨)
       sendWebSocketMessage(type, {
         ...data,
         queue_id: result,
@@ -171,7 +171,7 @@ export const MessageQueueProvider = React.memo(({ children, userType, userId }: 
   }, [userType, userId, sendWebSocketMessage]);
 
   // 메시지 큐 처리 (관리자용)
-  const processMessages = useCallback(async () => {
+  const processMessages = useCallback(async (silent: boolean = false) => {
     if (userType !== 'admin' || isProcessing) return;
     
     setIsProcessing(true);
@@ -182,7 +182,10 @@ export const MessageQueueProvider = React.memo(({ children, userType, userId }: 
       
       const processedCount = data?.[0]?.processed_count || 0;
       if (processedCount > 0) {
-        toast.success(`${processedCount}개의 메시지를 처리했습니다.`);
+        // 수동 호출일 때만 토스트 표시
+        if (!silent) {
+          toast.success(`${processedCount}개의 메시지를 처리했습니다.`);
+        }
         await fetchPendingMessages();
         await fetchNotifications();
       }
@@ -190,7 +193,10 @@ export const MessageQueueProvider = React.memo(({ children, userType, userId }: 
       setLastProcessed(new Date());
     } catch (error) {
       console.error('메시지 처리 실패:', error);
-      toast.error('메시지 처리 중 오류가 발생했습니다.');
+      // 에러는 항상 표시
+      if (!silent) {
+        toast.error('메시지 처리 중 오류가 발생했습니다.');
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -361,7 +367,7 @@ export const MessageQueueProvider = React.memo(({ children, userType, userId }: 
 
     const interval = setInterval(() => {
       if (pendingMessages.length > 0 && !isProcessing) {
-        processMessages();
+        processMessages(true); // 자동 호출 시 silent 설정
       }
     }, 60000); // 1분마다
 

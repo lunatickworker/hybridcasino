@@ -57,7 +57,7 @@ export function formatDate(date: string | Date, format: 'full' | 'date' | 'time'
 export function getPartnerLevelText(level: number): string {
   const levels = {
     1: '시스템관리자',
-    2: '대본사',
+    2: '운영사',
     3: '본사',
     4: '부본사',
     5: '총판',

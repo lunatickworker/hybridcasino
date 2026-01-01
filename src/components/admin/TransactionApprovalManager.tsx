@@ -1,52 +1,35 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
-import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
-import { CheckCircle, XCircle, Clock, DollarSign, RefreshCw, Eye, AlertTriangle } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, AlertCircle, RefreshCw, Search } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useWebSocketContext } from '../../contexts/WebSocketContext';
-import { useMessageQueue } from '../common/MessageQueueProvider';
-import { investApi } from '../../lib/investApi';
-import { LoadingSpinner } from '../common/LoadingSpinner';
 import { toast } from 'sonner@2.0.3';
-import { getAdminOpcode, isMultipleOpcode } from '../../lib/opcodeHelper';
+import { formatCurrency } from '../../lib/utils';
 
 interface Transaction {
   id: string;
   user_id: string;
-  username: string;
-  nickname: string;
-  transaction_type: 'deposit' | 'withdrawal';
+  transaction_type: 'deposit' | 'withdrawal' | 'admin_deposit' | 'admin_withdrawal';
   amount: number;
   status: 'pending' | 'approved' | 'rejected' | 'processing' | 'completed' | 'failed';
-  request_time: string;
+  created_at: string;
   processed_at?: string;
   processed_by?: string;
-  processing_note?: string;
-  external_transaction_id?: string;
-  current_balance: number;
-  bank_info?: {
-    bank_name: string;
-    bank_account: string;
-    bank_holder: string;
-  };
+  memo?: string;
+  balance_before?: number;
   users?: {
     username: string;
     nickname: string;
     balance: number;
-    bank_name: string;
-    bank_account: string;
-    bank_holder: string;
-    referrer_id: string;
-    partners?: {
-      opcode: string;
-      secret_key: string;
-      token: string;
-    };
+    bank_name?: string;
+    bank_account?: string;
+    bank_holder?: string;
+  };
+  processors?: {
+    username: string;
   };
 }
 
@@ -55,23 +38,116 @@ interface TransactionApprovalManagerProps {
 }
 
 export function TransactionApprovalManager({ user }: TransactionApprovalManagerProps) {
-  const { connected, sendMessage: sendWebSocketMessage } = useWebSocketContext();
-  const { sendMessage } = useMessageQueue();
-  
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState<string | null>(null);
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [showProcessDialog, setShowProcessDialog] = useState(false);
-  const [processingNote, setProcessingNote] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('pending');
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [activeTab, setActiveTab] = useState('deposit');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [stats, setStats] = useState({
+    totalDeposit: 0,
+    totalWithdrawal: 0,
+    pendingDeposits: 0,
+    pendingWithdrawals: 0,
+  });
 
-  // 거래 요청 목록 조회
-  const fetchTransactionRequests = useCallback(async () => {
+  // 통계 및 거래 내역 조회
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+
+      // 1. 오늘 날짜 범위
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+
+      // 2. 소속 사용자 ID 조회
+      let allowedUserIds: string[] = [];
       
+      if (user.level === 1 || user.level === 2) {
+        // Lv1/Lv2: 모든 사용자
+        const { data: allUsers } = await supabase
+          .from('users')
+          .select('id');
+        allowedUserIds = allUsers?.map(u => u.id) || [];
+      } else {
+        // Lv3~6: 직속 + 하위 파트너의 사용자
+        const { data: directUsers } = await supabase
+          .from('users')
+          .select('id')
+          .eq('referrer_id', user.id);
+        
+        const { data: subPartners } = await supabase
+          .rpc('get_all_sub_partners', { input_partner_id: user.id });
+        
+        const subPartnerIds = subPartners?.map((p: any) => p.id) || [];
+        
+        const { data: subPartnerUsers } = await supabase
+          .from('users')
+          .select('id')
+          .in('referrer_id', subPartnerIds);
+
+        allowedUserIds = [
+          ...(directUsers?.map(u => u.id) || []),
+          ...(subPartnerUsers?.map(u => u.id) || [])
+        ];
+      }
+
+      if (allowedUserIds.length === 0) {
+        setTransactions([]);
+        setStats({ totalDeposit: 0, totalWithdrawal: 0, pendingDeposits: 0, pendingWithdrawals: 0 });
+        setLoading(false);
+        return;
+      }
+
+      // 3. 오늘 입금 합계
+      const { data: depositData } = await supabase
+        .from('transactions')
+        .select('amount')
+        .in('transaction_type', ['deposit', 'admin_deposit'])
+        .eq('status', 'approved')
+        .in('user_id', allowedUserIds)
+        .gte('created_at', todayStart.toISOString())
+        .lte('created_at', todayEnd.toISOString());
+
+      const totalDeposit = depositData?.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0) || 0;
+
+      // 4. 오늘 출금 합계
+      const { data: withdrawalData } = await supabase
+        .from('transactions')
+        .select('amount')
+        .in('transaction_type', ['withdrawal', 'admin_withdrawal'])
+        .eq('status', 'approved')
+        .in('user_id', allowedUserIds)
+        .gte('created_at', todayStart.toISOString())
+        .lte('created_at', todayEnd.toISOString());
+
+      const totalWithdrawal = withdrawalData?.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0) || 0;
+
+      // 5. 대기 중인 입금 신청
+      const { count: pendingDeposits } = await supabase
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('transaction_type', 'deposit')
+        .eq('status', 'pending')
+        .in('user_id', allowedUserIds);
+
+      // 6. 대기 중인 출금 신청
+      const { count: pendingWithdrawals } = await supabase
+        .from('transactions')
+        .select('id', { count: 'exact', head: true })
+        .eq('transaction_type', 'withdrawal')
+        .eq('status', 'pending')
+        .in('user_id', allowedUserIds);
+
+      setStats({
+        totalDeposit,
+        totalWithdrawal,
+        pendingDeposits: pendingDeposits || 0,
+        pendingWithdrawals: pendingWithdrawals || 0,
+      });
+
+      // 7. 거래 내역 조회
       let query = supabase
         .from('transactions')
         .select(`
@@ -82,824 +158,321 @@ export function TransactionApprovalManager({ user }: TransactionApprovalManagerP
             balance,
             bank_name,
             bank_account,
-            bank_holder,
-            referrer_id,
-            partners!users_referrer_id_fkey (
-              opcode,
-              secret_key,
-              token
-            )
+            bank_holder
+          ),
+          processors:partners!transactions_processed_by_fkey (
+            username
           )
         `)
-        .order('request_time', { ascending: false });
+        .in('user_id', allowedUserIds)
+        .order('created_at', { ascending: false });
 
-      if (filterStatus !== 'all') {
-        query = query.eq('status', filterStatus);
+      // 탭별 필터
+      if (activeTab === 'deposit') {
+        query = query.eq('transaction_type', 'deposit').eq('status', 'pending');
+      } else if (activeTab === 'withdrawal') {
+        query = query.eq('transaction_type', 'withdrawal').eq('status', 'pending');
+      } else if (activeTab === 'history') {
+        query = query.in('transaction_type', ['deposit', 'withdrawal']);
+        if (filterStatus !== 'all') {
+          query = query.eq('status', filterStatus);
+        }
+      } else if (activeTab === 'admin-history') {
+        query = query.in('transaction_type', ['admin_deposit', 'admin_withdrawal']);
+        if (filterStatus !== 'all') {
+          query = query.eq('status', filterStatus);
+        }
       }
 
       const { data, error } = await query.limit(100);
 
       if (error) throw error;
 
-      const formattedTransactions = data?.map(tx => ({
-        ...tx,
-        user_id: tx.user_id, // 🔑 명시적으로 user_id 보존
-        username: tx.users?.username || '알 수 없음',
-        nickname: tx.users?.nickname || '알 수 없음',
-        current_balance: tx.users?.balance || 0,
-        bank_info: {
-          bank_name: tx.users?.bank_name || '',
-          bank_account: tx.users?.bank_account || '',
-          bank_holder: tx.users?.bank_holder || ''
-        }
-      })) || [];
-
-      setTransactions(formattedTransactions);
-      
-      console.log(`💰 [거래승인] ${filterStatus} 상태 거래 ${formattedTransactions.length}건 조회`);
-      
-      // 🔍 디버깅: 첫 번째 거래의 user_id 확인
-      if (formattedTransactions.length > 0) {
-        console.log('📊 [거래 샘플]:', {
-          transaction_id: formattedTransactions[0].id,
-          user_id: formattedTransactions[0].user_id,
-          username: formattedTransactions[0].username,
-          has_user_id: !!formattedTransactions[0].user_id
-        });
-      }
-      
-    } catch (error) {
-      console.error('거래 요청 조회 실패:', error);
-      toast.error('거래 요청을 불러오는데 실패했습니다.');
-    } finally {
+      setTransactions(data || []);
+      setLoading(false);
+    } catch (error: any) {
+      console.error('❌ 데이터 로드 실패:', error);
+      toast.error(`데이터 로드 실패: ${error.message}`);
       setLoading(false);
     }
-  }, [filterStatus]);
+  }, [user, activeTab, filterStatus]);
 
-  // 거래 처리 (승인/거절)
-  const processTransaction = async (action: 'approve' | 'reject') => {
-    if (!selectedTransaction) return;
-
-    try {
-      setProcessing(selectedTransaction.id);
-      
-      console.log(`🔄 [거래처리] ${selectedTransaction.transaction_type} ${action} 시작:`, {
-        transactionId: selectedTransaction.id,
-        username: selectedTransaction.username,
-        amount: selectedTransaction.amount,
-        currentBalance: selectedTransaction.current_balance
-      });
-
-      let apiResult = null;
-      let newBalance = selectedTransaction.current_balance;
-
-      // 승인인 경우 외부 API 호출
-      if (action === 'approve') {
-        // api_configs 테이블에서 opcode 조회
-        let opcode = '';
-        let token = '';
-        let secretKey = '';
-
-        try {
-          // 파트너 정보가 있으면 opcodeHelper 사용
-          if (selectedTransaction.users?.partners) {
-            const opcodeInfo = await getAdminOpcode(selectedTransaction.users.partners);
-            
-            if (isMultipleOpcode(opcodeInfo)) {
-              if (opcodeInfo.opcodes.length === 0) {
-                toast.error('사용 가능한 API 설정이 없습니다. api_configs 테이블을 확인하세요.');
-                return;
-              }
-              opcode = opcodeInfo.opcodes[0].opcode;
-              secretKey = opcodeInfo.opcodes[0].secretKey;
-              token = opcodeInfo.opcodes[0].token;
-            } else {
-              opcode = opcodeInfo.opcode;
-              secretKey = opcodeInfo.secretKey;
-              token = opcodeInfo.token;
-            }
-          }
-        } catch (error: any) {
-          console.error('❌ API 설정 조회 실패:', error);
-          toast.error(`API 설정 조회 실패: ${error.message}`);
-          return;
-        }
-
-        // 🔍 파트너 정보 확인
-        console.log('🔐 [파트너 정보 (api_configs)]:', {
-          has_partners: !!selectedTransaction.users?.partners,
-          has_opcode: !!opcode,
-          has_token: !!token,
-          has_secretKey: !!secretKey,
-          opcode_preview: opcode ? `${opcode.substring(0, 3)}...` : 'NONE'
-        });
-
-        if (!opcode || !token || !secretKey) {
-          console.error('❌ [API 설정 누락]:', {
-            opcode: !!opcode,
-            token: !!token,
-            secretKey: !!secretKey,
-            referrer_id: selectedTransaction.users?.referrer_id
-          });
-          toast.error('API 설정이 없습니다. api_configs 테이블을 확인하세요.');
-          return;
-        }
-
-        try {
-          if (selectedTransaction.transaction_type === 'deposit') {
-            console.log('💰 [API 입금] 외부 API 입금 처리 시작');
-            apiResult = await investApi.depositBalance(
-              selectedTransaction.username,
-              selectedTransaction.amount,
-              opcode,
-              token,
-              secretKey
-            );
-          } else {
-            console.log('💸 [API 출금] 외부 API 출금 처리 시작');
-            apiResult = await investApi.withdrawBalance(
-              selectedTransaction.username,
-              selectedTransaction.amount,
-              opcode,
-              token,
-              secretKey
-            );
-          }
-
-          console.log('📡 [API 응답]:', apiResult);
-
-          // ✅ 수정: API 응답을 신뢰하지 않고, 현재 잔고 기준으로 계산
-          // 외부 API 호출은 성공 여부 확인용으로만 사용
-          if (apiResult.data && !apiResult.error) {
-            // 현재 잔고에서 입금/출금 금액 계산
-            if (selectedTransaction.transaction_type === 'deposit') {
-              newBalance = selectedTransaction.current_balance + selectedTransaction.amount;
-            } else { // withdrawal
-              newBalance = selectedTransaction.current_balance - selectedTransaction.amount;
-            }
-            
-            console.log(`✅ [API 성공 + 로컬 계산] 새로운 잔고: ${newBalance}`, {
-              current_balance: selectedTransaction.current_balance,
-              amount: selectedTransaction.amount,
-              transaction_type: selectedTransaction.transaction_type,
-              calculated_balance: newBalance
-            });
-            
-            // 🔍 음수 검증
-            if (newBalance < 0) {
-              console.error('❌ [계산 오류] 잔고가 음수가 됨:', {
-                current: selectedTransaction.current_balance,
-                amount: selectedTransaction.amount,
-                result: newBalance
-              });
-              throw new Error(`잔고가 음수가 될 수 없습니다. (계산 결과: ${newBalance})`);
-            }
-          } else {
-            throw new Error(apiResult.error || 'API 호출 실패');
-          }
-
-        } catch (apiError) {
-          console.error('❌ [API 실패]:', apiError);
-          toast.error(`외부 API ${selectedTransaction.transaction_type === 'deposit' ? '입금' : '출금'} 처리 실패: ${apiError instanceof Error ? apiError.message : '알 수 없는 오류'}`);
-          return;
-        }
-      }
-
-      // DB 업데이트 - transactions 테이블 상태 변경
-      const newStatus = action === 'approve' ? 'completed' : 'rejected';
-      
-      // 승인인 경우 balance_after도 업데이트
-      const transactionUpdateData: any = {
-        status: newStatus,
-        processed_at: new Date().toISOString(),
-        processed_by: user?.username || 'system',
-        processing_note: processingNote || null,
-        external_transaction_id: apiResult?.data?.transaction_id || apiResult?.data?.id || null,
-        updated_at: new Date().toISOString()
-      };
-      
-      // 승인인 경우에만 balance_after 업데이트
-      if (action === 'approve') {
-        transactionUpdateData.balance_after = newBalance;
-      }
-      
-      const { error: txUpdateError } = await supabase
-        .from('transactions')
-        .update(transactionUpdateData)
-        .eq('id', selectedTransaction.id)
-        .eq('status', 'pending');
-
-      if (txUpdateError) {
-        console.error('❌ [거래 업데이트 실패]:', txUpdateError);
-        throw txUpdateError;
-      }
-
-      console.log(`✅ [거래 업데이트 완료] ${selectedTransaction.id} -> ${newStatus}`);
-
-      // ✅ 승인인 경우 파트너 보유금 조정
-      if (action === 'approve') {
-        // 🔍 회원의 담당 관리자 ID 확인 (CRITICAL)
-        const responsiblePartnerId = selectedTransaction.users?.referrer_id;
-        
-        if (!responsiblePartnerId) {
-          console.error('❌ [담당 관리자 없음]:', {
-            user_id: selectedTransaction.user_id,
-            username: selectedTransaction.username
-          });
-          throw new Error('회원의 담당 관리자를 찾을 수 없습니다.');
-        }
-        
-        console.log('🔍 [담당 관리자 확인]:', {
-          user_id: selectedTransaction.user_id,
-          username: selectedTransaction.username,
-          responsible_partner_id: responsiblePartnerId,
-          current_admin_id: user.id
-        });
-        
-        // 1️⃣ 담당 관리자의 보유금 조회 (CRITICAL FIX)
-        const { data: partnerData, error: partnerQueryError } = await supabase
-          .from('partners')
-          .select('balance, username, level')
-          .eq('id', responsiblePartnerId)
-          .single();
-        
-        if (partnerQueryError) {
-          console.error('❌ [파트너 보유금 조회 실패]:', partnerQueryError);
-          throw new Error('담당 관리자 보유금을 조회할 수 없습니다.');
-        }
-        
-        const currentPartnerBalance = partnerData?.balance || 0;
-        
-        console.log('💰 [담당 관리자 정보]:', {
-          partner_id: responsiblePartnerId,
-          username: partnerData?.username,
-          level: partnerData?.level,
-          balance: currentPartnerBalance
-        });
-        
-        // 2️⃣ 입금/출금에 따른 보유금 계산
-        if (selectedTransaction.transaction_type === 'deposit') {
-          // 입금: 파트너 보유금 차감
-          console.log('💰 [파트너 보유금 차감] 입금 처리');
-          console.log('💰 [현재 담당 관리자 보유금]:', currentPartnerBalance);
-          console.log('💰 [지급할 금액]:', selectedTransaction.amount);
-          
-          // 보유금 검증 (CRITICAL: 음수 방지)
-          if (currentPartnerBalance < selectedTransaction.amount) {
-            console.error('❌ [보유금 부족]:', {
-              partner_id: responsiblePartnerId,
-              partner_username: partnerData?.username,
-              required: selectedTransaction.amount,
-              current: currentPartnerBalance,
-              shortage: selectedTransaction.amount - currentPartnerBalance
-            });
-            throw new Error(
-              `담당 관리자(${partnerData?.username})의 보유금이 부족하여 입금을 승인할 수 없습니다.\n\n` +
-              `현재 보유금: ₩${currentPartnerBalance.toLocaleString()}\n` +
-              `승인 금액: ₩${selectedTransaction.amount.toLocaleString()}\n` +
-              `부족 금액: ₩${(selectedTransaction.amount - currentPartnerBalance).toLocaleString()}`
-            );
-          }
-          
-          const newPartnerBalance = currentPartnerBalance - selectedTransaction.amount;
-          
-          // 추가 안전장치: 계산 결과가 음수인지 재확인
-          if (newPartnerBalance < 0) {
-            console.error('❌ [계산 오류] 보유금이 음수가 됨:', {
-              partner_id: responsiblePartnerId,
-              current: currentPartnerBalance,
-              amount: selectedTransaction.amount,
-              result: newPartnerBalance
-            });
-            throw new Error(`시스템 오류: 보유금 계산 결과가 음수입니다. (${newPartnerBalance})`);
-          }
-          
-          const { error: partnerUpdateError } = await supabase
-            .from('partners')
-            .update({
-              balance: newPartnerBalance,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', responsiblePartnerId);
-          
-          if (partnerUpdateError) {
-            console.error('❌ [파트너 보유금 차감 실패]:', partnerUpdateError);
-            throw new Error('담당 관리자 보유금 차감에 실패했습니다.');
-          }
-          
-          console.log('✅ [파트너 보유금 차감 완료]:', {
-            partner_id: responsiblePartnerId,
-            partner_username: partnerData?.username,
-            before: currentPartnerBalance,
-            after: newPartnerBalance,
-            deducted: selectedTransaction.amount
-          });
-          
-          // 파트너 잔고 변경 로그 기록
-          await supabase.from('partner_balance_logs').insert({
-            partner_id: responsiblePartnerId,
-            balance_before: currentPartnerBalance,
-            balance_after: newPartnerBalance,
-            amount: -selectedTransaction.amount,
-            transaction_type: 'deposit_to_user',
-            processed_by: user.id,
-            memo: `회원 ${selectedTransaction.username} 입금 승인 (처리자: ${user.username})`
-          });
-          
-        } else if (selectedTransaction.transaction_type === 'withdrawal') {
-          // 출금: 파트너 보유금 증가
-          console.log('💸 [파트너 보유금 증가] 출금 처리');
-          console.log('💰 [현재 담당 관리자 보유금]:', currentPartnerBalance);
-          console.log('💰 [회수할 금액]:', selectedTransaction.amount);
-          
-          const newPartnerBalance = currentPartnerBalance + selectedTransaction.amount;
-          
-          const { error: partnerUpdateError } = await supabase
-            .from('partners')
-            .update({
-              balance: newPartnerBalance,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', responsiblePartnerId);
-          
-          if (partnerUpdateError) {
-            console.error('❌ [파트너 보유금 증가 실패]:', partnerUpdateError);
-            throw new Error('담당 관리자 보유금 증가에 실패했습니다.');
-          }
-          
-          console.log('✅ [파트너 보유금 증가 완료]:', {
-            partner_id: responsiblePartnerId,
-            partner_username: partnerData?.username,
-            before: currentPartnerBalance,
-            after: newPartnerBalance,
-            added: selectedTransaction.amount
-          });
-          
-          // 파트너 잔고 변경 로그 기록
-          await supabase.from('partner_balance_logs').insert({
-            partner_id: responsiblePartnerId,
-            balance_before: currentPartnerBalance,
-            balance_after: newPartnerBalance,
-            amount: selectedTransaction.amount,
-            transaction_type: 'withdrawal_from_user',
-            processed_by: user.id,
-            memo: `회원 ${selectedTransaction.username} 출금 승인 (처리자: ${user.username})`
-          });
-        }
-      }
-
-      // 승인인 경우 users 테이블 balance 업데이트
-      if (action === 'approve') {
-        // 🔍 디버깅: 업데이트 전 확인
-        console.log('💰 [잔고 업데이트 준비]:', {
-          user_id: selectedTransaction.user_id,
-          username: selectedTransaction.username,
-          old_balance: selectedTransaction.current_balance,
-          new_balance: newBalance,
-          has_user_id: !!selectedTransaction.user_id
-        });
-
-        if (!selectedTransaction.user_id) {
-          console.error('❌ [치명적 오류] user_id가 없습니다!', selectedTransaction);
-          throw new Error('user_id가 없어 잔고를 업데이트할 수 없습니다.');
-        }
-
-        const { error: balanceUpdateError } = await supabase
-          .from('users')
-          .update({
-            balance: newBalance,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', selectedTransaction.user_id);
-
-        if (balanceUpdateError) {
-          console.error('❌ [잔고 업데이트 실패]:', balanceUpdateError);
-          throw balanceUpdateError;
-        }
-
-        console.log(`✅ [잔고 업데이트 완료] ${selectedTransaction.username}: ${selectedTransaction.current_balance} -> ${newBalance}`);
-      }
-
-      // 실시간 알림 전송
-      await sendMessage('transaction_processed', {
-        transaction_id: selectedTransaction.id,
-        username: selectedTransaction.username,
-        transaction_type: selectedTransaction.transaction_type,
-        amount: selectedTransaction.amount,
-        action: action,
-        newBalance: newBalance,
-        processedBy: user?.username || 'system',
-        note: processingNote || null,
-        target_user_id: selectedTransaction.user_id
-      }, 1); // 높은 우선순위
-
-      // WebSocket 실시간 전송
-      if (connected && sendWebSocketMessage) {
-        sendWebSocketMessage('transaction_processed', {
-          transaction_id: selectedTransaction.id,
-          username: selectedTransaction.username,
-          user_id: selectedTransaction.user_id,
-          transaction_type: selectedTransaction.transaction_type,
-          amount: selectedTransaction.amount,
-          action: action,
-          newBalance: newBalance,
-          processedBy: user?.username || 'system',
-          note: processingNote || null,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      const actionText = action === 'approve' ? '승인' : '거절';
-      const typeText = selectedTransaction.transaction_type === 'deposit' ? '입금' : '출금';
-      toast.success(`${selectedTransaction.username}님의 ${typeText} 요청이 ${actionText}되었습니다.`);
-
-      // 상태 초기화 및 새로고침
-      setShowProcessDialog(false);
-      setSelectedTransaction(null);
-      setProcessingNote('');
-      await fetchTransactionRequests();
-
-    } catch (error) {
-      console.error(`거래 ${action} 처리 실패:`, error);
-      
-      // ⭐ 관리자 보유금 부족 에러 처리
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('관리자 보유금') || errorMessage.includes('보유금이 부족')) {
-        toast.error('❌ 관리자 보유금이 부족하여 처리할 수 없습니다.', {
-          description: '상위 관리자에게 보유금을 요청하세요.',
-          duration: 6000
-        });
-      } else if (errorMessage.includes('보유금 검증')) {
-        toast.error('❌ 보유금 검증 실패', {
-          description: errorMessage,
-          duration: 6000
-        });
-      } else {
-        toast.error(`거래 처리 중 오류가 발생했습니다: ${errorMessage}`);
-      }
-    } finally {
-      setProcessing(null);
-    }
-  };
-
-  // 자동 새로고침
   useEffect(() => {
-    if (!autoRefresh) return;
+    fetchData();
+  }, [fetchData]);
 
-    const interval = setInterval(() => {
-      console.log('🔄 [자동새로고침] 거래 요청 목록 갱신');
-      fetchTransactionRequests();
-    }, 30000); // 30초마다
+  // 검색 필터링
+  const filteredTransactions = transactions.filter(t => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      t.users?.username?.toLowerCase().includes(query) ||
+      t.users?.nickname?.toLowerCase().includes(query) ||
+      t.id.toLowerCase().includes(query)
+    );
+  });
 
-    return () => clearInterval(interval);
-  }, [autoRefresh, fetchTransactionRequests]);
-
-  // 초기 데이터 로드
-  useEffect(() => {
-    fetchTransactionRequests();
-  }, [fetchTransactionRequests]);
-
-  // 상태별 색상
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-500';
-      case 'processing': return 'bg-blue-500';
-      case 'approved': return 'bg-green-500';
-      case 'completed': return 'bg-green-600';
-      case 'rejected': return 'bg-red-500';
-      case 'failed': return 'bg-red-600';
-      default: return 'bg-gray-500';
-    }
-  };
-
+  // 상태 텍스트 변환
   const getStatusText = (status: string) => {
-    switch (status) {
-      case 'pending': return '대기';
-      case 'processing': return '처리중';
-      case 'approved': return '승인';
-      case 'completed': return '완료';
-      case 'rejected': return '거절';
-      case 'failed': return '실패';
-      default: return status;
-    }
+    const statusMap: Record<string, string> = {
+      pending: '대기 중',
+      approved: '승인됨',
+      rejected: '거부됨',
+      processing: '처리 중',
+      completed: '완료',
+      failed: '실패'
+    };
+    return statusMap[status] || status;
   };
 
-  const pendingCount = transactions.filter(tx => tx.status === 'pending').length;
-  const processingCount = transactions.filter(tx => tx.status === 'processing').length;
+  // 거래 유형 텍스트 변환
+  const getTransactionTypeText = (type: string) => {
+    const typeMap: Record<string, string> = {
+      deposit: '입금',
+      withdrawal: '출금',
+      admin_deposit: '관리자 입금',
+      admin_withdrawal: '관리자 출금'
+    };
+    return typeMap[type] || type;
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       {/* 헤더 */}
       <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-slate-100">입출금 승인 관리</h1>
-          <p className="text-sm text-slate-400">
-            실시간 입출금 요청을 승인하거나 거절할 수 있습니다.
-          </p>
+        <div>
+          <h1 className="text-2xl">입출금 관리</h1>
+          <p className="text-gray-400 mt-1">회원 입출금 신청 및 처리 관리</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className={autoRefresh ? 'bg-green-50 border-green-200' : ''}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-            자동새로고침 {autoRefresh ? 'ON' : 'OFF'}
-          </Button>
-          <Button onClick={fetchTransactionRequests} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            새로고침
-          </Button>
-        </div>
+        <Button onClick={fetchData} disabled={loading}>
+          <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          새로고침
+        </Button>
       </div>
 
-      {/* 상태 요약 카드 */}
+      {/* 통계 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="p-4">
+        {/* 총 입금 */}
+        <Card className="bg-gradient-to-br from-green-600 to-green-700 border-0">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-yellow-700">대기 중</p>
-                <p className="text-2xl font-bold text-yellow-800">{pendingCount}</p>
+                <div className="flex items-center gap-2 text-green-100 mb-2">
+                  <ArrowDownCircle className="w-5 h-5" />
+                  <span className="text-sm">총 입금</span>
+                </div>
+                <div className="text-3xl text-white">
+                  {formatCurrency(stats.totalDeposit)}
+                </div>
+                <div className="text-green-100 text-sm mt-1">오늘 입금액</div>
               </div>
-              <Clock className="h-8 w-8 text-yellow-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-blue-700">처리 중</p>
-                <p className="text-2xl font-bold text-blue-800">{processingCount}</p>
-              </div>
-              <RefreshCw className="h-8 w-8 text-blue-600 animate-spin" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="p-4">
+        {/* 총 출금 */}
+        <Card className="bg-gradient-to-br from-red-600 to-red-700 border-0">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-green-700">총 거래</p>
-                <p className="text-2xl font-bold text-green-800">{transactions.length}</p>
+                <div className="flex items-center gap-2 text-red-100 mb-2">
+                  <ArrowUpCircle className="w-5 h-5" />
+                  <span className="text-sm">총 출금</span>
+                </div>
+                <div className="text-3xl text-white">
+                  {formatCurrency(stats.totalWithdrawal)}
+                </div>
+                <div className="text-red-100 text-sm mt-1">오늘 출금액</div>
               </div>
-              <DollarSign className="h-8 w-8 text-green-600" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-gray-200 bg-gray-50">
-          <CardContent className="p-4">
+        {/* 입금 신청 */}
+        <Card className="bg-gradient-to-br from-orange-600 to-orange-700 border-0">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-700">연결 상태</p>
-                <p className="text-sm font-semibold text-gray-800">
-                  {connected ? '🟢 연결됨' : '🔴 연결끊김'}
-                </p>
+                <div className="flex items-center gap-2 text-orange-100 mb-2">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="text-sm">입금 신청</span>
+                </div>
+                <div className="text-3xl text-white">
+                  {stats.pendingDeposits}건
+                </div>
+                <div className="text-orange-100 text-sm mt-1">대기 중</div>
               </div>
-              <div className={`h-4 w-4 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'} animate-pulse`}></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 출금 신청 */}
+        <Card className="bg-gradient-to-br from-orange-500 to-red-600 border-0">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-orange-100 mb-2">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="text-sm">출금 신청</span>
+                </div>
+                <div className="text-3xl text-white">
+                  {stats.pendingWithdrawals}건
+                </div>
+                <div className="text-orange-100 text-sm mt-1">대기 중</div>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* 필터 및 거래 목록 */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>거래 요청 목록</CardTitle>
-            <Tabs value={filterStatus} onValueChange={setFilterStatus}>
-              <TabsList>
-                <TabsTrigger value="pending">대기중</TabsTrigger>
-                <TabsTrigger value="processing">처리중</TabsTrigger>
-                <TabsTrigger value="approved">승인됨</TabsTrigger>
-                <TabsTrigger value="rejected">거절됨</TabsTrigger>
-                <TabsTrigger value="all">전체</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <LoadingSpinner />
-              <span className="ml-2">거래 요청을 불러오는 중...</span>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {transactions.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>거래 요청이 없습니다.</p>
+      {/* 탭과 테이블 */}
+      <Card className="bg-slate-800/50 border-slate-700">
+        <CardContent className="p-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="bg-slate-700/50 mb-6">
+              <TabsTrigger value="deposit" className="data-[state=active]:bg-purple-600">
+                입금 신청
+              </TabsTrigger>
+              <TabsTrigger value="withdrawal" className="data-[state=active]:bg-purple-600">
+                출금 신청
+              </TabsTrigger>
+              <TabsTrigger value="history" className="data-[state=active]:bg-purple-600">
+                입출금 내역
+              </TabsTrigger>
+              <TabsTrigger value="admin-history" className="data-[state=active]:bg-purple-600">
+                관리자 입출금 내역
+              </TabsTrigger>
+            </TabsList>
+
+            {/* 필터 영역 */}
+            <div className="flex items-center gap-4 mb-6">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-400">전체 상태</label>
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger className="w-40 bg-slate-700 border-slate-600">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체</SelectItem>
+                    <SelectItem value="pending">대기 중</SelectItem>
+                    <SelectItem value="approved">승인됨</SelectItem>
+                    <SelectItem value="rejected">거부됨</SelectItem>
+                    <SelectItem value="completed">완료</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex-1" />
+
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="검색..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 bg-slate-700 border-slate-600 w-64"
+                  />
                 </div>
-              ) : (
-                transactions.map((transaction) => (
-                  <div
-                    key={transaction.id}
-                    className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className={`h-3 w-3 rounded-full ${getStatusColor(transaction.status)}`}></div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{transaction.nickname}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {transaction.username}
-                            </Badge>
-                            <Badge variant={transaction.transaction_type === 'deposit' ? 'default' : 'destructive'}>
-                              {transaction.transaction_type === 'deposit' ? '💰 입금' : '💸 출금'}
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            {new Date(transaction.request_time).toLocaleString('ko-KR')} · 
-                            현재잔고: {transaction.current_balance.toLocaleString()}원
-                          </div>
-                          {transaction.bank_info?.bank_name && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              {transaction.bank_info.bank_name} {transaction.bank_info.bank_account} ({transaction.bank_info.bank_holder})
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <div className={`text-lg font-bold ${
-                            transaction.transaction_type === 'deposit' ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {transaction.transaction_type === 'deposit' ? '+' : '-'}
-                            {transaction.amount.toLocaleString()}원
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {getStatusText(transaction.status)}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedTransaction(transaction);
-                              setShowProcessDialog(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          
-                          {transaction.status === 'pending' && (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedTransaction(transaction);
-                                  processTransaction('approve');
-                                }}
-                                disabled={processing === transaction.id}
-                                className="bg-green-600 hover:bg-green-700"
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                승인
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedTransaction(transaction);
-                                  processTransaction('reject');
-                                }}
-                                disabled={processing === transaction.id}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                거절
-                              </Button>
-                            </>
-                          )}
-                          
-                          {processing === transaction.id && (
-                            <div className="flex items-center gap-2">
-                              <RefreshCw className="h-4 w-4 animate-spin" />
-                              <span className="text-sm">처리중...</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
+                <Button onClick={fetchData} variant="outline" size="icon">
+                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
             </div>
-          )}
+
+            {/* 테이블 */}
+            <TabsContent value={activeTab} className="mt-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b border-slate-700">
+                    <tr className="text-gray-400 text-sm">
+                      <th className="text-left p-3">거래 일시</th>
+                      <th className="text-left p-3">회원</th>
+                      <th className="text-left p-3">거래 유형</th>
+                      <th className="text-right p-3">금액</th>
+                      <th className="text-right p-3">변경 전 보유금</th>
+                      <th className="text-center p-3">상태</th>
+                      <th className="text-left p-3">메모</th>
+                      <th className="text-left p-3">처리자</th>
+                      <th className="text-center p-3">처리</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={9} className="text-center p-8 text-gray-400">
+                          <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                          로딩 중...
+                        </td>
+                      </tr>
+                    ) : filteredTransactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="text-center p-8 text-gray-400">
+                          표시할 데이터가 없습니다
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredTransactions.map((transaction) => (
+                        <tr key={transaction.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                          <td className="p-3 text-sm">
+                            {new Date(transaction.created_at).toLocaleString('ko-KR')}
+                          </td>
+                          <td className="p-3">
+                            <div>
+                              <div className="text-sm">{transaction.users?.username || '-'}</div>
+                              <div className="text-xs text-gray-400">{transaction.users?.nickname || '-'}</div>
+                            </div>
+                          </td>
+                          <td className="p-3 text-sm">
+                            {getTransactionTypeText(transaction.transaction_type)}
+                          </td>
+                          <td className="p-3 text-right">
+                            {formatCurrency(transaction.amount)}
+                          </td>
+                          <td className="p-3 text-right text-sm text-gray-400">
+                            {transaction.balance_before ? formatCurrency(transaction.balance_before) : '-'}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span
+                              className={`inline-block px-3 py-1 rounded-full text-xs ${
+                                transaction.status === 'pending'
+                                  ? 'bg-yellow-500/20 text-yellow-400'
+                                  : transaction.status === 'approved' || transaction.status === 'completed'
+                                  ? 'bg-green-500/20 text-green-400'
+                                  : 'bg-red-500/20 text-red-400'
+                              }`}
+                            >
+                              {getStatusText(transaction.status)}
+                            </span>
+                          </td>
+                          <td className="p-3 text-sm text-gray-400">
+                            {transaction.memo || '-'}
+                          </td>
+                          <td className="p-3 text-sm text-gray-400">
+                            {transaction.processors?.username || '-'}
+                          </td>
+                          <td className="p-3 text-center">
+                            {transaction.status === 'pending' && (
+                              <div className="flex items-center gap-2 justify-center">
+                                <Button size="sm" variant="outline" className="bg-green-600 hover:bg-green-700 border-0">
+                                  승인
+                                </Button>
+                                <Button size="sm" variant="outline" className="bg-red-600 hover:bg-red-700 border-0">
+                                  거부
+                                </Button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
-
-      {/* 거래 처리 Dialog */}
-      <Dialog open={showProcessDialog} onOpenChange={setShowProcessDialog}>
-        <DialogContent className="sm:max-w-[300px]">
-          <DialogHeader>
-            <DialogTitle>거래 요청 처리</DialogTitle>
-            <DialogDescription>
-              선택한 거래 요청을 승인하거나 거절할 수 있습니다.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedTransaction && (
-            <div className="space-y-4">
-              {/* 거래 정보 */}
-              <div className="p-4 bg-gray-50 rounded-lg space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">요청자:</span>
-                  <span>{selectedTransaction.nickname} ({selectedTransaction.username})</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">거래 유형:</span>
-                  <Badge variant={selectedTransaction.transaction_type === 'deposit' ? 'default' : 'destructive'}>
-                    {selectedTransaction.transaction_type === 'deposit' ? '입금' : '출금'}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">요청 금액:</span>
-                  <span className={`font-bold ${
-                    selectedTransaction.transaction_type === 'deposit' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {selectedTransaction.transaction_type === 'deposit' ? '+' : '-'}
-                    {selectedTransaction.amount.toLocaleString()}원
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">현재 잔고:</span>
-                  <span className="font-mono">{selectedTransaction.current_balance.toLocaleString()}원</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">요청 시간:</span>
-                  <span>{new Date(selectedTransaction.request_time).toLocaleString('ko-KR')}</span>
-                </div>
-                {selectedTransaction.bank_info?.bank_name && (
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">은행 정보:</span>
-                    <span className="text-sm">
-                      {selectedTransaction.bank_info.bank_name} {selectedTransaction.bank_info.bank_account}
-                      <br />
-                      ({selectedTransaction.bank_info.bank_holder})
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* 처리 메모 */}
-              <div className="space-y-2">
-                <Label htmlFor="processing-note">처리 메모 (선택사항)</Label>
-                <Input
-                  id="processing-note"
-                  value={processingNote}
-                  onChange={(e) => setProcessingNote(e.target.value)}
-                  placeholder="처리 사유나 메모를 입력하세요"
-                />
-              </div>
-
-              {/* 주의사항 */}
-              <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
-                <div className="text-sm text-yellow-800">
-                  <p className="font-medium">처리 주의사항:</p>
-                  <ul className="mt-1 space-y-1">
-                    <li>• 승인 시 외부 Invest API가 호출되어 실제 잔고가 변경됩니다.</li>
-                    <li>• 출금 승인 시 충분한 잔고가 있는지 확인해주세요.</li>
-                    <li>• 처리 후에는 취소할 수 없습니다.</li>
-                    <li>• 사용자에게 실시간 알림이 전송됩니다.</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowProcessDialog(false)}>
-              취소
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => processTransaction('reject')}
-              disabled={processing === selectedTransaction?.id}
-            >
-              <XCircle className="h-4 w-4 mr-2" />
-              거절
-            </Button>
-            <Button
-              onClick={() => processTransaction('approve')}
-              disabled={processing === selectedTransaction?.id}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              승인
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

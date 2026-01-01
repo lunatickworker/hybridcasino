@@ -1,20 +1,12 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Alert, AlertDescription } from '../ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { toast } from 'sonner';
-import { 
-  Eye, 
-  EyeOff, 
-  Loader2,
-  UserPlus,
-  X,
-  CheckCircle,
-  XCircle
-} from 'lucide-react';
+import { Input } from "../ui/input";
+import { Button } from "../ui/button";
+import { useState, useEffect } from "react";
+import { supabase } from "../../lib/supabase";
+import { toast } from "sonner@2.0.3";
+import bcrypt from 'bcryptjs';
+import { X, UserPlus, Loader2, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Alert, AlertDescription } from "../ui/alert";
 
 interface BenzSignupModalProps {
   isOpen: boolean;
@@ -252,15 +244,15 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
         .insert([{
           username: registerData.username.trim(),
           nickname: registerData.nickname.trim(),
-          password_hash: registerData.password, // 283 트리거에서 자동 암호화
+          password_hash: bcrypt.hashSync(registerData.password, 10), // 비밀번호 암호화
           email: registerData.email.trim() || null,
           phone: registerData.phone.trim() || null,
           bank_name: registerData.bank_name || null,
           bank_account: registerData.bank_account.trim() || null,
           bank_holder: registerData.bank_holder.trim() || null,
           referrer_id: referrerData.id,
-          withdrawal_password: registerData.withdrawal_password.trim(), // 출금 비밀번호 추가
-          point_conversion_password: registerData.point_conversion_password.trim(), // 포인트전환 비밀번호 추가
+          withdrawal_password: bcrypt.hashSync(registerData.withdrawal_password.trim(), 10), // 출금 비밀번호 암호화
+          point_conversion_password: bcrypt.hashSync(registerData.point_conversion_password.trim(), 10), // 포인트전환 비밀번호 암호화
           status: 'pending',
           balance: 0,
           points: 0
@@ -326,28 +318,13 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      {/* Background Logo */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
-        <img
-          src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
-          alt="BENZ CASINO Background"
-          className="w-auto h-[40vh] md:h-[50vh] object-contain opacity-10"
-          style={{
-            filter: 'blur(2px)'
-          }}
-        />
-      </div>
-
-      <div 
-        className="relative z-10 overflow-hidden border-2 shadow-2xl w-full max-w-6xl"
-        style={{ 
-          background: 'linear-gradient(135deg, rgba(20, 20, 30, 0.98) 0%, rgba(15, 15, 25, 0.98) 100%)',
-          borderColor: 'rgba(193, 154, 107, 0.4)',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(193, 154, 107, 0.1)',
-          maxHeight: '90vh',
-          overflowY: 'auto'
-        }}
-      >
+      <div className="relative z-10 w-full max-w-6xl shadow-2xl border-2 overflow-hidden rounded-lg" style={{
+        background: 'linear-gradient(135deg, rgba(20, 20, 30, 0.98) 0%, rgba(15, 15, 25, 0.98) 100%)',
+        borderColor: 'rgba(193, 154, 107, 0.4)',
+        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(193, 154, 107, 0.1)',
+        maxHeight: '90vh',
+        overflowY: 'auto'
+      }}>
         {/* Close Button */}
         <button
           onClick={handleClose}

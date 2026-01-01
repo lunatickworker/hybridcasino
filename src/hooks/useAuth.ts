@@ -67,10 +67,35 @@ export function useAuthProvider() {
       }
 
       if (!loginData || loginData.length === 0) {
-        console.error('로그인 실패: 사용자 데이터 없음');
+        console.error('❌ 로그인 실패: 사용자 데이터 없음', { username });
+        
+        // 🔍 디버깅: DB에 계정이 있는지 확인
+        const { data: checkUser } = await supabase
+          .from('partners')
+          .select('id, username, status, password_hash')
+          .eq('username', username)
+          .single();
+        
+        console.log('🔍 DB 계정 확인:', checkUser);
+        
+        if (checkUser) {
+          console.error('❌ 계정은 존재하지만 비밀번호 불일치 또는 status 문제:', {
+            id: checkUser.id,
+            username: checkUser.username,
+            status: checkUser.status,
+            hasPasswordHash: !!checkUser.password_hash,
+            hashPrefix: checkUser.password_hash?.substring(0, 7)
+          });
+          
+          return { 
+            success: false, 
+            error: '비밀번호가 올바르지 않거나 계정이 비활성화되었습니다.' 
+          };
+        }
+        
         return { 
           success: false, 
-          error: '아이디 또는 비밀번호가 올바르지 않습니다.' 
+          error: '존재하지 않는 계정입니다.' 
         };
       }
 
@@ -106,9 +131,6 @@ export function useAuthProvider() {
         parent_id: partnerData.parent_id || undefined,
         status: partnerData.status,
         balance: partnerData.balance,
-        opcode: partnerData.opcode || undefined,
-        secret_key: partnerData.secret_key || undefined,
-        api_token: partnerData.api_token || undefined,
         commission_rolling: partnerData.commission_rolling,
         commission_losing: partnerData.commission_losing,
         casino_rolling_commission: partnerData.casino_rolling_commission,
@@ -124,10 +146,7 @@ export function useAuthProvider() {
         id: systemAdminUser.id,
         username: systemAdminUser.username,
         partner_type: systemAdminUser.partner_type,
-        level: systemAdminUser.level,
-        has_opcode: !!systemAdminUser.opcode,
-        has_secret_key: !!systemAdminUser.secret_key,
-        has_api_token: !!systemAdminUser.api_token
+        level: systemAdminUser.level
       });
 
       const newAuthState = {

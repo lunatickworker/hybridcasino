@@ -30,6 +30,7 @@ import { toast } from "sonner@2.0.3";
 import { AnimatedCurrency, AnimatedPoints } from "../common/AnimatedNumber";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { LanguageSwitcher } from "../admin/LanguageSwitcher";
+import bcrypt from 'bcryptjs';
 
 interface UserHeaderProps {
   user: any;
@@ -170,7 +171,8 @@ export function UserHeader({ user, onRouteChange, onLogout }: UserHeaderProps) {
       }
 
       // 입력한 비밀번호와 DB의 비밀번호 비교
-      if (conversionPassword.trim() !== userData.point_conversion_password) {
+      const isPasswordMatch = await bcrypt.compare(conversionPassword.trim(), userData.point_conversion_password);
+      if (!isPasswordMatch) {
         toast.error('포인트전환 비밀번호가 일치하지 않습니다.');
         setConversionPassword(''); // 비밀번호 초기화
         return;

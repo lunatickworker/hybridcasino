@@ -64,18 +64,17 @@ export function PartnerTransactions() {
         return;
       }
 
-      // 파트너 간 입출금 내역만 조회
+      // ✅ 파트너 입출금 내역 조회 (from/to가 null이어도 포함)
       let query = supabase
         .from('partner_balance_logs')
         .select('*')
-        .not('from_partner_id', 'is', null)
-        .not('to_partner_id', 'is', null)
         .in('transaction_type', ['deposit', 'withdrawal']);
 
       // 시스템관리자(level 1)가 아닌 경우 자신과 연관된 내역만 필터링
       if (authState.user.level !== 1) {
         const currentPartnerId = authState.user.id;
-        query = query.or(`from_partner_id.eq.${currentPartnerId},to_partner_id.eq.${currentPartnerId}`);
+        // ✅ partner_id, from_partner_id, to_partner_id 중 하나라도 자신이면 조회
+        query = query.or(`partner_id.eq.${currentPartnerId},from_partner_id.eq.${currentPartnerId},to_partner_id.eq.${currentPartnerId}`);
       }
 
       // 날짜 필터 적용
@@ -149,7 +148,7 @@ export function PartnerTransactions() {
       // 오늘 통계 계산
       const today = new Date().toISOString().split('T')[0];
       const todayTransactions = formattedData.filter(t => 
-        t.created_at.startsWith(today)
+        t.created_at && t.created_at.startsWith(today)
       );
 
       const deposits = todayTransactions

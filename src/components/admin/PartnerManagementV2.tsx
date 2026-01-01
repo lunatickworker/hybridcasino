@@ -180,6 +180,23 @@ export function PartnerManagementV2() {
       }
     });
 
+    // 🔧 created_at 기준으로 정렬 (생성일 오름차순 - 오래된 것부터)
+    const sortByCreatedAt = (a: Partner, b: Partner) => {
+      const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return dateA - dateB;
+    };
+
+    // 모든 children 배열 정렬
+    partnerMap.forEach((partner) => {
+      if (partner.children && partner.children.length > 0) {
+        partner.children.sort(sortByCreatedAt);
+      }
+    });
+
+    // rootPartners도 정렬
+    rootPartners.sort(sortByCreatedAt);
+
     return rootPartners;
   };
 

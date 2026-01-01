@@ -138,6 +138,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       
       const dateRange = getDateRange(periodFilter);
       
+      console.log('📅 날짜 범위:', dateRange);
+      
       // 거래 데이터 로드
       let query = supabase
         .from('transactions')
@@ -151,6 +153,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         const { data: hierarchicalPartners } = await supabase
           .rpc('get_hierarchical_partners', { p_partner_id: user.id });
         
+        console.log('🔍 하위 파트너 조회:', hierarchicalPartners);
+        
         // ✅ 안전장치: 현재 사용자보다 level이 큰 파트너만 포함 (하위만)
         const childPartnerIds = (hierarchicalPartners || [])
           .filter((p: any) => p.level > user.level)
@@ -158,17 +162,34 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         
         const partnerIds = [user.id, ...childPartnerIds];
         
+        console.log('🔍 조회 대상 파트너 IDs:', partnerIds);
+        
         // 자신과 하위 파트너들의 회원 조회
         const { data: userList } = await supabase
           .from('users')
-          .select('id')
+          .select('id, username, referrer_id')
           .in('referrer_id', partnerIds);
+        
+        console.log('🔍 조회된 회원 목록:', userList);
         
         const userIds = userList?.map(u => u.id) || [];
         
+        console.log('🔍 회원 ID 목록:', userIds);
+        
         if (userIds.length > 0) {
           query = query.in('user_id', userIds);
+          
+          // 🔍 디버깅: 날짜 필터 없이 전체 거래 조회
+          const { data: allTransactions } = await supabase
+            .from('transactions')
+            .select('id, user_id, transaction_type, status, created_at')
+            .in('user_id', userIds)
+            .order('created_at', { ascending: false })
+            .limit(10);
+          
+          console.log('🔍 날짜 필터 없이 조회한 최근 거래 10건:', allTransactions);
         } else {
+          console.log('⚠️ 조회 대상 회원이 없습니다.');
           setTransactions([]);
           setStats({
             totalDeposit: 0,
@@ -186,15 +207,26 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       if (error) throw error;
 
       console.log('✅ 거래 데이터 로드 완료:', transactionsData?.length || 0, '건');
+      console.log('📋 조회된 거래 타입:', transactionsData?.map(t => t.transaction_type).filter((v, i, a) => a.indexOf(v) === i));
+      console.log('📋 admin 타입 거래:', transactionsData?.filter(t => t.transaction_type?.includes('admin')).length || 0, '건');
       
-      // user 정보를 별도로 조회
+      // user 정보를 별도로 조회 (referrer_id 포함)
       const userIds = [...new Set(transactionsData?.map(t => t.user_id).filter(Boolean))];
       const { data: usersInfo } = await supabase
         .from('users')
-        .select('id, nickname, username, balance, bank_name, bank_account, bank_holder')
+        .select('id, nickname, username, balance, bank_name, bank_account, bank_holder, referrer_id')
         .in('id', userIds);
       
       const usersMap = new Map(usersInfo?.map(u => [u.id, u]) || []);
+
+      // referrer 파트너 정보를 별도로 조회
+      const referrerIds = [...new Set(usersInfo?.map(u => u.referrer_id).filter(Boolean) || [])];
+      const { data: referrersInfo } = await supabase
+        .from('partners')
+        .select('id, nickname, level')
+        .in('id', referrerIds);
+      
+      const referrersMap = new Map(referrersInfo?.map(p => [p.id, p]) || []);
 
       // processed_by 정보를 별도로 조회
       const processedByIds = [...new Set(transactionsData?.map(t => t.processed_by).filter(Boolean))];
@@ -205,12 +237,18 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       
       const partnersMap = new Map(partnersInfo?.map(p => [p.id, p]) || []);
 
-      // 데이터 매핑
-      const transactionsWithRelations = transactionsData?.map(t => ({
-        ...t,
-        user: t.user_id ? usersMap.get(t.user_id) : null,
-        processed_partner: t.processed_by ? partnersMap.get(t.processed_by) : null
-      })) || [];
+      // 데이터 매핑 (referrer 정보 추가)
+      const transactionsWithRelations = transactionsData?.map(t => {
+        const userInfo = t.user_id ? usersMap.get(t.user_id) : null;
+        return {
+          ...t,
+          user: userInfo ? {
+            ...userInfo,
+            referrer: userInfo.referrer_id ? referrersMap.get(userInfo.referrer_id) : null
+          } : null,
+          processed_partner: t.processed_by ? partnersMap.get(t.processed_by) : null
+        };
+      }) || [];
 
       setTransactions(transactionsWithRelations);
 
@@ -471,17 +509,197 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       if (error) throw error;
 
+      // ✅ 승인인 경우: users 테이블 balance 업데이트 (CRITICAL FIX)
+      if (action === 'approve') {
+        // 1️⃣ 현재 사용자 잔고 확인
+        const { data: currentUserData, error: currentUserError } = await supabase
+          .from('users')
+          .select('balance, username')
+          .eq('id', transaction.user_id)
+          .single();
+
+        if (currentUserError) {
+          console.error('❌ [사용자 조회 실패]:', currentUserError);
+          throw new Error('사용자 정보를 조회할 수 없습니다.');
+        }
+
+        const currentBalance = parseFloat(currentUserData?.balance?.toString() || '0');
+        const amount = parseFloat(transaction.amount?.toString() || '0');
+        
+        // 2️⃣ 새로운 잔고 계산
+        let newBalance = currentBalance;
+        if (transaction.transaction_type === 'deposit') {
+          newBalance = currentBalance + amount;
+        } else if (transaction.transaction_type === 'withdrawal') {
+          newBalance = currentBalance - amount;
+          
+          // 출금 시 음수 방지
+          if (newBalance < 0) {
+            throw new Error(`잔고가 음수가 될 수 없습니다. (현재: ${currentBalance}, 출금: ${amount})`);
+          }
+        }
+
+        console.log('💰 [잔고 업데이트 준비]:', {
+          user_id: transaction.user_id,
+          username: currentUserData?.username,
+          transaction_type: transaction.transaction_type,
+          current_balance: currentBalance,
+          amount: amount,
+          new_balance: newBalance
+        });
+
+        // 3️⃣ users 테이블 balance 업데이트
+        const { data: updatedUser, error: balanceUpdateError } = await supabase
+          .from('users')
+          .update({
+            balance: newBalance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', transaction.user_id)
+          .select('balance, username')
+          .single();
+
+        if (balanceUpdateError) {
+          console.error('❌ [잔고 업데이트 실패]:', balanceUpdateError);
+          throw new Error('사용자 잔고 업데이트에 실패했습니다.');
+        }
+
+        console.log('✅✅✅ [잔고 업데이트 완료]:', {
+          user_id: transaction.user_id,
+          username: updatedUser?.username,
+          before: currentBalance,
+          after: updatedUser?.balance,
+          expected: newBalance,
+          match: updatedUser?.balance === newBalance
+        });
+
+        // 4️⃣ 파트너 보유금 조정
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('referrer_id')
+          .eq('id', transaction.user_id)
+          .single();
+
+        if (userError || !userData?.referrer_id) {
+          console.error('❌ [담당 관리자 조회 실패]:', userError);
+          throw new Error('회원의 담당 관리자를 찾을 수 없습니다.');
+        }
+
+        const responsiblePartnerId = userData.referrer_id;
+
+        // 5️⃣ 담당 관리자의 보유금 조회
+        const { data: partnerData, error: partnerQueryError } = await supabase
+          .from('partners')
+          .select('balance, username, level')
+          .eq('id', responsiblePartnerId)
+          .single();
+
+        if (partnerQueryError) {
+          console.error('❌ [파트너 보유금 조회 실패]:', partnerQueryError);
+          throw new Error('담당 관리자 보유금을 조회할 수 없습니다.');
+        }
+
+        const currentPartnerBalance = parseFloat(partnerData?.balance?.toString() || '0');
+
+        console.log('💰 [담당 관리자 정보]:', {
+          partner_id: responsiblePartnerId,
+          username: partnerData?.username,
+          level: partnerData?.level,
+          balance: currentPartnerBalance
+        });
+
+        // 6️⃣ 입금/출금에 따른 파트너 보유금 계산 및 업데이트
+        if (transaction.transaction_type === 'deposit') {
+          // 입금: 파트너 보유금 차감
+          if (currentPartnerBalance < amount) {
+            throw new Error(
+              `담당 관리자(${partnerData?.username})의 보유금이 부족하여 입금을 승인할 수 없습니다.\n\n` +
+              `현재 보유금: ₩${currentPartnerBalance.toLocaleString()}\n` +
+              `승인 금액: ₩${amount.toLocaleString()}\n` +
+              `부족 금액: ₩${(amount - currentPartnerBalance).toLocaleString()}`
+            );
+          }
+
+          const newPartnerBalance = currentPartnerBalance - amount;
+
+          const { error: partnerUpdateError } = await supabase
+            .from('partners')
+            .update({
+              balance: newPartnerBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', responsiblePartnerId);
+
+          if (partnerUpdateError) {
+            console.error('❌ [파트너 보유금 차감 실패]:', partnerUpdateError);
+            throw new Error('담당 관리자 보유금 차감에 실패했습니다.');
+          }
+
+          console.log('✅ [파트너 보유금 차감 완료]:', {
+            partner_id: responsiblePartnerId,
+            partner_username: partnerData?.username,
+            before: currentPartnerBalance,
+            after: newPartnerBalance,
+            deducted: amount
+          });
+
+          // 파트너 잔고 변경 로그 기록
+          await supabase.from('partner_balance_logs').insert({
+            partner_id: responsiblePartnerId,
+            balance_before: currentPartnerBalance,
+            balance_after: newPartnerBalance,
+            amount: -amount,
+            transaction_type: 'deposit_to_user',
+            processed_by: user.id,
+            memo: `회원 ${currentUserData?.username} 입금 승인 (처리자: ${user.username})`
+          });
+
+        } else if (transaction.transaction_type === 'withdrawal') {
+          // 출금: 파트너 보유금 증가
+          const newPartnerBalance = currentPartnerBalance + amount;
+
+          const { error: partnerUpdateError } = await supabase
+            .from('partners')
+            .update({
+              balance: newPartnerBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', responsiblePartnerId);
+
+          if (partnerUpdateError) {
+            console.error('❌ [파트너 보유금 증가 실패]:', partnerUpdateError);
+            throw new Error('담당 관리자 보유금 증가에 실패했습니다.');
+          }
+
+          console.log('✅ [파트너 보유금 증가 완료]:', {
+            partner_id: responsiblePartnerId,
+            partner_username: partnerData?.username,
+            before: currentPartnerBalance,
+            after: newPartnerBalance,
+            added: amount
+          });
+
+          // 파트너 잔고 변경 로그 기록
+          await supabase.from('partner_balance_logs').insert({
+            partner_id: responsiblePartnerId,
+            balance_before: currentPartnerBalance,
+            balance_after: newPartnerBalance,
+            amount: amount,
+            transaction_type: 'withdrawal_from_user',
+            processed_by: user.id,
+            memo: `회원 ${currentUserData?.username} 출금 승인 (처리자: ${user.username})`
+          });
+        }
+      }
+
       toast.success(action === 'approve' ? t.transactionManagement.transactionApproved : t.transactionManagement.transactionRejected);
       
-      // WebSocket으로 실시간 알림
-      sendMessage({
-        type: 'transaction_processed',
-        data: { 
-          transactionId: transaction.id, 
-          action, 
-          processedBy: user.nickname,
-          userId: transaction.user_id
-        }
+      // WebSocket으로 실시간 알림 - 올바른 형식으로 수정
+      sendMessage('transaction_processed', { 
+        transactionId: transaction.id, 
+        action, 
+        processedBy: user.nickname,
+        userId: transaction.user_id
       });
       
       setActionDialog({ open: false, transaction: null, action: 'approve', memo: '' });
@@ -612,9 +830,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       console.log('💰 실제 잔고:', balanceAfter);
 
       // 거래 기록 생성 (관리자 강제 입출금 타입 사용)
+      const now = new Date().toISOString();
       const { error: transactionError } = await supabase
         .from('transactions')
         .insert({
+          id: crypto.randomUUID(), // ✅ id 명시적 설정
           user_id: userId,
           partner_id: user.id,
           transaction_type: type === 'deposit' ? 'admin_deposit' : 'admin_withdrawal',
@@ -624,7 +844,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           balance_after: balanceAfter,
           memo: memo || `[관리자 강제 ${type === 'deposit' ? '입금' : '출금'}]`,
           processed_by: user.id,
-          processed_at: new Date().toISOString(),
+          processed_at: now,
+          created_at: now, // ✅ created_at 명시적 설정
+          updated_at: now, // ✅ updated_at도 설정
           external_response: apiResult.data
         });
 
@@ -826,13 +1048,21 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     t.status === 'completed' &&
     filterBySearch(t)
   );
+  
+  console.log('🔍 관리자 입출금내역 필터링:', {
+    total: transactions.length,
+    adminDeposit: transactions.filter(t => t.transaction_type === 'admin_deposit').length,
+    adminWithdrawal: transactions.filter(t => t.transaction_type === 'admin_withdrawal').length,
+    adminAdjustment: transactions.filter(t => t.transaction_type === 'admin_adjustment').length,
+    filtered: adminTransactions.length
+  });
 
   // 거래 테이블 컬럼
   const getColumns = (showActions = false) => [
     {
       header: t.transactionManagement.transactionDate,
       cell: (row: Transaction) => (
-        <span className="text-lg text-slate-300">
+        <span className="text-base text-slate-300">
           {new Date(row.created_at).toLocaleString('ko-KR')}
         </span>
       )
@@ -841,8 +1071,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       header: t.transactionManagement.member,
       cell: (row: Transaction) => (
         <div>
-          <p className="font-medium text-slate-200 text-lg">{row.user?.nickname}</p>
-          <p className="text-base text-slate-500">{row.user?.username}</p>
+          <p className="font-medium text-slate-200 text-base">{row.user?.nickname}</p>
+          <p className="text-sm text-slate-500">{row.user?.username}</p>
+          {row.user?.referrer && (
+            <p className="text-sm text-blue-400 mt-0.5">
+              소속: {row.user.referrer.nickname}
+            </p>
+          )}
         </div>
       )
     },
@@ -860,7 +1095,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           }
         };
         const type = typeMap[row.transaction_type] || { text: row.transaction_type, color: 'bg-gray-500' };
-        return <Badge className={`${type.color} text-white text-base px-4 py-2`}>{type.text}</Badge>;
+        return <Badge className={`${type.color} text-white text-sm px-3 py-1`}>{type.text}</Badge>;
       }
     },
     {
@@ -872,7 +1107,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                              (row.transaction_type === 'admin_adjustment' && row.memo?.includes('강제 출금'));
         return (
           <span className={cn(
-            "font-mono font-semibold text-xl",
+            "font-mono font-semibold text-base",
             isWithdrawal ? 'text-red-400' : 'text-green-400'
           )}>
             {isWithdrawal ? '-' : '+'}
@@ -884,7 +1119,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     {
       header: t.transactionManagement.balanceAfter,
       cell: (row: Transaction) => (
-        <span className="font-mono text-cyan-400 text-xl">
+        <span className="font-mono text-cyan-400 text-base">
           {formatCurrency(parseFloat(row.balance_after?.toString() || '0'))}
         </span>
       )
@@ -898,14 +1133,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           rejected: { text: t.transactionManagement.rejected, color: 'bg-red-500' }
         };
         const status = statusMap[row.status] || { text: row.status, color: 'bg-gray-500' };
-        return <Badge className={`${status.color} text-white text-base px-4 py-2`}>{status.text}</Badge>;
+        return <Badge className={`${status.color} text-white text-sm px-3 py-1`}>{status.text}</Badge>;
       }
     },
     {
       header: t.transactionManagement.memo,
       cell: (row: Transaction) => (
         <div className="max-w-xs">
-          <span className="text-lg text-slate-400 block truncate" title={row.memo || ''}>
+          <span className="text-base text-slate-400 block truncate" title={row.memo || ''}>
             {row.memo || '-'}
           </span>
         </div>
@@ -914,7 +1149,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     {
       header: t.transactionManagement.processor,
       cell: (row: Transaction) => (
-        <span className="text-lg text-slate-400">
+        <span className="text-base text-slate-400">
           {row.processed_partner?.nickname || '-'}
         </span>
       )
@@ -924,19 +1159,19 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       cell: (row: Transaction) => (
         <div className="flex items-center gap-2">
           <Button
-            size="lg"
+            size="default"
             onClick={() => openActionDialog(row, 'approve')}
             disabled={refreshing}
-            className="h-12 px-6 text-lg bg-green-600 hover:bg-green-700"
+            className="h-10 px-5 text-base bg-green-600 hover:bg-green-700"
           >
             {t.transactionManagement.approve}
           </Button>
           <Button
-            size="lg"
+            size="default"
             variant="outline"
             onClick={() => openActionDialog(row, 'reject')}
             disabled={refreshing}
-            className="h-12 px-6 text-lg border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
+            className="h-10 px-5 text-base border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
           >
             {t.transactionManagement.reject}
           </Button>
@@ -946,9 +1181,22 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between">
+    <>
+      <style>{`
+        .compact-table .table-premium thead th {
+          padding: 0.875rem 1rem !important;
+          font-size: 1rem !important;
+        }
+        .compact-table .table-premium tbody td {
+          padding: 0.875rem 1rem !important;
+        }
+        .compact-table .table-premium tbody tr {
+          border-bottom: 1px solid rgba(71, 85, 105, 0.2) !important;
+        }
+      `}</style>
+      <div className="space-y-6">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-4xl font-bold text-slate-100">{t.transactionManagement.title}</h1>
           <p className="text-xl text-slate-400">{t.transactionManagement.subtitle}</p>
@@ -995,56 +1243,43 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       </div>
 
       {/* 탭 컨텐츠 */}
-      <div className="glass-card rounded-xl p-6">
+      <div className="glass-card rounded-xl p-5">
         {/* 탭 리스트 */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <div className="bg-slate-800/30 rounded-xl p-1.5 border border-slate-700/40">
             <TabsList className="bg-transparent h-auto p-0 border-0 gap-2 w-full grid grid-cols-4">
               <TabsTrigger 
                 value="deposit-request"
-                className="bg-transparent text-slate-400 text-xl rounded-lg px-8 py-5 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
+                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
               >
                 {t.transactionManagement.depositRequestTab}
               </TabsTrigger>
               <TabsTrigger 
                 value="withdrawal-request"
-                className="bg-transparent text-slate-400 text-xl rounded-lg px-8 py-5 data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
+                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
               >
                 {t.transactionManagement.withdrawalRequestTab}
               </TabsTrigger>
               <TabsTrigger 
                 value="completed-history"
-                className="bg-transparent text-slate-400 text-xl rounded-lg px-8 py-5 data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500/20 data-[state=active]:to-emerald-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20 data-[state=active]:border data-[state=active]:border-green-400/30 transition-all duration-200"
+                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500/20 data-[state=active]:to-emerald-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20 data-[state=active]:border data-[state=active]:border-green-400/30 transition-all duration-200"
               >
                 {t.transactionManagement.completedHistoryTab}
               </TabsTrigger>
               <TabsTrigger 
                 value="admin-history"
-                className="bg-transparent text-slate-400 text-xl rounded-lg px-8 py-5 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500/20 data-[state=active]:to-amber-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-orange-500/20 data-[state=active]:border data-[state=active]:border-orange-400/30 transition-all duration-200"
+                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500/20 data-[state=active]:to-amber-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-orange-500/20 data-[state=active]:border data-[state=active]:border-orange-400/30 transition-all duration-200"
               >
                 {t.transactionManagement.adminHistoryTab}
               </TabsTrigger>
             </TabsList>
           </div>
 
-          {/* 헤더 및 필터 */}
-          <div className="flex items-center justify-between pb-4 border-b border-slate-700/50">
-            <div className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-slate-400" />
-              <h3 className="font-semibold text-slate-100">
-                {activeTab === 'deposit-request' && t.transactionManagement.depositRequestTab}
-                {activeTab === 'withdrawal-request' && t.transactionManagement.withdrawalRequestTab}
-                {activeTab === 'completed-history' && t.transactionManagement.completedHistoryTab}
-                {activeTab === 'admin-history' && t.transactionManagement.adminHistoryTab}
-              </h3>
-            </div>
-          </div>
-
-          {/* 필터 영역 */}
-          <div className="flex items-center gap-3">
+          {/* 필터 영역 - 컴팩트하게 한 줄로 */}
+          <div className="flex items-center gap-3 bg-slate-800/20 rounded-lg p-3 border border-slate-700/30">
             {/* 기간 정렬 */}
             <Select value={periodFilter} onValueChange={setPeriodFilter}>
-              <SelectTrigger className="w-[140px] input-premium">
+              <SelectTrigger className="w-[160px] h-11 text-base bg-slate-800/50 border-slate-600">
                 <SelectValue placeholder={t.transactionManagement.period} />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
@@ -1056,10 +1291,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
             {/* 검색 */}
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
               <Input
                 placeholder={t.transactionManagement.searchMembers}
-                className="pl-10 input-premium"
+                className="pl-10 h-11 text-base bg-slate-800/50 border-slate-600"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -1073,15 +1308,15 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               }}
               disabled={refreshing}
               variant="outline"
-              className="btn-premium-primary"
+              className="h-11 px-5 text-base bg-slate-800/50 border-slate-600 hover:bg-slate-700"
             >
-              <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
+              <RefreshCw className={cn("h-5 w-5 mr-2", refreshing && "animate-spin")} />
               {t.transactionManagement.refresh}
             </Button>
           </div>
 
           {/* 입금 신청 탭 */}
-          <TabsContent value="deposit-request">
+          <TabsContent value="deposit-request" className="compact-table">
             <DataTable
               searchable={false}
               columns={getColumns(true)}
@@ -1092,7 +1327,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           </TabsContent>
 
           {/* 출금 신청 탭 */}
-          <TabsContent value="withdrawal-request">
+          <TabsContent value="withdrawal-request" className="compact-table">
             <DataTable
               searchable={false}
               columns={getColumns(true)}
@@ -1103,7 +1338,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           </TabsContent>
 
           {/* 입출금 내역 탭 (승인된 모든 거래) */}
-          <TabsContent value="completed-history">
+          <TabsContent value="completed-history" className="compact-table">
             <DataTable
               searchable={false}
               columns={getColumns(false)}
@@ -1114,7 +1349,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           </TabsContent>
 
           {/* 관리자 입출금 내역 탭 */}
-          <TabsContent value="admin-history">
+          <TabsContent value="admin-history" className="compact-table">
             <DataTable
               searchable={false}
               columns={getColumns(false)}
@@ -1449,7 +1684,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </>
   );
 }
 

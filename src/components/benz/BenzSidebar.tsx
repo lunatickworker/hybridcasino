@@ -98,182 +98,192 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
         borderRight: '4px solid rgba(193, 154, 107, 0.2)',
         boxShadow: '4px 0 20px rgba(0, 0, 0, 0.5)'
       }}>
-        <div className="p-4 space-y-6" style={{ marginTop: '25px' }}>
-          {/* Logo */}
-          <div className="flex justify-center mb-6" style={{ marginTop: '2px' }}>
-            <button 
-              onClick={() => onRouteChange('/benz')}
-              className="w-full flex justify-center cursor-pointer"
-            >
-              <ImageWithFallback
-                src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/main%20logo.png"
-                alt="BENZ CASINO"
-                className="h-auto object-contain px-4"
-                style={{ width: '80%' }}
-              />
-            </button>
-          </div>
+        <div className="flex flex-col h-full">
+          <div className="p-4 space-y-6" style={{ marginTop: '25px' }}>
+            {/* Logo */}
+            <div className="flex justify-center mb-6" style={{ marginTop: '2px' }}>
+              <button 
+                onClick={() => onRouteChange('/benz')}
+                className="w-full flex justify-center cursor-pointer"
+              >
+                <ImageWithFallback
+                  src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/main%20logo.png"
+                  alt="BENZ CASINO"
+                  className="h-auto object-contain px-4"
+                  style={{ width: '80%' }}
+                />
+              </button>
+            </div>
 
-          {/* Main Menu */}
-          <div>
-            <nav className="space-y-2">
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = currentRoute === item.path;
-                return (
-                  <button
-                    key={item.path}
-                    onClick={() => handleMenuClick(item.path)}
-                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-300 group relative overflow-hidden ${ 
-                      isActive 
-                        ? 'scale-105' 
-                        : 'hover:scale-105'
-                    }`}
-                    style={{
-                      border: '1px solid transparent',
-                      boxShadow: isActive 
-                        ? '0 4px 15px rgba(193, 154, 107, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-                        : 'none'
-                    }}
-                  >
-                    {/* 기본 배경 이미지 */}
-                    <div 
-                      className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-0"
+            {/* Main Menu */}
+            <div>
+              <nav className="space-y-2">
+                {menuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = currentRoute === item.path;
+                  return (
+                    <button
+                      key={item.path}
+                      onClick={() => handleMenuClick(item.path)}
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-300 group relative overflow-hidden ${ 
+                        isActive 
+                          ? 'scale-105' 
+                          : 'hover:scale-105'
+                      }`}
                       style={{
-                        backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu-bg.png)',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
-                        opacity: isActive ? 0 : 1
-                      }}
-                    ></div>
-
-                    {/* hover 배경 이미지 */}
-                    <div 
-                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                      style={{
-                        backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
-                        backgroundSize: '100% 100%',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
-                        opacity: isActive ? 1 : undefined
-                      }}
-                    ></div>
-
-                    {/* 아이콘 */}
-                    <Icon 
-                      className="relative z-10 transition-all duration-300" 
-                      style={{ 
-                        width: '24px', 
-                        height: '24px',
-                        color: '#C19A6B',
-                        filter: 'drop-shadow(0 2px 4px rgba(193, 154, 107, 0.3))'
-                      }} 
-                    />
-
-                    <span 
-                      className="relative z-10 font-bold tracking-wide transition-all duration-300"
-                      style={{
-                        fontSize: '20px',
-                        color: '#888773',
-                        textShadow: 'none'
+                        border: '1px solid transparent',
+                        boxShadow: isActive 
+                          ? '0 4px 15px rgba(193, 154, 107, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+                          : 'none'
                       }}
                     >
-                      {item.label}
-                    </span>
+                      {/* 기본 배경 이미지 */}
+                      <div 
+                        className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-0"
+                        style={{
+                          backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu-bg.png)',
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          backgroundRepeat: 'no-repeat',
+                          opacity: isActive ? 0 : 1
+                        }}
+                      ></div>
 
-                    {/* 호버 글로우 */}
-                    <div 
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-20 h-20 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-300 pointer-events-none"
+                      {/* hover 배경 이미지 */}
+                      <div 
+                        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        style={{
+                          backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
+                          backgroundSize: '100% 100%',
+                          backgroundPosition: 'center',
+                          backgroundRepeat: 'no-repeat',
+                          opacity: isActive ? 1 : undefined
+                        }}
+                      ></div>
+
+                      {/* 아이콘 */}
+                      <Icon 
+                        className="relative z-10 transition-all duration-300" 
+                        style={{ 
+                          width: '24px', 
+                          height: '24px',
+                          color: '#C19A6B',
+                          filter: 'drop-shadow(0 2px 4px rgba(193, 154, 107, 0.3))'
+                        }} 
+                      />
+
+                      <span 
+                        className="relative z-10 font-bold tracking-wide transition-all duration-300"
+                        style={{
+                          fontSize: '20px',
+                          color: '#888773',
+                          textShadow: 'none'
+                        }}
+                      >
+                        {item.label}
+                      </span>
+
+                      {/* 호버 글로우 */}
+                      <div 
+                        className="absolute right-0 top-1/2 -translate-y-1/2 w-20 h-20 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-300 pointer-events-none"
+                        style={{
+                          background: 'radial-gradient(circle, rgba(193, 154, 107, 0.4) 0%, transparent 70%)'
+                        }}
+                      ></div>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* User Menu - 버튼 하나의 공간만큼 간격 추가 */}
+            <div style={{ marginTop: '60px' }}>
+              <nav className="space-y-2">
+                {userMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = currentRoute === item.path;
+                  return (
+                    <button
+                      key={item.path}
+                      onClick={() => handleMenuClick(item.path)}
+                      className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-300 group relative overflow-hidden ${ 
+                        isActive 
+                          ? 'scale-105' 
+                          : 'hover:scale-105'
+                      }`}
                       style={{
-                        background: 'radial-gradient(circle, rgba(193, 154, 107, 0.4) 0%, transparent 70%)'
-                      }}
-                    ></div>
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-
-          {/* User Menu - 버튼 하나의 공간만큼 간격 추가 */}
-          <div style={{ marginTop: '60px' }}>
-            <nav className="space-y-2">
-              {userMenuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = currentRoute === item.path;
-                return (
-                  <button
-                    key={item.path}
-                    onClick={() => handleMenuClick(item.path)}
-                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-300 group relative overflow-hidden ${ 
-                      isActive 
-                        ? 'scale-105' 
-                        : 'hover:scale-105'
-                    }`}
-                    style={{
-                      border: '1px solid transparent',
-                      boxShadow: isActive 
-                        ? '0 4px 15px rgba(193, 154, 107, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-                        : 'none'
-                    }}
-                  >
-                    {/* 기본 배경 이미지 */}
-                    <div 
-                      className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-0"
-                      style={{
-                        backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu-bg.png)',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
-                        opacity: isActive ? 0 : 1
-                      }}
-                    ></div>
-
-                    {/* hover 배경 이미지 */}
-                    <div 
-                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                      style={{
-                        backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
-                        backgroundSize: '100% 100%',
-                        backgroundPosition: 'center',
-                        backgroundRepeat: 'no-repeat',
-                        opacity: isActive ? 1 : undefined
-                      }}
-                    ></div>
-
-                    {/* 아이콘 */}
-                    <Icon 
-                      className="relative z-10 transition-all duration-300" 
-                      style={{ 
-                        width: '24px', 
-                        height: '24px',
-                        color: '#C19A6B',
-                        filter: 'drop-shadow(0 2px 4px rgba(193, 154, 107, 0.3))'
-                      }} 
-                    />
-
-                    <span 
-                      className="relative z-10 font-bold tracking-wide transition-all duration-300"
-                      style={{
-                        fontSize: '20px',
-                        color: '#888773',
-                        textShadow: 'none'
+                        border: '1px solid transparent',
+                        boxShadow: isActive 
+                          ? '0 4px 15px rgba(193, 154, 107, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+                          : 'none'
                       }}
                     >
-                      {item.label}
-                    </span>
+                      {/* 기본 배경 이미지 */}
+                      <div 
+                        className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-0"
+                        style={{
+                          backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu-bg.png)',
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          backgroundRepeat: 'no-repeat',
+                          opacity: isActive ? 0 : 1
+                        }}
+                      ></div>
 
-                    {/* 호버 글로우 */}
-                    <div 
-                      className="absolute right-0 top-1/2 -translate-y-1/2 w-20 h-20 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-300 pointer-events-none"
-                      style={{
-                        background: 'radial-gradient(circle, rgba(193, 154, 107, 0.4) 0%, transparent 70%)'
-                      }}
-                    ></div>
-                  </button>
-                );
-              })}
-            </nav>
+                      {/* hover 배경 이미지 */}
+                      <div 
+                        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        style={{
+                          backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
+                          backgroundSize: '100% 100%',
+                          backgroundPosition: 'center',
+                          backgroundRepeat: 'no-repeat',
+                          opacity: isActive ? 1 : undefined
+                        }}
+                      ></div>
+
+                      {/* 아이콘 */}
+                      <Icon 
+                        className="relative z-10 transition-all duration-300" 
+                        style={{ 
+                          width: '24px', 
+                          height: '24px',
+                          color: '#C19A6B',
+                          filter: 'drop-shadow(0 2px 4px rgba(193, 154, 107, 0.3))'
+                        }} 
+                      />
+
+                      <span 
+                        className="relative z-10 font-bold tracking-wide transition-all duration-300"
+                        style={{
+                          fontSize: '20px',
+                          color: '#888773',
+                          textShadow: 'none'
+                        }}
+                      >
+                        {item.label}
+                      </span>
+
+                      {/* 호버 글로우 */}
+                      <div 
+                        className="absolute right-0 top-1/2 -translate-y-1/2 w-20 h-20 blur-xl opacity-0 group-hover:opacity-30 transition-opacity duration-300 pointer-events-none"
+                        style={{
+                          background: 'radial-gradient(circle, rgba(193, 154, 107, 0.4) 0%, transparent 70%)'
+                        }}
+                      ></div>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+          </div>
+          
+          {/* 하단 관리자 페이지 링크 (텍스트 없이 클릭 영역만) */}
+          <div 
+            className="mt-auto p-3 flex-shrink-0 cursor-pointer"
+            onClick={() => window.location.href = '#/admin'}
+            title="임시: 관리자 페이지로 이동"
+          >
           </div>
         </div>
       </aside>

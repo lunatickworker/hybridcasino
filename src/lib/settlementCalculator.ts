@@ -297,11 +297,25 @@ export async function calculatePendingDeposits(
   }
 
   try {
+    // ✅ 유효한 UUID만 필터링 (null, undefined, 빈 문자열, "null" 문자열 제거)
+    const validUserIds = userIds.filter(id => 
+      id && 
+      id !== 'null' && 
+      id !== 'undefined' && 
+      typeof id === 'string' && 
+      id.trim() !== ''
+    );
+
+    if (validUserIds.length === 0) {
+      console.warn('⚠️ [만충금] 유효한 user_id가 없습니다');
+      return 0;
+    }
+
     const CHUNK_SIZE = 100;
     let totalPendingDeposits = 0;
 
-    for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
-      const chunk = userIds.slice(i, i + CHUNK_SIZE);
+    for (let i = 0; i < validUserIds.length; i += CHUNK_SIZE) {
+      const chunk = validUserIds.slice(i, i + CHUNK_SIZE);
 
       const { data: depositData, error } = await supabase
         .from('transactions')

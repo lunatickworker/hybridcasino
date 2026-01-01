@@ -188,20 +188,77 @@ export function UserManagement() {
         setUsers(usersWithReferrer);
         return;
       } else {
-        // 일반 파트너: 자신 + 하위 파트너들의 사용자
-        const { data: hierarchicalPartners } = await supabase
-          .rpc('get_hierarchical_partners', { p_partner_id: authState.user?.id });
+        // ✅ Lv2~Lv6: 본인 + 모든 하위 파트너들의 회원 조회 (재귀)
+        console.log(`🔍 [Lv${authState.user?.level}] 현재 로그인 파트너 ID:`, authState.user?.id);
         
-        allowedReferrerIds = [authState.user?.id || '', ...(hierarchicalPartners?.map((p: any) => p.id) || [])];
+        const getAllDescendants = async (partnerId: string, depth: number = 0): Promise<string[]> => {
+          console.log(`  ${'  '.repeat(depth)}🔎 조회 중: partnerId=${partnerId}, depth=${depth}`);
+          
+          const { data: children, error: childError } = await supabase
+            .from('partners')
+            .select('id, username, level')
+            .eq('parent_id', partnerId);
+
+          if (childError) {
+            console.error(`  ${'  '.repeat(depth)}❌ 하위 파트너 조회 오류:`, childError);
+            return [];
+          }
+
+          console.log(`  ${'  '.repeat(depth)}✅ 발견된 하위 파트너:`, children?.length || 0, '개', children?.map(c => `${c.username}(${c.id})`));
+
+          if (!children || children.length === 0) return [];
+
+          const childIds = children.map((c: any) => c.id);
+          const allDescendants = [...childIds];
+
+          // 각 자식의 하위도 재귀 조회
+          for (const childId of childIds) {
+            const grandChildren = await getAllDescendants(childId, depth + 1);
+            allDescendants.push(...grandChildren);
+          }
+
+          return allDescendants;
+        };
+
+        const descendants = await getAllDescendants(authState.user?.id || '');
+        allowedReferrerIds = [authState.user?.id || '', ...descendants];
+        
+        console.log(`🏢 [Lv${authState.user?.level}] 조회 가능한 파트너 ID:`, allowedReferrerIds.length, '개');
+        console.log('📋 파트너 ID 목록:', allowedReferrerIds);
       }
 
+      console.log('🔍 회원 조회 시작: referrer_id IN', allowedReferrerIds);
+      
+      // 🆕 먼저 모든 회원의 referrer_id를 확인
+      const { data: allUsers } = await supabase
+        .from('users')
+        .select('id, username, referrer_id')
+        .limit(100);
+      
+      console.log('📊 전체 회원 샘플 (최대 100명):', allUsers?.length || 0, '명');
+      const referrerIdGroups = allUsers?.reduce((acc: any, user: any) => {
+        const refId = user.referrer_id || 'null';
+        if (!acc[refId]) acc[refId] = [];
+        acc[refId].push(user.username);
+        return acc;
+      }, {});
+      console.log('📊 referrer_id별 회원 분포:', referrerIdGroups);
+      
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .in('referrer_id', allowedReferrerIds)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ 회원 조회 오류:', error);
+        throw error;
+      }
+      
+      console.log(`✅ 조회된 회원 수:`, data?.length || 0, '명');
+      if (data && data.length > 0) {
+        console.log('조회된 회원 샘플:', data.slice(0, 5).map((u: any) => `${u.username} (referrer: ${u.referrer_id})`));
+      }
 
       // referrer 정보를 별도로 조회
       const referrerIds = [...new Set(data?.map(u => u.referrer_id).filter(Boolean))];
@@ -236,9 +293,19 @@ export function UserManagement() {
         .from('partners')
         .select('balance, level')
         .eq('id', authState.user.id)
-        .single();
+        .maybeSingle(); // ⭐ single() → maybeSingle()
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ 현재 사용자 보유금 조회 실패:', error);
+        return;
+      }
+
+      // ⭐ 데이터가 없으면 조용히 0으로 설정
+      if (!data) {
+        console.warn('⚠️ partners 데이터 없음 (user.id:', authState.user.id, ')');
+        setCurrentUserBalance(0);
+        return;
+      }
       
       console.log('💰 [UserManagement] 관리자 보유금 조회 (partners 테이블):', {
         level: data?.level,
@@ -994,14 +1061,14 @@ export function UserManagement() {
 
       // 1. 관련 데이터 정리 (외래키 제약조건 순서에 따라 삭제)
       
-      // 1-1. 게임 세션 삭제 (user_sessions 테이블 사용)
+      // 1-1. 게임 세션 비활성화 (user_sessions 테이블 - DELETE 대신 UPDATE)
       const { error: sessionError } = await supabase
         .from('user_sessions')
-        .delete()
+        .update({ is_active: false, logout_at: new Date().toISOString() })
         .eq('user_id', deleteUser.id);
 
       if (sessionError) {
-        console.warn('⚠️ 게임 세션 삭제 중 오류:', sessionError);
+        console.warn('⚠️ 게임 세션 비활성화 중 오류:', sessionError);
       }
 
       // 1-2. 메시지 큐 삭제 (sender_id 또는 target_id로 삭제)
@@ -1206,31 +1273,12 @@ export function UserManagement() {
 
       const isSystemAdmin = adminPartner.level === 1;
 
-      // ✅ 입금 시 실행자 보유금 검증 (Lv2~Lv6)
-      if (data.type === 'deposit' && adminPartner.level >= 2 && adminPartner.level <= 6) {
-        console.log('💰 [입금] 실행자 보유금 검증 시작');
+      // ✅ 입금 시 실행자 보유금 검증 (Lv3~6만, Lv2는 제외)
+      if (data.type === 'deposit' && adminPartner.level >= 3 && adminPartner.level <= 6) {
+        console.log('💰 [입금] 실행자 보유금 검증 시작 (Lv3~6만)');
         
-        let adminBalance = 0;
-        
-        // Lv2: 4개 지갑의 합계 체크 (외부 API 동기화 잔액)
-        if (adminPartner.level === 2) {
-          adminBalance = (adminPartner.invest_balance || 0) + 
-                        (adminPartner.oroplay_balance || 0) + 
-                        (adminPartner.familyapi_balance || 0) + 
-                        (adminPartner.honorapi_balance || 0);
-          console.log(`💰 Lv2 실행자 보유금 (4개 지갑 합계):`, {
-            invest_balance: adminPartner.invest_balance || 0,
-            oroplay_balance: adminPartner.oroplay_balance || 0,
-            familyapi_balance: adminPartner.familyapi_balance || 0,
-            honorapi_balance: adminPartner.honorapi_balance || 0,
-            total: adminBalance
-          });
-        }
-        // Lv3~6: 단일 balance 체크 (GMS 머니)
-        else {
-          adminBalance = adminPartner.balance || 0;
-          console.log(`💰 Lv${adminPartner.level} 실행자 보유금 (GMS 머니): ${adminBalance.toLocaleString()}`);
-        }
+        const adminBalance = adminPartner.balance || 0;
+        console.log(`💰 Lv${adminPartner.level} 실행자 보유금 (GMS 머니): ${adminBalance.toLocaleString()}`);
         
         if (adminBalance < data.amount) {
           console.error('❌ 실행자 보유금 부족:', { 
@@ -1251,8 +1299,13 @@ export function UserManagement() {
         
         console.log('✅ 실행자 보유금 검증 통과');
       }
+      
+      // ✅ Lv2는 보유금 검증 건너뜀 (4초마다 API 동기화로 관리)
+      if (data.type === 'deposit' && adminPartner.level === 2) {
+        console.log('💰 [입금] Lv2는 보유금 검증 건너뜀 (API 동기화로 관리)');
+      }
 
-      // 1. 사용자 잔고 계산 (모든 레벨에서 API 호출 없이 내부 거래만)
+      // 1. 사용자 잔고 계산 (모든 레벨에서 API 호출 없이 내부 거래���)
       let actualBalance = user.balance || 0;
       
       console.log(`Lv${adminPartner.level} 내부 거래 (GMS 머니)`);
@@ -1267,7 +1320,7 @@ export function UserManagement() {
         .from('transactions')
         .insert({
           user_id: user.id,
-          partner_id: authState.user?.id,
+          partner_id: responsiblePartnerId, // ✅ 담당 파트너 ID (referrer_id)로 수정
           transaction_type: data.type === 'deposit' ? 'admin_deposit' : 'admin_withdrawal',
           amount: data.amount,
           status: 'completed',

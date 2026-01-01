@@ -81,6 +81,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   '/admin/transaction-approval': CreditCard,
   '/admin/games': Gamepad2,
   '/admin/game-lists': Gamepad2,
+  '/admin/game-list-management': Gamepad2,
   '/admin/betting': TrendingUp,
   '/admin/betting-history': TrendingUp,
   '/admin/betting-management': TrendingUp,
@@ -179,7 +180,23 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
     
     setLoadingMenus(true);
     try {
-      // ✅ DB에서 메뉴 데이터 조회 (is_visible = true인 메뉴만)
+      // ✅ 1단계: 해당 파트너의 menu_permissions JSONB 조회
+      console.log('📋 [메뉴 로드] 파트너의 메뉴 권한 조회:', user.id);
+      
+      const { data: partnerData, error: partnerError } = await supabase
+        .from('partners')
+        .select('menu_permissions')
+        .eq('id', user.id)
+        .single();
+      
+      if (partnerError) {
+        console.error('❌ 파트너 메뉴 권한 조회 실패:', partnerError);
+      }
+      
+      const allowedMenuPaths = partnerData?.menu_permissions || [];
+      console.log('✅ [메뉴 로드] 허용된 메뉴 경로:', allowedMenuPaths);
+      
+      // ✅ 2단계: DB에서 메뉴 데이터 조회 (is_visible = true인 메뉴만)
       console.log('📋 [메뉴 로드] DB에서 메뉴 조회 시작');
       
       const { data: dbMenus, error: menuError } = await supabase
@@ -208,7 +225,15 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       
       console.log(`✅ [메뉴 로드] ${dbMenus.length}개 메뉴 조회 완료`);
       
-      const converted = convertDbMenusToMenuItems(dbMenus);
+      // ✅ 3단계: 파트너에게 허용된 메뉴만 필터링
+      // allowedMenuPaths가 비어있거나 null이면 모든 메뉴 표시 (기본값)
+      const filteredMenus = Array.isArray(allowedMenuPaths) && allowedMenuPaths.length > 0
+        ? dbMenus.filter(menu => allowedMenuPaths.includes(menu.menu_path))
+        : dbMenus;
+      
+      console.log(`✅ [메뉴 로드] 필터링 후 ${filteredMenus.length}개 메뉴`);
+      
+      const converted = convertDbMenusToMenuItems(filteredMenus);
       const hasDashboard = converted.some(m => m.path === '/admin/dashboard');
       const dashboardMenu: MenuItem = {
         id: 'dashboard',
@@ -422,7 +447,12 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       </div>
 
       <div className="p-3 border-t border-slate-700/50 flex-shrink-0">
-        <div className="w-full text-xs text-slate-500 text-center truncate" style={{ fontFamily: 'AsiHead, Arial, sans-serif' }}>
+        <div 
+          className="w-full text-xs text-slate-500 text-center truncate cursor-pointer hover:text-slate-400 transition-colors" 
+          style={{ fontFamily: 'AsiHead, Arial, sans-serif' }}
+          onClick={() => window.location.href = '#/benz'}
+          title="임시: 벤츠 페이지로 이동"
+        >
           GMS v1.0
         </div>
       </div>

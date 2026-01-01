@@ -156,7 +156,10 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
   };
 
   const handleAmountClick = (amount: number) => {
-    setDepositAmount(amount.toLocaleString());
+    // 기존 금액에 누적
+    const currentAmount = parseFloat(depositAmount.replace(/,/g, '')) || 0;
+    const newAmount = currentAmount + amount;
+    setDepositAmount(newAmount.toLocaleString());
   };
 
   const handleClear = () => {
@@ -762,50 +765,72 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
                   <p className="text-slate-400">입금 내역이 없습니다.</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {depositRecords.map((record) => {
-                    const statusInfo = getStatusInfo(record.status);
-                    const StatusIcon = statusInfo.icon;
-                    
-                    return (
-                      <div key={record.id} className="p-4 border-0" style={{
-                        background: 'rgba(0, 0, 0, 0.3)',
-                        border: '1px solid rgba(193, 154, 107, 0.2)',
-                        borderRadius: '8px'
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[800px]">
+                    <thead>
+                      <tr style={{
+                        borderBottom: '1px solid rgba(193, 154, 107, 0.3)'
                       }}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <StatusIcon className={`w-4 h-4 ${statusInfo.textColor}`} />
-                            <Badge className={`${statusInfo.color} text-white`}>
-                              {statusInfo.label}
-                            </Badge>
-                          </div>
-                          <span className="text-lg font-bold text-white">
-                            ₩{formatCurrency(record.amount)}
-                          </span>
-                        </div>
-                        <div className="space-y-1 text-sm text-slate-400">
-                          <p>{record.bank_name} {record.bank_account}</p>
-                          <p>{new Date(record.created_at).toLocaleString('ko-KR')}</p>
-                          {record.memo && (
-                            <p className="text-slate-300">메모: {record.memo}</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <button
-                    onClick={() => onRouteChange('/benz/profile')}
-                    className="w-full py-3 border-0 transition-all"
-                    style={{
-                      background: 'rgba(0, 0, 0, 0.3)',
-                      border: '1px solid rgba(193, 154, 107, 0.3)',
-                      borderRadius: '8px',
-                      color: '#C19A6B'
-                    }}
-                  >
-                    전체 보기
-                  </button>
+                        <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#C19A6B' }}>상태</th>
+                        <th className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#C19A6B' }}>금액</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#C19A6B' }}>은행명</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#C19A6B' }}>계좌번호</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#C19A6B' }}>메모</th>
+                        <th className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#C19A6B' }}>신청일시</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {depositRecords.map((record, index) => {
+                        const statusInfo = getStatusInfo(record.status);
+                        const StatusIcon = statusInfo.icon;
+                        
+                        return (
+                          <tr 
+                            key={record.id}
+                            style={{
+                              borderBottom: index !== depositRecords.length - 1 ? '1px solid rgba(193, 154, 107, 0.1)' : 'none'
+                            }}
+                            className="hover:bg-black/20 transition-colors"
+                          >
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-2">
+                                <StatusIcon className={`w-4 h-4 ${statusInfo.textColor}`} />
+                                <Badge
+                                  variant="outline"
+                                  className={`${statusInfo.color} text-white border-none text-xs`}
+                                >
+                                  {statusInfo.label}
+                                </Badge>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <span className="font-semibold text-white">₩{formatCurrency(record.amount)}</span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="text-gray-300">{record.bank_name || '-'}</span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="text-gray-300">{record.bank_account || '-'}</span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="text-gray-300 text-sm">{record.memo || '-'}</span>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <span className="text-gray-400 text-sm">
+                                {new Date(record.created_at).toLocaleString('ko-KR', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

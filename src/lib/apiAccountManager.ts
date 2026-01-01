@@ -35,6 +35,17 @@ export async function createApiAccounts(
 ): Promise<ApiAccountResult> {
   console.log('🔧 [API-ACCOUNT] 외부 API 계정 생성 시작:', { userId, username, partnerId });
   
+  // ✅ partnerId가 빈 문자열이거나 "null" 문자열이면 에러 반환
+  if (!partnerId || partnerId === '' || partnerId === 'null') {
+    console.error('❌ [API-ACCOUNT] partnerId가 유효하지 않음:', partnerId);
+    return {
+      status: 'error',
+      investCreated: false,
+      oroplayCreated: false,
+      errorMessage: 'partnerId가 유효하지 않습니다. referrer_id를 확인하세요.'
+    };
+  }
+  
   // toast 동적 임포트
   const { toast } = await import('sonner@2.0.3');
   

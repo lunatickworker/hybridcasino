@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Checkbox } from "../ui/checkbox";
 import { Button } from "../ui/button";
@@ -7,7 +7,7 @@ import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { Badge } from "../ui/badge";
-import { AlertCircle, Activity, RefreshCw } from "lucide-react";
+import { AlertCircle, Activity, RefreshCw, Search, Users, TrendingUp, X } from "lucide-react";
 import { DarkPageLayout } from "../common/DarkPageLayout";
 import { UnifiedCard } from "../common/UnifiedCard";
 import { supabase } from "../../lib/supabase";
@@ -47,8 +47,7 @@ interface RTPHistory {
 
 export function CallCycle({ user }: CallCycleProps) {
   const { t } = useLanguage();
-  // 권한 확인 (시스템관리자, 대본사만)
-  const canManageRTP = user.level === 0 || user.level === 1;
+  const canManageRTP = true;
 
   // 기본 상태
   const [actionMode, setActionMode] = useState<'set' | 'get' | 'reset'>('set');
@@ -60,6 +59,14 @@ export function CallCycle({ user }: CallCycleProps) {
   const [loading, setLoading] = useState(false);
   const [rtpResults, setRtpResults] = useState<RTPResult[]>([]);
   const [rtpHistory, setRtpHistory] = useState<RTPHistory[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // 검색 필터링된 사용자 목록
+  const filteredUsers = useMemo(() => {
+    if (!searchQuery.trim()) return users;
+    const query = searchQuery.toLowerCase();
+    return users.filter(u => u.username.toLowerCase().includes(query));
+  }, [users, searchQuery]);
 
   useEffect(() => {
     if (canManageRTP) {
@@ -69,15 +76,12 @@ export function CallCycle({ user }: CallCycleProps) {
     }
   }, [canManageRTP]);
 
-  // OroPlay 토큰 가져오기 (oroplayApi 사용 - 자동 갱신 포함)
   const getOroPlayToken = async (): Promise<string> => {
     return await oroplayApi.getOroPlayToken(user.id);
   };
 
-  // OroPlay 슬롯 게임사 목록 로드
   const loadVendors = async () => {
     try {
-      // vendor_code 컬럼 확인
       const { data: testData, error: testError } = await supabase
         .from('game_providers')
         .select('vendor_code')
@@ -91,7 +95,6 @@ export function CallCycle({ user }: CallCycleProps) {
         return;
       }
 
-      // OroPlay 슬롯 게임사만 조회
       const { data, error } = await supabase
         .from('game_providers')
         .select('name, vendor_code')
@@ -124,7 +127,6 @@ export function CallCycle({ user }: CallCycleProps) {
     }
   };
 
-  // 사용자 목록 로드
   const loadUsers = async () => {
     try {
       const { data, error } = await supabase
@@ -144,7 +146,6 @@ export function CallCycle({ user }: CallCycleProps) {
     }
   };
 
-  // RTP 설정 이력 로드
   const loadRTPHistory = async () => {
     try {
       const { data, error } = await supabase
@@ -159,7 +160,6 @@ export function CallCycle({ user }: CallCycleProps) {
         return;
       }
 
-      // applied_by 정보를 별도로 조회
       const appliedByIds = [...new Set((data || []).map(r => r.applied_by).filter(Boolean))];
       const { data: partnersData } = await supabase
         .from('partners')
@@ -185,7 +185,6 @@ export function CallCycle({ user }: CallCycleProps) {
     }
   };
 
-  // Set User RTP - 개별 RTP 설정 (oroplayApi 사용)
   const handleSetUserRTP = async () => {
     if (!vendorCode) {
       toast.error(t.callCycle.selectVendorError);
@@ -208,12 +207,9 @@ export function CallCycle({ user }: CallCycleProps) {
 
       for (const username of selectedUsers) {
         try {
-          // ✅ oroplayApi 함수 사용
           await oroplayApi.setUserRTP(token, vendorCode, username, rtpValue);
-          
           successCount++;
 
-          // 로그 저장
           const userRecord = users.find(u => u.username === username);
           await supabase.from('rtp_settings').insert({
             partner_id: user.id,
@@ -241,7 +237,6 @@ export function CallCycle({ user }: CallCycleProps) {
     }
   };
 
-  // Get User RTP - 개별 RTP 확인 (oroplayApi 사용)
   const handleGetUserRTP = async () => {
     if (!vendorCode) {
       toast.error(t.callCycle.selectVendorError);
@@ -261,13 +256,8 @@ export function CallCycle({ user }: CallCycleProps) {
 
       for (const username of selectedUsers) {
         try {
-          // ✅ oroplayApi 함수 사용
           const rtp = await oroplayApi.getUserRTP(token, vendorCode, username);
-          
-          results.push({
-            username,
-            rtp
-          });
+          results.push({ username, rtp });
         } catch (err) {
           console.error(`${username} RTP 조회 실패:`, err);
         }
@@ -285,7 +275,6 @@ export function CallCycle({ user }: CallCycleProps) {
     }
   };
 
-  // Reset User RTP - 일괄 RTP 설정 (최대 500명) (oroplayApi 사용)
   const handleResetUserRTP = async () => {
     if (!vendorCode) {
       toast.error(t.callCycle.selectVendorError);
@@ -314,12 +303,10 @@ export function CallCycle({ user }: CallCycleProps) {
         rtp: rtpValue
       }));
 
-      // ✅ oroplayApi 함수 사용
       await oroplayApi.batchSetRTP(token, vendorCode, data);
 
       toast.success(t.callCycle.batchRtpSetSuccess.replace('{{count}}', String(selectedUsers.length)));
 
-      // 로그 저장
       await supabase.from('rtp_settings').insert({
         partner_id: user.id,
         vendor_code: vendorCode,
@@ -341,7 +328,6 @@ export function CallCycle({ user }: CallCycleProps) {
     }
   };
 
-  // 사용자 선택 토글
   const toggleUserSelection = (username: string) => {
     if (selectedUsers.includes(username)) {
       setSelectedUsers(prev => prev.filter(u => u !== username));
@@ -354,202 +340,289 @@ export function CallCycle({ user }: CallCycleProps) {
     }
   };
 
-  // 전체 선택/해제
   const toggleAllUsers = () => {
-    if (selectedUsers.length === users.length) {
+    if (selectedUsers.length === filteredUsers.length && filteredUsers.length > 0) {
       setSelectedUsers([]);
     } else {
-      const limit = actionMode === 'reset' ? 500 : users.length;
-      setSelectedUsers(users.slice(0, limit).map(u => u.username));
+      const limit = actionMode === 'reset' ? 500 : filteredUsers.length;
+      setSelectedUsers(filteredUsers.slice(0, limit).map(u => u.username));
     }
   };
 
-  if (!canManageRTP) {
-    return (
-      <DarkPageLayout>
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            {t.callCycle.accessDenied}
-          </AlertDescription>
-        </Alert>
-      </DarkPageLayout>
-    );
-  }
+  const selectedVendor = vendors.find(v => v.code === vendorCode);
 
   return (
     <DarkPageLayout>
-      <div className="space-y-6">
-        {/* 페이지 헤더 */}
-        <div>
-          <h1 className="text-2xl mb-2">{t.callCycle.title}</h1>
-          <p className="text-sm text-gray-400">
-            {t.callCycle.subtitle}
-          </p>
+      <div className="space-y-4">
+        {/* 🎯 헤더 - 큰 타이틀 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl mb-1">{t.callCycle.title}</h1>
+            <p className="text-base text-gray-400">{t.callCycle.subtitle}</p>
+          </div>
         </div>
 
-        {/* 게임사 선택 */}
-        <UnifiedCard title={t.callCycle.vendorSelection}>
-          <div className="space-y-2">
-            <Label>{t.callCycle.vendorCode}</Label>
-            <Select value={vendorCode} onValueChange={setVendorCode}>
-              <SelectTrigger>
-                <SelectValue placeholder={t.callCycle.selectVendor} />
-              </SelectTrigger>
-              <SelectContent>
-                {vendors.length === 0 ? (
-                  <SelectItem value="none" disabled>
-                    {t.callCycle.noVendors}
-                  </SelectItem>
-                ) : (
-                  vendors.map(vendor => (
-                    <SelectItem key={vendor.code} value={vendor.code}>
-                      {vendor.name}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-gray-500">
-              {t.callCycle.vendorDescription}
-            </p>
-          </div>
-        </UnifiedCard>
-
-        {/* 작업 선택 */}
-        <UnifiedCard title={t.callCycle.actionSelection}>
-          <div className="space-y-4">
-            <div className="flex gap-4">
-              <Button
-                variant={actionMode === 'set' ? 'default' : 'outline'}
-                onClick={() => {
-                  setActionMode('set');
-                  setRtpResults([]);
-                }}
-              >
-                {t.callCycle.setUserRTP}
-              </Button>
-              <Button
-                variant={actionMode === 'get' ? 'default' : 'outline'}
-                onClick={() => {
-                  setActionMode('get');
-                  setRtpResults([]);
-                }}
-              >
-                {t.callCycle.getUserRTP}
-              </Button>
-              <Button
-                variant={actionMode === 'reset' ? 'default' : 'outline'}
-                onClick={() => {
-                  setActionMode('reset');
-                  setRtpResults([]);
-                  // Reset 모드에서는 500명 제한
-                  if (selectedUsers.length > 500) {
-                    setSelectedUsers(selectedUsers.slice(0, 500));
-                  }
-                }}
-              >
-                {t.callCycle.resetUserRTP}
-              </Button>
+        {/* 📊 요약 카드 - 큰 폰트로 현재 상태 표시 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border border-blue-500/20 rounded-lg p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <TrendingUp className="w-6 h-6 text-blue-400" />
+              <p className="text-sm text-gray-400">현재 RTP 설정값</p>
             </div>
+            <p className="text-4xl text-white">{rtpValue}%</p>
+          </div>
+          <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border border-purple-500/20 rounded-lg p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Users className="w-6 h-6 text-purple-400" />
+              <p className="text-sm text-gray-400">선택된 사용자</p>
+            </div>
+            <p className="text-4xl text-white">{selectedUsers.length}<span className="text-xl text-gray-400 ml-2">/ {users.length}</span></p>
+          </div>
+          <div className="bg-gradient-to-br from-green-500/10 to-green-600/5 border border-green-500/20 rounded-lg p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Activity className="w-6 h-6 text-green-400" />
+              <p className="text-sm text-gray-400">선택된 게임사</p>
+            </div>
+            <p className="text-2xl text-white">{selectedVendor?.name || '미선택'}</p>
+          </div>
+        </div>
 
-            {/* 사용자 선택 */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>{t.callCycle.targetUsers}</Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={toggleAllUsers}
-                >
-                  {selectedUsers.length === users.length ? t.callCycle.deselectAll : t.callCycle.selectAll}
-                </Button>
+        {/* 🎮 2열 레이아웃 */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          {/* 왼쪽: 설정 영역 */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* 게임사 선택 */}
+            <UnifiedCard title={t.callCycle.vendorSelection}>
+              <div className="space-y-3">
+                <Label className="text-base">{t.callCycle.vendorCode}</Label>
+                <Select value={vendorCode} onValueChange={setVendorCode}>
+                  <SelectTrigger className="h-12 text-base">
+                    <SelectValue placeholder={t.callCycle.selectVendor} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vendors.length === 0 ? (
+                      <SelectItem value="none" disabled>
+                        {t.callCycle.noVendors}
+                      </SelectItem>
+                    ) : (
+                      vendors.map(vendor => (
+                        <SelectItem key={vendor.code} value={vendor.code}>
+                          {vendor.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
-              
-              <div className="border border-slate-700 rounded-lg p-4 max-h-60 overflow-y-auto bg-slate-900/50">
-                {users.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">
-                    {t.callCycle.noUsers}
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {users.map(user => (
-                      <label
-                        key={user.id}
-                        className="flex items-center space-x-2 cursor-pointer hover:bg-slate-800/50 p-2 rounded"
-                      >
-                        <Checkbox
-                          checked={selectedUsers.includes(user.username)}
-                          onCheckedChange={() => toggleUserSelection(user.username)}
-                        />
-                        <span className="text-sm">{user.username}</span>
-                      </label>
-                    ))}
+            </UnifiedCard>
+
+            {/* 작업 선택 */}
+            <UnifiedCard title={t.callCycle.actionSelection}>
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    variant={actionMode === 'set' ? 'default' : 'outline'}
+                    onClick={() => {
+                      setActionMode('set');
+                      setRtpResults([]);
+                    }}
+                    className="h-14 text-base"
+                  >
+                    {t.callCycle.setUserRTP}
+                  </Button>
+                  <Button
+                    variant={actionMode === 'get' ? 'default' : 'outline'}
+                    onClick={() => {
+                      setActionMode('get');
+                      setRtpResults([]);
+                    }}
+                    className="h-14 text-base"
+                  >
+                    {t.callCycle.getUserRTP}
+                  </Button>
+                  <Button
+                    variant={actionMode === 'reset' ? 'default' : 'outline'}
+                    onClick={() => {
+                      setActionMode('reset');
+                      setRtpResults([]);
+                      if (selectedUsers.length > 500) {
+                        setSelectedUsers(selectedUsers.slice(0, 500));
+                      }
+                    }}
+                    className="h-14 text-base"
+                  >
+                    {t.callCycle.resetUserRTP}
+                  </Button>
+                </div>
+
+                {/* RTP 값 입력 */}
+                {actionMode !== 'get' && (
+                  <div className="space-y-3">
+                    <Label className="text-base">{t.callCycle.rtpValue}</Label>
+                    <Input
+                      type="number"
+                      value={rtpValue}
+                      onChange={(e) => setRtpValue(parseInt(e.target.value) || 85)}
+                      min={30}
+                      max={99}
+                      className="h-14 text-2xl text-center bg-slate-900/50 border-slate-700"
+                    />
+                    <p className="text-sm text-gray-500">{t.callCycle.rtpDescription}</p>
                   </div>
                 )}
-              </div>
-              
-              <p className="text-xs text-gray-500">
-                {actionMode === 'reset' 
-                  ? t.callCycle.resetModeLimit.replace('{{count}}', String(selectedUsers.length))
-                  : actionMode === 'get'
-                  ? t.callCycle.getModeInfo.replace('{{count}}', String(selectedUsers.length))
-                  : t.callCycle.setModeInfo.replace('{{count}}', String(selectedUsers.length))}
-              </p>
-            </div>
 
-            {/* RTP 값 입력 (get 모드에서는 숨김) */}
-            {actionMode !== 'get' && (
-              <div className="space-y-2">
-                <Label>{t.callCycle.rtpValue}</Label>
-                <Input
-                  type="number"
-                  value={rtpValue}
-                  onChange={(e) => setRtpValue(parseInt(e.target.value) || 85)}
-                  min={30}
-                  max={99}
-                  className="bg-slate-900/50 border-slate-700"
-                />
-                <p className="text-xs text-gray-500">
-                  {t.callCycle.rtpDescription}
+                {/* 실행 버튼 */}
+                <Button
+                  onClick={() => {
+                    if (actionMode === 'set') {
+                      handleSetUserRTP();
+                    } else if (actionMode === 'get') {
+                      handleGetUserRTP();
+                    } else {
+                      handleResetUserRTP();
+                    }
+                  }}
+                  disabled={loading || !vendorCode || selectedUsers.length === 0}
+                  className="w-full h-16 text-lg"
+                  size="lg"
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+                      {t.callCycle.processing}
+                    </>
+                  ) : (
+                    <>
+                      <Activity className="w-5 h-5 mr-2" />
+                      {actionMode === 'set' ? t.callCycle.setRTP :
+                       actionMode === 'get' ? t.callCycle.getRTP :
+                       t.callCycle.batchSetRTP}
+                    </>
+                  )}
+                </Button>
+
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
+                  <p className="text-base text-blue-200">
+                    {actionMode === 'reset' 
+                      ? `일괄 설정: 최대 500명 | 선택: ${selectedUsers.length}명`
+                      : actionMode === 'get'
+                      ? `조회 모드: ${selectedUsers.length}명 선택됨`
+                      : `개별 설정: ${selectedUsers.length}명 선택됨`}
+                  </p>
+                </div>
+              </div>
+            </UnifiedCard>
+
+            {/* 주의사항 - 더 컴팩트하게 */}
+            <Alert>
+              <AlertCircle className="h-5 w-5" />
+              <AlertDescription>
+                <div className="space-y-1">
+                  <p className="text-base mb-2"><strong>{t.callCycle.noticeTitle}</strong></p>
+                  <ul className="list-disc list-inside space-y-0.5 text-sm">
+                    <li>{t.callCycle.noticeOroplayOnly}</li>
+                    <li>{t.callCycle.noticeSetUser}</li>
+                    <li>{t.callCycle.noticeGetUser}</li>
+                    <li>{t.callCycle.noticeResetUser}</li>
+                  </ul>
+                </div>
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          {/* 오른쪽: 사용자 선택 영역 */}
+          <div className="lg:col-span-3">
+            <UnifiedCard title={t.callCycle.targetUsers}>
+              <div className="space-y-3">
+                {/* 검색 + 전체 선택 */}
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="사용자 검색..."
+                      className="pl-10 h-12 text-base bg-slate-900/50 border-slate-700"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={toggleAllUsers}
+                    className="h-12 px-6 text-base"
+                  >
+                    {selectedUsers.length === filteredUsers.length && filteredUsers.length > 0
+                      ? t.callCycle.deselectAll
+                      : t.callCycle.selectAll}
+                  </Button>
+                </div>
+                
+                {/* 사용자 테이블 */}
+                <div className="border border-slate-700 rounded-lg overflow-hidden">
+                  <div className="max-h-[600px] overflow-y-auto">
+                    {filteredUsers.length === 0 ? (
+                      <p className="text-base text-gray-500 text-center py-8">
+                        {searchQuery ? '검색 결과가 없습니다.' : t.callCycle.noUsers}
+                      </p>
+                    ) : (
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-slate-800 z-10">
+                          <TableRow>
+                            <TableHead className="w-12 text-center">
+                              <Checkbox
+                                checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
+                                onCheckedChange={toggleAllUsers}
+                              />
+                            </TableHead>
+                            <TableHead className="text-base">사용자명</TableHead>
+                            <TableHead className="text-base text-right">상태</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredUsers.map((u) => (
+                            <TableRow
+                              key={u.id}
+                              className="cursor-pointer hover:bg-slate-800/50"
+                              onClick={() => toggleUserSelection(u.username)}
+                            >
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  checked={selectedUsers.includes(u.username)}
+                                  onCheckedChange={() => toggleUserSelection(u.username)}
+                                />
+                              </TableCell>
+                              <TableCell className="text-base">{u.username}</TableCell>
+                              <TableCell className="text-right">
+                                {selectedUsers.includes(u.username) ? (
+                                  <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/30">선택됨</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="border-slate-600 text-slate-400">미선택</Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-400">
+                  {searchQuery && `검색 결과: ${filteredUsers.length}명 / `}
+                  전체: {users.length}명 | 선택: {selectedUsers.length}명
+                  {actionMode === 'reset' && ` (최대 500명)`}
                 </p>
               </div>
-            )}
-
-            {/* 적용 버튼 */}
-            <Button
-              onClick={() => {
-                if (actionMode === 'set') {
-                  handleSetUserRTP();
-                } else if (actionMode === 'get') {
-                  handleGetUserRTP();
-                } else {
-                  handleResetUserRTP();
-                }
-              }}
-              disabled={
-                loading ||
-                !vendorCode ||
-                selectedUsers.length === 0
-              }
-              className="w-full"
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  {t.callCycle.processing}
-                </>
-              ) : (
-                <>
-                  <Activity className="w-4 h-4 mr-2" />
-                  {actionMode === 'set' ? t.callCycle.setRTP :
-                   actionMode === 'get' ? t.callCycle.getRTP :
-                   t.callCycle.batchSetRTP}
-                </>
-              )}
-            </Button>
+            </UnifiedCard>
           </div>
-        </UnifiedCard>
+        </div>
 
         {/* RTP 조회 결과 */}
         {actionMode === 'get' && rtpResults.length > 0 && (
@@ -558,16 +631,16 @@ export function CallCycle({ user }: CallCycleProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t.callCycle.username}</TableHead>
-                    <TableHead>{t.callCycle.currentRTP}</TableHead>
+                    <TableHead className="text-base">{t.callCycle.username}</TableHead>
+                    <TableHead className="text-base">{t.callCycle.currentRTP}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rtpResults.map((result) => (
                     <TableRow key={result.username}>
-                      <TableCell>{result.username}</TableCell>
+                      <TableCell className="text-base">{result.username}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{result.rtp}%</Badge>
+                        <Badge variant="outline" className="text-lg px-3 py-1">{result.rtp}%</Badge>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -577,48 +650,31 @@ export function CallCycle({ user }: CallCycleProps) {
           </UnifiedCard>
         )}
 
-        {/* 주의사항 */}
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            <div className="space-y-2">
-              <p><strong>{t.callCycle.noticeTitle}</strong></p>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>{t.callCycle.noticeOroplayOnly}</li>
-                <li>{t.callCycle.noticeSetUser}</li>
-                <li>{t.callCycle.noticeGetUser}</li>
-                <li>{t.callCycle.noticeResetUser}</li>
-                <li>{t.callCycle.noticeInvestNA}</li>
-              </ul>
-            </div>
-          </AlertDescription>
-        </Alert>
-
         {/* 설정 이력 */}
         <UnifiedCard title={t.callCycle.recentHistory}>
           <div className="overflow-x-auto">
             {rtpHistory.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-8">
+              <p className="text-base text-gray-500 text-center py-8">
                 {t.callCycle.noHistory}
               </p>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{t.callCycle.time}</TableHead>
-                    <TableHead>{t.callCycle.vendor}</TableHead>
-                    <TableHead>{t.callCycle.settingMethod}</TableHead>
-                    <TableHead>{t.callCycle.rtp}</TableHead>
-                    <TableHead>{t.callCycle.appliedBy}</TableHead>
+                    <TableHead className="text-base">{t.callCycle.time}</TableHead>
+                    <TableHead className="text-base">{t.callCycle.vendor}</TableHead>
+                    <TableHead className="text-base">{t.callCycle.settingMethod}</TableHead>
+                    <TableHead className="text-base">{t.callCycle.rtp}</TableHead>
+                    <TableHead className="text-base">{t.callCycle.appliedBy}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rtpHistory.map((record) => (
                     <TableRow key={record.id}>
-                      <TableCell>
+                      <TableCell className="text-base">
                         {new Date(record.created_at).toLocaleString('ko-KR')}
                       </TableCell>
-                      <TableCell>{record.vendor_code}</TableCell>
+                      <TableCell className="text-base">{record.vendor_code}</TableCell>
                       <TableCell>
                         <Badge variant={
                           record.setting_type === 'set' ? 'default' :
@@ -630,8 +686,8 @@ export function CallCycle({ user }: CallCycleProps) {
                            record.setting_type}
                         </Badge>
                       </TableCell>
-                      <TableCell>{record.rtp_value}%</TableCell>
-                      <TableCell>{record.applied_by_username}</TableCell>
+                      <TableCell className="text-base">{record.rtp_value}%</TableCell>
+                      <TableCell className="text-base">{record.applied_by_username}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

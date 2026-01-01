@@ -1,5 +1,5 @@
 /**
- * 파트너 생성/수정 다이얼로그
+ * 파트너 생성/수정 다이얼로그 - Lv1과 동일한 디자인
  */
 import { useState, useEffect } from "react";
 import { Button } from "../../ui/button";
@@ -8,12 +8,11 @@ import { Label } from "../../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Badge } from "../../ui/badge";
 import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle } from "../AdminDialog";
-import { Key, DollarSign, Gamepad2 } from "lucide-react";
+import { UserPlus, Building2, AlertCircle } from "lucide-react";
 import { Partner } from "./types";
 import { useLanguage } from "../../../contexts/LanguageContext";
 import { toast } from "sonner@2.0.3";
 import { supabase } from "../../../lib/supabase";
-import { GameAccessSelectorSimple } from "../GameAccessSelectorSimple";
 
 interface PartnerFormDialogProps {
   open: boolean;
@@ -23,9 +22,23 @@ interface PartnerFormDialogProps {
   userLevel?: number;
   onSuccess: () => void;
   onWebSocketUpdate?: (data: any) => void;
-  currentUserId?: string; // 현재 로그인한 사용자 ID
-  currentUserNickname?: string; // 현재 로그인한 사용자 닉네임
+  currentUserId?: string;
+  currentUserNickname?: string;
 }
+
+// 파트너 레벨 텍스트 반환 함수
+const getPartnerLevelText = (level: number): string => {
+  switch (level) {
+    case 1: return "시스템관리자";
+    case 2: return "운영사";
+    case 3: return "본사";
+    case 4: return "부본사";
+    case 5: return "총판";
+    case 6: return "매장";
+    case 7: return "회원";
+    default: return `Lv${level}`;
+  }
+};
 
 export function PartnerFormDialog({
   open,
@@ -40,59 +53,54 @@ export function PartnerFormDialog({
 }: PartnerFormDialogProps) {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
-  const [hierarchyWarning, setHierarchyWarning] = useState("");
-  const [parentCommission, setParentCommission] = useState<{
-    casinoRolling: number;
-    casinoLosing: number;
-    slotRolling: number;
-    slotLosing: number;
-    fee: number;
-    nickname?: string;
-  } | null>(null);
+
+  // 파트너 타입 목록
+  const partnerTypes = [
+    { value: 'main_office', label: t.partnerCreation?.partnerTypes?.main_office || '본사', level: 3 },
+    { value: 'sub_office', label: t.partnerCreation?.partnerTypes?.sub_office || '부본사', level: 4 },
+    { value: 'distributor', label: t.partnerCreation?.partnerTypes?.distributor || '총판', level: 5 },
+    { value: 'store', label: t.partnerCreation?.partnerTypes?.store || '매장', level: 6 },
+  ];
 
   // userLevel에 따른 기본 partner_type 결정
   const getDefaultPartnerType = (): Partner['partner_type'] => {
-    if (userLevel === 1) return 'main_office'; // Lv1은 본사부터 시작
     if (userLevel === 2) return 'main_office';
     if (userLevel === 3) return 'sub_office';
     if (userLevel === 4) return 'distributor';
     if (userLevel === 5) return 'store';
-    return 'head_office';
+    return 'main_office';
   };
 
   const [formData, setFormData] = useState({
     username: "",
     nickname: "",
     password: "",
+    password_confirm: "",
     partner_type: getDefaultPartnerType() as Partner['partner_type'],
     parent_id: "",
-    opcode: "",
-    secret_key: "",
-    api_token: "",
+    selected_parent_id: "", // Lv2가 Lv3~Lv6 생성 시 소속 파트너 선택
     casino_rolling_commission: 0,
     casino_losing_commission: 0,
     slot_rolling_commission: 0,
     slot_losing_commission: 0,
     withdrawal_fee: 0,
-    game_access: [] as any[], // Lv6/Lv7 게임 접근 권한
   });
 
-  const [parentApis, setParentApis] = useState<string[]>([]); // 상위 Lv2의 selected_apis
-  const [partnerLevel, setPartnerLevel] = useState<number>(0); // 파트너 레벨
+  const [availableParents, setAvailableParents] = useState<Partner[]>([]); // 소속 가능한 상위 파트너 목록
+  const [upperLevelPartners, setUpperLevelPartners] = useState<Partner[]>([]); // 상위 레벨 파트너 목록
 
   // 파트너 데이터 로드 (수정 모드)
   useEffect(() => {
     if (mode === 'edit' && partner) {
       loadPartnerData();
     } else if (mode === 'create' && open) {
-      // 생성 모드일 때 다이얼로그가 열릴 때마다 기본값 설정
       setFormData(prev => ({
         ...prev,
         partner_type: getDefaultPartnerType(),
-        parent_id: currentUserId || '' // Lv1/Lv2가 파트너 생성 시 자동으로 본인이 상위 파트너가 됨
+        parent_id: currentUserId || ''
       }));
+      loadAvailableParentsAndUpperLevelPartners();
     }
-    // ✅ 생성 모드일 때는 resetForm 호출하지 않음 (마지막 입력값 유지)
   }, [mode, partner, open, userLevel, currentUserId]);
 
   // 파트너 데이터 로드 (수정 모드)
@@ -103,86 +111,76 @@ export function PartnerFormDialog({
       username: partner.username,
       nickname: partner.nickname,
       password: "",
+      password_confirm: "",
       partner_type: partner.partner_type,
       parent_id: partner.parent_id || "",
-      opcode: "",
-      secret_key: "",
-      api_token: "",
-      casino_rolling_commission: partner.casino_rolling_commission || partner.commission_rolling || 0,
-      casino_losing_commission: partner.casino_losing_commission || partner.commission_losing || 0,
-      slot_rolling_commission: partner.slot_rolling_commission || partner.commission_rolling || 0,
-      slot_losing_commission: partner.slot_losing_commission || partner.commission_losing || 0,
+      selected_parent_id: "",
+      casino_rolling_commission: partner.casino_rolling_commission || 0,
+      casino_losing_commission: partner.casino_losing_commission || 0,
+      slot_rolling_commission: partner.slot_rolling_commission || 0,
+      slot_losing_commission: partner.slot_losing_commission || 0,
       withdrawal_fee: partner.withdrawal_fee || 0,
-      game_access: [] as any[],
     });
-    setPartnerLevel(partner.level || 0);
+  };
 
-    // Lv6/Lv7인 경우 게임 접근 권한 로드
-    if (partner.level >= 6) {
-      try {
-        // 기존 게임 접근 권한 로드
-        const { data: gameAccess } = await supabase
-          .from('partner_game_access')
-          .select('*')
-          .eq('partner_id', partner.id);
+  // 소속 파트너 및 상위 레벨 파트너 목록 로드
+  const loadAvailableParentsAndUpperLevelPartners = async () => {
+    if (!currentUserId || userLevel === undefined) return;
 
-        if (gameAccess) {
-          setFormData(prev => ({ ...prev, game_access: gameAccess }));
-        }
+    try {
+      // 현재 선택된 파트너 타입의 레벨
+      const selectedLevel = partnerTypes.find(type => type.value === formData.partner_type)?.level || 0;
 
-        // 상위 Lv2의 selected_apis 로드
-        let currentParentId = partner.parent_id;
-        let lv2Partner = null;
-
-        for (let i = 0; i < 10; i++) {
-          if (!currentParentId) break;
-
-          const { data: parentData } = await supabase
-            .from('partners')
-            .select('id, level, parent_id, selected_apis')
-            .eq('id', currentParentId)
-            .single();
-
-          if (!parentData) break;
-
-          if (parentData.level === 2) {
-            lv2Partner = parentData;
-            break;
-          }
-
-          currentParentId = parentData.parent_id;
-        }
-
-        if (lv2Partner && lv2Partner.selected_apis) {
-          setParentApis(lv2Partner.selected_apis as string[]);
-        } else {
-          setParentApis([]);
-        }
-      } catch (error) {
-        console.error('게임 접근 권한 로드 실패:', error);
+      // Lv2~Lv5: 본인이 상위 파트너 (고정)
+      if (userLevel >= 2 && userLevel <= 5) {
+        setUpperLevelPartners([]);
+        setAvailableParents([]);
+        return;
       }
+
+      // Lv1만 소속 파트너 선택 가능
+      if (userLevel === 1 && selectedLevel > 2) {
+        // Lv1이 Lv3~Lv6 생성 시: 소속 가능한 상위 파트너 조회
+        const targetParentLevel = selectedLevel - 1;
+        const { data: parentsData } = await supabase
+          .from('partners')
+          .select('*')
+          .eq('level', targetParentLevel)
+          .order('created_at', { ascending: false });
+
+        setAvailableParents(parentsData || []);
+      }
+    } catch (error) {
+      console.error('소속 파트너 목록 로드 실패:', error);
     }
   };
+
+  // 파트너 타입 변경 시 소속 파트너 목록 갱신
+  useEffect(() => {
+    if (mode === 'create' && open) {
+      loadAvailableParentsAndUpperLevelPartners();
+    }
+  }, [formData.partner_type]);
 
   const resetForm = () => {
     setFormData({
       username: "",
       nickname: "",
       password: "",
-      partner_type: "head_office",
+      password_confirm: "",
+      partner_type: getDefaultPartnerType(),
       parent_id: "",
-      opcode: "",
-      secret_key: "",
-      api_token: "",
+      selected_parent_id: "",
       casino_rolling_commission: 0,
       casino_losing_commission: 0,
       slot_rolling_commission: 0,
       slot_losing_commission: 0,
       withdrawal_fee: 0,
-      game_access: [] as any[], // Lv6/Lv7 게임 접근 권한
     });
-    setHierarchyWarning("");
-    setParentCommission(null);
+  };
+
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async () => {
@@ -192,19 +190,69 @@ export function PartnerFormDialog({
       if (mode === 'create') {
         // 생성 로직
         if (!formData.username.trim()) {
-          toast.error(t.partnerManagement.enterUsernameError);
+          toast.error(t.partnerManagement.enterUsernameError || "아이디를 입력하세요");
           return;
         }
         if (!formData.nickname.trim()) {
-          toast.error(t.partnerManagement.enterNicknameError);
+          toast.error(t.partnerManagement.enterNicknameError || "닉네임을 입력하세요");
           return;
         }
         if (!formData.password.trim()) {
-          toast.error(t.partnerManagement.enterPasswordError);
+          toast.error(t.partnerManagement.enterPasswordError || "비밀번호를 입력하세요");
+          return;
+        }
+        if (formData.password !== formData.password_confirm) {
+          toast.error(t.partnerManagement.passwordMismatchError || "비밀번호가 일치하지 않습니다");
           return;
         }
 
-        toast.success(t.partnerManagement.partnerCreatedSuccess);
+        const newPartnerId = crypto.randomUUID();
+
+        // 실제 parent_id 결정: selected_parent_id가 있으면 우선, 없으면 parent_id
+        const actualParentId = formData.selected_parent_id || formData.parent_id;
+
+        const partnerLevel = partnerTypes.find(type => type.value === formData.partner_type)?.level || 3;
+
+        const createData = {
+          id: newPartnerId,
+          username: formData.username.trim(),
+          nickname: formData.nickname.trim(),
+          password_hash: formData.password.trim(),
+          partner_type: formData.partner_type,
+          parent_id: actualParentId || null,
+          level: partnerLevel,
+          status: 'active',
+          balance: 0,
+          casino_rolling_commission: formData.casino_rolling_commission || 0,
+          casino_losing_commission: formData.casino_losing_commission || 0,
+          slot_rolling_commission: formData.slot_rolling_commission || 0,
+          slot_losing_commission: formData.slot_losing_commission || 0,
+          commission_rolling: formData.casino_rolling_commission || 0,
+          commission_losing: formData.casino_losing_commission || 0,
+          withdrawal_fee: formData.withdrawal_fee || 0,
+          invest_balance: 0,
+          oroplay_balance: 0,
+          familyapi_balance: 0,
+          honorapi_balance: 0,
+          selected_apis: [],
+        };
+
+        console.log('🔧 파트너 생성 데이터:', createData);
+
+        const { data: newPartner, error: createError } = await supabase
+          .from('partners')
+          .insert([createData])
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('❌ 파트너 생성 실패:', createError);
+          throw createError;
+        }
+
+        console.log('✅ 파트너 생성 성공:', newPartner);
+
+        toast.success(t.partnerManagement.partnerCreatedSuccess || "파트너가 생성되었습니다");
         onSuccess();
         onOpenChange(false);
         resetForm();
@@ -212,21 +260,26 @@ export function PartnerFormDialog({
         // 수정 로직
         if (!partner) return;
 
+        // 비밀번호 변경 시 확인 검증
+        if (formData.password && formData.password.trim() !== '') {
+          if (formData.password !== formData.password_confirm) {
+            toast.error(t.partnerManagement.passwordMismatchError || "비밀번호가 일치하지 않습니다");
+            return;
+          }
+        }
+
         const updateData: any = {
           nickname: formData.nickname,
-          // 카지노/슬롯 분리 커미션 (실제 DB 컬럼명)
           casino_rolling_commission: formData.casino_rolling_commission,
           casino_losing_commission: formData.casino_losing_commission,
           slot_rolling_commission: formData.slot_rolling_commission,
           slot_losing_commission: formData.slot_losing_commission,
-          // 하위 호환성을 위한 기존 컬럼 (평균값 또는 카지노 값 사용)
           commission_rolling: formData.casino_rolling_commission,
           commission_losing: formData.casino_losing_commission,
           withdrawal_fee: formData.withdrawal_fee,
           updated_at: new Date().toISOString(),
         };
 
-        // 비밀번호가 입력된 경우에만 업데이트
         if (formData.password && formData.password.trim() !== '') {
           updateData.password_hash = formData.password;
         }
@@ -238,36 +291,7 @@ export function PartnerFormDialog({
 
         if (error) throw error;
 
-        // Lv6/Lv7인 경우 게임 접근 권한 업데이트
-        if (partner.level >= 6) {
-          // 기존 데이터 삭제
-          await supabase
-            .from('partner_game_access')
-            .delete()
-            .eq('partner_id', partner.id);
-
-          // 새 데이터 추가
-          if (formData.game_access && formData.game_access.length > 0) {
-            const gameAccessData = formData.game_access.map(access => ({
-              partner_id: partner.id,
-              api_provider: access.api_provider,
-              game_provider_id: access.game_provider_id,
-              game_id: access.game_id,
-              access_type: access.access_type,
-            }));
-
-            const { error: gameAccessError } = await supabase
-              .from('partner_game_access')
-              .insert(gameAccessData);
-
-            if (gameAccessError) {
-              console.error('게임 접근 권한 업데이트 실패:', gameAccessError);
-              toast.error('게임 접근 권한 업데이트에 실패했습니다.');
-            }
-          }
-        }
-
-        toast.success(t.partnerManagement.partnerUpdatedSuccess);
+        toast.success(t.partnerManagement.partnerUpdatedSuccess || "파트너 정보가 수정되었습니다");
         
         if (onWebSocketUpdate) {
           onWebSocketUpdate({
@@ -282,8 +306,8 @@ export function PartnerFormDialog({
     } catch (error) {
       console.error('파트너 저장 오류:', error);
       toast.error(mode === 'create' 
-        ? t.partnerManagement.createPartnerError 
-        : t.partnerManagement.updatePartnerError
+        ? (t.partnerManagement.createPartnerError || "파트너 생성 실패")
+        : (t.partnerManagement.updatePartnerError || "파트너 수정 실패")
       );
     } finally {
       setLoading(false);
@@ -292,317 +316,327 @@ export function PartnerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl">
-            {mode === 'create' ? t.partnerManagement.newPartner : '파트너 정보 수정'}
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <UserPlus className="h-6 w-6" />
+            {mode === 'create' ? (t.partnerCreation?.createPartner || '새 파트너 생성') : '파트너 정보 수정'}
           </DialogTitle>
-          <DialogDescription className="text-lg">
+          <DialogDescription className="text-base">
             {mode === 'create' 
-              ? t.partnerManagement.createPartnerDescription 
-              : '파트너의 정보를 수정합니다.'
-            }
+              ? (t.partnerCreation?.createDescription || '새로운 파트너를 생성합니다.')
+              : '파트너의 정보를 수정합니다.'}
           </DialogDescription>
         </DialogHeader>
         
-        <div className="grid gap-6 py-6">
+        <div className="space-y-5 py-3">
           {/* 아이디/닉네임 */}
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <Label htmlFor={mode === 'create' ? "username" : "edit_username"} className="text-lg">
-                {t.partnerManagement.partnerUsername}
-              </Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="username" className="text-base">{t.partnerCreation?.username || '아이디'}</Label>
               <Input
-                id={mode === 'create' ? "username" : "edit_username"}
+                id="username"
                 value={formData.username}
-                onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                placeholder={t.partnerManagement.partnerUsernameInput}
+                onChange={(e) => handleInputChange('username', e.target.value)}
+                placeholder={t.partnerCreation?.usernamePlaceholder || '아이디를 입력하세요'}
                 disabled={mode === 'edit'}
-                className={`text-base h-12 ${mode === 'edit' ? 'bg-muted' : ''}`}
+                className={`h-11 text-base ${mode === 'edit' ? 'bg-muted' : ''}`}
               />
             </div>
-            <div className="space-y-3">
-              <Label htmlFor={mode === 'create' ? "nickname" : "edit_nickname"} className="text-lg">
-                {t.partnerManagement.partnerNickname}
+
+            <div className="space-y-2">
+              <Label htmlFor="nickname" className="text-base">{t.partnerCreation?.nickname || '닉네임'}</Label>
+              <Input
+                id="nickname"
+                value={formData.nickname}
+                onChange={(e) => handleInputChange('nickname', e.target.value)}
+                placeholder={t.partnerCreation?.nicknamePlaceholder || '닉네임을 입력하세요'}
+                className="h-11 text-base"
+              />
+            </div>
+
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="password" className="text-base">
+                {mode === 'create' ? (t.partnerCreation?.password || '비밀번호') : '비밀번호 변경'}
               </Label>
               <Input
-                id={mode === 'create' ? "nickname" : "edit_nickname"}
-                value={formData.nickname}
-                onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
-                placeholder={t.partnerManagement.partnerNicknameInput}
-                className="text-base h-12"
+                id="password"
+                type="password"
+                value={formData.password}
+                onChange={(e) => handleInputChange('password', e.target.value)}
+                placeholder={mode === 'create' 
+                  ? (t.partnerCreation?.passwordPlaceholder || '비밀번호를 입력하세요')
+                  : '변경할 비밀번호를 입력하세요 (변경 시에만)'
+                }
+                className="h-11 text-base"
               />
             </div>
-          </div>
 
-          {/* 비밀번호 */}
-          <div className="space-y-3">
-            <Label htmlFor={mode === 'create' ? "password" : "edit_password"} className="text-lg">
-              {mode === 'create' ? t.common.password : t.partnerManagement.passwordChangeOnly}
-            </Label>
-            <Input
-              id={mode === 'create' ? "password" : "edit_password"}
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-              placeholder={mode === 'create' 
-                ? t.partnerManagement.initialPassword 
-                : t.partnerManagement.passwordChangeHint
-              }
-              className="text-base h-12"
-            />
-            {mode === 'edit' && (
-              <p className="text-sm text-muted-foreground">
-                {t.partnerManagement.passwordChangeNote}
-              </p>
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="password_confirm" className="text-base">
+                {mode === 'create' ? (t.partnerCreation?.passwordConfirm || '비밀번호 확인') : '비밀번호 확인'}
+              </Label>
+              <Input
+                id="password_confirm"
+                type="password"
+                value={formData.password_confirm}
+                onChange={(e) => handleInputChange('password_confirm', e.target.value)}
+                placeholder={mode === 'create' 
+                  ? (t.partnerCreation?.passwordConfirmPlaceholder || '비밀번호를 다시 입력하세요')
+                  : '변경할 비밀번호를 다시 입력하세요 (변경 시에만)'
+                }
+                className="h-11 text-base"
+              />
+            </div>
+
+            {/* 파트너 등급 (생성시에만) */}
+            {mode === 'create' && (
+              <div className="space-y-2">
+                <Label htmlFor="partner_type" className="text-base">{t.partnerCreation?.partnerGrade || '파트너 등급'}</Label>
+                <Select value={formData.partner_type} onValueChange={(value) => handleInputChange('partner_type', value)}>
+                  <SelectTrigger className="h-11 text-base">
+                    <SelectValue placeholder={t.partnerCreation?.selectGrade || '등급 선택'} />
+                  </SelectTrigger>
+                  <SelectContent className="text-base">
+                    {partnerTypes
+                      .filter(type => {
+                        // Lv2: 본사만
+                        if (userLevel === 2) return type.value === 'main_office';
+                        // Lv3: 부본사만
+                        if (userLevel === 3) return type.value === 'sub_office';
+                        // Lv4: 총판만
+                        if (userLevel === 4) return type.value === 'distributor';
+                        // Lv5: 매장만
+                        if (userLevel === 5) return type.value === 'store';
+                        return false;
+                      })
+                      .map((type) => (
+                        <SelectItem key={type.value} value={type.value} className="text-base py-2">
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* 상위 파트너 (생성시에만) */}
+            {mode === 'create' && (
+              <div className="space-y-2">
+                <Label htmlFor="upper_partner" className="text-base">상위 파트너</Label>
+                {upperLevelPartners.length > 0 ? (
+                  <Select 
+                    value={formData.parent_id || ''} 
+                    onValueChange={(value) => handleInputChange('parent_id', value)}
+                  >
+                    <SelectTrigger className="h-11 text-base" id="upper_partner">
+                      <SelectValue placeholder="상위 파트너를 선택하세요" />
+                    </SelectTrigger>
+                    <SelectContent className="text-base">
+                      {upperLevelPartners.map((p) => (
+                        <SelectItem key={p.id} value={p.id} className="text-base py-2">
+                          {p.nickname || p.username}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="upper_partner"
+                    value={currentUserNickname || '현재 계정'}
+                    readOnly
+                    className="bg-muted h-11 text-base"
+                  />
+                )}
+              </div>
             )}
           </div>
 
-          {/* 파트너 등급 (생성시에만) */}
-          {mode === 'create' && (
-            <div className="space-y-3">
-              <Label htmlFor="partner_type" className="text-lg">{t.partnerManagement.partnerGrade}</Label>
+          {/* Lv2가 Lv3~Lv6 생성 시 소속 파트너 선택 */}
+          {userLevel === 2 && mode === 'create' && formData.partner_type !== 'main_office' && availableParents.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="selected_parent" className="text-base">{t.partnerCreation?.selectParentLabel || '소속 파트너 선택'}</Label>
               <Select 
-                value={formData.partner_type} 
-                onValueChange={(value: Partner['partner_type']) => {
-                  setFormData(prev => ({ ...prev, partner_type: value }));
-                }}
+                value={formData.selected_parent_id || ''} 
+                onValueChange={(value) => handleInputChange('selected_parent_id', value)}
               >
-                <SelectTrigger className="h-12 text-base">
-                  <SelectValue />
+                <SelectTrigger className="h-11 text-base">
+                  <SelectValue placeholder={t.partnerCreation?.selectParentPlaceholder || '소속될 파트너를 선택하세요'} />
                 </SelectTrigger>
-                <SelectContent>
-                  {userLevel === 1 && (
-                    <>
-                      <SelectItem value="main_office" className="text-base py-3">{t.partnerManagement.mainOffice}</SelectItem>
-                      <SelectItem value="sub_office" className="text-base py-3">{t.partnerManagement.subOffice}</SelectItem>
-                      <SelectItem value="distributor" className="text-base py-3">{t.partnerManagement.distributor}</SelectItem>
-                      <SelectItem value="store" className="text-base py-3">{t.partnerManagement.store}</SelectItem>
-                    </>
-                  )}
-                  {userLevel === 2 && (
-                    <SelectItem value="main_office" className="text-base py-3">{t.partnerManagement.mainOffice}</SelectItem>
-                  )}
-                  {userLevel === 3 && (
-                    <SelectItem value="sub_office" className="text-base py-3">{t.partnerManagement.subOffice}</SelectItem>
-                  )}
-                  {userLevel === 4 && (
-                    <SelectItem value="distributor" className="text-base py-3">{t.partnerManagement.distributor}</SelectItem>
-                  )}
-                  {userLevel === 5 && (
-                    <SelectItem value="store" className="text-base py-3">{t.partnerManagement.store}</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-              {hierarchyWarning && (
-                <div className="p-5 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800">
-                  <p className="text-sm text-red-700 dark:text-red-300">
-                    {hierarchyWarning}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 상위 파트너 선택 (생성시에만) */}
-          {mode === 'create' && (
-            <div className="space-y-3">
-              <Label htmlFor="parent_partner" className="text-lg">상위 파트너</Label>
-              <Select 
-                value={formData.parent_id} 
-                onValueChange={(value: string) => {
-                  setFormData(prev => ({ ...prev, parent_id: value }));
-                }}
-                disabled={!formData.partner_type || formData.partner_type === 'head_office'}
-              >
-                <SelectTrigger className="h-12 text-base">
-                  <SelectValue placeholder={!formData.partner_type ? "먼저 파트너 등급을 선택하세요" : "상위 파트너를 선택하세요"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* Lv1(운영사)이 본사/부본사/총판/매장을 생성할 때는 본인만 표시 */}
-                  {userLevel === 1 && currentUserId && (
-                    <SelectItem value={currentUserId} className="text-base py-3">
-                      {currentUserNickname || '현재 계정'}
+                <SelectContent className="text-base">
+                  {availableParents.map((parent) => (
+                    <SelectItem key={parent.id} value={parent.id} className="text-base py-2">
+                      {parent.nickname || parent.username} ({getPartnerLevelText(parent.level)})
                     </SelectItem>
-                  )}
+                  ))}
                 </SelectContent>
               </Select>
-              {!formData.partner_type && (
-                <p className="text-sm text-muted-foreground">
-                  파트너 등급을 먼저 선택해주세요.
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground">
+                {t.partnerCreation?.parentDescription || '생성될 파트너가 소속될 상위 파트너를 선택합니다.'}
+              </p>
             </div>
           )}
 
           {/* 커미션 설정 */}
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-3 text-xl">
-                <DollarSign className="h-6 w-6 text-green-500" />
-                {t.partnerManagement.commissionSettingsLabel}
-              </Label>
-              {formData.partner_type !== 'head_office' && parentCommission && (
-                <Badge variant="outline" className="text-sm bg-slate-800/50 border-slate-600 px-4 py-2">
-                  상위: C {parentCommission.casinoRolling}%/{parentCommission.casinoLosing}% | S {parentCommission.slotRolling}%/{parentCommission.slotLosing}%
-                </Badge>
-              )}
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              <span className="text-base font-medium">{t.partnerCreation?.commissionSettings || '커미션 설정'}</span>
             </div>
             
-            {formData.partner_type === 'head_office' ? (
-              <div className="p-6 bg-purple-500/10 rounded-lg border border-purple-500/30">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center text-xl">
-                    🏢
-                  </div>
-                  <div>
-                    <p className="text-base font-medium text-purple-300">운영사 계정</p>
-                    <p className="text-sm text-purple-400/80 mt-1.5">
-                      최상위 파트너로 커미션이 100%로 고정됩니다.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="p-6 bg-amber-500/10 rounded-lg border border-amber-500/30">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center text-xl">
-                    ⚠️
-                  </div>
-                  <div>
-                    <p className="text-base font-medium text-amber-300">커미션 설정 안내</p>
-                    <p className="text-sm text-amber-400/80 mt-1.5">
-                      커미션 변경 시 정산에 즉시 반영되며, 상위 파트너 요율을 초과할 수 없습니다.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-            
             {/* 카지노 커미션 */}
-            <div className="space-y-4 p-6 bg-slate-800/30 rounded-lg border border-slate-700/50">
-              <div className="flex items-center gap-3 pb-3 border-b border-slate-700/50">
-                <div className="flex items-center justify-center w-11 h-11 rounded-lg bg-blue-500/20 border border-blue-500/30">
-                  <span className="text-lg">🎲</span>
-                </div>
-                <Label className="text-lg font-medium text-slate-200">카지노 커미션</Label>
-              </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <Label htmlFor="casino_commission_rolling" className="text-sm text-slate-400">
-                    롤링 커미션 (%)
-                  </Label>
+            <div className="space-y-3">
+              <Label className="text-base text-blue-400">카지노 커미션</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="casino_rolling_commission" className="text-sm text-muted-foreground">카지노 롤링 커미션 (%)</Label>
                   <Input
-                    id="casino_commission_rolling"
+                    id="casino_rolling_commission"
                     type="number"
                     step="0.1"
-                    min="0"
-                    max={formData.partner_type === 'head_office' ? 100 : parentCommission?.casinoRolling || 100}
-                    value={formData.casino_rolling_commission}
-                    onChange={(e) => setFormData(prev => ({ ...prev, casino_rolling_commission: parseFloat(e.target.value) || 0 }))}
-                    disabled={formData.partner_type === 'head_office'}
-                    className={`bg-slate-800/50 border-slate-600 text-base h-12 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    value={formData.casino_rolling_commission === 0 ? '' : formData.casino_rolling_commission}
+                    onChange={(e) => {
+                      if (e.target.value === '') {
+                        handleInputChange('casino_rolling_commission', 0);
+                        return;
+                      }
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value)) {
+                        handleInputChange('casino_rolling_commission', value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      let value = parseFloat(e.target.value);
+                      if (isNaN(value) || value < 0) value = 0;
+                      if (value > 100) value = 100;
+                      handleInputChange('casino_rolling_commission', value);
+                    }}
+                    placeholder="10"
+                    className="h-11 text-base"
                   />
-                  <p className="text-xs text-slate-500">
-                    {formData.partner_type === 'head_office' ? '고정값' : '총 베팅액 기준'}
-                  </p>
                 </div>
-                <div className="space-y-3">
-                  <Label htmlFor="casino_commission_losing" className="text-sm text-slate-400">
-                    루징 커미션 (%)
-                  </Label>
+
+                <div className="space-y-2">
+                  <Label htmlFor="casino_losing_commission" className="text-sm text-muted-foreground">카지노 루징 커미션 (%)</Label>
                   <Input
-                    id="casino_commission_losing"
+                    id="casino_losing_commission"
                     type="number"
                     step="0.1"
-                    min="0"
-                    max={formData.partner_type === 'head_office' ? 100 : parentCommission?.casinoLosing || 100}
-                    value={formData.casino_losing_commission}
-                    onChange={(e) => setFormData(prev => ({ ...prev, casino_losing_commission: parseFloat(e.target.value) || 0 }))}
-                    disabled={formData.partner_type === 'head_office'}
-                    className={`bg-slate-800/50 border-slate-600 text-base h-12 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    value={formData.casino_losing_commission === 0 ? '' : formData.casino_losing_commission}
+                    onChange={(e) => {
+                      if (e.target.value === '') {
+                        handleInputChange('casino_losing_commission', 0);
+                        return;
+                      }
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value)) {
+                        handleInputChange('casino_losing_commission', value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      let value = parseFloat(e.target.value);
+                      if (isNaN(value) || value < 0) value = 0;
+                      if (value > 100) value = 100;
+                      handleInputChange('casino_losing_commission', value);
+                    }}
+                    placeholder="10"
+                    className="h-11 text-base"
                   />
-                  <p className="text-xs text-slate-500">
-                    {formData.partner_type === 'head_office' ? '고정값' : '회원 순손실 기준'}
-                  </p>
                 </div>
               </div>
             </div>
 
             {/* 슬롯 커미션 */}
-            <div className="space-y-4 p-6 bg-slate-800/30 rounded-lg border border-slate-700/50">
-              <div className="flex items-center gap-3 pb-3 border-b border-slate-700/50">
-                <div className="flex items-center justify-center w-11 h-11 rounded-lg bg-emerald-500/20 border border-emerald-500/30">
-                  <span className="text-lg">🎰</span>
-                </div>
-                <Label className="text-lg font-medium text-slate-200">슬롯 커미션</Label>
-              </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <Label htmlFor="slot_commission_rolling" className="text-sm text-slate-400">
-                    롤링 커미션 (%)
-                  </Label>
+            <div className="space-y-3">
+              <Label className="text-base text-purple-400">슬롯 커미션</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="slot_rolling_commission" className="text-sm text-muted-foreground">슬롯 롤링 커미션 (%)</Label>
                   <Input
-                    id="slot_commission_rolling"
+                    id="slot_rolling_commission"
                     type="number"
                     step="0.1"
-                    min="0"
-                    max={formData.partner_type === 'head_office' ? 100 : parentCommission?.slotRolling || 100}
-                    value={formData.slot_rolling_commission}
-                    onChange={(e) => setFormData(prev => ({ ...prev, slot_rolling_commission: parseFloat(e.target.value) || 0 }))}
-                    disabled={formData.partner_type === 'head_office'}
-                    className={`bg-slate-800/50 border-slate-600 text-base h-12 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    value={formData.slot_rolling_commission === 0 ? '' : formData.slot_rolling_commission}
+                    onChange={(e) => {
+                      if (e.target.value === '') {
+                        handleInputChange('slot_rolling_commission', 0);
+                        return;
+                      }
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value)) {
+                        handleInputChange('slot_rolling_commission', value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      let value = parseFloat(e.target.value);
+                      if (isNaN(value) || value < 0) value = 0;
+                      if (value > 100) value = 100;
+                      handleInputChange('slot_rolling_commission', value);
+                    }}
+                    placeholder="10"
+                    className="h-11 text-base"
                   />
-                  <p className="text-xs text-slate-500">
-                    {formData.partner_type === 'head_office' ? '고정값' : '총 베팅액 기준'}
-                  </p>
                 </div>
-                <div className="space-y-3">
-                  <Label htmlFor="slot_commission_losing" className="text-sm text-slate-400">
-                    루징 커미션 (%)
-                  </Label>
+
+                <div className="space-y-2">
+                  <Label htmlFor="slot_losing_commission" className="text-sm text-muted-foreground">슬롯 루징 커미션 (%)</Label>
                   <Input
-                    id="slot_commission_losing"
+                    id="slot_losing_commission"
                     type="number"
                     step="0.1"
-                    min="0"
-                    max={formData.partner_type === 'head_office' ? 100 : parentCommission?.slotLosing || 100}
-                    value={formData.slot_losing_commission}
-                    onChange={(e) => setFormData(prev => ({ ...prev, slot_losing_commission: parseFloat(e.target.value) || 0 }))}
-                    disabled={formData.partner_type === 'head_office'}
-                    className={`bg-slate-800/50 border-slate-600 text-base h-12 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    value={formData.slot_losing_commission === 0 ? '' : formData.slot_losing_commission}
+                    onChange={(e) => {
+                      if (e.target.value === '') {
+                        handleInputChange('slot_losing_commission', 0);
+                        return;
+                      }
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value)) {
+                        handleInputChange('slot_losing_commission', value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      let value = parseFloat(e.target.value);
+                      if (isNaN(value) || value < 0) value = 0;
+                      if (value > 100) value = 100;
+                      handleInputChange('slot_losing_commission', value);
+                    }}
+                    placeholder="10"
+                    className="h-11 text-base"
                   />
-                  <p className="text-xs text-slate-500">
-                    {formData.partner_type === 'head_office' ? '고정값' : '회원 순손실 기준'}
-                  </p>
                 </div>
               </div>
             </div>
 
             {/* 출금 수수료 */}
-            <div className="space-y-3">
-              <Label htmlFor="withdrawal_fee" className="text-lg text-slate-300">
-                {t.partnerManagement.withdrawalFeeLabel}
-              </Label>
+            <div className="space-y-2">
+              <Label htmlFor="withdrawal_fee" className="text-base">출금 수수료 (%)</Label>
               <Input
                 id="withdrawal_fee"
                 type="number"
                 step="0.1"
-                min="0"
-                max={formData.partner_type === 'head_office' ? 100 : parentCommission?.fee || 100}
-                value={formData.withdrawal_fee}
-                onChange={(e) => setFormData(prev => ({ ...prev, withdrawal_fee: parseFloat(e.target.value) || 0 }))}
-                disabled={formData.partner_type === 'head_office'}
-                className={`bg-slate-800/50 border-slate-600 text-base h-12 ${formData.partner_type === 'head_office' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                value={formData.withdrawal_fee === 0 ? '' : formData.withdrawal_fee}
+                onChange={(e) => {
+                  if (e.target.value === '') {
+                    handleInputChange('withdrawal_fee', 0);
+                    return;
+                  }
+                  const value = parseFloat(e.target.value);
+                  if (!isNaN(value)) {
+                    handleInputChange('withdrawal_fee', value);
+                  }
+                }}
+                onBlur={(e) => {
+                  let value = parseFloat(e.target.value);
+                  if (isNaN(value) || value < 0) value = 0;
+                  if (value > 100) value = 100;
+                  handleInputChange('withdrawal_fee', value);
+                }}
+                placeholder="0"
+                className="h-11 text-base"
               />
-              <p className="text-sm text-slate-500">
-                {formData.partner_type === 'head_office' ? '운영사 고정값' : t.partnerManagement.withdrawalFeeDesc}
-              </p>
             </div>
           </div>
-
-          {/* Lv6/Lv7 게임 접근 권한 - 제거됨 */}
-          {/* 파트너 계층관리 페이지에서만 설정 가능 */}
         </div>
 
         <DialogFooter>
@@ -612,18 +646,18 @@ export function PartnerFormDialog({
               onOpenChange(false);
               resetForm();
             }}
-            className="text-base px-6 py-6 h-auto"
+            className="h-11 text-base px-6"
           >
-            {t.common.cancel}
+            {t.common?.cancel || '취소'}
           </Button>
           <Button 
             onClick={handleSubmit} 
             disabled={loading}
-            className="text-base px-6 py-6 h-auto"
+            className="h-11 text-base px-6"
           >
             {loading 
-              ? (mode === 'create' ? t.partnerManagement.creating : '수정 중...') 
-              : (mode === 'create' ? t.partnerManagement.createPartnerButton : t.common.save)
+              ? (mode === 'create' ? (t.partnerManagement?.creating || '생성 중...') : '수정 중...') 
+              : (mode === 'create' ? (t.partnerManagement?.createPartnerButton || '파트너 생성') : (t.common?.save || '저장'))
             }
           </Button>
         </DialogFooter>

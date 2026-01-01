@@ -151,9 +151,10 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
     try {
       setLoading(true);
       
+      // ⭐⭐⭐ Lv7만 userId 전달 (매장은 모든 게임사 표시)
       const providersData = await gameApi.getUserVisibleProviders({ 
         type: 'casino', 
-        userId: user?.id 
+        userId: user?.level === 7 ? user?.id : undefined
       });
       
       console.log('🎰 [BenzCasino] API 응답 게임사:', providersData.length, '개');
@@ -542,7 +543,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
 
         if (!gameWindow) {
           // ⭐ 팝업 차단 시나리오: 세션 종료하지 않고 ready_status만 업데이트
-          toast.error('차단되었습니다. 팝업 허용 후 다시 클릭해주세요.');
+          toast.error('팝업이 차단되었습니다. 팝업 허용 후 다시 클릭해주세요.');
           
           if (sessionId && typeof sessionId === 'number') {
             // ready_status를 'popup_blocked'로 업데이트 (세션은 유지)
@@ -556,6 +557,11 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
               
             console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료. 재클릭 시 기존 URL 재사용됩니다.');
           }
+          
+          // ⭐ 팝업 차단 시에는 여기서 종료
+          setLaunchingGameId(null);
+          setIsProcessing(false);
+          return;
         } else {
           // ⭐ 팝업 오픈 성공: ready_status를 'popup_opened'로 업데이트
           toast.success(`${game.name} 카지노에 입장했습니다.`);

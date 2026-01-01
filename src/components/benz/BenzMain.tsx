@@ -319,6 +319,196 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       setIsProcessing(true);
       setLaunchingProviderId(provider.id);
 
+      // ⭐ Evolution 게임사는 game_id=5176126을 바로 실행
+      const providerName = (provider.name || '').toLowerCase();
+      if (providerName.includes('evolution') || (provider.name_ko || '').includes('에볼루션')) {
+        console.log('🎰 [Evolution] game_id=5176126 직접 실행');
+        
+        // 🆕 active 세션 체크
+        const activeSession = await gameApi.checkActiveSession(user.id);
+        
+        // ⭐ 1. 다른 API 게임이 실행 중인지 체크
+        if (activeSession?.isActive && activeSession.game_id !== 5176126) {
+          toast.error('잠시 후 다시 시도해주세요.');
+          
+          // ⭐ 관리자 알림 생성
+          createAdminNotification({
+            user_id: user.id,
+            username: user.username || '알 수 없음',
+            user_login_id: user.login_id || '알 수 없음',
+            partner_id: user.referrer_id,
+            message: `다른 게임 실행 중 Evolution 클릭 시도`,
+            log_message: `현재 게임: ${activeSession.game_name}`,
+            notification_type: 'game_error'
+          });
+          
+          setIsProcessing(false);
+          setLaunchingProviderId(null);
+          return;
+        }
+
+        // ⭐ 2. 같은 게임의 active 세션이 있는지 체크 (중복 실행 방지)
+        if (activeSession?.isActive && 
+            activeSession.game_id === 5176126 && 
+            activeSession.status === 'active' && 
+            activeSession.launch_url) {
+          
+          console.log('🔄 [Evolution 재입장] active 세션 재사용:', activeSession.session_id);
+          
+          // 기존 launch_url로 게임창 오픈
+          const gameWindow = window.open(
+            activeSession.launch_url,
+            '_blank',
+            'width=1920,height=1080,scrollbars=yes,resizable=yes,fullscreen=yes'
+          );
+
+          if (!gameWindow) {
+            toast.error('차단되었습니다. 팝업 허용 후 다시 클릭해주세요.');
+            
+            await supabase
+              .from('game_launch_sessions')
+              .update({ 
+                ready_status: 'popup_blocked',
+                last_activity_at: new Date().toISOString()
+              })
+              .eq('id', activeSession.session_id);
+              
+            console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료');
+          } else {
+            toast.success(`Evolution 카지노에 입장했습니다.`);
+            
+            const sessionId = activeSession.session_id!;
+            
+            await supabase
+              .from('game_launch_sessions')
+              .update({ 
+                ready_status: 'popup_opened',
+                last_activity_at: new Date().toISOString()
+              })
+              .eq('id', sessionId);
+            
+            if (!(window as any).gameWindows) {
+              (window as any).gameWindows = new Map();
+            }
+            (window as any).gameWindows.set(sessionId, gameWindow);
+            
+            if (!(window as any).gameWindowCheckers) {
+              (window as any).gameWindowCheckers = new Map();
+            }
+            
+            // 🆕 세션별 종료 처리 상태 추적
+            let isProcessing = false;
+            const handleGameWindowClose = async () => {
+              if (isProcessing) return;
+              isProcessing = true;
+              
+              const checker = (window as any).gameWindowCheckers?.get(sessionId);
+              if (checker) {
+                clearInterval(checker);
+                (window as any).gameWindowCheckers?.delete(sessionId);
+              }
+              
+              (window as any).gameWindows?.delete(sessionId);
+              await (window as any).syncBalanceAfterGame?.(sessionId);
+            };
+            
+            const checker = setInterval(() => {
+              if (gameWindow.closed) {
+                handleGameWindowClose();
+              }
+            }, 1000);
+            
+            (window as any).gameWindowCheckers.set(sessionId, checker);
+          }
+          
+          setIsProcessing(false);
+          setLaunchingProviderId(null);
+          return;
+        }
+
+        // ⭐ 3. 새로운 세션으로 Evolution 게임 실행
+        const launchResult = await gameApi.generateGameLaunchUrl(user.id, 5176126);
+        
+        if (!launchResult.success || !launchResult.launchUrl) {
+          toast.error(launchResult.error || 'Evolution 게임을 시작할 수 없습니다.');
+          setIsProcessing(false);
+          setLaunchingProviderId(null);
+          return;
+        }
+
+        const gameWindow = window.open(
+          launchResult.launchUrl,
+          '_blank',
+          'width=1920,height=1080,scrollbars=yes,resizable=yes,fullscreen=yes'
+        );
+
+        if (!gameWindow) {
+          toast.error('차단되었습니다. 팝업 허용 후 다시 클릭해주세요.');
+          
+          if (launchResult.sessionId) {
+            await supabase
+              .from('game_launch_sessions')
+              .update({ 
+                ready_status: 'popup_blocked',
+                last_activity_at: new Date().toISOString()
+              })
+              .eq('id', launchResult.sessionId);
+              
+            console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료');
+          }
+        } else {
+          toast.success('Evolution 카지노에 입장했습니다.');
+          
+          if (launchResult.sessionId) {
+            await supabase
+              .from('game_launch_sessions')
+              .update({ 
+                ready_status: 'popup_opened',
+                last_activity_at: new Date().toISOString()
+              })
+              .eq('id', launchResult.sessionId);
+          }
+          
+          const sessionId = launchResult.sessionId!;
+          if (!(window as any).gameWindows) {
+            (window as any).gameWindows = new Map();
+          }
+          (window as any).gameWindows.set(sessionId, gameWindow);
+          
+          if (!(window as any).gameWindowCheckers) {
+            (window as any).gameWindowCheckers = new Map();
+          }
+          
+          // 🆕 세션별 종료 처리 상태 추적
+          let isProcessing = false;
+          const handleGameWindowClose = async () => {
+            if (isProcessing) return;
+            isProcessing = true;
+            
+            const checker = (window as any).gameWindowCheckers?.get(sessionId);
+            if (checker) {
+              clearInterval(checker);
+              (window as any).gameWindowCheckers?.delete(sessionId);
+            }
+            
+            (window as any).gameWindows?.delete(sessionId);
+            await (window as any).syncBalanceAfterGame?.(sessionId);
+          };
+          
+          const checker = setInterval(() => {
+            if (gameWindow.closed) {
+              handleGameWindowClose();
+            }
+          }, 1000);
+          
+          (window as any).gameWindowCheckers.set(sessionId, checker);
+        }
+        
+        setIsProcessing(false);
+        setLaunchingProviderId(null);
+        return;
+      }
+
       // 게임사의 모든 provider_id로 게임 로드
       const providerIds = provider.provider_ids || [provider.id];
       let allGames: any[] = [];
@@ -440,35 +630,19 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
           }
           
           // 🆕 세션별 종료 처리 상태 추적
+          let isProcessing = false;
           const handleGameWindowClose = async () => {
-            // 🔥 중복 실행 방지 - ref 체크
-            if (closeProcessingRef.current.get(sessionId)) {
-              console.log('⚠️ [중복 방지] 이미 처리 중인 세션:', sessionId);
-              return;
+            if (isProcessing) return;
+            isProcessing = true;
+            
+            const checker = (window as any).gameWindowCheckers?.get(sessionId);
+            if (checker) {
+              clearInterval(checker);
+              (window as any).gameWindowCheckers?.delete(sessionId);
             }
             
-            console.log('🔄 [게임 종료] 처리 시작:', sessionId);
-            closeProcessingRef.current.set(sessionId, true);
-            setIsProcessing(true); // 🔥 클릭 방지 활성화
-            
-            try {
-              const checker = (window as any).gameWindowCheckers?.get(sessionId);
-              if (checker) {
-                clearInterval(checker);
-                (window as any).gameWindowCheckers?.delete(sessionId);
-              }
-              
-              (window as any).gameWindows?.delete(sessionId);
-              await (window as any).syncBalanceAfterGame?.(sessionId);
-              
-              console.log('✅ [게임 종료] 처리 완료:', sessionId);
-            } catch (error) {
-              console.error('❌ [게임 종료] 에러:', error);
-            } finally {
-              // 처리 완료 후 플래그 제거
-              closeProcessingRef.current.delete(sessionId);
-              setIsProcessing(false); // 🔥 클릭 방지 해제
-            }
+            (window as any).gameWindows?.delete(sessionId);
+            await (window as any).syncBalanceAfterGame?.(sessionId);
           };
           
           const checkGameWindow = setInterval(() => {
@@ -541,35 +715,19 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
             }
             
             // 🆕 세션별 종료 처리 상태 추적
+            let isProcessing = false;
             const handleGameWindowClose = async () => {
-              // 🔥 중복 실행 방지 - ref 체크
-              if (closeProcessingRef.current.get(sessionId)) {
-                console.log('⚠️ [중복 방지] 이미 처리 중인 세션:', sessionId);
-                return;
+              if (isProcessing) return;
+              isProcessing = true;
+              
+              const checker = (window as any).gameWindowCheckers?.get(sessionId);
+              if (checker) {
+                clearInterval(checker);
+                (window as any).gameWindowCheckers?.delete(sessionId);
               }
               
-              console.log('🔄 [게임 종료] 처리 시작:', sessionId);
-              closeProcessingRef.current.set(sessionId, true);
-              setIsProcessing(true); // 🔥 클릭 방지 활성화
-              
-              try {
-                const checker = (window as any).gameWindowCheckers?.get(sessionId);
-                if (checker) {
-                  clearInterval(checker);
-                  (window as any).gameWindowCheckers?.delete(sessionId);
-                }
-                
-                (window as any).gameWindows?.delete(sessionId);
-                await (window as any).syncBalanceAfterGame?.(sessionId);
-                
-                console.log('✅ [게임 종료] 처리 완료:', sessionId);
-              } catch (error) {
-                console.error('❌ [게임 종료] 에러:', error);
-              } finally {
-                // 처리 완료 후 플래그 제거
-                closeProcessingRef.current.delete(sessionId);
-                setIsProcessing(false); // 🔥 클릭 방지 해제
-              }
+              (window as any).gameWindows?.delete(sessionId);
+              await (window as any).syncBalanceAfterGame?.(sessionId);
             };
             
             const checkGameWindow = setInterval(() => {

@@ -1,0 +1,129 @@
+                {/* 출금 계좌 정보 */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="flex items-center gap-2">
+                      <Wallet className="h-5 w-5 text-cyan-400" />
+                      <span className="text-lg">출금 계좌 정보</span>
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (accountEditMode) {
+                          setAccountData({
+                            bank_name: user.bank_name || '',
+                            bank_account: user.bank_account || '',
+                            bank_holder: user.bank_holder || ''
+                          });
+                        }
+                        setAccountEditMode(!accountEditMode);
+                      }}
+                      className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10 text-sm"
+                    >
+                      {accountEditMode ? '취소' : '✏️ 수정'}
+                    </Button>
+                  </div>
+                  {accountEditMode ? (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-base mb-2">은행명</Label>
+                        <Input
+                          value={accountData.bank_name}
+                          onChange={(e) => setAccountData({ ...accountData, bank_name: e.target.value })}
+                          placeholder="예: 국민은행"
+                          className="bg-slate-800/50 border-slate-600 text-lg"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-base mb-2">계좌번호</Label>
+                        <Input
+                          value={accountData.bank_account}
+                          onChange={(e) => setAccountData({ ...accountData, bank_account: e.target.value })}
+                          placeholder="숫자만 입력"
+                          className="bg-slate-800/50 border-slate-600 text-lg font-mono"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-base mb-2">예금주</Label>
+                        <Input
+                          value={accountData.bank_holder}
+                          onChange={(e) => setAccountData({ ...accountData, bank_holder: e.target.value })}
+                          placeholder="예금주 이름"
+                          className="bg-slate-800/50 border-slate-600 text-lg"
+                        />
+                      </div>
+                      <Button
+                        onClick={saveAccountInfo}
+                        disabled={loading}
+                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600"
+                      >
+                        {loading ? '저장 중...' : '💾 저장'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
+                        <span className="text-base text-muted-foreground">은행</span>
+                        <span className="text-lg">{user.bank_name || '-'}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
+                        <span className="text-base text-muted-foreground">계좌번호</span>
+                        <span className="text-lg font-mono">{user.bank_account || '-'}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5 border border-white/10">
+                        <span className="text-base text-muted-foreground">예금주</span>
+                        <span className="text-lg">{user.bank_holder || '-'}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 포인트 전환 비밀번호 */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="flex items-center gap-2">
+                      <Settings className="h-5 w-5 text-purple-400" />
+                      <span className="text-lg">포인트 전환 비밀번호</span>
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (pointPwEditMode) {
+                          setPointPassword('');
+                        }
+                        setPointPwEditMode(!pointPwEditMode);
+                      }}
+                      className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 text-sm"
+                    >
+                      {pointPwEditMode ? '취소' : '✏️ 설정'}
+                    </Button>
+                  </div>
+                  {pointPwEditMode ? (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-base mb-2">새 비밀번호 (4자 이상)</Label>
+                        <Input
+                          type="password"
+                          value={pointPassword}
+                          onChange={(e) => setPointPassword(e.target.value)}
+                          placeholder="비밀번호 입력"
+                          className="bg-slate-800/50 border-slate-600 text-lg"
+                        />
+                      </div>
+                      <Button
+                        onClick={savePointPassword}
+                        disabled={loading}
+                        className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                      >
+                        {loading ? '저장 중...' : '🔐 저장'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="py-3 px-4 rounded-lg bg-white/5 border border-white/10">
+                      <span className="text-base text-muted-foreground">
+                        {user.point_transfer_password ? '✅ 설정됨' : '❌ 미설정'}
+                      </span>
+                    </div>
+                  )}
+                </div>

@@ -152,9 +152,10 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
     try {
       setLoading(true);
       
+      // ⭐⭐⭐ Lv7만 userId 전달 (매장은 모든 게임사 표시)
       const providersData = await gameApi.getUserVisibleProviders({ 
         type: 'slot', 
-        userId: user?.id 
+        userId: user?.level === 7 ? user?.id : undefined
       });
       
       console.log('🎰 [BenzSlot] API 응답 게임사:', providersData.length, '개');
@@ -361,11 +362,28 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
     setIsProcessing(true); // 🆕 프로세스 시작
     
     try {
+      // 🆕 디버깅 로그: 게임 정보 출력
+      console.log('🎮 [슬롯 게임 클릭]', {
+        game_id: game.id,
+        game_name: game.name,
+        api_type: game.api_type,
+        provider_id: game.provider_id
+      });
+      
       const activeSession = await gameApi.checkActiveSession(user.id);
+      
+      // 🆕 디버깅 로그: 활성 세션 정보 출력
+      console.log('🔍 [활성 세션 체크]', activeSession);
       
       // ⭐ 1. 다른 API 게임이 실행 중인지 체크
       if (activeSession?.isActive && activeSession.api_type !== game.api_type) {
-        toast.error('잠시 후 다시 시도해주세요.');
+        console.error('❌ [다른 API 게임 실행 중]', {
+          current_api: activeSession.api_type,
+          trying_api: game.api_type,
+          current_game: activeSession.game_name
+        });
+        
+        toast.error(`다른 게임을 종료한 후 다시 시도해주세요. (현재: ${activeSession.game_name})`);
         
         // ⭐ 관리자 알림 생성
         createAdminNotification({
@@ -520,7 +538,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
 
         if (!gameWindow) {
           // ⭐ 팝업 차단 시나리오: 세션 종료하지 않고 ready_status만 업데이트
-          toast.error('차단되었습니다. 팝업 허용 후 다시 클릭해주세요.');
+          toast.error('팝업이 차단되었습니다. 팝업 허용 후 다시 클릭해주세요.');
           
           if (sessionId && typeof sessionId === 'number') {
             // ready_status를 'popup_blocked'로 업데이트 (세션은 유지)
@@ -534,6 +552,11 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
               
             console.log('⚠️ [팝업 차단] ready_status=popup_blocked 업데이트 완료. 재클릭 시 기존 URL 재사용됩니다.');
           }
+          
+          // ⭐ 팝업 차단 시에는 여기서 종료
+          setLaunchingGameId(null);
+          setIsProcessing(false);
+          return;
         } else {
           // ⭐ 팝업 오픈 성공: ready_status를 'popup_opened'로 업데이트
           toast.success(`${game.name} 슬롯에 입장했습니다.`);

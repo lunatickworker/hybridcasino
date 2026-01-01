@@ -64,7 +64,7 @@ async function executeIntegratedSettlement(
     }
 
     // 2. 통합 정산 계산
-    // ✅ 프론트엔드와 달리 Edge Function에서는 직접 계산 로직을 구현해야 함
+    // ✅ Edge Function에서는 직접 계산 로직을 구현해야 함
     // calculateIntegratedSettlement을 Edge Function으로 이식
     const settlement = await calculateIntegratedSettlementInEdge(
       partnerId,
@@ -78,7 +78,12 @@ async function executeIntegratedSettlement(
       return { success: false, message: '순수익이 0원 이하입니다. 정산할 수 없습니다.' };
     }
 
-    // 3. 정산 기록 생성 (통합 정산은 보유금 변경 없이 기록만)
+    // ✅ 3. 베팅/출금 통계 조회 (이미지 표시용 데이터)
+    const descendantUserIds = await getDescendantUserIdsInEdge(partnerId);
+    const gameTypeStats = await getBettingStatsByGameTypeInEdge(descendantUserIds, startDate, endDate, apiFilter);
+    const totalWithdrawalAmount = await getWithdrawalAmountInEdge(descendantUserIds, startDate, endDate);
+
+    // ✅ 4. 정산 기록 생성 (통합 정산은 보유금 변경 없이 기록만)
     const { data: settlementRecord, error: settlementError } = await supabase
       .from('settlements')
       .insert({
@@ -88,9 +93,20 @@ async function executeIntegratedSettlement(
         api_filter: apiFilter,
         period_start: periodStart,
         period_end: periodEnd,
-        total_bet_amount: 0,
+        // ✅ 베팅 통계 저장 (이미지 표시용)
+        total_bet_amount: gameTypeStats.total_bet,
         total_win_amount: 0,
-        total_withdrawal_amount: 0,
+        total_withdrawal_amount: totalWithdrawalAmount,
+        casino_bet_amount: gameTypeStats.casino_bet,
+        casino_loss_amount: gameTypeStats.casino_loss,
+        slot_bet_amount: gameTypeStats.slot_bet,
+        slot_loss_amount: gameTypeStats.slot_loss,
+        // ✅ 카지노/슬롯 커미션 저장
+        casino_rolling_commission: settlement.netCasinoRollingProfit,
+        casino_losing_commission: settlement.netCasinoLosingProfit,
+        slot_rolling_commission: settlement.netSlotRollingProfit,
+        slot_losing_commission: settlement.netSlotLosingProfit,
+        // 하위 호환성
         rolling_commission: settlement.netRollingProfit,
         losing_commission: settlement.netLosingProfit,
         withdrawal_commission: settlement.netWithdrawalProfit,
@@ -132,6 +148,16 @@ async function executeIntegratedSettlement(
             losing: settlement.netLosingProfit,
             withdrawal: settlement.netWithdrawalProfit,
             total: settlement.netTotalProfit
+          },
+          // ✅ 베팅 통계 상세 정보 (이미지 표시용)
+          betting_stats: {
+            casino_bet: gameTypeStats.casino_bet,
+            casino_loss: gameTypeStats.casino_loss,
+            slot_bet: gameTypeStats.slot_bet,
+            slot_loss: gameTypeStats.slot_loss,
+            total_bet: gameTypeStats.total_bet,
+            total_loss: gameTypeStats.total_loss,
+            total_withdrawal: totalWithdrawalAmount
           }
         }
       })

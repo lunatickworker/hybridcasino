@@ -737,11 +737,17 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
         .from('partners')
         .select('id')
         .eq('level', 1)
-        .single();
+        .maybeSingle(); // ⭐ single() → maybeSingle()
       
-      if (lv1Error || !lv1Partner) {
-        console.error('❌ [시스템설정] Lv1 파트너 조회 실패:', lv1Error);
-        toast.error('시스템 관리자(Lv1) 정보를 찾을 수 없습니다.');
+      if (lv1Error) {
+        console.error('❌ [시스템설정] Lv1 파트너 조회 에러:', lv1Error);
+        toast.error('Lv1 파트너 조회 중 오류가 발생했습니다.');
+        return;
+      }
+      
+      if (!lv1Partner) {
+        console.warn('⚠️ [시스템설정] Lv1 파트너를 찾을 수 없습니다');
+        toast.error('시스템 관리자(Lv1) 정보를 찾을 수 없습니다. 먼저 Lv1 파트너를 생성하세요.');
         return;
       }
       

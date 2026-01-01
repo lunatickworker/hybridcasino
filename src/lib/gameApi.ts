@@ -1847,6 +1847,8 @@ async function getGamesFromTable(
   const mappedData = allGames.map(game => ({
     ...game,
     provider_name: game.game_providers?.name || '알 수 없음',
+    // ⭐ 제공사 타입을 우선으로 사용 (중복 게임 처리)
+    type: game.game_providers?.type || game.type,
   }));
 
   console.log(`📊 게임 조회: ${mappedData.length}개 (${page}페이지)`, filters);
@@ -1938,6 +1940,8 @@ async function getHonorApiGames(filters?: {
     ...game,
     api_type: 'honorapi' as const,
     provider_name: game.honor_game_providers?.name || '알 수 없음',
+    // ⭐ 제공사 타입을 우선으로 사용 (중복 게임 처리)
+    type: game.honor_game_providers?.type || game.type,
   }));
 
   console.log(`📊 HonorAPI 게임 조회: ${mappedData.length}개 (${page}페이지)`, filters);
@@ -2274,7 +2278,7 @@ export async function updatePartnerProviderAccess(
       .eq('game_provider_id', String(providerId))
       .eq('access_type', 'provider');
 
-    // 제공사 차단 레코드 추가
+    // 제공사 차단 레코드 추가 (is_allowed=false)
     const { error: providerInsertError } = await supabase
       .from('partner_game_access')
       .insert({
@@ -2282,6 +2286,7 @@ export async function updatePartnerProviderAccess(
         api_provider: apiType,
         game_provider_id: String(providerId),
         access_type: 'provider',
+        is_allowed: false, // ✅ 차단 (비노출)
         updated_at: new Date().toISOString(),
       });
 
@@ -2290,7 +2295,7 @@ export async function updatePartnerProviderAccess(
       throw providerInsertError;
     }
 
-    console.log(`✅ 제공사 ${providerId} 차단 레코드 추가 완료`);
+    console.log(`✅ 제공사 ${providerId} 차단 레코드 추가 완료 (is_allowed=false)`);
 
     // 모든 게임 차단 레코드도 추가
     if (gameIds.length > 0) {
@@ -2303,13 +2308,14 @@ export async function updatePartnerProviderAccess(
         .eq('access_type', 'game')
         .in('game_id', gameIds);
 
-      // 게임 차단 레코드 추가
+      // 게임 차단 레코드 추가 (is_allowed=false)
       const gameRecords = gameIds.map(gameId => ({
         partner_id: partnerId,
         api_provider: apiType,
         game_id: gameId,
         game_provider_id: String(providerId),
         access_type: 'game' as const,
+        is_allowed: false, // ✅ 차단 (비노출)
         updated_at: new Date().toISOString(),
       }));
 
@@ -2322,7 +2328,7 @@ export async function updatePartnerProviderAccess(
         throw gameInsertError;
       }
 
-      console.log(`✅ 제공사 ${providerId}의 게임 ${gameIds.length}개 차단 레코드 추가 완료`);
+      console.log(`✅ 제공사 ${providerId}의 게임 ${gameIds.length}개 차단 레코드 추가 완료 (is_allowed=false)`);
     }
   } else {
     // 노출: 제공사 + 모든 게임 차단 레코드 삭제
@@ -2414,12 +2420,13 @@ export async function updatePartnerApiAccess(
       .eq('access_type', 'provider')
       .in('game_provider_id', providerIds.map(String));
 
-    // 제공사 차단 레코드 추가
+    // 제공사 차단 레코드 추가 (is_allowed=false)
     const providerRecords = providerIds.map(providerId => ({
       partner_id: partnerId,
       api_provider: apiType,
       game_provider_id: String(providerId),
       access_type: 'provider' as const,
+      is_allowed: false, // ✅ 차단 (비노출)
       updated_at: new Date().toISOString(),
     }));
 
@@ -2445,7 +2452,7 @@ export async function updatePartnerApiAccess(
         .eq('access_type', 'game')
         .in('game_id', gameIds);
 
-      // 게임 차단 레코드 추가 (배치 처리)
+      // 게임 차단 레코드 추가 (배치 처리, is_allowed=false)
       const gameRecords = gameIds.map(gameId => {
         // game_id로 provider_id 찾기
         const game = games?.find(g => String(g.id) === gameId);
@@ -2457,6 +2464,7 @@ export async function updatePartnerApiAccess(
           game_id: gameId,
           game_provider_id: providerId,
           access_type: 'game' as const,
+          is_allowed: false, // ✅ 차단 (비노출)
           updated_at: new Date().toISOString(),
         };
       });
@@ -2524,10 +2532,11 @@ export async function getPartnerBlockedProviders(
 ): Promise<Set<number>> {
   let query = supabase
     .from('partner_game_access')
-    .select('game_provider_id')
+    .select('game_provider_id, is_allowed')
     .eq('partner_id', partnerId)
     .is('user_id', null)
-    .eq('access_type', 'provider');
+    .eq('access_type', 'provider')
+    .eq('is_allowed', false); // ✅ is_allowed=false인 레코드만 조회 (차단)
 
   if (apiType) {
     query = query.eq('api_provider', apiType);
@@ -2559,10 +2568,11 @@ export async function getPartnerBlockedGames(
 ): Promise<Set<number>> {
   let query = supabase
     .from('partner_game_access')
-    .select('game_id')
+    .select('game_id, is_allowed')
     .eq('partner_id', partnerId)
     .is('user_id', null)
-    .eq('access_type', 'game');
+    .eq('access_type', 'game')
+    .eq('is_allowed', false); // ✅ is_allowed=false인 레코드만 조회 (차단)
 
   if (apiType) {
     query = query.eq('api_provider', apiType);
@@ -2598,7 +2608,7 @@ export async function updatePartnerGameAccess(
   console.log(`🔧 updatePartnerGameAccess 호출: partnerId=${partnerId}, gameId=${gameId}, apiType=${apiType}, providerId=${providerId}, isVisible=${isVisible}`);
   
   if (!isVisible) {
-    // 숨김: 게임 차단 레코드 추가
+    // 숨김: 게임 차단 레코드 추가 (is_allowed=false)
     
     // 먼저 기존 레코드 삭제 (중복 방지)
     await supabase
@@ -2609,7 +2619,7 @@ export async function updatePartnerGameAccess(
       .eq('game_id', String(gameId))
       .eq('access_type', 'game');
 
-    // 게임 차단 레코드 추가
+    // 게임 차단 레코드 추가 (is_allowed=false)
     const { error: insertError } = await supabase
       .from('partner_game_access')
       .insert({
@@ -2618,6 +2628,7 @@ export async function updatePartnerGameAccess(
         game_id: String(gameId),
         game_provider_id: String(providerId),
         access_type: 'game',
+        is_allowed: false, // ✅ 차단 (비노출)
         updated_at: new Date().toISOString(),
       });
 
@@ -2626,7 +2637,7 @@ export async function updatePartnerGameAccess(
       throw insertError;
     }
 
-    console.log(`✅ 게임 ${gameId} 차단 레코드 추가 완료`);
+    console.log(`✅ 게임 ${gameId} 차단 레코드 추가 완료 (is_allowed=false)`);
   } else {
     // 노출: 게임 차단 레코드 삭제
     const { error: deleteError } = await supabase
@@ -2642,7 +2653,7 @@ export async function updatePartnerGameAccess(
       throw deleteError;
     }
 
-    console.log(`✅ 게임 ${gameId} 차단 해제 완료`);
+    console.log(`✅ 게임 ${gameId} 차단 해제 완료 (레코드 삭제)`);
   }
 }
 
@@ -2681,30 +2692,39 @@ export async function getUserVisibleGames(filters?: {
   if (filters?.userId) {
     const { data: userData } = await supabase
       .from('users')
-      .select('referrer_id')
+      .select('referrer_id, level')
       .eq('id', filters.userId)
       .maybeSingle();
     
     const userPartnerId = userData?.referrer_id;
+    const userLevel = userData?.level;
     
-    console.log('👤 [getUserVisibleGames] userId:', filters.userId, '→ referrer_id:', userPartnerId);
+    console.log('👤 [getUserVisibleGames] userId:', filters.userId, '→ referrer_id:', userPartnerId, 'level:', userLevel);
+    
+    // ⭐⭐⭐ 중요: Lv7만 필터링 적용! 매장(Lv2~Lv6)은 모든 게임 표시
+    if (userLevel !== 7) {
+      console.log(`✅ [getUserVisibleGames] Lv${userLevel} - 매장/관리자는 모든 게임 표시 (필터링 건너뜀)`);
+      return allGames;
+    }
     
     // ⭐ Lv7 사용자는 반드시 partner_id가 있어야 함
     if (!userPartnerId) {
-      console.log('⚠️ [partner_game_access] partner_id 없음 - 빈 목록 반환');
+      console.log('⚠️ [partner_game_access] Lv7인데 partner_id 없음 - 빈 목록 반환');
       return [];
     }
+    
+    console.log('🎯 [getUserVisibleGames] Lv7 사용자 - partner_game_access 필터링 적용');
     
     // ⭐ 상위 계층 전체의 파트너 ID 조회 (자신 + 상위 파트너들)
     const allPartnerIds = await getAllParentPartnerIds(userPartnerId);
     console.log('🔗 [getUserVisibleGames] 상위 계층 전체:', allPartnerIds);
     
-    // ⭐ 상위 계층 전체의 차단 설정 조회 (is_allowed=true인 블랙리스트만)
+    // ✅ 상위 계층 전체의 차단 설정 조회 (is_allowed=false인 블랙리스트만)
     const { data: blockedAccess } = await supabase
       .from('partner_game_access')
       .select('api_provider, game_provider_id, game_id, access_type, partner_id')
       .in('partner_id', allPartnerIds)  // ✅ 상위 계층 전체 확인
-      .eq('is_allowed', true); // ⭐ 블랙리스트: is_allowed=true가 차단
+      .eq('is_allowed', false); // ✅ 블랙리스트: is_allowed=false가 차단
     
     const allBlockedAccess = blockedAccess || [];
     
@@ -2776,21 +2796,23 @@ export async function getUserVisibleProviders(filters?: {
     // 0. 누락된 제공사 자동 생성 (게임은 있지만 제공사가 없는 경우)
     await ensureMissingProviders();
 
-    // 🆕 0-1. userId가 있으면 partner_id 조회
+    // 🆕 0-1. userId가 있으면 partner_id와 level 조회
     let userPartnerId: string | null = null;
+    let userLevel: number | null = null;
     if (filters?.userId) {
       const { data: userData } = await supabase
         .from('users')
-        .select('referrer_id')
+        .select('referrer_id, level')
         .eq('id', filters.userId)
         .maybeSingle();
       
       userPartnerId = userData?.referrer_id || null;
-      console.log('👤 [getUserVisibleProviders] userId:', filters.userId, '→ referrer_id:', userPartnerId);
+      userLevel = userData?.level || null;
+      console.log('👤 [getUserVisibleProviders] userId:', filters.userId, '→ referrer_id:', userPartnerId, 'level:', userLevel);
       
       // ⭐ Lv7 사용자는 반드시 partner_id가 있어야 함
-      if (!userPartnerId) {
-        console.log('⚠️ [partner_game_access] partner_id 없음 - 빈 목록 반환');
+      if (userLevel === 7 && !userPartnerId) {
+        console.log('⚠️ [partner_game_access] Lv7인데 partner_id 없음 - 빈 목록 반환');
         return [];
       }
     }
@@ -2849,21 +2871,24 @@ export async function getUserVisibleProviders(filters?: {
     })));
 
     // 5. partner_game_access로 제공사 필터링 (블랙리스트 방식)
-    if (userPartnerId) {
+    // ⭐⭐⭐ 중요: Lv7 사용자만 필터링 적용! 매장(Lv2~Lv6)은 모든 게임사 표시
+    if (userPartnerId && userLevel === 7) {
+      console.log('🎯 [getUserVisibleProviders] Lv7 사용자 - partner_game_access 필터링 적용');
+      
       // ⭐ 상위 계층 전체의 파트너 ID 조회 (자신 + 상위 파트너들)
       const allPartnerIds = await getAllParentPartnerIds(userPartnerId);
       console.log('🔗 [getUserVisibleProviders] 상위 계층 전체:', allPartnerIds);
       
-      // ⭐ 상위 계층 전체의 차단 설정 조회 (is_allowed=true인 블랙리스트만)
+      // ⭐ 상위 계층 전체의 차단 설정 조회 (is_allowed=false가 차단)
       const { data: blockedAccess } = await supabase
         .from('partner_game_access')
-        .select('api_provider, game_provider_id, game_id, access_type, partner_id')
+        .select('api_provider, game_provider_id, game_id, access_type, partner_id, is_allowed')
         .in('partner_id', allPartnerIds)  // ✅ 상위 계층 전체 확인
-        .eq('is_allowed', true); // ⭐ 블랙리스트: is_allowed=true가 차단
+        .eq('is_allowed', false); // ⭐ 블랙리스트: is_allowed=false가 차단
       
       const allBlockedAccess = blockedAccess || [];
       
-      console.log('🚫 [partner_game_access - 제공사] 차단 목록:', allBlockedAccess.length);
+      console.log('🚫 [partner_game_access - 제공사] 차단 목록 (is_allowed=false):', allBlockedAccess.length);
       console.log('🚫 [partner_game_access - 제공사] 상세:', allBlockedAccess);
       
       // ⭐ 블랙리스트 필터링: 차단된 제공사 제외
@@ -2888,10 +2913,12 @@ export async function getUserVisibleProviders(filters?: {
         filteredProviders = filteredProviders.filter(p => {
           // API 전체 차단 확인
           if (blockedApis.has(p.api_type)) {
+            console.log(`🚫 [차단] API 전체 차단: ${p.name} (api_type=${p.api_type})`);
             return false;
           }
           // 제공사 차단 확인
           if (blockedProviderIds.has(p.id)) {
+            console.log(`🚫 [차단] 제공사 차단: ${p.name} (provider_id=${p.id})`);
             return false;
           }
           return true;
@@ -2903,6 +2930,8 @@ export async function getUserVisibleProviders(filters?: {
       } else {
         console.log('✅ [partner_game_access] 차단된 제공사 없음 - 전체 표시');
       }
+    } else if (userPartnerId && userLevel !== 7) {
+      console.log(`✅ [getUserVisibleProviders] Lv${userLevel} - 매장/관리자는 모든 게임사 표시 (필터링 건너뜀)`);
     }
     
     console.log(`📊 [사용자 제공사] 전체: ${providers.length}개 → 활성화된 API: ${filteredProviders.length}개`);
@@ -3352,6 +3381,76 @@ async function launchInvestGame(
   console.log('🎮 Invest API 게임 실행:', { partnerId, username, gameId });
 
   try {
+    // ⭐ 0. 사용자 정보 먼저 조회 (세션 재사용 체크용)
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, balance')
+      .eq('username', username)
+      .single();
+
+    if (userError || !userData) {
+      console.error('❌ 사용자 정보 조회 실패:', userError);
+      return {
+        success: false,
+        error: '사용자 정보를 찾을 수 없습니다.'
+      };
+    }
+
+    const userId = userData.id;
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+    // ⭐ 30분 내 종료된 세션 재사용 체크
+    const { data: recentSessions } = await supabase
+      .from('game_launch_sessions')
+      .select('id, session_id, ended_at, status')
+      .eq('user_id', userId)
+      .eq('game_id', gameId)
+      .in('status', ['auto_ended', 'ended', 'force_ended'])
+      .gte('ended_at', thirtyMinutesAgo.toISOString())
+      .order('ended_at', { ascending: false })
+      .limit(1);
+
+    if (recentSessions && recentSessions.length > 0) {
+      const recentSession = recentSessions[0];
+      console.log(`♻️ 30분 내 종료된 세션 발견 - 재사용: session_id=${recentSession.session_id}`);
+      
+      // 세션을 active로 복구 (RPC 함수 사용하여 ended_at을 NULL로 리셋)
+      const { error: updateError } = await supabase
+        .rpc('reset_session_for_reuse', {
+          p_session_id: recentSession.id
+        });
+
+      if (!updateError) {
+        console.log(`✅ 세션 재사용 성공: ${recentSession.session_id}`);
+        
+        // API 설정 조회 (게임 URL 생성용)
+        const { data: apiConfig } = await supabase
+          .from('api_configs')
+          .select('opcode, token, secret_key')
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'invest')
+          .single();
+
+        if (apiConfig && apiConfig.opcode && apiConfig.token) {
+          // 기존 세션으로 게임 URL 생성
+          const launchUrl = await investApi.getLaunchUrl(
+            apiConfig.opcode,
+            username,
+            gameId,
+            apiConfig.token
+          );
+
+          if (launchUrl) {
+            return {
+              success: true,
+              launch_url: launchUrl,
+              game_url: launchUrl
+            };
+          }
+        }
+      }
+    }
+
     // ✅ Invest API 활성화 체크
     const { checkApiActiveByPartnerId } = await import('./apiStatusChecker');
     const isInvestActive = await checkApiActiveByPartnerId(partnerId, 'invest');
@@ -3385,21 +3484,6 @@ async function launchInvestGame(
       return {
         success: false,
         error: 'Invest API 설정이 완료되지 않았습니다.'
-      };
-    }
-
-    // ⭐ 1. 사용자 DB 보유금 조회
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id, balance')
-      .eq('username', username)
-      .single();
-
-    if (userError || !userData) {
-      console.error('❌ 사용자 정보 조회 실패:', userError);
-      return {
-        success: false,
-        error: '사용자 정보를 찾을 수 없습니다.'
       };
     }
 
@@ -3648,13 +3732,38 @@ async function launchOroPlayGame(
 
     if (launchUrl) {
       console.log(`✅ [게임 실행] URL 생성 완료`);
+      
+      // ⭐ 6. 세션 저장
+      const { data: sessionData, error: sessionInsertError } = await supabase
+        .from('game_launch_sessions')
+        .insert({
+          user_id: userData.id,
+          api_type: 'oroplay',
+          game_id: game.id,
+          status: 'active',
+          launch_url: launchUrl,
+          balance_before: userBalance,
+          opcode: '',  // ⭐ opcode NOT NULL 제약 조건 만족
+          launched_at: new Date().toISOString(),
+          last_activity_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (sessionInsertError) {
+        console.error('❌ [OroPlay] 세션 저장 실패:', sessionInsertError);
+      } else {
+        console.log('✅ [OroPlay] 세션 저장 완료, ID:', sessionData?.id);
+      }
+      
       console.log(`✅ [게임 진입] 완료:`);
       console.log(`   - API 잔고: ${userBalance}원 (GMS에서 이동)`);
       console.log(`   - GMS 잔고: 0원`);
       return {
         success: true,
         launch_url: launchUrl,
-        game_url: launchUrl
+        game_url: launchUrl,
+        sessionId: sessionData?.id
       };
     }
 
@@ -3822,22 +3931,33 @@ async function launchFamilyApiGame(
       console.log(`ℹ️ [Seamless] 게임 진입 시 /balance callback이 자동 호출됩니다.`);
       
       // ⭐ 6. launch_url을 세션에 저장
-      await supabase
+      const { data: sessionData, error: sessionInsertError } = await supabase
         .from('game_launch_sessions')
         .insert({
           user_id: userData.id,
           api_type: 'familyapi',
           game_id: game.id,
-          status: 'pending',
+          status: 'active',  // ⭐ active 상태로 시작
           launch_url: launchResult.gameurl,
           balance_before: userBalance,
-          opcode: null  // ⭐ FamilyAPI는 opcode 불필요
-        });
+          opcode: '',  // ⭐ opcode NOT NULL 제약 조건 만족
+          launched_at: new Date().toISOString(),
+          last_activity_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (sessionInsertError) {
+        console.error('❌ [FamilyAPI] 세션 저장 실패:', sessionInsertError);
+      } else {
+        console.log('✅ [FamilyAPI] 세션 저장 완료, ID:', sessionData?.id);
+      }
       
       return {
         success: true,
         launch_url: launchResult.gameurl,
-        game_url: launchResult.gameurl
+        game_url: launchResult.gameurl,
+        sessionId: sessionData?.id
       };
     }
 
@@ -4055,6 +4175,29 @@ async function launchHonorApiGame(
         console.log(`✅ GMS 보유금 0원으로 업데이트 (HonorAPI로 이동 완료)`);
       }
 
+      // ⭐ 5-4. 세션 저장
+      const { data: sessionData, error: sessionInsertError } = await supabase
+        .from('game_launch_sessions')
+        .insert({
+          user_id: userData.id,
+          api_type: 'honorapi',
+          game_id: game.id,
+          status: 'active',
+          launch_url: gameLaunchResult.link,
+          balance_before: userBalance,
+          opcode: '',  // ⭐ opcode NOT NULL 제약 조건 만족
+          launched_at: new Date().toISOString(),
+          last_activity_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (sessionInsertError) {
+        console.error('❌ [HonorAPI] 세션 저장 실패:', sessionInsertError);
+      } else {
+        console.log('✅ [HonorAPI] 세션 저장 완료, ID:', sessionData?.id);
+      }
+
       console.log(`✅ [게임 진입] 완료:`);
       console.log(`   - HonorAPI 잔고: ${addBalanceResult.balance}원 (GMS에서 이동)`);
       console.log(`   - GMS 잔고: 0원`);
@@ -4062,7 +4205,8 @@ async function launchHonorApiGame(
       return {
         success: true,
         launch_url: gameLaunchResult.link,
-        game_url: gameLaunchResult.link
+        game_url: gameLaunchResult.link,
+        sessionId: sessionData?.id
       };
 
     } catch (error) {
@@ -4384,13 +4528,9 @@ export async function generateGameLaunchUrl(
       status: 'active',  // ⭐ 바로 active 상태로 시작 (ready 상태 제거)
       balance_before: user.balance || 0,  // 게임 시작 시 잔고 기록
       launched_at: new Date().toISOString(),
-      last_activity_at: new Date().toISOString()
+      last_activity_at: new Date().toISOString(),
+      opcode: opcode || ''  // ⭐ opcode NOT NULL 제약 조건 만족 (없으면 빈 문자열)
     };
-
-    // ⭐ FamilyAPI는 opcode를 사용하지 않으므로 opcode가 있을 때만 추가
-    if (opcode) {
-      sessionData.opcode = opcode;
-    }
 
     const { data: session, error: sessionError } = await supabase
       .from('game_launch_sessions')

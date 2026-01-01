@@ -44,6 +44,7 @@ export interface Partner {
   withdrawal_fee: number;
   last_login_at?: string;
   created_at: string;
+  menu_permissions?: string[]; // 파트너별 허용된 메뉴 ID 배열
 }
 
 export interface Transaction {

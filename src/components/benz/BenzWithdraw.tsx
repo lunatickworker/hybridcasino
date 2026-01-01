@@ -3,16 +3,11 @@ import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { useMessageQueue } from '../common/MessageQueueProvider';
 import { AnimatedCurrency } from '../common/AnimatedNumber';
-import { 
-  CreditCard, 
-  Clock,
-  CheckCircle,
-  XCircle,
-  RefreshCw,
-  AlertCircle
-} from 'lucide-react';
+import bcrypt from 'bcryptjs';
+import { CreditCard, Clock, CheckCircle, XCircle, RefreshCw, AlertCircle, ChevronDown } from 'lucide-react';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { Badge } from '../ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface BenzWithdrawProps {
   user: any;
@@ -44,6 +39,9 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isWithdrawLocked, setIsWithdrawLocked] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   const availableBanks = [
     '국민은행', '신한은행', '우리은행', 'KB국민은행', 'KEB하나은행',
@@ -154,7 +152,16 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
   };
 
   const handleAmountClick = (amount: number) => {
-    setWithdrawAmount(amount.toLocaleString());
+    const currentAmount = parseFloat(withdrawAmount.replace(/,/g, '') || '0');
+    const newAmount = currentAmount + amount;
+    
+    // 잔고를 초과하지 않도록 체크
+    if (newAmount > balance) {
+      toast.warning('보유 잔고를 초과할 수 없습니다.');
+      return;
+    }
+    
+    setWithdrawAmount(newAmount.toLocaleString());
   };
 
   const handleClear = () => {
@@ -164,6 +171,40 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
   const handleAllAmount = () => {
     setWithdrawAmount(balance.toString());
   };
+
+  // 드래그 핸들러
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - modalPosition.x,
+      y: e.clientY - modalPosition.y
+    });
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging) return;
+    
+    setModalPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, dragStart]);
 
   const handleSubmitRequest = () => {
     if (!withdrawAmount || parseFloat(withdrawAmount.replace(/,/g, '')) <= 0) {
@@ -219,12 +260,16 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
       }
 
       // 입력한 출금 비밀번호와 DB의 출금 비밀번호 비교
-      if (password !== userData.withdrawal_password) {
+      const isPasswordMatch = await bcrypt.compare(password, userData.withdrawal_password);
+      if (!isPasswordMatch) {
         throw new Error('출금 비밀번호가 일치하지 않습니다.');
       }
 
       // 현재 잔고 재조회
       await loadUserBalance();
+
+      // ✅ 출금 후 잔고 계산
+      const balanceAfterWithdraw = balance - amount;
 
       // 출금 신청 데이터 생성
       const withdrawData = {
@@ -234,7 +279,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
         amount: amount,
         status: 'pending',
         balance_before: balance,
-        balance_after: balance,
+        balance_after: balanceAfterWithdraw,
         bank_name: bankName,
         bank_account: bankAccount,
         bank_holder: bankHolder,
@@ -374,44 +419,36 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
     loadUserBalance();
     loadWithdrawRecords();
 
-    // 실시간 출금 상태 업데이트 구독
+    // ✅ 실시간 구독: transactions 테이블 변경 감지
     const subscription = supabase
-      .channel(`withdrawal_updates_${user?.id}`)
+      .channel(`benz_withdraw_${user?.id}`)
       .on('postgres_changes', {
-        event: '*',
+        event: 'UPDATE',
         schema: 'public',
         table: 'transactions',
         filter: `user_id=eq.${user?.id}`
       }, (payload) => {
-        console.log('🔄 출금 상태 업데이트 수신:', payload);
+        console.log('🔔 [벤츠 출금] transactions 변경 감지:', payload);
         
-        if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-          const newTransaction = payload.new as any;
+        const newTx = payload.new as any;
+        
+        // 출금 거래만 처리
+        if (newTx.transaction_type === 'withdrawal') {
+          // 거래 목록 새로고침
+          loadWithdrawRecords();
+          checkWithdrawStatus();
           
-          if (newTransaction.transaction_type === 'withdrawal') {
-            loadWithdrawRecords();
-            checkWithdrawStatus();
-            
-            if (newTransaction.status === 'completed') {
-              loadUserBalance();
-              toast.success(`출금이 완료되었습니다\n금액: ₩${formatCurrency(newTransaction.amount)}`, {
-                duration: 5000,
-              });
-            } else if (newTransaction.status === 'rejected') {
-              toast.error(`출금이 거부되었습니다\n금액: ₩${formatCurrency(newTransaction.amount)}`, {
-                duration: 5000,
-              });
-            } else if (newTransaction.status === 'approved') {
-              toast.info(`출금이 승인되었습니다\n금액: ₩${formatCurrency(newTransaction.amount)}`, {
-                duration: 4000,
-              });
-            }
-          }
+          // 잔고 새로고침 (핵심!)
+          loadUserBalance();
+          
+          console.log('✅ [벤츠 출금] 보유금 새로고침 완료');
         }
       })
       .subscribe();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [user?.id]);
 
   return (
@@ -617,22 +654,39 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
           <div className="mb-6">
             <label className="block text-base font-semibold mb-3" style={{ color: '#E6C9A8' }}>출금 계좌 정보</label>
             <div className="space-y-3">
-              <select
+              <Select
                 value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                className="w-full px-5 py-4 text-white text-lg focus:outline-none focus:ring-2 transition-all font-medium border-0"
-                style={{
-                  background: 'rgba(0, 0, 0, 0.3)',
-                  border: '1px solid rgba(193, 154, 107, 0.3)',
-                  borderRadius: '8px'
-                }}
+                onValueChange={(value) => setBankName(value)}
                 disabled={isWithdrawLocked}
               >
-                <option value="">은행 선택</option>
-                {availableBanks.map((bank) => (
-                  <option key={bank} value={bank}>{bank}</option>
-                ))}
-              </select>
+                <SelectTrigger
+                  className="w-auto min-w-[200px] h-[56px] px-5 text-white text-lg focus:outline-none focus:ring-2 transition-all font-medium border-0 [&>span]:text-left"
+                  style={{
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    border: '1px solid rgba(193, 154, 107, 0.3)',
+                    borderRadius: '8px'
+                  }}
+                >
+                  <SelectValue placeholder="은행 선택" className="text-left" />
+                </SelectTrigger>
+                <SelectContent
+                  className="bg-black/80 border-0"
+                  style={{
+                    border: '1px solid rgba(193, 154, 107, 0.3)',
+                    borderRadius: '8px'
+                  }}
+                >
+                  {availableBanks.map((bank) => (
+                    <SelectItem 
+                      key={bank} 
+                      value={bank}
+                      className="text-white text-lg hover:bg-[rgba(193,154,107,0.2)] cursor-pointer focus:bg-[rgba(193,154,107,0.3)]"
+                    >
+                      {bank}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <input
                 type="text"
                 value={bankAccount}
@@ -794,23 +848,36 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
 
           {/* 비밀번호 확인 다이얼로그 */}
           {showPasswordDialog && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowPasswordDialog(false)}>
-              <div className="p-8 max-w-md w-full mx-4 border-0" style={{
-                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
-                border: '1px solid rgba(193, 154, 107, 0.3)',
-                borderRadius: '8px'
-              }} onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-xl font-bold mb-4" style={{
-                  background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text'
-                }}>출금 신청 확인</h3>
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowPasswordDialog(false)}>
+              <div 
+                className="p-8 max-w-md w-full mx-4 border-0 select-none" 
+                style={{
+                  background: '#1a1a1a',
+                  border: '2px solid rgba(193, 154, 107, 0.8)',
+                  borderRadius: '12px',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+                  transform: `translate(${modalPosition.x}px, ${modalPosition.y}px)`,
+                  cursor: isDragging ? 'grabbing' : 'default'
+                }} 
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 
+                  className="text-xl font-bold mb-4 cursor-grab active:cursor-grabbing" 
+                  style={{
+                    background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text'
+                  }}
+                  onMouseDown={handleMouseDown}
+                >
+                  출금 신청 확인
+                </h3>
                 <p className="text-gray-300 mb-4">출금 신청을 완료하려면 비밀번호를 입력해주세요.</p>
                 
                 <div className="p-4 mb-4 border-0" style={{
-                  background: 'rgba(0, 0, 0, 0.3)',
-                  border: '1px solid rgba(193, 154, 107, 0.2)',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: '1px solid rgba(193, 154, 107, 0.4)',
                   borderRadius: '8px'
                 }}>
                   <div className="flex justify-between mb-2">
@@ -838,8 +905,8 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                     placeholder="출금 비밀번호 4자리를 입력해주세요"
                     className="w-full px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all border-0"
                     style={{
-                      background: 'rgba(0, 0, 0, 0.3)',
-                      border: '1px solid rgba(193, 154, 107, 0.3)',
+                      background: 'rgba(0, 0, 0, 0.5)',
+                      border: '1px solid rgba(193, 154, 107, 0.4)',
                       borderRadius: '8px'
                     }}
                     onKeyPress={(e) => {
@@ -858,8 +925,8 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                     }}
                     className="flex-1 px-6 py-3 transition-all border-0 text-white"
                     style={{
-                      background: 'rgba(0, 0, 0, 0.5)',
-                      border: '1px solid rgba(193, 154, 107, 0.3)',
+                      background: '#2a2a2a',
+                      border: '1px solid rgba(193, 154, 107, 0.5)',
                       borderRadius: '8px'
                     }}
                   >
@@ -922,47 +989,72 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
                   <p className="text-slate-400">출금 내역이 없습니다.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {withdrawRecords.map((record) => {
-                    const statusInfo = getStatusInfo(record.status);
-                    const StatusIcon = statusInfo.icon;
-                    
-                    return (
-                      <div
-                        key={record.id}
-                        className="p-4 border-0"
-                        style={{
-                          background: 'rgba(0, 0, 0, 0.3)',
-                          border: '1px solid rgba(193, 154, 107, 0.2)',
-                          borderRadius: '8px'
-                        }}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex items-center gap-2">
-                            <StatusIcon className={`w-4 h-4 ${statusInfo.textColor}`} />
-                            <Badge
-                              variant="outline"
-                              className={`${statusInfo.color} text-white border-none`}
-                            >
-                              {statusInfo.label}
-                            </Badge>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-white">₩{formatCurrency(record.amount)}</p>
-                            <p className="text-xs text-slate-400">{new Date(record.created_at).toLocaleString('ko-KR')}</p>
-                          </div>
-                        </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[800px]">
+                    <thead>
+                      <tr style={{
+                        borderBottom: '1px solid rgba(193, 154, 107, 0.3)'
+                      }}>
+                        <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#C19A6B' }}>상태</th>
+                        <th className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#C19A6B' }}>금액</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#C19A6B' }}>은행명</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#C19A6B' }}>계좌번호</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold" style={{ color: '#C19A6B' }}>예금주</th>
+                        <th className="px-4 py-3 text-right text-sm font-semibold" style={{ color: '#C19A6B' }}>신청일시</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {withdrawRecords.map((record, index) => {
+                        const statusInfo = getStatusInfo(record.status);
+                        const StatusIcon = statusInfo.icon;
                         
-                        <div className="text-sm text-slate-400 space-y-1">
-                          <p>{record.bank_name} {record.bank_account}</p>
-                          <p>예금주: {record.bank_holder}</p>
-                          {record.memo && (
-                            <p className="text-slate-500">{record.memo}</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                        return (
+                          <tr 
+                            key={record.id}
+                            style={{
+                              borderBottom: index !== withdrawRecords.length - 1 ? '1px solid rgba(193, 154, 107, 0.1)' : 'none'
+                            }}
+                            className="hover:bg-black/20 transition-colors"
+                          >
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-2">
+                                <StatusIcon className={`w-4 h-4 ${statusInfo.textColor}`} />
+                                <Badge
+                                  variant="outline"
+                                  className={`${statusInfo.color} text-white border-none text-xs`}
+                                >
+                                  {statusInfo.label}
+                                </Badge>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <span className="font-semibold text-white">₩{formatCurrency(record.amount)}</span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="text-gray-300">{record.bank_name}</span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="text-gray-300">{record.bank_account}</span>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="text-gray-300">{record.bank_holder}</span>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <span className="text-gray-400 text-sm">
+                                {new Date(record.created_at).toLocaleString('ko-KR', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

@@ -6,23 +6,21 @@ import { toast } from 'sonner@2.0.3';
 // 7단계 권한 레벨 정의
 export enum HierarchyLevel {
   SYSTEM_ADMIN = 1,    // 시스템관리자
-  HEADQUARTERS = 2,    // 대본사
+  HEADQUARTERS = 2,    // 운영사
   MAIN_OFFICE = 3,     // 본사
   SUB_OFFICE = 4,      // 부본사
   DISTRIBUTOR = 5,     // 총판
   STORE = 6,           // 매장
-  USER = 7             // 사용자 (users 테이블)
 }
 
 // 레벨별 한국어 이름
 export const HIERARCHY_NAMES = {
   [HierarchyLevel.SYSTEM_ADMIN]: '',
-  [HierarchyLevel.HEADQUARTERS]: '대본사',
+  [HierarchyLevel.HEADQUARTERS]: '운영사',
   [HierarchyLevel.MAIN_OFFICE]: '본사',
   [HierarchyLevel.SUB_OFFICE]: '부본사',
   [HierarchyLevel.DISTRIBUTOR]: '총판',
   [HierarchyLevel.STORE]: '매장',
-  [HierarchyLevel.USER]: '사용자'
 };
 
 // 사용자 권한 확인 훅

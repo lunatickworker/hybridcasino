@@ -142,8 +142,14 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
           // 깜박임 없이 데이터만 업데이트
           setPartners((currentPartners) => {
             if (payload.eventType === 'INSERT') {
-              // 새 파트너 추가
-              return [payload.new as Partner, ...currentPartners];
+              // ✅ 중복 방지: 이미 존재하는 파트너면 추가하지 않음
+              const newPartner = payload.new as Partner;
+              const exists = currentPartners.some(p => p.id === newPartner.id);
+              if (exists) {
+                console.warn('⚠️ [Realtime] 중복된 파트너 INSERT 무시:', newPartner.id);
+                return currentPartners;
+              }
+              return [newPartner, ...currentPartners];
             } else if (payload.eventType === 'UPDATE') {
               // 파트너 정보 업데이트 (보유금 변경 포함)
               return currentPartners.map((p) =>
@@ -188,7 +194,18 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       console.log('✅ [파트너생성관리] 로드된 파트너 수:', data?.length, '현재 사용자 ID:', user.id);
       console.log('✅ [파트너생성관리] 파트너 목록:', data);
       
-      setPartners(data || []);
+      // ✅ 중복 제거: ID 기준으로 유니크한 파트너만 유지
+      const uniquePartners = data?.reduce((acc, current) => {
+        const exists = acc.find(p => p.id === current.id);
+        if (!exists) {
+          acc.push(current);
+        } else {
+          console.warn('⚠️ [loadPartners] 중복된 파트너 ID 발견:', current.id, current.username);
+        }
+        return acc;
+      }, [] as typeof data) || [];
+      
+      setPartners(uniquePartners);
     } catch (error) {
       console.error('Failed to load partners:', error);
       toast.error(t.partnerCreation.loadFailed);
@@ -355,6 +372,12 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
   const savePartner = async () => {
     if (!validateForm()) return;
+
+    // ⚠️ 중복 실행 방지: saving이 이미 true면 즉시 리턴
+    if (saving) {
+      console.warn('⚠️ [파트너 생성] 이미 생성 중입니다. 중복 실행 방지.');
+      return;
+    }
 
     setSaving(true);
     const toastId = toast.loading(t.partnerCreation.creatingPartner);
@@ -1065,6 +1088,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
             <div className="flex justify-end pt-4">
               <Button
+                type="button"
                 onClick={savePartner}
                 disabled={saving}
                 className="flex items-center gap-2 text-lg px-6 py-3 h-auto"
