@@ -248,9 +248,6 @@ function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         case 'partner':
           await loadPartnerStats(start, end);
           break;
-        case 'user':
-          await loadUserStats(start, end);
-          break;
         case 'game-type':
           await loadGameTypeStats(start, end);
           break;
@@ -848,7 +845,7 @@ function AdvancedSettlement({ user }: AdvancedSettlementProps) {
       {/* 탭 메뉴 */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="bg-slate-800/30 rounded-xl p-1.5 border border-slate-700/40">
-          <TabsList className="bg-transparent h-auto p-0 border-0 gap-2 w-full grid grid-cols-5">
+          <TabsList className="bg-transparent h-auto p-0 border-0 gap-2 w-full grid grid-cols-4">
             <TabsTrigger
               value="top-level"
               className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
@@ -860,12 +857,6 @@ function AdvancedSettlement({ user }: AdvancedSettlementProps) {
               className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
             >
               파트너 정산
-            </TabsTrigger>
-            <TabsTrigger
-              value="user"
-              className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500/20 data-[state=active]:to-emerald-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20 data-[state=active]:border data-[state=active]:border-green-400/30 transition-all duration-200"
-            >
-              회원 정산
             </TabsTrigger>
             <TabsTrigger
               value="game-type"

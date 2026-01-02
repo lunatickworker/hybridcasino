@@ -309,20 +309,9 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       return;
     }
     
-    // 🆕 카지노의 경우
+    // 🆕 카지노의 경우 - 모든 게임사에서 바로 로비 실행
     if (type === 'casino') {
-      // 에볼루션인 경우 바로 Top Games 실행
-      const providerName = (provider.name || '').toLowerCase();
-      const providerNameKo = (provider.name_ko || '').toLowerCase();
-      const isEvolution = providerName.includes('evolution') || providerNameKo.includes('에볼루션');
-      
-      if (isEvolution) {
-        launchEvolutionTopGames(provider);
-      } else {
-        // 다른 게임사는 Casino 페이지로 이동
-        localStorage.setItem('benz_selected_provider', JSON.stringify(provider));
-        onRouteChange('/benz/casino');
-      }
+      launchCasinoLobby(provider);
     } else {
       // 🆕 슬롯은 기존 방식 유지 (선택한 게임사 정보를 localStorage에 저장)
       localStorage.setItem('benz_selected_provider', JSON.stringify(provider));
@@ -330,7 +319,67 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
     }
   };
 
-  // 🆕 에볼루션 Top Games 자동 실행
+  // 🆕 카지노 로비 자동 실행
+  const launchCasinoLobby = async (provider: GameProvider) => {
+    try {
+      toast.info(`${provider.name_ko || provider.name} 로비를 불러오는 중...`);
+      setIsProcessing(true);
+      setLaunchingProviderId(provider.id);
+
+      // 통합된 게임사의 모든 provider_id로 게임 로드
+      const providerIds = provider.provider_ids || [provider.id];
+      let allGames: any[] = [];
+
+      for (const providerId of providerIds) {
+        const gamesData = await gameApi.getUserVisibleGames({
+          type: 'casino',
+          provider_id: providerId,
+          userId: user.id
+        });
+
+        if (gamesData && gamesData.length > 0) {
+          allGames = [...allGames, ...gamesData];
+        }
+      }
+
+      console.log(`🎰 [BenzMain] ${provider.name} 게임 목록:`, allGames.map(g => g.name));
+
+      // 로비 게임 찾기 (우선순위: Top Games > Lobby > 첫 번째 게임)
+      let lobbyGame = allGames.find(game => 
+        game.name?.toLowerCase().includes('top games') || 
+        game.name_ko?.includes('탑 게임') ||
+        game.name_ko?.includes('인기 게임')
+      );
+
+      if (!lobbyGame) {
+        lobbyGame = allGames.find(game => 
+          game.name?.toLowerCase().includes('lobby') || 
+          game.name_ko?.includes('로비')
+        );
+      }
+
+      if (!lobbyGame && allGames.length > 0) {
+        lobbyGame = allGames[0];
+      }
+
+      if (lobbyGame) {
+        console.log(`🎰 [BenzMain] ${provider.name} 로비 자동 실행:`, lobbyGame.name);
+        await launchGame(lobbyGame);
+      } else {
+        console.log(`⚠️ [BenzMain] ${provider.name} 게임을 찾을 수 없음`);
+        toast.error('게임을 찾을 수 없습니다.');
+        setIsProcessing(false);
+        setLaunchingProviderId(null);
+      }
+    } catch (error) {
+      console.error('게임 로드 오류:', error);
+      toast.error('게임 실행에 실패했습니다.');
+      setIsProcessing(false);
+      setLaunchingProviderId(null);
+    }
+  };
+
+  // 🆕 에볼루션 Top Games 자동 실행 (기존 함수 유지 - 현재는 사용 안 함)
   const launchEvolutionTopGames = async (provider: GameProvider) => {
     try {
       toast.info('Evolution Top Games를 불러오는 중...');
@@ -753,7 +802,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         />
         
         <div className="relative z-10 px-4 md:px-16">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-8 w-full">
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-4 md:gap-8 w-full">
             {loading ? (
               Array(8).fill(0).map((_, i) => (
                 <div key={i} className="aspect-square bg-gray-800/50 animate-pulse rounded-2xl"></div>

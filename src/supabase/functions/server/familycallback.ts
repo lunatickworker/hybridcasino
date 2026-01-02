@@ -196,7 +196,7 @@ export async function handleChangeBalanceCallback(
       vendor_key: vendorKey,
       game_key: gameKey,
       game_type: gameData?.game_type || gameType || 'casino', // ✅ games 테이블에서 가져온 game_type 우선 사용
-      game_name: gameData?.name || null, // ✅ 게임명 추가
+      game_title: gameData?.name || null, // ✅ 게임명 추가
       game_provider_name: providerName, // ✅ 제공사명 추가
       tran_type: tranType,
       bet_amount: debit || 0,
@@ -353,7 +353,7 @@ export async function handleChangeBalanceSlotCallback(
       vendor_key: vendorKey,
       game_key: gameKey,
       game_type: gameData?.game_type || gameType || 'slot', // ✅ games 테이블에서 가져온 game_type 우선 사용
-      game_name: gameData?.name || null, // ✅ 게임명 추가
+      game_title: gameData?.name || null, // ✅ 게임명 추가
       game_provider_name: providerName, // ✅ 제공사명 추가
       tran_type: tranType,
       bet_amount: debit || 0,

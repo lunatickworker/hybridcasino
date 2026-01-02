@@ -137,7 +137,7 @@ async function syncInvestGameRecords(apiConfig: any) {
             game_id: record.game_id,
             provider_id: providerId,
             game_type: gameData?.game_type || 'casino', // ✅ game_type 추가
-            game_name: gameData?.name || null, // ✅ 게임명 추가
+            game_title: gameData?.name || null, // ✅ 게임명 추가
             game_provider_name: providerData?.name || null, // ✅ 제공사명 추가
             bet_amount: betAmount,
             win_amount: winAmount,
@@ -268,7 +268,7 @@ async function syncOroPlayGameRecords(apiConfig: any) {
             game_id: gameData?.id || null,
             provider_id: gameData?.provider_id || null,
             game_type: gameData?.game_type || 'casino', // ✅ game_type 추가
-            game_name: gameData?.name || null, // ✅ 게임명 추가
+            game_title: gameData?.name || null, // ✅ 게임명 추가
             game_provider_name: providerName, // ✅ 제공사명 추가
             bet_amount: bet.betAmount,
             win_amount: bet.winAmount,

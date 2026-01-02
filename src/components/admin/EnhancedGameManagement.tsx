@@ -2276,20 +2276,46 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                             className="pl-12 h-12 text-base bg-slate-900/50 border-slate-700 text-white"
                           />
                         </div>
-                        <Select
-                          value={selectedGameType}
-                          onValueChange={(value: GameType) => setSelectedGameType(value)}
+                      </div>
+                      
+                      {/* 게임 타입 필터 버튼 */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          onClick={() => setSelectedGameType("casino")}
+                          className={`flex-1 h-11 text-base font-semibold transition-all ${
+                            selectedGameType === "casino"
+                              ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg border-2 border-purple-400"
+                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
+                          }`}
                         >
-                          <SelectTrigger className="w-[200px] h-12 text-base bg-slate-900/50 border-slate-700 text-white font-semibold">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all" className="text-base">전체</SelectItem>
-                            <SelectItem value="casino" className="text-base">카지노</SelectItem>
-                            <SelectItem value="slot" className="text-base">슬롯</SelectItem>
-                            <SelectItem value="minigame" className="text-base">미니게임</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          <Gamepad2 className="w-4 h-4 mr-2" />
+                          카지노
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => setSelectedGameType("slot")}
+                          className={`flex-1 h-11 text-base font-semibold transition-all ${
+                            selectedGameType === "slot"
+                              ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg border-2 border-blue-400"
+                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
+                          }`}
+                        >
+                          <Zap className="w-4 h-4 mr-2" />
+                          슬롯
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => setSelectedGameType("minigame")}
+                          className={`flex-1 h-11 text-base font-semibold transition-all ${
+                            selectedGameType === "minigame"
+                              ? "bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-lg border-2 border-orange-400"
+                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
+                          }`}
+                        >
+                          <Play className="w-4 h-4 mr-2" />
+                          미니게임
+                        </Button>
                       </div>
 
                       {/* 전체 노출/숨김 버튼 */}
@@ -2806,30 +2832,56 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                   ) : (
                     <div className="space-y-6">
                       {/* 검색 및 필터 */}
-                      <div className="flex gap-4">
+                      <div className="flex gap-3">
                         <div className="flex-1 relative">
-                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                           <Input
                             placeholder="게임 검색..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 bg-slate-900/50 border-slate-700 text-white"
+                            className="pl-12 h-12 text-base bg-slate-900/50 border-slate-700 text-white"
                           />
                         </div>
-                        <Select
-                          value={selectedGameType}
-                          onValueChange={(value: GameType) => setSelectedGameType(value)}
+                      </div>
+                      
+                      {/* 게임 타입 필터 버튼 */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          onClick={() => setSelectedGameType("casino")}
+                          className={`flex-1 h-11 text-base font-semibold transition-all ${
+                            selectedGameType === "casino"
+                              ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg border-2 border-purple-400"
+                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
+                          }`}
                         >
-                          <SelectTrigger className="w-[180px] bg-slate-900/50 border-slate-700 text-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">전체</SelectItem>
-                            <SelectItem value="casino">카지노</SelectItem>
-                            <SelectItem value="slot">슬롯</SelectItem>
-                            <SelectItem value="minigame">미니게임</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          <Gamepad2 className="w-4 h-4 mr-2" />
+                          카지노
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => setSelectedGameType("slot")}
+                          className={`flex-1 h-11 text-base font-semibold transition-all ${
+                            selectedGameType === "slot"
+                              ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg border-2 border-blue-400"
+                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
+                          }`}
+                        >
+                          <Zap className="w-4 h-4 mr-2" />
+                          슬롯
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => setSelectedGameType("minigame")}
+                          className={`flex-1 h-11 text-base font-semibold transition-all ${
+                            selectedGameType === "minigame"
+                              ? "bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-lg border-2 border-orange-400"
+                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
+                          }`}
+                        >
+                          <Play className="w-4 h-4 mr-2" />
+                          미니게임
+                        </Button>
                       </div>
 
                       {/* 전체 노출/숨김 버튼 */}

@@ -2777,6 +2777,10 @@
     border-color: var(--input);
   }
 
+  .border-orange-400 {
+    border-color: var(--color-orange-400);
+  }
+
   .border-orange-500\/20 {
     border-color: color-mix(in srgb, oklch(.705 .213 47.604) 20%, transparent);
   }
@@ -6394,6 +6398,10 @@
 
   .p-12 {
     padding: calc(var(--spacing) * 12);
+  }
+
+  .p-20 {
+    padding: calc(var(--spacing) * 20);
   }
 
   .p-\[3px\] {

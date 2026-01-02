@@ -1268,18 +1268,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           <div className="bg-slate-800/30 rounded-xl p-1.5 border border-slate-700/40">
             <TabsList className="bg-transparent h-auto p-0 border-0 gap-2 w-full grid grid-cols-4">
               <TabsTrigger 
-                value="deposit-request"
-                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
-              >
-                {t.transactionManagement.depositRequestTab}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="withdrawal-request"
-                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
-              >
-                {t.transactionManagement.withdrawalRequestTab}
-              </TabsTrigger>
-              <TabsTrigger 
                 value="completed-history"
                 className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500/20 data-[state=active]:to-emerald-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20 data-[state=active]:border data-[state=active]:border-green-400/30 transition-all duration-200"
               >
@@ -1290,6 +1278,18 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                 className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500/20 data-[state=active]:to-amber-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-orange-500/20 data-[state=active]:border data-[state=active]:border-orange-400/30 transition-all duration-200"
               >
                 {t.transactionManagement.adminHistoryTab}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="deposit-request"
+                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
+              >
+                {t.transactionManagement.depositRequestTab}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="withdrawal-request"
+                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
+              >
+                {t.transactionManagement.withdrawalRequestTab}
               </TabsTrigger>
             </TabsList>
           </div>

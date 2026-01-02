@@ -796,7 +796,6 @@ export async function syncHonorApiBettingHistory(): Promise<{
             provider_name: providerName,  // ⭐ 항상 유효한 값 보장
             game_provider_name: providerName,  // ✅ 일관성을 위한 추가 필드
             game_title: game?.name || tx.details.game.title || tx.details.game.id || 'Unknown',  // ⭐ fallback 추가
-            game_name: game?.name || tx.details.game.title || tx.details.game.id || 'Unknown',  // ✅ 일관성을 위한 추가 필드
             game_type: game?.type || tx.details.game.type || 'slot',
             bet_amount: betAmount,
             win_amount: winAmount,

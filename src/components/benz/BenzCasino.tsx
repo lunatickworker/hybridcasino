@@ -281,8 +281,8 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
     }
 
     try {
-      setGamesLoading(true);
-      setSelectedProvider(provider);
+      // 🆕 페이지 전환 없이 바로 게임 실행
+      setIsProcessing(true);
       
       // 🆕 로비를 불러오는 중 메시지
       toast.info(`${provider.name_ko || provider.name} 로비를 불러오는 중...`);
@@ -303,68 +303,44 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
         }
       }
 
-      // 🆕 로비 게임을 맨 앞으로 정렬
-      const sortedGames = allGames.sort((a, b) => {
-        const aIsLobby = (a.name?.toLowerCase().includes('lobby') || a.name_ko?.includes('로비')) ? 1 : 0;
-        const bIsLobby = (b.name?.toLowerCase().includes('lobby') || b.name_ko?.includes('로비')) ? 1 : 0;
-        return bIsLobby - aIsLobby; // 로비가 앞으로
+      console.log(`🎰 [BenzCasino] ${provider.name} 게임 목록:`, allGames.map(g => g.name));
+
+      // 🆕 로비 게임 찾기 (우선순위: Top Games > Lobby > 첫 번째 게임)
+      let lobbyGame = allGames.find(game => {
+        const gameName = (game.name || '').toLowerCase();
+        const gameNameKo = (game.name_ko || '').toLowerCase();
+        
+        return gameName.includes('top games') || 
+               gameName.includes('top') ||
+               gameNameKo.includes('탑 게임') ||
+               gameNameKo.includes('탑게임') ||
+               gameNameKo.includes('인기 게임') ||
+               gameNameKo.includes('인기게임');
       });
 
-      setGames(sortedGames);
-      
-      // 🆕 에볼루션은 "Top Games" 게임을 자동 실행
-      const providerName = (provider.name || '').toLowerCase();
-      const providerNameKo = (provider.name_ko || '').toLowerCase();
-      const isEvolution = providerName.includes('evolution') || providerNameKo.includes('에볼루션');
-      
-      if (isEvolution) {
-        console.log('🎰 [BenzCasino] Evolution - Top Games 검색');
-        console.log('🎰 [BenzCasino] 사용 가능한 게임 목록:', sortedGames.map(g => ({ id: g.id, name: g.name, name_ko: g.name_ko })));
-        
-        // "Top Games" 게임 찾기 (더 넓은 검색 조건)
-        const topGamesGame = sortedGames.find(game => {
-          const gameName = (game.name || '').toLowerCase();
-          const gameNameKo = (game.name_ko || '').toLowerCase();
-          
-          return gameName.includes('top games') || 
-                 gameName.includes('top') ||
-                 gameNameKo.includes('탑 게임') ||
-                 gameNameKo.includes('탑게임') ||
-                 gameNameKo.includes('인기 게임') ||
-                 gameNameKo.includes('인기게임');
-        });
-        
-        if (topGamesGame) {
-          console.log('🎰 [BenzCasino] Evolution Top Games 자동 실행:', topGamesGame.name);
-          setGamesLoading(false);
-          await handleGameClick(topGamesGame);
-        } else {
-          console.log('⚠️ [BenzCasino] Evolution Top Games를 찾을 수 없음, 게임 목록 표시');
-          setGamesLoading(false);
-          toast.info(`${provider.name_ko || provider.name} 게임 목록`);
-        }
-        return;
+      if (!lobbyGame) {
+        lobbyGame = allGames.find(game => 
+          game.name?.toLowerCase().includes('lobby') || 
+          game.name_ko?.includes('로비')
+        );
       }
-      
-      // 🆕 다른 게임사는 로비 게임 자동 실행
-      const lobbyGame = sortedGames.find(game => 
-        game.name?.toLowerCase().includes('lobby') || 
-        game.name_ko?.includes('로비')
-      );
+
+      if (!lobbyGame && allGames.length > 0) {
+        lobbyGame = allGames[0];
+      }
 
       if (lobbyGame) {
         console.log('🎰 [BenzCasino] 로비 게임 자동 실행:', lobbyGame.name);
-        // 게임 로딩 완료 후 로비 게임 실행
-        setGamesLoading(false);
+        setIsProcessing(false);
         await handleGameClick(lobbyGame);
       } else {
-        setGamesLoading(false);
-        toast.error('로비 게임을 찾을 수 없습니다.');
+        setIsProcessing(false);
+        toast.error('게임을 찾을 수 없습니다.');
       }
     } catch (error) {
       console.error('게임 로드 오류:', error);
-      setGames([]);
-      setGamesLoading(false);
+      setIsProcessing(false);
+      toast.error('게임 실행에 실패했습니다.');
     }
   };
 

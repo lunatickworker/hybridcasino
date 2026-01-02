@@ -15,6 +15,7 @@ const CommissionSettlement = lazy(() => import("../admin/CommissionSettlement").
 const IntegratedSettlement = lazy(() => import("../admin/IntegratedSettlement").then(m => ({ default: m.IntegratedSettlement })));
 const SettlementHistory = lazy(() => import("../admin/SettlementHistory").then(m => ({ default: m.SettlementHistory })));
 const AdvancedSettlement = lazy(() => import("../admin/AdvancedSettlement").then(m => ({ default: m.default })));
+const UserSettlement = lazy(() => import("../admin/UserSettlement").then(m => ({ default: m.default })));
 const TransactionManagement = lazy(() => import("../admin/TransactionManagement").then(m => ({ default: m.TransactionManagement })));
 const TransactionApprovalManager = lazy(() => import("../admin/TransactionApprovalManager").then(m => ({ default: m.TransactionApprovalManager })));
 const EnhancedGameManagement = lazy(() => import("../admin/EnhancedGameManagement").then(m => ({ default: m.EnhancedGameManagement })));
@@ -96,6 +97,9 @@ export function AdminRoutes({ currentRoute, user }: AdminRoutesProps) {
     case '/admin/advanced-settlement':
     case '/admin/settlement/advanced':
       return <AdvancedSettlement user={user} />;
+    case '/admin/user-settlement':
+    case '/admin/settlement/user':
+      return <UserSettlement user={user} />;
     case '/admin/transactions':
     case '/admin/transaction-approval':
       return <TransactionManagement user={user} />;
