@@ -136,6 +136,17 @@ function GameCard({
           </div>
         )}
         
+        {/* 점검중 오버레이 */}
+        {game.status === "maintenance" && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
+            <img
+              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Stop.png"
+              alt="점검중"
+              className="w-24 h-24 object-contain"
+            />
+          </div>
+        )}
+        
         {/* 그라디언트 오버레이 */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent opacity-70 group-hover:opacity-80 transition-opacity duration-500"></div>
         
@@ -2382,10 +2393,10 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                             }
 
                             return filteredProviders.map(provider => {
-                              // ✅ 띄어쓰기 무시 검색: 제공사명 + 게임명 모두 검색
+                              // ✅ 앞글자부터 매핑 검색: 제공사명 + 게임명 모두 검색
                               const searchNormalized = debouncedSearchTerm.replace(/\s/g, '').toLowerCase();
                               const providerNameNormalized = provider.name.replace(/\s/g, '').toLowerCase();
-                              const isProviderMatch = !debouncedSearchTerm || providerNameNormalized.includes(searchNormalized);
+                              const isProviderMatch = !debouncedSearchTerm || providerNameNormalized.startsWith(searchNormalized);
 
                               const providerGames = games.filter(g => {
                                 if (g.provider_id !== provider.id) return false;
@@ -2397,9 +2408,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                 // 제공사명이 매칭되면 모든 게임 표시
                                 if (isProviderMatch) return true;
                                 
-                                // 게임명으로 검색 (띄어쓰기 무시)
+                                // 게임명으로 검색 (앞글자부터 매핑)
                                 const gameNameNormalized = g.name.replace(/\s/g, '').toLowerCase();
-                                return gameNameNormalized.includes(searchNormalized);
+                                return gameNameNormalized.startsWith(searchNormalized);
                               });
 
                               if (providerGames.length === 0 && debouncedSearchTerm) {
@@ -2949,10 +2960,10 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                             }
 
                             return filteredProviders.map(provider => {
-                              // ✅ 띄어쓰기 무시 검색: 제공사명 + 게임명 모두 검색
+                              // ✅ 앞글자부터 매핑 검색: 제공사명 + 게임명 모두 검색
                               const searchNormalized = debouncedSearchTerm.replace(/\s/g, '').toLowerCase();
                               const providerNameNormalized = provider.name.replace(/\s/g, '').toLowerCase();
-                              const isProviderMatch = !debouncedSearchTerm || providerNameNormalized.includes(searchNormalized);
+                              const isProviderMatch = !debouncedSearchTerm || providerNameNormalized.startsWith(searchNormalized);
 
                               // 매장에서 차단되지 않은 게임만 필터링 (로직 반전)
                               const providerGames = games.filter(g => {
@@ -2967,9 +2978,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                 // 제공사명이 매칭되면 모든 게임 표시
                                 if (isProviderMatch) return true;
                                 
-                                // 게임명으로 검색 (띄어쓰기 무시)
+                                // 게임명으로 검색 (앞글자부터 매핑)
                                 const gameNameNormalized = g.name.replace(/\s/g, '').toLowerCase();
-                                return gameNameNormalized.includes(searchNormalized);
+                                return gameNameNormalized.startsWith(searchNormalized);
                               });
 
                               if (providerGames.length === 0 && debouncedSearchTerm) {

@@ -704,8 +704,12 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                   {provider.logo_url && (
                     <img
                       src={provider.logo_url}
-                      alt={provider.name_ko || provider.name}
-                      className="w-full h-full object-cover"
+                      alt=""
+                      className="w-[100%] object-cover"
+                      style={{
+                        height: '100%',
+                        marginTop: '0%'
+                      }}
                     />
                   )}
                 </motion.div>

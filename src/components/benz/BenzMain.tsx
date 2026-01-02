@@ -802,7 +802,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         />
         
         <div className="relative z-10 px-4 md:px-16">
-          <div className="grid grid-cols-2 md:grid-cols-2 gap-4 md:gap-8 w-full">
+          <div className="grid grid-cols-5 gap-4 md:gap-8 w-full">
             {loading ? (
               Array(8).fill(0).map((_, i) => (
                 <div key={i} className="aspect-square bg-gray-800/50 animate-pulse rounded-2xl"></div>
