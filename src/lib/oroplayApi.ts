@@ -413,15 +413,7 @@ export async function depositToUser(
   });
   
   if (response.errorCode !== undefined && response.errorCode !== 0) {
-    const errorMessage = getErrorMessage(response.errorCode);
-    
-    // errorCode 3: Agent 잔고 부족 - 관리자에게 알림 필요
-    if (response.errorCode === 3) {
-      console.error(`❌ [OroPlay] Agent 잔고 부족 (errorCode 3):`, errorMessage);
-      throw new Error(`ADMIN_ALERT:${errorMessage}||관리자에게 문의하세요.`);
-    }
-    
-    throw new Error(errorMessage);
+    throw new Error(`Failed to deposit: errorCode ${response.errorCode}`);
   }
   
   return response.message || response;
@@ -446,15 +438,7 @@ export async function withdrawFromUser(
   });
   
   if (response.errorCode !== undefined && response.errorCode !== 0) {
-    const errorMessage = getErrorMessage(response.errorCode);
-    
-    // errorCode 3: Agent 잔고 부족 - 관리자에게 알림 필요
-    if (response.errorCode === 3) {
-      console.error(`❌ [OroPlay] Agent 잔고 부족 (errorCode 3):`, errorMessage);
-      throw new Error(`ADMIN_ALERT:${errorMessage}||관리자에게 문의하세요.`);
-    }
-    
-    throw new Error(errorMessage);
+    throw new Error(`Failed to withdraw: errorCode ${response.errorCode}`);
   }
   
   return response.message || response;
@@ -567,18 +551,24 @@ export async function getAgentBalance(token: string): Promise<number> {
   });
   
   if (response.errorCode !== undefined && response.errorCode !== 0) {
-    const errorMessage = getErrorMessage(response.errorCode);
-    
-    // errorCode 3: Agent 잔고 부족 - 관리자에게 알림 필요
-    if (response.errorCode === 3) {
-      console.error(`❌ [OroPlay] Agent 잔고 부족 (errorCode 3):`, errorMessage);
-      throw new Error(`ADMIN_ALERT:${errorMessage}||관리자에게 문의하세요.`);
-    }
-    
-    throw new Error(errorMessage);
+    throw new Error(`Agent 잔고 조회 실패: errorCode ${response.errorCode}`);
   }
   
-  return response.message || response;
+  // response.message에 잔고가 숫자로 반환됨
+  let balance = 0;
+  if (typeof response.message === 'number') {
+    balance = response.message;
+  } else if (response.message === 0) {
+    balance = 0;
+  } else if (typeof response === 'number') {
+    balance = response;
+  } else if (typeof response.message === 'string') {
+    balance = parseFloat(response.message) || 0;
+  }
+  
+  console.log(`✅ [OroPlay] Agent 잔고: ${balance}`);
+  
+  return balance;
 }
 
 // ============================================

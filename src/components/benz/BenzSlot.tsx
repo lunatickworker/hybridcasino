@@ -34,6 +34,7 @@ interface Game {
   image_url?: string;
   provider_id: number;
   api_type?: string;
+  status?: string;
 }
 
 const FALLBACK_PROVIDERS = [
@@ -107,8 +108,52 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   useEffect(() => {
     loadProviders();
     
+    // ✅ Realtime: games, game_providers, honor_games, honor_games_provider 테이블 변경 감지
+    const gamesChannel = supabase
+      .channel('benz_slot_games_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'games' },
+        () => {
+          console.log('🔄 [BenzSlot] games 테이블 변경 감지 - 리로드');
+          loadProviders();
+          if (selectedProvider) {
+            loadGames(selectedProvider);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_providers' },
+        () => {
+          console.log('🔄 [BenzSlot] game_providers 테이블 변경 감지 - 리로드');
+          loadProviders();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'honor_games' },
+        () => {
+          console.log('🔄 [BenzSlot] honor_games 테이블 변경 감지 - 리로드');
+          loadProviders();
+          if (selectedProvider) {
+            loadGames(selectedProvider);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'honor_games_provider' },
+        () => {
+          console.log('🔄 [BenzSlot] honor_games_provider 테이블 변경 감지 - 리로드');
+          loadProviders();
+        }
+      )
+      .subscribe();
+    
     return () => {
       isMountedRef.current = false;
+      supabase.removeChannel(gamesChannel);
     };
   }, []);
   
@@ -149,14 +194,15 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   }, [providers]);
 
   const loadProviders = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
       
-      // ⭐⭐⭐ Lv7만 userId 전달 (매장은 모든 게임사 표시)
-      const providersData = await gameApi.getUserVisibleProviders({ 
-        type: 'slot', 
-        userId: user?.level === 7 ? user?.id : undefined
-      });
+      // ⭐⭐⭐ 새로운 노출 로직 사용
+      const { filterVisibleProviders } = await import('../../lib/benzGameVisibility');
+      const allProviders = await gameApi.getProviders({ type: 'slot' });
+      const providersData = await filterVisibleProviders(allProviders, user.id);
       
       console.log('🎰 [BenzSlot] API 응답 게임사:', providersData.length, '개');
       console.log('🎰 [BenzSlot] 게임사 상세:', providersData.map(p => ({
@@ -309,7 +355,11 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
         }
       }
 
-      setGames(allGames);
+      // ⭐ 점검중 상태 추가 (benzGameVisibility 사용)
+      const { filterVisibleGames } = await import('../../lib/benzGameVisibility');
+      const gamesWithStatus = await filterVisibleGames(allGames, user.id);
+      
+      setGames(gamesWithStatus);
     } catch (error) {
       console.error('게임 로드 오류:', error);
       setGames([]);
@@ -341,6 +391,12 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   };
 
   const handleGameClick = async (game: Game) => {
+    // 🚫 점검중인 게임은 클릭 불가
+    if (game.status === 'maintenance') {
+      toast.warning('현재 점검 중인 게임입니다.');
+      return;
+    }
+
     // 🆕 백그라운드 프로세스 중 또는 게임 실행 중 클릭 방지
     if (isProcessing || launchingGameId) {
       toast.error('잠시 후 다시 시도해주세요.');
@@ -698,19 +754,25 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                     scale: 1.05,
                     transition: { duration: 0.3 }
                   }}
-                  className="cursor-pointer group"
+                  className="cursor-pointer group relative"
                   onClick={() => handleProviderClick(provider)}
                 > 
                   {provider.logo_url && (
                     <img
                       src={provider.logo_url}
-                      alt=""
-                      className="w-[100%] object-cover"
-                      style={{
-                        height: '100%',
-                        marginTop: '0%'
-                      }}
+                      alt={provider.name_ko || provider.name}
+                      className="w-full h-full object-cover"
                     />
+                  )}
+                  {/* 🚫 점검중 오버레이 */}
+                  {provider.status === 'maintenance' && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                      <img
+                        src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Stop.png"
+                        alt="점검중"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
                   )}
                 </motion.div>
               ))
@@ -735,9 +797,9 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
               games.map((game) => (
                 <motion.div
                   key={game.id}
-                  whileHover={{ scale: 1.05, y: -8 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="cursor-pointer group"
+                  whileHover={game.status === 'maintenance' ? {} : { scale: 1.05, y: -8 }}
+                  whileTap={game.status === 'maintenance' ? {} : { scale: 0.98 }}
+                  className={`relative ${game.status === 'maintenance' ? 'cursor-not-allowed' : 'cursor-pointer group'}`}
                   onClick={() => handleGameClick(game)}
                 >
                   <div className="relative aspect-square overflow-hidden rounded-2xl transition-all duration-500" style={{
@@ -749,7 +811,9 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                       <ImageWithFallback
                         src={game.image_url}
                         alt={game.name_ko || game.name}
-                        className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                        className={`w-full h-full object-cover transition-all duration-700 ${
+                          game.status === 'maintenance' ? '' : 'group-hover:scale-110'
+                        }`}
                         style={{ objectPosition: 'center 30%' }}
                       />
                     ) : (
@@ -761,10 +825,12 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                     )}
                     
                     {/* 그라디언트 오버레이 */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent opacity-70 group-hover:opacity-80 transition-opacity duration-500"></div>
+                    <div className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent transition-opacity duration-500 ${
+                      game.status === 'maintenance' ? 'opacity-70' : 'opacity-70 group-hover:opacity-80'
+                    }`}></div>
                     
                     {/* 한글 게임명 - 하단 고정 */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/50">
+                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/50 z-10">
                       <p className="text-white text-center line-clamp-2" style={{
                         fontFamily: 'AsiaHead, -apple-system, sans-serif',
                         fontSize: '1.5rem',
@@ -778,30 +844,48 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                     </div>
                     
                     {/* 호버 시 로즈 골드 테두리 */}
-                    <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
-                      boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
-                    }}></div>
+                    {game.status !== 'maintenance' && (
+                      <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20" style={{
+                        boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
+                      }}></div>
+                    )}
                     
                     {/* 호버 시 플레이 버튼 */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500">
-                      <div className="flex flex-col items-center gap-4">
-                        <div className="w-24 h-24 rounded-full backdrop-blur-xl flex items-center justify-center transition-all duration-500" style={{
-                          background: 'rgba(193, 154, 107, 0.15)',
-                          boxShadow: '0 0 40px rgba(193, 154, 107, 0.3), inset 0 0 20px rgba(255,255,255,0.1)',
-                          border: '2px solid rgba(193, 154, 107, 0.4)'
-                        }}>
-                          <Play className="w-12 h-12" style={{ color: '#E6C9A8', fill: '#E6C9A8' }} />
+                    {game.status !== 'maintenance' && (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 z-20">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="w-24 h-24 rounded-full backdrop-blur-xl flex items-center justify-center transition-all duration-500" style={{
+                            background: 'rgba(193, 154, 107, 0.15)',
+                            boxShadow: '0 0 40px rgba(193, 154, 107, 0.3), inset 0 0 20px rgba(255,255,255,0.1)',
+                            border: '2px solid rgba(193, 154, 107, 0.4)'
+                          }}>
+                            <Play className="w-12 h-12" style={{ color: '#E6C9A8', fill: '#E6C9A8' }} />
+                          </div>
+                          <span className="text-white font-black text-xl tracking-wide" style={{
+                            textShadow: '0 2px 20px rgba(0,0,0,0.8)',
+                            color: '#E6C9A8',
+                            letterSpacing: '0.05em'
+                          }}>
+                            PLAY
+                          </span>
                         </div>
-                        <span className="text-white font-black text-xl tracking-wide" style={{
-                          textShadow: '0 2px 20px rgba(0,0,0,0.8)',
-                          color: '#E6C9A8',
-                          letterSpacing: '0.05em'
-                        }}>
-                          PLAY
-                        </span>
                       </div>
-                    </div>
+                    )}
                   </div>
+                  
+                  {/* 🚫 점검중 오버레이 - motion.div 직접 자식 */}
+                  {game.status === 'maintenance' && (
+                    <div className="absolute inset-0 rounded-2xl flex items-center justify-center pointer-events-none" style={{
+                      background: 'rgba(0, 0, 0, 0.5)',
+                      zIndex: 50
+                    }}>
+                      <img
+                        src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Stop.png"
+                        alt="점검중"
+                        className="w-1/2 h-1/2 object-contain"
+                      />
+                    </div>
+                  )}
                 </motion.div>
               ))
             )}

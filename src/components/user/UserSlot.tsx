@@ -511,7 +511,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
 
           {/* 슬롯 게임 목록 */}
           {isInitialLoad && loading ? (
-            <div className="grid grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {Array.from({ length: 10 }).map((_, i) => (
                 <Card key={i} className="luxury-card animate-pulse border-yellow-600/20">
                   <div className="aspect-[4/3] bg-gradient-to-br from-slate-700 to-slate-800 rounded-xl" />
@@ -519,7 +519,7 @@ export function UserSlot({ user, onRouteChange }: UserSlotProps) {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {filteredGames.map((game) => (
                 <Card 
                   key={game.game_id} 

@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, DollarSign, RefreshCw, Calendar as CalendarIcon, Info, ArrowDownCircle, ArrowUpCircle, FileCheck, Wallet, CreditCard, TrendingUpDown } from "lucide-react";
+import { Calendar as CalendarIcon, RefreshCw, Search, Info } from "lucide-react";
 import { Button } from "../ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Input } from "../ui/input";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -11,905 +11,1105 @@ import { toast } from "sonner@2.0.3";
 import { Partner } from "../../types";
 import { supabase } from "../../lib/supabase";
 import { cn } from "../../lib/utils";
-import { format } from "date-fns";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { ko } from "date-fns/locale";
-import { MetricCard } from "./MetricCard";
-import { calculateIntegratedSettlement, calculatePartnerPayments, SettlementSummary, PartnerPaymentDetail, getDescendantUserIds, getWithdrawalAmount } from "../../lib/settlementCalculator";
-import { getBettingStatsByGameType } from "../../lib/settlementCalculatorV2";
-import { executeIntegratedSettlement } from "../../lib/settlementExecutor";
-import { useLanguage } from "../../contexts/LanguageContext";
-import { getTodayStartUTC, getTomorrowStartUTC } from "../../utils/timezone";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 
 interface IntegratedSettlementProps {
   user: Partner;
 }
 
-interface DetailedStats {
-  // 입출금 현황
+interface SettlementRow {
+  level: number;
+  levelName: string;
+  id: string;
+  username: string;
+  balance: number;
+  points: number;
+  deposit: number;
+  withdrawal: number;
+  adminDeposit: number;
+  adminWithdrawal: number;
+  pointGiven: number;
+  pointRecovered: number;
+  depositWithdrawalDiff: number;
+  casinoBet: number;
+  casinoWin: number;
+  casinoWinLoss: number;
+  slotBet: number;
+  slotWin: number;
+  slotWinLoss: number;
+  totalBet: number;
+  totalWin: number;
+  totalWinLoss: number;
+  ggr: number;
+  casinoRollingRate: number;
+  casinoLosingRate: number;
+  slotRollingRate: number;
+  slotLosingRate: number;
+  // 롤링 계산
+  casinoTotalRolling: number; // 본인 베팅 기반
+  slotTotalRolling: number;
+  casinoChildrenRolling: number; // 하위 롤링 합계
+  slotChildrenRolling: number;
+  casinoIndividualRolling: number; // 본인만
+  slotIndividualRolling: number;
+  totalIndividualRolling: number;
+  totalRolling: number; // 전체 롤링 (하위 빼기 전)
+  // 루징 계산
+  casinoTotalLosing: number;
+  slotTotalLosing: number;
+  casinoChildrenLosing: number;
+  slotChildrenLosing: number;
+  casinoIndividualLosing: number;
+  slotIndividualLosing: number;
+  totalIndividualLosing: number;
+  totalLosing: number; // 전체 루징 (하위 빼기 전)
+  totalSettlement: number; // 롤링 + 루징
+}
+
+interface SummaryStats {
   totalDeposit: number;
   totalWithdrawal: number;
+  adminTotalDeposit: number;
+  adminTotalWithdrawal: number;
+  pointGiven: number;
+  pointRecovered: number;
   depositWithdrawalDiff: number;
-  
-  // 강제 입출금 (admin_deposit, admin_withdrawal)
-  forceDeposit: number;
-  forceWithdrawal: number;
-  
-  // 베팅 현황 (카지노/슬롯 분리)
-  casinoBetAmount: number;
-  casinoWinAmount: number;
-  casinoLossAmount: number;
-  slotBetAmount: number;
-  slotWinAmount: number;
-  slotLossAmount: number;
-  
-  // 게임 손익 (하우스 손익)
-  casinoHouseProfit: number;
-  slotHouseProfit: number;
-  totalHouseProfit: number;
+  casinoBet: number;
+  casinoWin: number;
+  slotBet: number;
+  slotWin: number;
+  totalBet: number;
+  totalWin: number;
+  totalWinLoss: number;
+  totalRolling: number;
+  totalSettlementProfit: number;
 }
 
 export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
-  const { t } = useLanguage();
-  const [initialLoading, setInitialLoading] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [executing, setExecuting] = useState(false);
-  const [settlementMethod, setSettlementMethod] = useState<'differential' | 'direct_subordinate'>('direct_subordinate');
-  const [periodFilter, setPeriodFilter] = useState("today");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const [apiFilter, setApiFilter] = useState<'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi'>('all');
-  const [availableApis, setAvailableApis] = useState<string[]>([]);
-  // ✅ 최신 파트너 정보를 저장하는 state 추가
-  const [currentPartner, setCurrentPartner] = useState<Partner>(user);
-  const [summary, setSummary] = useState<SettlementSummary>({
-    // 내 수입 - 카지노
-    myCasinoRollingIncome: 0,
-    myCasinoLosingIncome: 0,
-    // 내 수입 - 슬롯
-    mySlotRollingIncome: 0,
-    mySlotLosingIncome: 0,
-    // 내 수입 - 환전
-    myWithdrawalIncome: 0,
-    // 내 수입 - 합계 (하위 호환성)
-    myRollingIncome: 0,
-    myLosingIncome: 0,
-    myTotalIncome: 0,
-    // 하위 파트너 지급 - 카지노
-    partnerCasinoRollingPayments: 0,
-    partnerCasinoLosingPayments: 0,
-    // 하위 파트너 지급 - 슬롯
-    partnerSlotRollingPayments: 0,
-    partnerSlotLosingPayments: 0,
-    // 하위 파트너 지급 - 환전
-    partnerWithdrawalPayments: 0,
-    // 하위 파트너 지급 - 합계 (하위 호환성)
-    partnerRollingPayments: 0,
-    partnerLosingPayments: 0,
-    partnerTotalPayments: 0,
-    // 순수익 - 카지노
-    netCasinoRollingProfit: 0,
-    netCasinoLosingProfit: 0,
-    // 순수익 - 슬롯
-    netSlotRollingProfit: 0,
-    netSlotLosingProfit: 0,
-    // 순수익 - 환전
-    netWithdrawalProfit: 0,
-    // 순수익 - 합계 (하위 호환성)
-    netRollingProfit: 0,
-    netLosingProfit: 0,
-    netTotalProfit: 0
+  const [levelFilter, setLevelFilter] = useState<'all' | '2' | '3' | '4' | '5' | 'user'>('all');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfDay(new Date()),
+    to: endOfDay(new Date())
   });
-  const [detailedStats, setDetailedStats] = useState<DetailedStats>({
+  const [codeSearch, setCodeSearch] = useState("");
+  const [showCumulative, setShowCumulative] = useState(false);
+  const [data, setData] = useState<SettlementRow[]>([]);
+  const [summary, setSummary] = useState<SummaryStats>({
     totalDeposit: 0,
     totalWithdrawal: 0,
+    adminTotalDeposit: 0,
+    adminTotalWithdrawal: 0,
+    pointGiven: 0,
+    pointRecovered: 0,
     depositWithdrawalDiff: 0,
-    forceDeposit: 0,
-    forceWithdrawal: 0,
-    casinoBetAmount: 0,
-    casinoWinAmount: 0,
-    casinoLossAmount: 0,
-    slotBetAmount: 0,
-    slotWinAmount: 0,
-    slotLossAmount: 0,
-    casinoHouseProfit: 0,
-    slotHouseProfit: 0,
-    totalHouseProfit: 0
+    casinoBet: 0,
+    casinoWin: 0,
+    slotBet: 0,
+    slotWin: 0,
+    totalBet: 0,
+    totalWin: 0,
+    totalWinLoss: 0,
+    totalRolling: 0,
+    totalSettlementProfit: 0
   });
 
-  // ✅ 최신 파트너 정보 로드
-  const loadCurrentPartner = async () => {
+  useEffect(() => {
+    fetchSettlementData();
+  }, [dateRange]);
+
+  const fetchSettlementData = async () => {
+    if (!dateRange?.from || !dateRange?.to) return;
+    
+    setLoading(true);
     try {
-      const { data, error } = await supabase
+      // ✅ 조직 격리: 권한별 하위 파트너 ID 목록 조회
+      let allowedPartnerIds: string[] = [];
+      
+      if (user.level === 1) {
+        // 시스템관리자: 모든 파트너
+        const { data: allPartners } = await supabase
+          .from('partners')
+          .select('id');
+        allowedPartnerIds = allPartners?.map(p => p.id) || [];
+      } else {
+        // 하위 파트너만 (자신 포함)
+        allowedPartnerIds = [user.id];
+        
+        // 1단계 하위
+        const { data: level1 } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('parent_id', user.id);
+        
+        const level1Ids = level1?.map(p => p.id) || [];
+        allowedPartnerIds.push(...level1Ids);
+        
+        // 2단계 하위
+        if (level1Ids.length > 0) {
+          const { data: level2 } = await supabase
+            .from('partners')
+            .select('id')
+            .in('parent_id', level1Ids);
+          
+          const level2Ids = level2?.map(p => p.id) || [];
+          allowedPartnerIds.push(...level2Ids);
+          
+          // 3단계 하위
+          if (level2Ids.length > 0) {
+            const { data: level3 } = await supabase
+              .from('partners')
+              .select('id')
+              .in('parent_id', level2Ids);
+            
+            const level3Ids = level3?.map(p => p.id) || [];
+            allowedPartnerIds.push(...level3Ids);
+            
+            // 4단계 하위
+            if (level3Ids.length > 0) {
+              const { data: level4 } = await supabase
+                .from('partners')
+                .select('id')
+                .in('parent_id', level3Ids);
+              
+              allowedPartnerIds.push(...(level4?.map(p => p.id) || []));
+            }
+          }
+        }
+      }
+
+      // 1. 허용된 파트너만 조회 (Lv2 이상)
+      const { data: partners, error: partnersError } = await supabase
         .from('partners')
         .select('*')
-        .eq('id', user.id)
-        .single();
+        .in('id', allowedPartnerIds)
+        .gte('level', 2)
+        .order('level', { ascending: true })
+        .order('username', { ascending: true });
 
-      if (error) throw error;
-      if (data) {
-        setCurrentPartner(data as Partner);
-      }
-    } catch (error) {
-      console.error('파트너 정보 로드 실패:', error);
-    }
-  };
+      if (partnersError) throw partnersError;
 
-  useEffect(() => {
-    loadCurrentPartner(); // ✅ 파트너 정보 먼저 로드
-    loadSettlementMethod();
-    loadAvailableApis();
-    loadIntegratedSettlement();
-  }, [user.id, periodFilter, dateRange, apiFilter]);
+      // 2. 허용된 파트너들의 하위 회원만 조회
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, username, balance, points, referrer_id, casino_rolling_commission, casino_losing_commission, slot_rolling_commission, slot_losing_commission')
+        .in('referrer_id', allowedPartnerIds)
+        .order('username', { ascending: true });
 
-  // ✅ 실시간 업데이트 구독
-  useEffect(() => {
-    console.log('🔄 [IntegratedSettlement] 실시간 구독 시작');
+      if (usersError) throw usersError;
 
-    // transactions 테이블 구독 (입출금 변경 감지)
-    const transactionsChannel = supabase
-      .channel('transactions_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'transactions'
-        },
-        (payload) => {
-          console.log('💰 [transactions 변경 감지]:', payload.eventType);
-          // 데이터 새로고침
-          handleRefresh();
-        }
-      )
-      .subscribe();
+      // 3. 기간 내 거래 데이터 조회
+      const { data: transactions, error: transError } = await supabase
+        .from('transactions')
+        .select('*')
+        .gte('created_at', dateRange.from.toISOString())
+        .lte('created_at', dateRange.to.toISOString());
 
-    // game_records 테이블 구독 (게임 기록 변경 감지)
-    const gameRecordsChannel = supabase
-      .channel('game_records_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'game_records'
-        },
-        (payload) => {
-          console.log('🎮 [game_records 변경 감지]:', payload.eventType);
-          // 데이터 새로고침
-          handleRefresh();
-        }
-      )
-      .subscribe();
+      if (transError) throw transError;
 
-    // settlements 테이블 구독 (정산 기록 변경 감지)
-    const settlementsChannel = supabase
-      .channel('settlements_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'settlements'
-        },
-        (payload) => {
-          console.log('📊 [settlements 변경 감지]:', payload.eventType);
-          // 데이터 새로고침
-          handleRefresh();
-        }
-      )
-      .subscribe();
+      const { data: pointTransactions, error: pointError } = await supabase
+        .from('point_transactions')
+        .select('*')
+        .gte('created_at', dateRange.from.toISOString())
+        .lte('created_at', dateRange.to.toISOString());
 
-    // 클린업
-    return () => {
-      console.log('🔄 [IntegratedSettlement] 실시간 구독 해제');
-      supabase.removeChannel(transactionsChannel);
-      supabase.removeChannel(gameRecordsChannel);
-      supabase.removeChannel(settlementsChannel);
-    };
-  }, [user.id, periodFilter, dateRange, apiFilter]);
+      if (pointError) throw pointError;
 
-  const loadAvailableApis = async () => {
-    try {
-      // Lv1의 활성화된 API 조회
-      const { data, error } = await supabase
-        .from('api_configs')
-        .select('api_provider, is_active')
-        .eq('partner_id', user.level === 1 ? user.id : user.parent_id)
-        .eq('is_active', true);
+      const { data: gameRecords, error: gameError } = await supabase
+        .from('game_records')
+        .select('*')
+        .gte('created_at', dateRange.from.toISOString())
+        .lte('created_at', dateRange.to.toISOString());
 
-      if (error) throw error;
+      if (gameError) throw gameError;
+
+      // 4. 데이터 가공
+      const rows = await processSettlementData(partners || [], users || [], transactions || [], pointTransactions || [], gameRecords || []);
       
-      const apis = data?.map(config => config.api_provider) || [];
-      setAvailableApis(apis);
-      
-      if (apiFilter !== 'all' && !apis.includes(apiFilter)) {
-        setApiFilter('all');
-      }
+      setData(rows);
+      calculateSummary(rows);
+
     } catch (error) {
-      console.error('활성화된 API 조회 실패:', error);
-    }
-  };
-
-  const loadSettlementMethod = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('setting_value')
-        .eq('setting_key', 'settlement_method')
-        .maybeSingle();
-
-      if (error) throw error;
-      if (data) {
-        setSettlementMethod(data.setting_value as 'differential' | 'direct_subordinate');
-      }
-    } catch (error) {
-      console.error(t.settlement.settlementMethodLoadFailed, error);
-    }
-  };
-
-  const getDateRange = () => {
-    const todayStart = getTodayStartUTC();
-    const tomorrowStart = getTomorrowStartUTC();
-    
-    switch (periodFilter) {
-      case "today":
-        return {
-          start: todayStart,
-          end: tomorrowStart
-        };
-      case "yesterday":
-        const yesterdayStart = new Date(new Date(todayStart).getTime() - 86400000).toISOString();
-        return {
-          start: yesterdayStart,
-          end: todayStart
-        };
-      case "week":
-        const weekStart = new Date(new Date(todayStart).getTime() - 7 * 86400000).toISOString();
-        return {
-          start: weekStart,
-          end: tomorrowStart
-        };
-      case "month":
-        const todayDate = new Date(todayStart);
-        const monthStart = new Date(Date.UTC(
-          todayDate.getUTCFullYear(),
-          todayDate.getUTCMonth(),
-          1, 0, 0, 0, 0
-        )).toISOString();
-        return {
-          start: monthStart,
-          end: tomorrowStart
-        };
-      case "custom":
-        if (dateRange?.from) {
-          const start = new Date(dateRange.from);
-          const end = dateRange.to ? new Date(dateRange.to) : new Date(dateRange.from);
-          return {
-            start: start.toISOString(),
-            end: new Date(end.getTime() + 86400000).toISOString()
-          };
-        }
-        return {
-          start: todayStart,
-          end: tomorrowStart
-        };
-      default:
-        return {
-          start: todayStart,
-          end: tomorrowStart
-        };
-    }
-  };
-
-  const loadDetailedStats = async (userIds: string[], startDate: string, endDate: string) => {
-    try {
-      console.log('📊 [loadDetailedStats] 시작:', { 
-        userCount: userIds.length, 
-        startDate, 
-        endDate,
-        apiFilter 
-      });
-
-      // ✅ 입출금 현황: 하위 회원들의 입출금 (transactions 테이블 사용)
-      let totalDeposit = 0;
-      let totalWithdrawal = 0;
-      let forceDeposit = 0;
-      let forceWithdrawal = 0;
-
-      if (userIds.length > 0) {
-        // 청크로 나누어 처리 (userIds가 많을 경우 대비)
-        const CHUNK_SIZE = 100;
-        
-        for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
-          const chunk = userIds.slice(i, i + CHUNK_SIZE);
-          
-          // 입금 조회 (일반 + 강제)
-          const { data: depositData, error: depositError } = await supabase
-            .from('transactions')
-            .select('amount, transaction_type')
-            .in('transaction_type', ['deposit', 'admin_deposit'])
-            .in('status', ['approved', 'completed'])
-            .in('user_id', chunk)
-            .gte('created_at', startDate)
-            .lt('created_at', endDate);
-
-          if (depositError) {
-            console.error('❌ 입금 데이터 조회 오류:', depositError);
-          } else {
-            const normalDeposit = depositData?.filter(tx => tx.transaction_type === 'deposit').reduce((sum, tx) => sum + Math.abs(tx.amount || 0), 0) || 0;
-            const adminDeposit = depositData?.filter(tx => tx.transaction_type === 'admin_deposit').reduce((sum, tx) => sum + Math.abs(tx.amount || 0), 0) || 0;
-            totalDeposit += (normalDeposit + adminDeposit);
-            forceDeposit += adminDeposit;
-            console.log(`✅ 입금 데이터 (청크 ${Math.floor(i/CHUNK_SIZE) + 1}):`, depositData?.length, '건, 일반:', normalDeposit, '강제:', adminDeposit);
-          }
-
-          // 출금 조회 (일반 + 강제)
-          const { data: withdrawalData, error: withdrawalError } = await supabase
-            .from('transactions')
-            .select('amount, transaction_type')
-            .in('transaction_type', ['withdrawal', 'admin_withdrawal'])
-            .in('status', ['approved', 'completed'])
-            .in('user_id', chunk)
-            .gte('created_at', startDate)
-            .lt('created_at', endDate);
-
-          if (withdrawalError) {
-            console.error('❌ 출금 데이터 조회 오류:', withdrawalError);
-          } else {
-            const normalWithdrawal = withdrawalData?.filter(tx => tx.transaction_type === 'withdrawal').reduce((sum, tx) => sum + Math.abs(tx.amount || 0), 0) || 0;
-            const adminWithdrawal = withdrawalData?.filter(tx => tx.transaction_type === 'admin_withdrawal').reduce((sum, tx) => sum + Math.abs(tx.amount || 0), 0) || 0;
-            totalWithdrawal += (normalWithdrawal + adminWithdrawal);
-            forceWithdrawal += adminWithdrawal;
-            console.log(`✅ 출금 데이터 (청크 ${Math.floor(i/CHUNK_SIZE) + 1}):`, withdrawalData?.length, '건, 일반:', normalWithdrawal, '강제:', adminWithdrawal);
-          }
-        }
-      }
-
-      console.log('💰 입출금 합계:', { totalDeposit, totalWithdrawal, forceDeposit, forceWithdrawal });
-
-      // 베팅 현황 조회 (카지노/슬롯 분리) - 하위 사용자들
-      const gameTypeStats = await getBettingStatsByGameType(userIds, startDate, endDate, apiFilter);
-
-      console.log('🎮 게임 타입별 통계:', gameTypeStats);
-
-      // 승리액은 별도 계산 필요 (bet_amount - loss_amount)
-      const casinoWinAmount = gameTypeStats.casino.betAmount - gameTypeStats.casino.lossAmount;
-      const slotWinAmount = gameTypeStats.slot.betAmount - gameTypeStats.slot.lossAmount;
-
-      // 하우스 손익 = 베팅액 - 승리액 = 손실액
-      const casinoHouseProfit = gameTypeStats.casino.lossAmount;
-      const slotHouseProfit = gameTypeStats.slot.lossAmount;
-
-      const finalStats = {
-        totalDeposit,
-        totalWithdrawal,
-        depositWithdrawalDiff: totalDeposit - totalWithdrawal,
-        forceDeposit,
-        forceWithdrawal,
-        casinoBetAmount: gameTypeStats.casino.betAmount,
-        casinoWinAmount,
-        casinoLossAmount: gameTypeStats.casino.lossAmount,
-        slotBetAmount: gameTypeStats.slot.betAmount,
-        slotWinAmount,
-        slotLossAmount: gameTypeStats.slot.lossAmount,
-        casinoHouseProfit,
-        slotHouseProfit,
-        totalHouseProfit: casinoHouseProfit + slotHouseProfit
-      };
-
-      console.log('📈 최종 통계:', finalStats);
-
-      setDetailedStats(finalStats);
-    } catch (error) {
-      console.error('❌ 상세 통계 조회 실패:', error);
-    }
-  };
-
-  const loadIntegratedSettlement = async () => {
-    try {
-      if (!refreshing) {
-        setLoading(true);
-      }
-      const { start, end } = getDateRange();
-
-      const settlement = await calculateIntegratedSettlement(
-        user.id,
-        {
-          rolling: currentPartner.commission_rolling,
-          losing: currentPartner.commission_losing,
-          casino_rolling: currentPartner.casino_rolling_commission ?? 0,
-          casino_losing: currentPartner.casino_losing_commission ?? 0,
-          slot_rolling: currentPartner.slot_rolling_commission ?? 0,
-          slot_losing: currentPartner.slot_losing_commission ?? 0,
-          withdrawal: currentPartner.withdrawal_fee
-        },
-        start,
-        end,
-        apiFilter
-      );
-
-      setSummary(settlement);
-
-      // 상세 통계 조회
-      const descendantUserIds = await getDescendantUserIds(user.id);
-      if (descendantUserIds.length > 0) {
-        await loadDetailedStats(descendantUserIds, start, end);
-      }
-    } catch (error) {
-      console.error('통합 정산 계산 실패:', error);
-      toast.error(t.settlement.commissionLoadFailed);
+      console.error('정산 데이터 조회 실패:', error);
+      toast.error('정산 데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
-      setRefreshing(false);
-      setInitialLoading(false);
     }
   };
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadIntegratedSettlement();
-  };
+  const processSettlementData = async (
+    partners: any[],
+    users: any[],
+    transactions: any[],
+    pointTransactions: any[],
+    gameRecords: any[]
+  ): Promise<SettlementRow[]> => {
+    const rows: SettlementRow[] = [];
 
-  const handleExecuteSettlement = async () => {
-    if (summary.netTotalProfit <= 0) {
-      toast.error(t.settlement.netProfitZeroOrLess);
-      return;
-    }
-
-    const confirmMessage = t.settlement.confirmIntegratedSettlement
-      .replace('{myRolling}', summary.myRollingIncome.toLocaleString())
-      .replace('{myLosing}', summary.myLosingIncome.toLocaleString())
-      .replace('{myWithdrawal}', summary.myWithdrawalIncome.toLocaleString())
-      .replace('{myTotal}', summary.myTotalIncome.toLocaleString())
-      .replace('{partnerRolling}', summary.partnerRollingPayments.toLocaleString())
-      .replace('{partnerLosing}', summary.partnerLosingPayments.toLocaleString())
-      .replace('{partnerWithdrawal}', summary.partnerWithdrawalPayments.toLocaleString())
-      .replace('{partnerTotal}', summary.partnerTotalPayments.toLocaleString())
-      .replace('{netTotal}', summary.netTotalProfit.toLocaleString());
-
-    if (!window.confirm(confirmMessage)) return;
-
-    setExecuting(true);
-    try {
-      const { start, end } = getDateRange();
-      
-      const result = await executeIntegratedSettlement(
-        user.id,
-        {
-          rolling: user.commission_rolling,
-          losing: user.commission_losing,
-          casino_rolling: user.casino_rolling_commission ?? 0,
-          casino_losing: user.casino_losing_commission ?? 0,
-          slot_rolling: user.slot_rolling_commission ?? 0,
-          slot_losing: user.slot_losing_commission ?? 0,
-          withdrawal: user.withdrawal_fee
-        },
-        start,
-        end,
-        periodFilter,
-        apiFilter
+    // 파트너 처리
+    for (const partner of partners) {
+      const row = await calculateRowData(
+        partner.id,
+        partner.username,
+        partner.level,
+        partner.balance || 0,
+        0,
+        partner.casino_rolling_commission || 0,
+        partner.casino_losing_commission || 0,
+        partner.slot_rolling_commission || 0,
+        partner.slot_losing_commission || 0,
+        transactions,
+        pointTransactions,
+        gameRecords,
+        partners,
+        users
       );
+      rows.push(row);
+    }
 
-      if (result.success) {
-        toast.success(result.message);
-        loadIntegratedSettlement();
-      } else {
-        toast.error(result.message || t.settlement.integratedSettlementFailed);
+    // 사용자 처리
+    for (const user of users) {
+      const row = await calculateRowData(
+        user.id,
+        user.username,
+        0,
+        user.balance || 0,
+        user.points || 0,
+        user.casino_rolling_commission || 0,
+        user.casino_losing_commission || 0,
+        user.slot_rolling_commission || 0,
+        user.slot_losing_commission || 0,
+        transactions,
+        pointTransactions,
+        gameRecords,
+        partners,
+        users
+      );
+      rows.push(row);
+    }
+
+    return rows;
+  };
+
+  // 하위 사용자 ID 목록 가져오기
+  const getDescendantUserIds = (partnerId: string, allUsers: any[]): string[] => {
+    const directUsers = allUsers.filter(u => u.referrer_id === partnerId);
+    return directUsers.map(u => u.id);
+  };
+
+  // 하위 파트너 ID 목록 가져오기 (재귀적)
+  const getDescendantPartnerIds = (partnerId: string, allPartners: any[]): string[] => {
+    const directChildren = allPartners.filter(p => p.parent_id === partnerId);
+    let allDescendants = directChildren.map(p => p.id);
+    
+    for (const child of directChildren) {
+      allDescendants = allDescendants.concat(getDescendantPartnerIds(child.id, allPartners));
+    }
+    
+    return allDescendants;
+  };
+
+  const calculateRowData = async (
+    entityId: string,
+    username: string,
+    level: number,
+    balance: number,
+    points: number,
+    casinoRollingRate: number,
+    casinoLosingRate: number,
+    slotRollingRate: number,
+    slotLosingRate: number,
+    transactions: any[],
+    pointTransactions: any[],
+    gameRecords: any[],
+    partners: any[],
+    users: any[]
+  ): Promise<SettlementRow> => {
+    const isPartner = level > 0;
+
+    // 입출금 계산
+    const userTransactions = transactions.filter(t => 
+      isPartner ? t.partner_id === entityId : t.user_id === entityId
+    );
+
+    const deposit = userTransactions
+      .filter(t => t.transaction_type === 'deposit' && t.status === 'approved')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    const withdrawal = userTransactions
+      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'approved')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    const adminDeposit = userTransactions
+      .filter(t => t.transaction_type === 'admin_deposit' && t.status === 'approved')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    const adminWithdrawal = userTransactions
+      .filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'approved')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    // 포인트 계산
+    const userPointTrans = pointTransactions.filter(pt =>
+      isPartner ? pt.partner_id === entityId : pt.user_id === entityId
+    );
+
+    const pointGiven = userPointTrans
+      .filter(pt => pt.type === 'commission_earned')
+      .reduce((sum, pt) => sum + (pt.amount || 0), 0);
+
+    const pointRecovered = userPointTrans
+      .filter(pt => pt.type === 'point_to_balance')
+      .reduce((sum, pt) => sum + (pt.amount || 0), 0);
+
+    // 베팅 데이터 계산 (파트너는 하위 회원들의 베팅 합계)
+    let userGameRecords: any[];
+    
+    if (isPartner) {
+      // 파트너: 하위 사용자들의 베팅만 (파트너는 게임을 하지 않음)
+      const descendantUserIds = getDescendantUserIds(entityId, users);
+      const descendantPartnerIds = getDescendantPartnerIds(entityId, partners);
+      
+      // 직속 하위 회원들의 베팅
+      userGameRecords = gameRecords.filter(gr => descendantUserIds.includes(gr.user_id));
+      
+      // 하위 파트너들의 회원들 베팅도 포함
+      for (const childPartnerId of descendantPartnerIds) {
+        const childUserIds = getDescendantUserIds(childPartnerId, users);
+        const childRecords = gameRecords.filter(gr => childUserIds.includes(gr.user_id));
+        userGameRecords = userGameRecords.concat(childRecords);
       }
-    } catch (error) {
-      console.error('통합 정산 실행 오류:', error);
-      toast.error(t.settlement.integratedSettlementError);
-    } finally {
-      setExecuting(false);
+    } else {
+      // 회원: 본인의 베팅만
+      userGameRecords = gameRecords.filter(gr => gr.user_id === entityId);
+    }
+
+    const casinoBet = userGameRecords
+      .filter(gr => gr.game_type === 'casino')
+      .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+
+    const casinoWin = userGameRecords
+      .filter(gr => gr.game_type === 'casino')
+      .reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+
+    const slotBet = userGameRecords
+      .filter(gr => gr.game_type === 'slot')
+      .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+
+    const slotWin = userGameRecords
+      .filter(gr => gr.game_type === 'slot')
+      .reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+
+    const casinoWinLoss = casinoBet - casinoWin;
+    const slotWinLoss = slotBet - slotWin;
+    const totalWinLoss = casinoWinLoss + slotWinLoss;
+
+    // 본인 베팅 기반 롤링 계산
+    const casinoTotalRolling = casinoBet * (casinoRollingRate / 100);
+    const slotTotalRolling = slotBet * (slotRollingRate / 100);
+
+    // 하위 롤링 합계 계산
+    const childrenRolling = await getChildrenTotalRolling(entityId, level, gameRecords, partners, users);
+
+    const casinoIndividualRolling = Math.max(0, casinoTotalRolling - childrenRolling.casino);
+    const slotIndividualRolling = Math.max(0, slotTotalRolling - childrenRolling.slot);
+    const totalIndividualRolling = casinoIndividualRolling + slotIndividualRolling;
+    const totalRolling = casinoTotalRolling + slotTotalRolling; // 전체 롤링 (하위 빼기 전)
+
+    // 루징 계산: (윈로스 - 총 롤링금) * 루징률
+    const casinoLosableAmount = Math.max(0, casinoWinLoss - casinoTotalRolling);
+    const slotLosableAmount = Math.max(0, slotWinLoss - slotTotalRolling);
+    
+    const casinoTotalLosing = casinoLosableAmount * (casinoLosingRate / 100);
+    const slotTotalLosing = slotLosableAmount * (slotLosingRate / 100);
+
+    // 하위 루징 합계 계산
+    const childrenLosing = await getChildrenTotalLosing(entityId, level, gameRecords, partners, users);
+
+    const casinoIndividualLosing = Math.max(0, casinoTotalLosing - childrenLosing.casino);
+    const slotIndividualLosing = Math.max(0, slotTotalLosing - childrenLosing.slot);
+    const totalIndividualLosing = casinoIndividualLosing + slotIndividualLosing;
+    const totalLosing = casinoTotalLosing + slotTotalLosing; // 전체 루징 (하위 빼기 전)
+
+    return {
+      level,
+      levelName: getLevelName(level),
+      id: entityId,
+      username,
+      balance,
+      points,
+      deposit,
+      withdrawal,
+      adminDeposit,
+      adminWithdrawal,
+      pointGiven,
+      pointRecovered,
+      depositWithdrawalDiff: deposit - withdrawal + adminDeposit - adminWithdrawal,
+      casinoBet,
+      casinoWin,
+      casinoWinLoss,
+      slotBet,
+      slotWin,
+      slotWinLoss,
+      totalBet: casinoBet + slotBet,
+      totalWin: casinoWin + slotWin,
+      totalWinLoss,
+      ggr: totalWinLoss,
+      casinoRollingRate,
+      casinoLosingRate,
+      slotRollingRate,
+      slotLosingRate,
+      casinoTotalRolling,
+      slotTotalRolling,
+      totalRolling, // 추가: 전체 롤링 (하위 빼기 전)
+      casinoChildrenRolling: childrenRolling.casino,
+      slotChildrenRolling: childrenRolling.slot,
+      casinoIndividualRolling,
+      slotIndividualRolling,
+      totalIndividualRolling,
+      casinoTotalLosing,
+      slotTotalLosing,
+      totalLosing, // 추가: 전체 루징
+      casinoChildrenLosing: childrenLosing.casino,
+      slotChildrenLosing: childrenLosing.slot,
+      casinoIndividualLosing,
+      slotIndividualLosing,
+      totalIndividualLosing,
+      totalSettlement: totalIndividualRolling + totalIndividualLosing
+    };
+  };
+
+  const getChildrenTotalRolling = async (
+    parentId: string,
+    parentLevel: number,
+    gameRecords: any[],
+    partners: any[],
+    users: any[]
+  ): Promise<{ casino: number; slot: number }> => {
+    let casinoTotal = 0;
+    let slotTotal = 0;
+
+    if (parentLevel === 0) {
+      return { casino: 0, slot: 0 };
+    }
+
+    // 직속 하위 파트너들의 롤링
+    const children = partners.filter(p => p.parent_id === parentId);
+    
+    for (const child of children) {
+      // 하위 파트너의 모든 하위 회원 베팅 합산
+      const childUserIds = getDescendantUserIds(child.id, users);
+      const childPartnerIds = getDescendantPartnerIds(child.id, partners);
+      
+      let childGameRecords = gameRecords.filter(gr => childUserIds.includes(gr.user_id));
+      
+      for (const descendantPartnerId of childPartnerIds) {
+        const descendantUserIds = getDescendantUserIds(descendantPartnerId, users);
+        childGameRecords = childGameRecords.concat(
+          gameRecords.filter(gr => descendantUserIds.includes(gr.user_id))
+        );
+      }
+      
+      const casinoBet = childGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+      const slotBet = childGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+      
+      casinoTotal += casinoBet * ((child.casino_rolling_commission || 0) / 100);
+      slotTotal += slotBet * ((child.slot_rolling_commission || 0) / 100);
+    }
+
+    // 직속 하위 회원들의 롤링
+    const directUsers = users.filter(u => u.referrer_id === parentId);
+    
+    for (const childUser of directUsers) {
+      const userRecords = gameRecords.filter(gr => gr.user_id === childUser.id);
+      const casinoBet = userRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+      const slotBet = userRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+      
+      casinoTotal += casinoBet * ((childUser.casino_rolling_commission || 0) / 100);
+      slotTotal += slotBet * ((childUser.slot_rolling_commission || 0) / 100);
+    }
+
+    return { casino: casinoTotal, slot: slotTotal };
+  };
+
+  const getChildrenTotalLosing = async (
+    parentId: string,
+    parentLevel: number,
+    gameRecords: any[],
+    partners: any[],
+    users: any[]
+  ): Promise<{ casino: number; slot: number }> => {
+    let casinoTotal = 0;
+    let slotTotal = 0;
+
+    if (parentLevel === 0) {
+      return { casino: 0, slot: 0 };
+    }
+
+    const children = partners.filter(p => p.parent_id === parentId);
+    
+    for (const child of children) {
+      const childUserIds = getDescendantUserIds(child.id, users);
+      const childPartnerIds = getDescendantPartnerIds(child.id, partners);
+      
+      let childGameRecords = gameRecords.filter(gr => childUserIds.includes(gr.user_id));
+      
+      for (const descendantPartnerId of childPartnerIds) {
+        const descendantUserIds = getDescendantUserIds(descendantPartnerId, users);
+        childGameRecords = childGameRecords.concat(
+          gameRecords.filter(gr => descendantUserIds.includes(gr.user_id))
+        );
+      }
+      
+      const casinoBet = childGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+      const casinoWin = childGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+      const slotBet = childGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+      const slotWin = childGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+      
+      const casinoRolling = casinoBet * ((child.casino_rolling_commission || 0) / 100);
+      const slotRolling = slotBet * ((child.slot_rolling_commission || 0) / 100);
+      
+      const casinoLosable = Math.max(0, (casinoBet - casinoWin) - casinoRolling);
+      const slotLosable = Math.max(0, (slotBet - slotWin) - slotRolling);
+      
+      casinoTotal += casinoLosable * ((child.casino_losing_commission || 0) / 100);
+      slotTotal += slotLosable * ((child.slot_losing_commission || 0) / 100);
+    }
+
+    const directUsers = users.filter(u => u.referrer_id === parentId);
+    
+    for (const childUser of directUsers) {
+      const userRecords = gameRecords.filter(gr => gr.user_id === childUser.id);
+      const casinoBet = userRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+      const casinoWin = userRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+      const slotBet = userRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+      const slotWin = userRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+      
+      const casinoRolling = casinoBet * ((childUser.casino_rolling_commission || 0) / 100);
+      const slotRolling = slotBet * ((childUser.slot_rolling_commission || 0) / 100);
+      
+      const casinoLosable = Math.max(0, (casinoBet - casinoWin) - casinoRolling);
+      const slotLosable = Math.max(0, (slotBet - slotWin) - slotRolling);
+      
+      casinoTotal += casinoLosable * ((childUser.casino_losing_commission || 0) / 100);
+      slotTotal += slotLosable * ((childUser.slot_losing_commission || 0) / 100);
+    }
+
+    return { casino: casinoTotal, slot: slotTotal };
+  };
+
+  const getLevelName = (level: number): string => {
+    switch (level) {
+      case 1: return '슈퍼관리자';
+      case 2: return '본사';
+      case 3: return '부본사';
+      case 4: return '총판';
+      case 5: return '매장';
+      default: return '회원';
     }
   };
 
-  if (initialLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <LoadingSpinner />
-      </div>
-    );
-  }
+  const calculateSummary = (rows: SettlementRow[]) => {
+    const filteredRows = getFilteredRows(rows);
+    
+    const summary: SummaryStats = {
+      totalDeposit: filteredRows.reduce((sum, r) => sum + r.deposit, 0),
+      totalWithdrawal: filteredRows.reduce((sum, r) => sum + r.withdrawal, 0),
+      adminTotalDeposit: filteredRows.reduce((sum, r) => sum + r.adminDeposit, 0),
+      adminTotalWithdrawal: filteredRows.reduce((sum, r) => sum + r.adminWithdrawal, 0),
+      pointGiven: filteredRows.reduce((sum, r) => sum + r.pointGiven, 0),
+      pointRecovered: filteredRows.reduce((sum, r) => sum + r.pointRecovered, 0),
+      depositWithdrawalDiff: filteredRows.reduce((sum, r) => sum + r.depositWithdrawalDiff, 0),
+      casinoBet: filteredRows.reduce((sum, r) => sum + r.casinoBet, 0),
+      casinoWin: filteredRows.reduce((sum, r) => sum + r.casinoWin, 0),
+      slotBet: filteredRows.reduce((sum, r) => sum + r.slotBet, 0),
+      slotWin: filteredRows.reduce((sum, r) => sum + r.slotWin, 0),
+      totalBet: filteredRows.reduce((sum, r) => sum + r.totalBet, 0),
+      totalWin: filteredRows.reduce((sum, r) => sum + r.totalWin, 0),
+      totalWinLoss: filteredRows.reduce((sum, r) => sum + r.totalWinLoss, 0),
+      totalRolling: filteredRows.reduce((sum, r) => sum + r.totalIndividualRolling, 0),
+      totalSettlementProfit: filteredRows.reduce((sum, r) => sum + r.totalSettlement, 0)
+    };
 
-  const finalProfit = Math.floor(detailedStats.depositWithdrawalDiff + detailedStats.totalHouseProfit + summary.myTotalIncome - summary.partnerTotalPayments);
+    setSummary(summary);
+  };
+
+  const getFilteredRows = (rows: SettlementRow[]): SettlementRow[] => {
+    let filtered = rows;
+
+    if (levelFilter !== 'all') {
+      if (levelFilter === 'user') {
+        filtered = filtered.filter(r => r.level === 0);
+      } else {
+        filtered = filtered.filter(r => r.level === parseInt(levelFilter));
+      }
+    }
+
+    if (codeSearch.trim()) {
+      filtered = filtered.filter(r => r.username.toLowerCase().includes(codeSearch.toLowerCase()));
+    }
+
+    return filtered;
+  };
+
+  const setQuickDateRange = (type: 'yesterday' | 'week' | 'month') => {
+    const today = new Date();
+    let from: Date;
+    let to: Date;
+
+    if (type === 'yesterday') {
+      // 어제 00:00 ~ 23:59
+      from = startOfDay(subDays(today, 1));
+      to = endOfDay(subDays(today, 1));
+    } else if (type === 'week') {
+      // 일주일 전 00:00 ~ 오늘 23:59
+      from = startOfDay(subDays(today, 7));
+      to = endOfDay(today);
+    } else {
+      // 한달 전 00:00 ~ 오늘 23:59
+      from = startOfDay(subDays(today, 30));
+      to = endOfDay(today);
+    }
+
+    setDateRange({ from, to });
+  };
+
+  const formatNumber = (num: number): string => {
+    return new Intl.NumberFormat('ko-KR').format(Math.round(num));
+  };
+
+  const filteredRows = getFilteredRows(data);
 
   return (
-    <div className="space-y-3 p-3 relative">
-      {/* 로딩 오버레이 */}
-      {(loading || refreshing) && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-slate-800 p-6 rounded-lg shadow-xl flex items-center gap-3">
-            <RefreshCw className="h-5 w-5 animate-spin text-purple-400" />
-            <span className="text-white text-xl">데이터를 불러오는 중...</span>
+    <div className="space-y-6 p-6">
+      {/* 1열: 제목 및 주의사항 */}
+      <div className="space-y-2">
+        <h1 className="text-2xl">통합 정산 (실시간 정산)</h1>
+        <div className="flex items-start gap-2 p-4 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-900">
+          <Info className="size-5 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div className="text-sm text-amber-900 dark:text-amber-100">
+            <p>• 통합 정산 실시간 양식은 자정 이후 입금 출금 내역에 대한 실시간 정산 데이터를 표기합니다.</p>
+            <p>• 기간 검색 시 기간 검색 또는 코드 검색으로 나온 데이터의 총 합계 데이터를 표기합니다.</p>
+            <p>• 관리자 일자별 정산 내역은 영업 시작일부터 최대 두 달 일일 정산 데이터 값을 표기합니다.</p>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* 상단 컨트롤 */}
-      <div className="flex items-center justify-between bg-slate-800/30 rounded-lg p-3 border border-slate-700/40">
-        <div className="flex items-center gap-2">
-          {user.level <= 2 && (
-            <Select value={apiFilter} onValueChange={(value) => setApiFilter(value as 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi')}>
-              <SelectTrigger className="w-[160px] h-11 text-lg bg-slate-800/50 border-slate-600">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-slate-800 border-slate-700">
-                <SelectItem value="all" className="text-lg">{t.settlement.allApi}</SelectItem>
-                {availableApis.includes('invest') && (
-                  <SelectItem value="invest" className="text-lg">{t.settlement.investOnly}</SelectItem>
-                )}
-                {availableApis.includes('oroplay') && (
-                  <SelectItem value="oroplay" className="text-lg">{t.settlement.oroplaysOnly}</SelectItem>
-                )}
-                {availableApis.includes('familyapi') && (
-                  <SelectItem value="familyapi" className="text-lg">{t.settlement.familyApiOnly}</SelectItem>
-                )}
-                {availableApis.includes('honorapi') && (
-                  <SelectItem value="honorapi" className="text-lg">{t.settlement.honorApiOnly}</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          )}
+      {/* 2열: 통계 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">총입금</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.totalDeposit)}</p>
+          </CardContent>
+        </Card>
 
-          <Select value={periodFilter} onValueChange={setPeriodFilter}>
-            <SelectTrigger className="w-[200px] h-11 text-lg bg-slate-800/50 border-slate-600">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-800 border-slate-700">
-              <SelectItem value="today" className="text-lg">{t.settlement.today}</SelectItem>
-              <SelectItem value="yesterday" className="text-lg">{t.settlement.yesterday}</SelectItem>
-              <SelectItem value="week" className="text-lg">{t.settlement.lastWeek}</SelectItem>
-              <SelectItem value="month" className="text-lg">{t.settlement.thisMonth}</SelectItem>
-              <SelectItem value="custom" className="text-lg">{t.settlement.customPeriod}</SelectItem>
-            </SelectContent>
-          </Select>
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">총출금</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.totalWithdrawal)}</p>
+          </CardContent>
+        </Card>
 
-          {periodFilter === "custom" && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-[340px] h-11 justify-start text-left text-lg bg-slate-800/50 border-slate-600">
-                  <CalendarIcon className="mr-2 h-5 w-5" />
-                  {dateRange?.from ? (
-                    dateRange.to ? (
-                      <>
-                        {format(dateRange.from, "PPP", { locale: ko })} -{" "}
-                        {format(dateRange.to, "PPP", { locale: ko })}
-                      </>
-                    ) : (
-                      format(dateRange.from, "PPP", { locale: ko })
-                    )
-                  ) : (
-                    <span>{t.settlement.selectDate}</span>
-                  )}
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">관리자 총입금</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.adminTotalDeposit)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">관리자 총출금</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.adminTotalWithdrawal)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">포인트지급</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.pointGiven)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">포인트회수</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.pointRecovered)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">입출차액</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.depositWithdrawalDiff)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">카지노 베팅</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.casinoBet)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">카지노 당첨</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.casinoWin)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">슬롯 베팅</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.slotBet)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">슬롯 당첨</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.slotWin)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">총베팅</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.totalBet)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">총당첨</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.totalWin)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">윈로스</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.totalWinLoss)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">총롤링금</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.totalRolling)}</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-xs">정산수익</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-sm">{formatNumber(summary.totalSettlementProfit)}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 3열: 필터 영역 */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-wrap gap-4 items-end">
+            {/* 레벨 필터 */}
+            <div className="space-y-2">
+              <label className="text-xs">등급 필터</label>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={levelFilter === 'all' ? 'default' : 'outline'}
+                  onClick={() => setLevelFilter('all')}
+                >
+                  전체
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="end">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={dateRange?.from}
-                  selected={dateRange}
-                  onSelect={setDateRange}
-                  numberOfMonths={2}
-                  locale={ko}
+                <Button
+                  size="sm"
+                  variant={levelFilter === '2' ? 'default' : 'outline'}
+                  onClick={() => setLevelFilter('2')}
+                >
+                  본사
+                </Button>
+                <Button
+                  size="sm"
+                  variant={levelFilter === '3' ? 'default' : 'outline'}
+                  onClick={() => setLevelFilter('3')}
+                >
+                  부본사
+                </Button>
+                <Button
+                  size="sm"
+                  variant={levelFilter === '4' ? 'default' : 'outline'}
+                  onClick={() => setLevelFilter('4')}
+                >
+                  총판
+                </Button>
+                <Button
+                  size="sm"
+                  variant={levelFilter === '5' ? 'default' : 'outline'}
+                  onClick={() => setLevelFilter('5')}
+                >
+                  매장
+                </Button>
+                <Button
+                  size="sm"
+                  variant={levelFilter === 'user' ? 'default' : 'outline'}
+                  onClick={() => setLevelFilter('user')}
+                >
+                  회원
+                </Button>
+              </div>
+            </div>
+
+            {/* 기간 검색 */}
+            <div className="space-y-2">
+              <label className="text-xs">기간 검색</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("justify-start text-left", !dateRange && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 size-4" />
+                    {dateRange?.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "yyyy년 MM월 dd일", { locale: ko })} - {format(dateRange.to, "yyyy년 MM월 dd일", { locale: ko })}
+                        </>
+                      ) : (
+                        format(dateRange.from, "yyyy년 MM월 dd일", { locale: ko })
+                      )
+                    ) : (
+                      <span>날짜를 선택하세요</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
+                    locale={ko}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* 코드 검색 */}
+            <div className="space-y-2">
+              <label className="text-xs">코드 검색</label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="아이디 검색..."
+                  value={codeSearch}
+                  onChange={(e) => setCodeSearch(e.target.value)}
+                  className="w-[200px]"
                 />
-              </PopoverContent>
-            </Popover>
+                <Button size="icon" variant="outline" onClick={() => calculateSummary(data)}>
+                  <Search className="size-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 단축 날짜 버튼 */}
+            <div className="space-y-2">
+              <label className="text-xs">단축 선택</label>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setQuickDateRange('yesterday')}>
+                  어제
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setQuickDateRange('week')}>
+                  일주일
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setQuickDateRange('month')}>
+                  한달
+                </Button>
+              </div>
+            </div>
+
+            {/* 누적정산 버튼 */}
+            <div className="space-y-2">
+              <label className="text-xs">누적정산</label>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={showCumulative ? 'default' : 'outline'}
+                  onClick={() => setShowCumulative(!showCumulative)}
+                >
+                  {showCumulative ? '누적정산 표기' : '누적정산 끔'}
+                </Button>
+              </div>
+            </div>
+
+            {/* 새로고침 */}
+            <div className="space-y-2">
+              <label className="text-xs">&nbsp;</label>
+              <Button onClick={fetchSettlementData} disabled={loading}>
+                <RefreshCw className={cn("size-4 mr-2", loading && "animate-spin")} />
+                새로고침
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 4열: 데이터 테이블 */}
+      <Card>
+        <CardContent className="p-6">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="p-2 text-left sticky left-0 bg-muted/50 z-10" rowSpan={2}>등급</th>
+                    <th className="p-2 text-left sticky left-[80px] bg-muted/50 z-10" rowSpan={2}>아이디</th>
+                    <th className="p-2 text-right" rowSpan={2}>보유머니</th>
+                    <th className="p-2 text-right" rowSpan={2}>롤링포인트</th>
+                    <th className="p-2 text-right" rowSpan={2}>입금</th>
+                    <th className="p-2 text-right" rowSpan={2}>출금</th>
+                    <th className="p-2 text-right" rowSpan={2}>관리자<br/>입금</th>
+                    <th className="p-2 text-right" rowSpan={2}>관리자<br/>출금</th>
+                    <th className="p-2 text-right" rowSpan={2}>포인트<br/>지급</th>
+                    <th className="p-2 text-right" rowSpan={2}>포인트<br/>회수</th>
+                    <th className="p-2 text-right" rowSpan={2}>입출<br/>차액</th>
+                    <th className="p-2 text-left" rowSpan={2}>구분</th>
+                    <th className="p-2 text-center" colSpan={2}>요율</th>
+                    <th className="p-2 text-right" rowSpan={2}>총베팅</th>
+                    <th className="p-2 text-right" rowSpan={2}>총당첨</th>
+                    <th className="p-2 text-right" rowSpan={2}>윈로스</th>
+                    <th className="p-2 text-right" rowSpan={2}>GGR</th>
+                    <th className="p-2 text-center" colSpan={2}>개별 롤링</th>
+                    <th className="p-2 text-right" rowSpan={2}>총<br/>롤링금</th>
+                    <th className="p-2 text-right" rowSpan={2}>총<br/>루징</th>
+                    <th className="p-2 text-right" rowSpan={2}>롤링금</th>
+                    <th className="p-2 text-right" rowSpan={2}>낙첨금</th>
+                  </tr>
+                  <tr className="border-b bg-muted/50">
+                    <th className="p-2 text-center">롤링</th>
+                    <th className="p-2 text-center">루징</th>
+                    <th className="p-2 text-center">카지노</th>
+                    <th className="p-2 text-center">슬롯</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.flatMap((row, idx) => [
+                    /* Casino Row */
+                    <tr key={`${row.id}-casino`} className={cn(
+                      "border-b",
+                      idx % 2 === 0 ? "bg-background" : "bg-muted/30",
+                      row.level === 2 && "border-t-2 border-t-primary/30"
+                    )}>
+                      <td className="p-2 sticky left-0 bg-inherit z-10" rowSpan={2}>{row.levelName}</td>
+                      <td className="p-2 sticky left-[80px] bg-inherit z-10" rowSpan={2}>{row.username}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.balance)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.points)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.deposit)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.withdrawal)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.adminDeposit)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.adminWithdrawal)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.pointGiven)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.pointRecovered)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.depositWithdrawalDiff)}</td>
+                      <td className="p-2">Casino</td>
+                      <td className="p-2 text-center">{row.casinoRollingRate}%</td>
+                      <td className="p-2 text-center">{row.casinoLosingRate}%</td>
+                      <td className="p-2 text-right">{formatNumber(row.casinoBet)}</td>
+                      <td className="p-2 text-right">{formatNumber(row.casinoWin)}</td>
+                      <td className="p-2 text-right">{formatNumber(row.casinoWinLoss)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.ggr)}</td>
+                      <td className="p-2 text-right">{formatNumber(row.casinoIndividualRolling)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.totalRolling)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.totalLosing)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.totalIndividualRolling)}</td>
+                      <td className="p-2 text-right" rowSpan={2}>{formatNumber(row.totalIndividualLosing)}</td>
+                    </tr>,
+                    /* Slot Row */
+                    <tr key={`${row.id}-slot`} className={cn(
+                      "border-b",
+                      idx % 2 === 0 ? "bg-background" : "bg-muted/30"
+                    )}>
+                      <td className="p-2">Slot</td>
+                      <td className="p-2 text-center">{row.slotRollingRate}%</td>
+                      <td className="p-2 text-center">{row.slotLosingRate}%</td>
+                      <td className="p-2 text-right">{formatNumber(row.slotBet)}</td>
+                      <td className="p-2 text-right">{formatNumber(row.slotWin)}</td>
+                      <td className="p-2 text-right">{formatNumber(row.slotWinLoss)}</td>
+                      <td className="p-2 text-right">{formatNumber(row.slotIndividualRolling)}</td>
+                    </tr>
+                  ])}
+                </tbody>
+              </table>
+            </div>
           )}
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="default"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="text-lg px-5 h-11 bg-slate-800/50 border-slate-600 hover:bg-slate-700"
-          >
-            <RefreshCw className={cn("h-5 w-5 mr-2", refreshing && "animate-spin")} />
-            {t.common.refresh}
-          </Button>
-          <Button
-            variant="default"
-            size="default"
-            onClick={handleExecuteSettlement}
-            disabled={executing || summary.netTotalProfit <= 0}
-            className="bg-purple-600 hover:bg-purple-700 text-lg px-5 h-11"
-          >
-            <FileCheck className={cn("h-5 w-5 mr-2", executing && "animate-spin")} />
-            {executing ? t.settlement.savingSettlement : t.settlement.saveSettlementRecord}
-          </Button>
-        </div>
-      </div>
-
-      {/* 🎯 최종 순수익 - 가장 눈에 띄게 */}
-      <div className="p-6 bg-gradient-to-br from-purple-900/40 via-blue-900/40 to-purple-900/40 rounded-xl border-2 border-purple-500/50 shadow-2xl shadow-purple-500/20">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <div className="text-slate-300 text-2xl mb-2 flex items-center gap-3">
-              <TrendingUpDown className="h-8 w-8 text-yellow-400" />
-              최종 순수익
+      {/* 5열: 계산 방식 설명 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>계산 방식</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="font-medium mb-2">기본 계산</p>
+              <ul className="space-y-1 text-muted-foreground">
+                <li>• 롤링금 = 총베팅 × 롤링률</li>
+                <li>• 낙첨금(루징) = (윈로스 - 롤링금) × 루징률</li>
+                <li>• GGR = 카지노 윈로스 + 슬롯 윈로스</li>
+              </ul>
             </div>
-            <div className="text-slate-400 text-lg space-y-1">
-              <div>입출금 차액: <span className={cn("font-semibold", detailedStats.depositWithdrawalDiff > 0 ? "text-emerald-400" : "text-red-400")}>₩{detailedStats.depositWithdrawalDiff.toLocaleString()}</span></div>
-              <div>게임 손익: <span className={cn("font-semibold", detailedStats.totalHouseProfit > 0 ? "text-emerald-400" : "text-red-400")}>₩{detailedStats.totalHouseProfit.toLocaleString()}</span></div>
-              <div>커미션 수입: <span className="text-emerald-400 font-semibold">+₩{summary.myTotalIncome.toLocaleString()}</span></div>
-              {user.level !== 6 && (
-                <div>하위 지급: <span className="text-red-400 font-semibold">-₩{summary.partnerTotalPayments.toLocaleString()}</span></div>
-              )}
+            
+            <div>
+              <p className="font-medium mb-2">계층별 롤링 배분</p>
+              <ul className="space-y-1 text-muted-foreground">
+                <li>• 본사: 본사 전체 롤링금 - 부본사별 전체 롤링금 = 본사 롤링금</li>
+                <li>• 부본사: 부본사 전체 롤링금 - 총판별 전체 롤링금 = 부본사 롤링금</li>
+                <li>• 총판: 총판 전체 롤링금 - 매장별 전체 롤링금 = 총판 롤링금</li>
+                <li>• 매장: 매장 전체 롤링금 - 회원별 롤링금 = 매장 롤링금</li>
+              </ul>
             </div>
           </div>
-          <div className="text-right">
-            <div className={cn(
-              "text-6xl font-bold mb-2",
-              finalProfit > 0 ? "text-emerald-400" : "text-red-400"
-            )}>
-              ₩{finalProfit.toLocaleString()}
-            </div>
-            <div className="text-xl text-slate-400">
-              커미션: ₩{(summary.myCasinoRollingIncome + summary.myCasinoLosingIncome + summary.mySlotRollingIncome + summary.mySlotLosingIncome).toLocaleString()}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 입출금 & 게임 손익 - 2열 그리드 */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* 입출금 현황 */}
-        <div className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/40">
-          <div className="flex items-center gap-2 mb-3">
-            <Wallet className="h-7 w-7 text-blue-400" />
-            <h3 className="text-2xl text-white">입출금 현황</h3>
-          </div>
-          <div className="space-y-2">
-            <div className="p-3 bg-slate-900/50 rounded">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-lg text-slate-300">총 입금</span>
-                <span className="text-2xl text-emerald-400 font-semibold">₩{detailedStats.totalDeposit.toLocaleString()}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 pl-4 pt-2 border-t border-slate-700/50">
-                <div className="text-base text-slate-400">신청 입금:</div>
-                <div className="text-right text-lg text-emerald-300">₩{(detailedStats.totalDeposit - detailedStats.forceDeposit).toLocaleString()}</div>
-                <div className="text-base text-slate-400">강제 입금:</div>
-                <div className="text-right text-lg text-orange-400">₩{detailedStats.forceDeposit.toLocaleString()}</div>
-              </div>
-            </div>
-            <div className="p-3 bg-slate-900/50 rounded">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-lg text-slate-300">총 출금</span>
-                <span className="text-2xl text-red-400 font-semibold">₩{detailedStats.totalWithdrawal.toLocaleString()}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 pl-4 pt-2 border-t border-slate-700/50">
-                <div className="text-base text-slate-400">신청 출금:</div>
-                <div className="text-right text-lg text-red-300">₩{(detailedStats.totalWithdrawal - detailedStats.forceWithdrawal).toLocaleString()}</div>
-                <div className="text-base text-slate-400">강제 출금:</div>
-                <div className="text-right text-lg text-orange-400">₩{detailedStats.forceWithdrawal.toLocaleString()}</div>
-              </div>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-slate-900/50 rounded border border-blue-500/30">
-              <span className="text-lg text-slate-200 font-semibold">차액</span>
-              <span className={cn("text-2xl font-bold", detailedStats.depositWithdrawalDiff > 0 ? "text-emerald-400" : "text-red-400")}>
-                ₩{detailedStats.depositWithdrawalDiff.toLocaleString()}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* 게임 하우스 손익 */}
-        <div className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/40">
-          <div className="flex items-center gap-2 mb-3">
-            <CreditCard className="h-7 w-7 text-purple-400" />
-            <h3 className="text-2xl text-white">게임 하우스 손익</h3>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between items-center p-3 bg-slate-900/50 rounded">
-              <span className="text-lg text-slate-300">🎰 카지노</span>
-              <span className={cn("text-2xl font-semibold", detailedStats.casinoHouseProfit > 0 ? "text-emerald-400" : "text-red-400")}>
-                ₩{detailedStats.casinoHouseProfit.toLocaleString()}
-              </span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-slate-900/50 rounded">
-              <span className="text-lg text-slate-300">🎲 슬롯</span>
-              <span className={cn("text-2xl font-semibold", detailedStats.slotHouseProfit > 0 ? "text-emerald-400" : "text-red-400")}>
-                ₩{detailedStats.slotHouseProfit.toLocaleString()}
-              </span>
-            </div>
-            <div className="flex justify-between items-center p-3 bg-slate-900/50 rounded border border-purple-500/30">
-              <span className="text-lg text-slate-200 font-semibold">총 손익</span>
-              <span className={cn("text-2xl font-bold", detailedStats.totalHouseProfit > 0 ? "text-emerald-400" : "text-red-400")}>
-                ₩{detailedStats.totalHouseProfit.toLocaleString()}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 커미션 수입 & 하위 지급 - 2열 그리드 */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* 내 커미션 수입 - 운영사(레벨2)는 숨김 */}
-        {user.level !== 2 && (
-          <div className="bg-gradient-to-br from-emerald-900/30 to-green-900/30 rounded-lg p-4 border border-emerald-500/40">
-            <div className="flex items-center gap-2 mb-3">
-              <ArrowDownCircle className="h-7 w-7 text-emerald-400" />
-              <h3 className="text-2xl text-white">내 커미션 수입</h3>
-            </div>
-            <div className="space-y-2">
-              <div className="p-3 bg-slate-900/40 rounded">
-                <div className="text-base text-slate-400 mb-1">
-                  🎰 카지노 (롤링 {currentPartner.casino_rolling_commission ?? 0}% / 루징 {currentPartner.casino_losing_commission ?? 0}%)
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-lg text-slate-300">롤링:</span>
-                  <span className="text-xl text-emerald-400 font-semibold">₩{summary.myCasinoRollingIncome.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-lg text-slate-300">루징:</span>
-                  <span className="text-xl text-emerald-400 font-semibold">₩{summary.myCasinoLosingIncome.toLocaleString()}</span>
-                </div>
-              </div>
-              <div className="p-3 bg-slate-900/40 rounded">
-                <div className="text-base text-slate-400 mb-1">
-                  🎲 슬롯 (롤링 {currentPartner.slot_rolling_commission ?? 0}% / 루징 {currentPartner.slot_losing_commission ?? 0}%)
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-lg text-slate-300">롤링:</span>
-                  <span className="text-xl text-emerald-400 font-semibold">₩{summary.mySlotRollingIncome.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-lg text-slate-300">루징:</span>
-                  <span className="text-xl text-emerald-400 font-semibold">₩{summary.mySlotLosingIncome.toLocaleString()}</span>
-                </div>
-              </div>
-              <div className="p-3 bg-slate-900/40 rounded">
-                <div className="text-base text-slate-400 mb-1">
-                  환전 수수료 ({currentPartner.withdrawal_fee ?? 0}%)
-                </div>
-                <div className="text-2xl text-emerald-400 font-bold">
-                  ₩{summary.myWithdrawalIncome.toLocaleString()}
-                </div>
-              </div>
-              <div className="p-3 bg-emerald-500/20 rounded border border-emerald-500/40">
-                <div className="flex justify-between items-center">
-                  <span className="text-xl text-slate-200 font-semibold">총 수입</span>
-                  <span className="text-3xl text-emerald-400 font-bold">₩{summary.myTotalIncome.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 베팅 상세 통계 - 운영사(레벨2)일 때 커미션 카드 자리에 표시 */}
-        {user.level === 2 && (
-          <div className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/40">
-            <div className="flex items-center gap-2 mb-3">
-              <Info className="h-7 w-7 text-cyan-400" />
-              <h3 className="text-2xl text-white">베팅 상세 통계</h3>
-            </div>
-            <div className="space-y-3">
-              <div className="p-3 bg-slate-900/40 rounded">
-                <div className="text-lg text-slate-300 mb-2">🎰 카지노</div>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-base text-slate-400">베팅:</span>
-                  <span className="text-xl text-slate-300 font-semibold">₩{detailedStats.casinoBetAmount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-base text-slate-400">승리:</span>
-                  <span className="text-xl text-emerald-400 font-semibold">₩{detailedStats.casinoWinAmount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-base text-slate-400">손실:</span>
-                  <span className="text-xl text-red-400 font-semibold">₩{detailedStats.casinoLossAmount.toLocaleString()}</span>
-                </div>
-              </div>
-              <div className="p-3 bg-slate-900/40 rounded">
-                <div className="text-lg text-slate-300 mb-2">🎲 슬롯</div>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-base text-slate-400">베팅:</span>
-                  <span className="text-xl text-slate-300 font-semibold">₩{detailedStats.slotBetAmount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-base text-slate-400">승리:</span>
-                  <span className="text-xl text-emerald-400 font-semibold">₩{detailedStats.slotWinAmount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-base text-slate-400">손실:</span>
-                  <span className="text-xl text-red-400 font-semibold">₩{detailedStats.slotLossAmount.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 하위 파트너 지급 */}
-        {user.level !== 6 && (
-          <div className="bg-gradient-to-br from-red-900/30 to-orange-900/30 rounded-lg p-4 border border-red-500/40">
-            <div className="flex items-center gap-2 mb-3">
-              <ArrowUpCircle className="h-7 w-7 text-red-400" />
-              <h3 className="text-2xl text-white">하위 파트너 지급</h3>
-            </div>
-            <div className="space-y-2">
-              <div className="p-3 bg-slate-900/40 rounded">
-                <div className="text-base text-slate-400 mb-1">🎰 카지노</div>
-                <div className="flex justify-between">
-                  <span className="text-lg text-slate-300">롤링:</span>
-                  <span className="text-xl text-red-400 font-semibold">₩{summary.partnerCasinoRollingPayments.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-lg text-slate-300">루징:</span>
-                  <span className="text-xl text-red-400 font-semibold">₩{summary.partnerCasinoLosingPayments.toLocaleString()}</span>
-                </div>
-              </div>
-              <div className="p-3 bg-slate-900/40 rounded">
-                <div className="text-base text-slate-400 mb-1">🎲 슬롯</div>
-                <div className="flex justify-between">
-                  <span className="text-lg text-slate-300">롤링:</span>
-                  <span className="text-xl text-red-400 font-semibold">₩{summary.partnerSlotRollingPayments.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-lg text-slate-300">루징:</span>
-                  <span className="text-xl text-red-400 font-semibold">₩{summary.partnerSlotLosingPayments.toLocaleString()}</span>
-                </div>
-              </div>
-              <div className="p-3 bg-slate-900/40 rounded">
-                <div className="text-base text-slate-400 mb-1">환전 수수료</div>
-                <div className="text-2xl text-red-400 font-bold">
-                  ₩{summary.partnerWithdrawalPayments.toLocaleString()}
-                </div>
-              </div>
-              <div className="p-3 bg-red-500/20 rounded border border-red-500/40">
-                <div className="flex justify-between items-center">
-                  <span className="text-xl text-slate-200 font-semibold">총 지급</span>
-                  <span className="text-3xl text-red-400 font-bold">₩{summary.partnerTotalPayments.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 베팅 상세 통계 - 레벨2가 아닐 때만 하단에 축소 버전 표시 */}
-      {user.level !== 2 && (
-        <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">
-          <h3 className="text-lg text-slate-300 mb-2 flex items-center gap-2">
-            <Info className="h-5 w-5" />
-            베팅 상세 통계
-          </h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <div className="text-base text-slate-400">🎰 카지노</div>
-              <div className="flex justify-between text-base">
-                <span className="text-slate-500">베팅:</span>
-                <span className="text-slate-300">₩{detailedStats.casinoBetAmount.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-base">
-                <span className="text-slate-500">승리:</span>
-                <span className="text-emerald-400">₩{detailedStats.casinoWinAmount.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-base">
-                <span className="text-slate-500">손실:</span>
-                <span className="text-red-400">₩{detailedStats.casinoLossAmount.toLocaleString()}</span>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-base text-slate-400">🎲 슬롯</div>
-              <div className="flex justify-between text-base">
-                <span className="text-slate-500">베팅:</span>
-                <span className="text-slate-300">₩{detailedStats.slotBetAmount.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-base">
-                <span className="text-slate-500">승리:</span>
-                <span className="text-emerald-400">₩{detailedStats.slotWinAmount.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-base">
-                <span className="text-slate-500">손실:</span>
-                <span className="text-red-400">₩{detailedStats.slotLossAmount.toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

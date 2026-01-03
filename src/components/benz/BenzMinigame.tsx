@@ -73,16 +73,17 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
   }, []);
 
   const loadProviders = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
       
-      // ⭐ getUserVisibleProviders 사용 (/user(vip)와 동일한 로직)
-      const providersData = await gameApi.getUserVisibleProviders({ 
-        type: 'minigame',
-        userId: user?.id 
-      });
+      // ⭐⭐⭐ 새로운 노출 로직 사용
+      const { filterVisibleProviders } = await import('../../lib/benzGameVisibility');
+      const allProviders = await gameApi.getProviders({ type: 'minigame' });
+      const providersData = await filterVisibleProviders(allProviders, user.id);
       
-      console.log(`📊 [미니게임] 제공사 조회: ${providersData.length}개`);
+      console.log('🎲 [BenzMinigame] 노출 제공사:', providersData.length, '개');
       
       if (providersData.length > 0) {
         setProviders(providersData);

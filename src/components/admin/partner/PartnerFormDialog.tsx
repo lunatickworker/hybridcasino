@@ -140,7 +140,7 @@ export function PartnerFormDialog({
 
       // Lv1만 소속 파트너 선택 가능
       if (userLevel === 1 && selectedLevel > 2) {
-        // Lv1이 Lv3~Lv6 생성 시: 소속 가능한 상위 파트너 조회
+        // Lv1이 Lv3~Lv6 생성 시: 모든 상위 파트너 조회 (Lv1은 모든 조직 접근 가능)
         const targetParentLevel = selectedLevel - 1;
         const { data: parentsData } = await supabase
           .from('partners')

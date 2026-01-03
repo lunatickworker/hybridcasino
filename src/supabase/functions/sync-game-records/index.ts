@@ -114,16 +114,8 @@ async function syncInvestGameRecords(apiConfig: any) {
         // ✅ games 테이블에서 game_type 조회
         const { data: gameData } = await supabase
           .from('games')
-          .select('game_type, name, provider_id')
+          .select('game_type')
           .eq('id', record.game_id)
-          .maybeSingle();
-
-        // ✅ game_providers 테이블에서 제공사 이름 조회
-        const providerId = record.provider_id || gameData?.provider_id || Math.floor((record.game_id || 410000) / 1000);
-        const { data: providerData } = await supabase
-          .from('game_providers')
-          .select('name')
-          .eq('id', providerId)
           .maybeSingle();
 
         const { error } = await supabase
@@ -135,10 +127,8 @@ async function syncInvestGameRecords(apiConfig: any) {
             username: record.username,
             user_id: userId,
             game_id: record.game_id,
-            provider_id: providerId,
+            provider_id: record.provider_id || Math.floor((record.game_id || 410000) / 1000),
             game_type: gameData?.game_type || 'casino', // ✅ game_type 추가
-            game_title: gameData?.name || null, // ✅ 게임명 추가
-            game_provider_name: providerData?.name || null, // ✅ 제공사명 추가
             bet_amount: betAmount,
             win_amount: winAmount,
             balance_after: balanceAfter,
@@ -240,22 +230,11 @@ async function syncOroPlayGameRecords(apiConfig: any) {
 
         const { data: gameData } = await supabase
           .from('games')
-          .select('id, provider_id, game_type, name') // ✅ name 추가
+          .select('id, provider_id, game_type') // ✅ game_type 추가
           .eq('vendor_code', bet.vendorCode)
           .eq('game_code', bet.gameCode)
           .eq('api_type', 'oroplay')
           .maybeSingle();
-
-        // ✅ game_providers 테이블에서 제공사 이름 조회
-        let providerName = null;
-        if (gameData?.provider_id) {
-          const { data: providerData } = await supabase
-            .from('game_providers')
-            .select('name')
-            .eq('id', gameData.provider_id)
-            .maybeSingle();
-          providerName = providerData?.name || null;
-        }
 
         const { error } = await supabase
           .from('game_records')
@@ -268,8 +247,6 @@ async function syncOroPlayGameRecords(apiConfig: any) {
             game_id: gameData?.id || null,
             provider_id: gameData?.provider_id || null,
             game_type: gameData?.game_type || 'casino', // ✅ game_type 추가
-            game_title: gameData?.name || null, // ✅ 게임명 추가
-            game_provider_name: providerName, // ✅ 제공사명 추가
             bet_amount: bet.betAmount,
             win_amount: bet.winAmount,
             balance_before: bet.beforeBalance,

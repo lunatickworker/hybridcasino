@@ -26,7 +26,7 @@ export interface MergedProvider {
     table: 'game_providers' | 'honor_game_providers';
     status: 'visible' | 'maintenance' | 'hidden';
     order_index: number;
-    is_blocked: boolean;
+    is_allowed: boolean;
   }>;
   
   combinedStatus: 'visible' | 'maintenance' | 'hidden';
@@ -47,7 +47,7 @@ export interface Game {
   vendor_code?: string;
   game_code?: string;
   image_url?: string;
-  is_blocked: boolean;
+  is_allowed: boolean;
   priority: number;
   source_table: 'games' | 'honor_games';
 }

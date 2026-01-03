@@ -30,6 +30,7 @@ import {
   User as UserIcon,
   List,
   Play,
+  Database,
 } from "lucide-react";
 import { Partner, User } from "../../types";
 import { gameApi, Game, GameProvider } from "../../lib/gameApi";
@@ -71,6 +72,7 @@ interface GameCardProps {
   onToggleFeatured: () => void;
   onChangeStatus: (status: "visible" | "maintenance" | "hidden") => void;
   isBlocked?: boolean; // Lv2+에서 partner_game_access에 의해 차단된 게임인지 여부
+  userLevel: number;
 }
 
 function GameCard({
@@ -80,14 +82,36 @@ function GameCard({
   onToggleFeatured,
   onChangeStatus,
   isBlocked = false,
+  userLevel,
 }: GameCardProps) {
   const { t } = useLanguage();
   
   const getStatusIcon = () => {
-    // Lv2~Lv7: partner_game_access 차단 상태 우선 확인 (블랙리스트 방식)
+    // Lv3~Lv7: partner_game_access 차단 상태 우선 확인 (블랙리스트 방식)
     if (isBlocked) {
       return <EyeOff className="w-4 h-4 text-slate-400" />;
-    } else if (game.status === "maintenance") {
+    }
+    
+    // Lv1: status 컬럼 기준
+    if (userLevel === 1) {
+      if (game.status === "maintenance") {
+        return <AlertTriangle className="w-4 h-4 text-orange-400" />;
+      } else if (game.status === "hidden") {
+        return <EyeOff className="w-4 h-4 text-slate-400" />;
+      } else {
+        return <Eye className="w-4 h-4 text-green-400" />;
+      }
+    }
+    
+    // Lv2: is_visible 컬럼 기준
+    if (userLevel === 2) {
+      return game.is_visible 
+        ? <Eye className="w-4 h-4 text-green-400" /> 
+        : <EyeOff className="w-4 h-4 text-slate-400" />;
+    }
+    
+    // 기본: is_visible과 status 모두 체크
+    if (game.status === "maintenance") {
       return <AlertTriangle className="w-4 h-4 text-orange-400" />;
     } else if (!game.is_visible || game.status === "hidden") {
       return <EyeOff className="w-4 h-4 text-slate-400" />;
@@ -133,17 +157,6 @@ function GameCard({
             background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)'
           }}>
             <Play className="w-16 h-16 text-white/20" />
-          </div>
-        )}
-        
-        {/* 점검중 오버레이 */}
-        {game.status === "maintenance" && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
-            <img
-              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Stop.png"
-              alt="점검중"
-              className="w-24 h-24 object-contain"
-            />
           </div>
         )}
         
@@ -211,7 +224,13 @@ function GameCard({
               
               {/* 상태 변경 Select */}
               <Select
-                value={isBlocked ? "hidden" : game.status}
+                value={
+                  isBlocked 
+                    ? "hidden" 
+                    : userLevel === 2 
+                      ? (game.is_visible ? "visible" : "hidden")
+                      : game.status
+                }
                 onValueChange={(value: "visible" | "maintenance" | "hidden") => {
                   onChangeStatus(value);
                 }}
@@ -229,12 +248,15 @@ function GameCard({
                       {t.gameManagement.visible}
                     </div>
                   </SelectItem>
-                  <SelectItem value="maintenance">
-                    <div className="flex items-center gap-1.5 text-xs">
-                      <AlertTriangle className="w-3 h-3" />
-                      {t.gameManagement.maintenance}
-                    </div>
-                  </SelectItem>
+                  {/* Lv1만 점검중 옵션 사용 가능 */}
+                  {userLevel === 1 && (
+                    <SelectItem value="maintenance">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <AlertTriangle className="w-3 h-3" />
+                        {t.gameManagement.maintenance}
+                      </div>
+                    </SelectItem>
+                  )}
                   <SelectItem value="hidden">
                     <div className="flex items-center gap-1.5 text-xs">
                       <EyeOff className="w-3 h-3" />
@@ -310,7 +332,14 @@ function ProviderSection({
       }
     }
     
-    // Lv2~Lv7: partner_game_access 차단 상태 확인 (블랙리스트 방식)
+    // Lv2: provider.is_visible 기반 아이콘 표시
+    if (userLevel === 2) {
+      return provider.is_visible 
+        ? <Eye className="w-4 h-4 text-green-400" /> 
+        : <EyeOff className="w-4 h-4 text-slate-400" />;
+    }
+    
+    // Lv3~Lv7: partner_game_access 차단 상태 확인 (블랙리스트 방식)
     if (isBlocked) {
       return <EyeOff className="w-4 h-4 text-slate-400" />;
     } else {
@@ -322,7 +351,7 @@ function ProviderSection({
     <div className="border border-slate-700 rounded-lg overflow-hidden bg-slate-900/30">
       {/* 제공사 헤더 */}
       <div className="p-4 bg-slate-800/50 flex items-center justify-between hover:bg-slate-800/70 transition-colors">
-        <div className="flex items-center gap-3 flex-1">
+        <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
@@ -338,23 +367,34 @@ function ProviderSection({
 
           <Building2 className="w-6 h-6 text-slate-300" />
           
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-bold text-white">{provider.name}</span>
-              {getProviderStatusIcon()}
-              <Badge variant="outline" className="text-sm font-semibold border-slate-600">
-                {provider.api_type.toUpperCase()}
-              </Badge>
-            </div>
-            <div className="text-sm text-slate-300 mt-1 font-medium">
-              총 {stats.total}개 게임 · 노출 {stats.visible}개 · 점검 {stats.maintenance}개 · 숨김 {stats.hidden}개
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="text-lg font-bold text-white">{provider.name}</span>
+            {getProviderStatusIcon()}
+            <Badge variant="outline" className="text-sm font-semibold border-slate-600">
+              {provider.api_type.toUpperCase()}
+            </Badge>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <div className="text-base font-medium flex items-center gap-2">
+            <span className="text-white">총 <span className="font-bold">{stats.total}</span>개 게임</span>
+            <span className="text-slate-500">·</span>
+            <span className="text-green-400">노출 <span className="font-bold">{stats.visible}</span>개</span>
+            <span className="text-slate-500">·</span>
+            <span className="text-yellow-400">점검 <span className="font-bold">{stats.maintenance}</span>개</span>
+            <span className="text-slate-500">·</span>
+            <span className="text-red-500">숨김 <span className="font-bold">{stats.hidden}</span>개</span>
+          </div>
+          
           <Select
-            value={isBlocked ? "hidden" : (provider.status || "visible")}
+            value={
+              isBlocked 
+                ? "hidden" 
+                : userLevel === 2 
+                  ? (provider.is_visible ? "visible" : "hidden")
+                  : (provider.status || "visible")
+            }
             onValueChange={(value: "visible" | "maintenance" | "hidden") =>
               onToggleProviderStatus(value, provider.api_type)
             }
@@ -369,7 +409,7 @@ function ProviderSection({
                   {t.gameManagement.visible}
                 </div>
               </SelectItem>
-              {/* Lv1: 노출/점검중/숨김 3가지 옵션 */}
+              {/* Lv1만 점검중 옵션 사용 가능 */}
               {userLevel === 1 && (
                 <SelectItem value="maintenance">
                   <div className="flex items-center gap-1.5 text-sm font-medium">
@@ -407,6 +447,7 @@ function ProviderSection({
                   onToggleFeatured={() => onToggleGameFeatured(game.id)}
                   onChangeStatus={(status) => onChangeGameStatus(game.id, status, game.api_type)}
                   isBlocked={blockedGameIds.has(game.id)}
+                  userLevel={userLevel}
                 />
               ))}
             </div>
@@ -480,6 +521,8 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userBlockedGames, setUserBlockedGames] = useState<number[]>([]); // 차단된 게임 목록 (레코드 있음 = 차단)
   const [userBlockedProviders, setUserBlockedProviders] = useState<number[]>([]); // 차단된 제공사 목록
+  const [userGameStatus, setUserGameStatus] = useState<Map<number, 'visible' | 'maintenance' | 'hidden'>>(new Map()); // 게임별 상태
+  const [storeBlockedForUser, setStoreBlockedForUser] = useState<{ providers: number[], games: number[] }>({ providers: [], games: [] }); // 매장에서 차단된 목록 (사용자 탭용)
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [userSearchTerm, setUserSearchTerm] = useState("");
 
@@ -857,7 +900,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     
     try {
       if (user.level === 1) {
-        // ✅ Lv1: games/honor_games 테이블 직접 업데이트
+        // ✅ Lv1: games/honor_games 테이블의 status 컬럼 업데이트
         console.log(`🔄 [Lv1] gameApi.updateGameStatus 호출 시작...`);
         await gameApi.updateGameStatus(gameId, status, apiType);
         console.log(`✅ [Lv1] gameApi.updateGameStatus 완료`);
@@ -869,8 +912,21 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
         if (selectedApi) {
           await loadGamesForApi(selectedApi);
         }
+      } else if (user.level === 2) {
+        // ✅ Lv2: games/honor_games 테이블의 is_visible 컬럼 업데이트
+        console.log(`🔄 [Lv2] gameApi.updateGameVisibility 호출 시작...`);
+        await gameApi.updateGameVisibility(gameId, status === "visible", apiType);
+        console.log(`✅ [Lv2] gameApi.updateGameVisibility 완료`);
+
+        const statusText = status === "visible" ? "노출" : "숨김";
+        toast.success(`게임 상태가 ${statusText}로 변경되었습니다.`);
+        
+        // ✅ DB에서 최신 상태 다시 로드
+        if (selectedApi) {
+          await loadGamesForApi(selectedApi);
+        }
       } else {
-        // ✅ Lv2~Lv7: partner_game_access 테이블 사용 (블랙리스트 방식)
+        // ✅ Lv3~Lv7: partner_game_access 테이블 사용 (블랙리스트 방식)
         console.log(`🔄 [Lv${user.level}] gameApi.updatePartnerGameAccess 호출 시작...`);
         
         const game = games.find(g => g.id === gameId);
@@ -922,13 +978,41 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
             : p
         ));
 
-        // ✅ Lv1: games_provider/honor_games_provider 테이블 직접 업데이트
+        // ✅ Lv1: games_provider/honor_games_provider 테이블의 status 컬럼 업데이트
         console.log(`🔄 [Lv1] gameApi.updateProviderStatus 호출 시작...`);
         try {
           await gameApi.updateProviderStatus(providerId, status, apiType);
           console.log(`✅ [Lv1] gameApi.updateProviderStatus 완료`);
 
           const statusText = status === "visible" ? "노출" : status === "maintenance" ? "점검중" : "숨김";
+          toast.success(`제공사 상태가 ${statusText}로 변경되었습니다.`);
+          
+          // ✅ 해당 API의 게임 목록만 다시 로드 (깜박임 최소화)
+          if (selectedApi === apiType) {
+            await loadGamesForApi(apiType);
+          }
+        } catch (error) {
+          // ❌ 실패 시 롤백
+          console.error("❌ 제공사 상태 업데이트 실패:", error);
+          setProviders(originalProviders);
+          toast.error("제공사 상태 변경에 실패했습니다.");
+        }
+      } else if (user.level === 2) {
+        // ✅ Optimistic Update: UI 즉시 반영
+        const originalProviders = [...providers];
+        setProviders(prev => prev.map(p => 
+          p.id === providerId && p.api_type === apiType
+            ? { ...p, is_visible: status === "visible" }
+            : p
+        ));
+
+        // ✅ Lv2: games_provider/honor_games_provider 테이블의 is_visible 컬럼 업데이트
+        console.log(`🔄 [Lv2] gameApi.updateProviderVisibility 호출 시작...`);
+        try {
+          await gameApi.updateProviderVisibility(providerId, status === "visible", apiType);
+          console.log(`✅ [Lv2] gameApi.updateProviderVisibility 완료`);
+
+          const statusText = status === "visible" ? "노출" : "숨김";
           toast.success(`제공사 상태가 ${statusText}로 변경되었습니다.`);
           
           // ✅ 해당 API의 게임 목록만 다시 로드 (깜박임 최소화)
@@ -954,7 +1038,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
           setBlockedProviderIds(prev => new Set(prev).add(providerId));
         }
 
-        // ✅ Lv2~Lv7: partner_game_access 테이블 사용 (블랙리스트 방식)
+        // ✅ Lv3~Lv7: partner_game_access 테이블 사용 (블랙리스트 방식)
         console.log(`🔄 [Lv${user.level}] gameApi.updatePartnerProviderAccess 호출 시작...`);
         try {
           await gameApi.updatePartnerProviderAccess(
@@ -1346,6 +1430,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     // 사용자별 게임 탭에서 호출된 경우 매장의 사용자 로드
     if (activeTab === "users") {
       setSelectedUser(null); // 사용자 선택 초기화
+      setStoreBlockedForUser({ providers: [], games: [] }); // 매장 차단 목록 초기화
       await loadUsersForStore(store.id);
       return; // 사용자별 탭에서는 여기서 종료
     }
@@ -1544,6 +1629,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
             game_id: game.id,
             access_type: "game" as const,
             is_allowed: false,
+            game_status: "hidden" as const,
           }));
 
         if (accessRecords.length > 0) {
@@ -1571,8 +1657,8 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
 
   // ✅ 매장별 게임 탭: 전체 제공사 노출/숨김 (API + 게임타입별)
   const handleBulkStoreProviderAccess = async (showAll: boolean) => {
-    if (!selectedStore || !selectedApi) {
-      toast.warning("매장과 API를 선택해주세요.");
+    if (!selectedApi) {
+      toast.warning("API를 선택해주세요.");
       return;
     }
 
@@ -1601,6 +1687,49 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       const typeLabel = selectedGameType === "all" ? "전체" : 
                        selectedGameType === "casino" ? "카지노" :
                        selectedGameType === "slot" ? "슬롯" : "미니게임";
+
+      // ✅ Lv1: status 컬럼 업데이트
+      if (user.level === 1) {
+        const status = showAll ? "visible" : "hidden";
+        
+        for (const provider of filteredProviders) {
+          await gameApi.updateProviderStatus(provider.id, status, provider.api_type);
+        }
+        
+        toast.success(`${apiLabel} ${typeLabel} 제공사 ${filteredProviders.length}개를 전체 ${showAll ? "노출" : "숨김"}했습니다.`);
+        
+        // DB에서 최신 상태 다시 로드
+        await loadGamesForApi(selectedApi);
+        return;
+      }
+
+      // ✅ Lv2: is_visible 컬럼 업데이트
+      if (user.level === 2) {
+        const isVisible = showAll;
+        
+        console.log(`🔄 [Lv2] 전체 ${showAll ? "노출" : "숨김"} 시작:`, {
+          filteredProviders: filteredProviders.length,
+          isVisible,
+          providerIds: filteredProviders.map(p => p.id)
+        });
+        
+        for (const provider of filteredProviders) {
+          console.log(`🔄 [Lv2] 제공사 ${provider.id} (${provider.name}) is_visible 업데이트: ${isVisible}`);
+          await gameApi.updateProviderVisibility(provider.id, isVisible, provider.api_type, selectedStore?.id);
+        }
+        
+        toast.success(`${apiLabel} ${typeLabel} 제공사 ${filteredProviders.length}개를 전체 ${showAll ? "노출" : "숨김"}했습니다.`);
+        
+        // DB에서 최신 상태 다시 로드
+        await loadGamesForApi(selectedApi);
+        return;
+      }
+
+      // ✅ Lv3~Lv7: partner_game_access 테이블 사용
+      if (!selectedStore) {
+        toast.warning("매장을 선택해주세요.");
+        return;
+      }
 
       // ✅ Optimistic Update: UI에 즉시 반영
       const previousBlockedProviders = storeBlockedProviders;
@@ -1638,6 +1767,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
           game_id: null,
           access_type: "provider" as const,
           is_allowed: false,
+          game_status: "hidden" as const,
         }));
 
         // 1단계: 기존 제공사 레코드 삭제
@@ -1669,6 +1799,99 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     } catch (error) {
       console.error("❌ 일괄 제공사 접근 권한 업데이트 실패:", error);
       toast.error("일괄 업데이트에 실패했습니다.");
+    }
+  };
+
+  // ✅ Lv2 마이그레이션: is_visible=false인 제공사를 partner_game_access에 기록
+  const migrateInvisibleProvidersToAccess = async () => {
+    if (user.level !== 2) {
+      toast.error("Lv2 권한자만 실행할 수 있습니다.");
+      return;
+    }
+
+    if (!selectedStore) {
+      toast.error("매장을 먼저 선택해주세요.");
+      return;
+    }
+
+    try {
+      setSyncing(true);
+      toast.info(`${selectedStore.username} 매장의 마이그레이션 시작...`);
+
+      // 1. game_providers에서 is_visible=false인 제공사 조회
+      const { data: invisibleProviders, error: providerError } = await supabase
+        .from('game_providers')
+        .select('id, api_type')
+        .eq('is_visible', false);
+
+      if (providerError) throw providerError;
+
+      // 2. honor_game_providers에서 is_visible=false인 제공사 조회
+      const { data: invisibleHonorProviders, error: honorError } = await supabase
+        .from('honor_game_providers')
+        .select('id, api_type')
+        .eq('is_visible', false);
+
+      if (honorError) throw honorError;
+
+      const allInvisibleProviders = [
+        ...(invisibleProviders || []),
+        ...(invisibleHonorProviders || [])
+      ];
+
+      console.log(`📋 is_visible=false인 제공사: ${allInvisibleProviders.length}개`);
+
+      if (allInvisibleProviders.length === 0) {
+        toast.success("마이그레이션할 제공사가 없습니다.");
+        return;
+      }
+
+      // 3. 선택된 매장의 partner_game_access에 기록
+      let insertedCount = 0;
+      for (const provider of allInvisibleProviders) {
+        // 기존 레코드 확인
+        const { data: existing } = await supabase
+          .from('partner_game_access')
+          .select('id')
+          .eq('partner_id', selectedStore.id)
+          .eq('game_provider_id', provider.id)
+          .eq('api_provider', provider.api_type)
+          .eq('access_type', 'provider')
+          .is('user_id', null)
+          .single();
+
+        if (!existing) {
+          // 레코드가 없으면 삽입
+          const { error: insertError } = await supabase
+            .from('partner_game_access')
+            .insert({
+              partner_id: selectedStore.id,
+              user_id: null,
+              api_provider: provider.api_type,
+              game_provider_id: provider.id,
+              game_id: null,
+              access_type: 'provider',
+              is_allowed: false,
+              game_status: 'hidden',
+            });
+
+          if (!insertError) {
+            insertedCount++;
+          } else {
+            console.error(`❌ 제공사 ${provider.id} 삽입 실패:`, insertError);
+          }
+        }
+      }
+
+      toast.success(`✅ ${selectedStore.username} 매장 마이그레이션 완료: ${insertedCount}개 제공사 기록 추가`);
+      
+      // 최신 상태 새로고침
+      await loadStoreGameAccess(selectedStore.id);
+    } catch (error) {
+      console.error('❌ 마이그레이션 실패:', error);
+      toast.error('마이그레이션에 실패했습니다.');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -1722,76 +1945,112 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     try {
       if (!selectedStore) return;
       
-      // partner_game_access에서 해당 사용자의 차단된 제공사 및 게임 조회
-      // 로직 반전: 레코드 있음 = 차단, 레코드 없음 = 허용(기본)
-      const { data, error } = await supabase
+      // ✅ 1. 매장(partner_id)의 차단 설정 로드
+      const { data: storeData, error: storeError } = await supabase
         .from("partner_game_access")
-        .select("game_id, game_provider_id, access_type, api_provider")
-        .is("partner_id", null) // ✅ 사용자별 설정은 partner_id가 NULL
+        .select("game_id, game_provider_id, access_type, api_provider, game_status")
+        .eq("partner_id", selectedStore.id)
+        .is("user_id", null); // 매장 설정
+
+      if (storeError) throw storeError;
+
+      console.log('🏪 [loadUserGameAccess] 매장 차단 설정:', storeData?.length || 0, '개');
+      
+      // 🏪 매장 차단 제공사/게임 추출
+      const storeBlockedProviderIds = (storeData || [])
+        .filter(access => access.access_type === 'provider' && access.game_provider_id)
+        .map(access => parseInt(access.game_provider_id))
+        .filter(id => !isNaN(id));
+      
+      const storeBlockedGameIds = (storeData || [])
+        .filter(access => access.access_type === 'game' && access.game_id)
+        .map(access => {
+          const gameId = access.game_id;
+          return typeof gameId === 'number' ? gameId : parseInt(gameId);
+        })
+        .filter(id => !isNaN(id));
+
+      // 매장 차단 제공사의 모든 게임도 추가
+      let storeProviderBlockedGameIds: number[] = [];
+      if (storeBlockedProviderIds.length > 0) {
+        storeProviderBlockedGameIds = allGames
+          .filter(g => storeBlockedProviderIds.includes(g.provider_id))
+          .map(g => g.id);
+      }
+
+      const allStoreBlockedGameIds = [...new Set([...storeBlockedGameIds, ...storeProviderBlockedGameIds])];
+
+      // ✅ 매장 차단 목록 저장 (UI 필터링용)
+      setStoreBlockedForUser({ 
+        providers: storeBlockedProviderIds, 
+        games: allStoreBlockedGameIds 
+      });
+
+      console.log('🏪 매장 차단:', storeBlockedProviderIds.length, '개 제공사,', allStoreBlockedGameIds.length, '개 게임');
+      
+      // ✅ 2. 사용자(user_id)의 추가 차단 설정 로드
+      const { data: userData, error: userError } = await supabase
+        .from("partner_game_access")
+        .select("game_id, game_provider_id, access_type, api_provider, game_status")
+        .is("partner_id", null) // 사용자별 설정
         .eq("user_id", userId);
 
-      if (error) throw error;
+      if (userError) throw userError;
 
-      console.log('🔍 [loadUserGameAccess] DB 조회 결과:', data?.length || 0, '개');
-      console.log('📋 [loadUserGameAccess] 샘플 데이터:', data?.slice(0, 5));
-
-      // 1. 제공사 차단 확인 (access_type: 'provider')
-      const blockedProviderIds = (data || [])
+      console.log('👤 [loadUserGameAccess] 사용자 추가 차단:', userData?.length || 0, '개');
+      
+      // ✅ 3. 사용자만의 차단 설정 추출 (UI 표시용)
+      const userOnlyBlockedProviderIds = (userData || [])
         .filter(access => access.access_type === 'provider' && access.game_provider_id)
         .map(access => parseInt(access.game_provider_id))
         .filter(id => !isNaN(id));
 
-      // 2. 개별 게임 차단 확인 (access_type: 'game')
-      // ⭐ game_id를 그대로 사용 (숫자/문자열 모두 대응)
-      const blockedGameIds = (data || [])
+      const userOnlyBlockedGameIds = (userData || [])
         .filter(access => access.access_type === 'game' && access.game_id)
         .map(access => {
           const gameId = access.game_id;
-          // game_id가 숫자면 그대로, 문자열이면 파싱
           return typeof gameId === 'number' ? gameId : parseInt(gameId);
         })
         .filter(id => !isNaN(id));
       
-      console.log('🎮 [loadUserGameAccess] 차단된 게임 ID:', blockedGameIds.length, '개', blockedGameIds.slice(0, 10));
+      console.log('🎮 [loadUserGameAccess] 사용자 추가 차단 게임 ID:', userOnlyBlockedGameIds.length, '개');
 
-      // 3. 차단된 제공사의 모든 게임도 차단 목록에 추가
-      // ⭐ 메모리상의 games 배열에서 직접 조회 (Supabase는 동기화 안 된 게임 못 찾음!)
-      let providerBlockedGameIds: number[] = [];
-      if (blockedProviderIds.length > 0) {
-        console.log('🔍 [사용자 차단] 차단된 제공사의 게임 조회 시작:', blockedProviderIds);
+      // 4. 사용자 추가 차단 제공사의 모든 게임도 추가
+      let userProviderBlockedGameIds: number[] = [];
+      if (userOnlyBlockedProviderIds.length > 0) {
+        console.log('🔍 [사용자 추가 차단] 차단된 제공사의 게임 조회 시작:', userOnlyBlockedProviderIds);
         
         // ✅ allGames 배열에서 직접 필터링 (모든 API의 게임 포함)
-        providerBlockedGameIds = allGames
-          .filter(g => blockedProviderIds.includes(g.provider_id))
+        userProviderBlockedGameIds = allGames
+          .filter(g => userOnlyBlockedProviderIds.includes(g.provider_id))
           .map(g => g.id);
         
-        console.log('✅ [사용자 차단] 조회된 게임:', providerBlockedGameIds.length, '개');
-        console.log('📋 [사용자 차단] 게임 ID 샘플 (최대 10개):', providerBlockedGameIds.slice(0, 10));
+        console.log('✅ [사용자 추가 차단] 조회된 게임:', userProviderBlockedGameIds.length, '개');
       }
 
-      // 최종 차단 목록 = 개별 게임 + 제공사 전체 게임
-      const allBlockedGameIds = [...new Set([...blockedGameIds, ...providerBlockedGameIds])];
+      // 사용자만의 차단 목록 (UI 표시용 - 매장 차단 제외)
+      const userOnlyAllBlockedGameIds = [...new Set([...userOnlyBlockedGameIds, ...userProviderBlockedGameIds])];
 
-      // ⭐ API별 차단 게임 분류
-      const gamesByApi = allBlockedGameIds.reduce((acc, gameId) => {
-        const game = allGames.find(g => g.id === gameId);
-        if (game) {
-          const api = game.api_type || 'unknown';
-          if (!acc[api]) acc[api] = [];
-          acc[api].push(gameId);
-        }
-        return acc;
-      }, {} as Record<string, number[]>);
-
-      console.log("✅ 사용자 차단 설정 로드:");
-      console.log("  - 차단된 제공사:", blockedProviderIds.length, "개", blockedProviderIds);
-      console.log("  - 차단된 개별 게임:", blockedGameIds.length, "개");
-      console.log("  - 제공사로 인한 차단 게임:", providerBlockedGameIds.length, "개");
-      console.log("  - 총 차단 게임:", allBlockedGameIds.length, "개");
-      console.log("  - 📊 API별 차단 게임:", gamesByApi);
+      console.log("✅ 사용자 게임 관리 차단 설정:");
+      console.log("  - 사용자 추가 차단 제공사:", userOnlyBlockedProviderIds.length, "개", userOnlyBlockedProviderIds);
+      console.log("  - 사용자 추가 차단 게임:", userOnlyAllBlockedGameIds.length, "개");
       
-      setUserBlockedProviders(blockedProviderIds);
-      setUserBlockedGames(allBlockedGameIds);
+      // ✅ game_status Map 생성 (사용자 설정만)
+      const statusMap = new Map<number, 'visible' | 'maintenance' | 'hidden'>();
+      (userData || []).forEach(access => {
+        if (access.access_type === 'game' && access.game_id && access.game_status) {
+          const gameId = typeof access.game_id === 'number' ? access.game_id : parseInt(access.game_id);
+          if (!isNaN(gameId)) {
+            statusMap.set(gameId, access.game_status as 'visible' | 'maintenance' | 'hidden');
+          }
+        }
+      });
+      console.log("  - 🎮 게임 상태 맵:", statusMap.size, "개");
+      
+      // ✅ UI에는 사용자 추가 차단만 표시 (매장 차단은 리스트에서 제외됨)
+      setUserBlockedProviders(userOnlyBlockedProviderIds);
+      setUserBlockedGames(userOnlyAllBlockedGameIds);
+      setUserGameStatus(statusMap);
     } catch (error) {
       console.error("❌ 사용자 차단 게임 로드 실패:", error);
       toast.error("게임 설정을 불러오는데 실패했습니다.");
@@ -1919,12 +2178,14 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
         const { error, data } = await supabase
           .from("partner_game_access")
           .upsert({
-            user_id: selectedUser.id, // ✅ 사용자별 설정: user_id만, partner_id는 NULL
+            partner_id: null, // ⭐ 사용자별 설정은 partner_id를 명시적으로 null
+            user_id: selectedUser.id,
             api_provider: game.api_type,
-            game_provider_id: null, // ⭐ 명시적으로 NULL 설정!
-            game_id: gameId,
+            game_provider_id: String(game.provider_id), // ⭐ provider_id도 저장
+            game_id: String(gameId),
             access_type: "game",
             is_allowed: false,
+            game_status: "hidden",
           }, {
             onConflict: 'partner_id,user_id,api_provider,game_provider_id,game_id,access_type',
             ignoreDuplicates: false
@@ -1936,6 +2197,13 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
           throw error;
         }
         console.log('✅ UPSERT 성공:', data);
+        
+        // ✅ games/game_providers 테이블 동기화
+        const tableName = game.api_type === 'honorapi' ? 'honor_games' : 'games';
+        await supabase
+          .from(tableName)
+          .update({ game_visible: 'hidden' })
+          .eq('id', gameId);
       } else {
         // 게임 허용: 레코드 삭제
         console.log('🔓 허용 레코드 삭제:', {
@@ -1947,7 +2215,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
         const { error } = await supabase
           .from("partner_game_access")
           .delete()
-          .is("partner_id", null) // ✅ 사용자별 설정은 partner_id가 NULL
+          .is("partner_id", null) // ✅ 사��자별 설정은 partner_id가 NULL
           .eq("user_id", selectedUser.id)
           .eq("api_provider", game.api_type) // ⭐ API 제공사도 체크!
           .eq("game_id", gameId)
@@ -1958,6 +2226,13 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
           throw error;
         }
         console.log('✅ DELETE 성공');
+        
+        // ✅ games/game_providers 테이블 동기화
+        const tableName = game.api_type === 'honorapi' ? 'honor_games' : 'games';
+        await supabase
+          .from(tableName)
+          .update({ game_visible: 'visible' })
+          .eq('id', gameId);
       }
 
       toast.success(newBlockedStatus ? "게임을 차단했습니다." : "게임 차단을 해제했습니다.");
@@ -1967,6 +2242,224 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       
       // ✅ Rollback: 에러 발생 시 이전 상태로 복원
       setUserBlockedGames(previousBlockedGames);
+    }
+  };
+
+  // ✅ 개별 게임 상태 변경 (visible/maintenance/hidden)
+  const handleChangeUserGameStatus = async (gameId: number, status: 'visible' | 'maintenance' | 'hidden') => {
+    if (!selectedUser || !selectedStore) return;
+
+    console.log('🎮 사용자 게임 상태 변경:', { gameId, status, userId: selectedUser.id });
+    
+    const game = allGames.find(g => g.id === gameId);
+    if (!game) {
+      console.error(`❌ 게임 ID ${gameId}를 찾을 수 없습니다.`);
+      return;
+    }
+
+    // ✅ Optimistic Update
+    const previousStatus = userGameStatus.get(gameId);
+    const previousBlockedGames = userBlockedGames;
+    
+    const newStatusMap = new Map(userGameStatus);
+    if (status === 'visible') {
+      newStatusMap.delete(gameId);
+      setUserBlockedGames(prev => prev.filter(id => id !== gameId));
+    } else {
+      newStatusMap.set(gameId, status);
+      if (status === 'hidden' && !userBlockedGames.includes(gameId)) {
+        setUserBlockedGames(prev => [...prev, gameId]);
+      }
+    }
+    setUserGameStatus(newStatusMap);
+
+    try {
+      if (status === 'visible') {
+        // 노출: 레코드 삭제
+        const { error } = await supabase
+          .from("partner_game_access")
+          .delete()
+          .is("partner_id", null)
+          .eq("user_id", selectedUser.id)
+          .eq("api_provider", game.api_type)
+          .eq("game_id", gameId)
+          .eq("access_type", "game");
+
+        if (error) throw error;
+        
+        // ✅ games/game_providers 테이블 동기화
+        const tableName = game.api_type === 'honorapi' ? 'honor_games' : 'games';
+        await supabase
+          .from(tableName)
+          .update({ game_visible: 'visible' })
+          .eq('id', gameId);
+        
+        toast.success("게임이 노출되었습니다.");
+      } else {
+        // maintenance 또는 hidden: 레코드 생성/업데이트
+        const { error } = await supabase
+          .from("partner_game_access")
+          .upsert({
+            user_id: selectedUser.id,
+            api_provider: game.api_type,
+            game_provider_id: null,
+            game_id: gameId,
+            access_type: "game",
+            is_allowed: false,
+            game_status: status,
+          }, {
+            onConflict: 'partner_id,user_id,api_provider,game_provider_id,game_id,access_type',
+            ignoreDuplicates: false
+          });
+
+        if (error) throw error;
+        
+        // ✅ games/game_providers 테이블 동기화
+        const tableName = game.api_type === 'honorapi' ? 'honor_games' : 'games';
+        await supabase
+          .from(tableName)
+          .update({ game_visible: status })
+          .eq('id', gameId);
+        
+        const statusText = status === 'maintenance' ? '점검중' : '숨김';
+        toast.success(`게임이 ${statusText} 상태로 변경되었습니다.`);
+      }
+
+      await loadUserGameAccess(selectedUser.id);
+    } catch (error) {
+      console.error("❌ 게임 상태 변경 실패:", error);
+      toast.error("게임 상태 변경에 실패했습니다.");
+      
+      // Rollback
+      const rollbackMap = new Map(userGameStatus);
+      if (previousStatus) {
+        rollbackMap.set(gameId, previousStatus);
+      } else {
+        rollbackMap.delete(gameId);
+      }
+      setUserGameStatus(rollbackMap);
+      setUserBlockedGames(previousBlockedGames);
+    }
+  };
+
+  // ✅ 제공사별 점검중
+  const handleProviderMaintenance = async (providerId: number) => {
+    if (!selectedUser || !selectedStore || !selectedApi) return;
+
+    const provider = providers.find(p => p.id === providerId);
+    if (!provider) return;
+
+    // 해당 제공사의 게임 목록
+    const providerGames = games.filter(g => 
+      g.provider_id === providerId && 
+      g.api_type === selectedApi &&
+      g.status === "visible" &&
+      !storeBlockedGames.includes(g.id)
+    );
+
+    if (providerGames.length === 0) {
+      toast.warning("대상 게임이 없습니다.");
+      return;
+    }
+
+    try {
+      // game_status='maintenance' 레코드 생성
+      const accessRecords = providerGames.map(game => ({
+        user_id: selectedUser.id,
+        api_provider: game.api_type,
+        game_provider_id: null,
+        game_id: game.id,
+        access_type: "game" as const,
+        is_allowed: false,
+        game_status: "maintenance" as const,
+      }));
+
+      const { error } = await supabase
+        .from("partner_game_access")
+        .upsert(accessRecords, {
+          onConflict: 'partner_id,user_id,api_provider,game_provider_id,game_id,access_type',
+          ignoreDuplicates: false
+        });
+
+      if (error) throw error;
+      
+      // ✅ games/game_providers 테이블 동기화
+      const tableName = selectedApi === 'honorapi' ? 'honor_games' : 'games';
+      const gameIds = providerGames.map(g => g.id);
+      await supabase
+        .from(tableName)
+        .update({ game_visible: 'maintenance' })
+        .in('id', gameIds);
+
+      await loadUserGameAccess(selectedUser.id);
+      toast.success(`${provider.name}의 ${providerGames.length}개 게임이 점검 상태로 변경되었습니다.`);
+    } catch (error) {
+      console.error("❌ 제공사 점검중 실패:", error);
+      toast.error("점검 상태 변경에 실패했습니다.");
+    }
+  };
+
+  // ✅ 사용자별 게임 탭: 전체 점검중 (API + 게임타입별)
+  const handleBulkUserGameMaintenance = async () => {
+    if (!selectedUser || !selectedStore || !selectedApi) {
+      toast.warning("사용자와 API를 선택해주세요.");
+      return;
+    }
+
+    // 현재 필터된 게임 목록 (API + 게임타입 + 매장 허용)
+    const filteredGames = games.filter(g => {
+      if (g.api_type !== selectedApi) return false;
+      if (selectedGameType !== "all" && g.type !== selectedGameType) return false;
+      if (g.status !== "visible") return false; // Lv1에서 노출한 게임만
+      if (storeBlockedGames.includes(g.id)) return false; // 매장에서 허용한 게임만
+      return true;
+    });
+
+    if (filteredGames.length === 0) {
+      toast.warning("대상 게임이 없습니다.");
+      return;
+    }
+
+    console.log(`📦 사용자별 전체 점검중: ${filteredGames.length}개 게임`);
+
+    try {
+      // ✅ partner_game_access 테이블에 game_status='maintenance' 레코드 생성/업데이트
+      const accessRecords = filteredGames.map(game => ({
+        user_id: selectedUser.id,
+        api_provider: game.api_type,
+        game_provider_id: null,
+        game_id: game.id,
+        access_type: "game" as const,
+        is_allowed: false,
+        game_status: "maintenance" as const,
+      }));
+
+      if (accessRecords.length > 0) {
+        const { error } = await supabase
+          .from("partner_game_access")
+          .upsert(accessRecords, {
+            onConflict: 'partner_id,user_id,api_provider,game_provider_id,game_id,access_type',
+            ignoreDuplicates: false
+          });
+
+        if (error) throw error;
+        
+        // ✅ games/game_providers 테이블 동기화
+        const tableName = selectedApi === 'honorapi' ? 'honor_games' : 'games';
+        const gameIds = filteredGames.map(g => g.id);
+        await supabase
+          .from(tableName)
+          .update({ game_visible: 'maintenance' })
+          .in('id', gameIds);
+      }
+      
+      toast.success(`${filteredGames.length}개 게임이 점검 상태로 변경되었습니다.`);
+      
+      // ✅ 사용자 게임 접근 권한 다시 로드
+      await loadUserGameAccess(selectedUser.id);
+    } catch (error) {
+      console.error("❌ 전체 점검중 실패:", error);
+      toast.error("게임 점검 상태 변경에 실패했습니다.");
     }
   };
 
@@ -2012,7 +2505,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
 
     try {
       if (showAll) {
-        // 전체 노출: 제공사 + 게임 레코드 삭제
+        // 전체 노출: 게임 레코드 삭제 (game_status 제거)
         const gameIdsToAllow = filteredGames
           .filter(g => previousBlockedGames.includes(g.id))
           .map(g => g.id);
@@ -2024,7 +2517,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
           .delete()
           .is("partner_id", null)
           .eq("user_id", selectedUser.id)
-          .eq("api_provider", selectedApi) // ⭐ 추가!
+          .eq("api_provider", selectedApi)
           .eq("access_type", "provider")
           .in("game_provider_id", affectedProviderIds);
 
@@ -2040,11 +2533,18 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
             .in("game_id", gameIdsToAllow);
 
           if (error) throw error;
+          
+          // ✅ games/game_providers 테이블 동기화
+          const tableName = selectedApi === 'honorapi' ? 'honor_games' : 'games';
+          await supabase
+            .from(tableName)
+            .update({ game_visible: 'visible' })
+            .in('id', gameIdsToAllow);
         }
 
         toast.success(`${filteredGames.length}개 게임이 노출되었습니다.`);
       } else {
-        // 전체 숨김: 제공사 + 게임 레코드를 한번에 INSERT
+        // 전체 숨김: game_status='hidden'으로 레코드 생성
         const gamesToBlock = filteredGames.filter(g => !previousBlockedGames.includes(g.id));
         
         // 제공사 레코드
@@ -2055,9 +2555,10 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
             user_id: selectedUser.id,
             api_provider: game!.api_type,
             game_provider_id: providerId,
-            game_id: null, // ⭐ 명시적으로 NULL 설정!
+            game_id: null,
             access_type: "provider" as const,
             is_allowed: false,
+            game_status: "hidden" as const,
           };
         });
 
@@ -2065,46 +2566,31 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
         const gameRecords = gamesToBlock.map(g => ({
           user_id: selectedUser.id,
           api_provider: g.api_type,
-          game_provider_id: null, // ⭐ 명시적으로 NULL 설정!
+          game_provider_id: null,
           game_id: g.id,
           access_type: "game" as const,
           is_allowed: false,
+          game_status: "hidden" as const,
         }));
 
-        // ✅ 1단계: 기존 레코드 삭제 (중복 방지)
+        // ✅ UPSERT로 변경 (중복 방지)
         if (providerRecords.length > 0 || gameRecords.length > 0) {
-          // 제공사 레코드 삭제
-          const providerIdsToDelete = affectedProviders;
-          if (providerIdsToDelete.length > 0) {
-            await supabase
-              .from("partner_game_access")
-              .delete()
-              .is("partner_id", null)
-              .eq("user_id", selectedUser.id)
-              .eq("api_provider", selectedApi)
-              .eq("access_type", "provider")
-              .in("game_provider_id", providerIdsToDelete);
-          }
-          
-          // 게임 레코드 삭제
-          const gameIdsToDelete = gamesToBlock.map(g => g.id);
-          if (gameIdsToDelete.length > 0) {
-            await supabase
-              .from("partner_game_access")
-              .delete()
-              .is("partner_id", null)
-              .eq("user_id", selectedUser.id)
-              .eq("api_provider", selectedApi)
-              .eq("access_type", "game")
-              .in("game_id", gameIdsToDelete);
-          }
-          
-          // ✅ 2단계: 새 레코드 생성
           const { error } = await supabase
             .from("partner_game_access")
-            .insert([...providerRecords, ...gameRecords]);
+            .upsert([...providerRecords, ...gameRecords], {
+              onConflict: 'partner_id,user_id,api_provider,game_provider_id,game_id,access_type',
+              ignoreDuplicates: false
+            });
 
           if (error) throw error;
+          
+          // ✅ games/game_providers 테이블 동기화
+          const tableName = selectedApi === 'honorapi' ? 'honor_games' : 'games';
+          const gameIds = gamesToBlock.map(g => g.id);
+          await supabase
+            .from(tableName)
+            .update({ game_visible: 'hidden' })
+            .in('id', gameIds);
         }
 
         toast.success(`${filteredGames.length}개 게임이 숨겨졌습니다.`);
@@ -2171,7 +2657,8 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
 
       {/* 매장별 게임 탭 */}
       {activeTab === "stores" && (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* 왼쪽: 매장 목록 */}
           <Card className="bg-slate-800/30 border-slate-700 lg:col-span-1">
             <CardContent className="p-3">
@@ -2277,8 +2764,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                   ) : (
                     <div className="space-y-4">
                       {/* 검색 및 필터 */}
-                      <div className="flex gap-3">
-                        <div className="flex-1 relative">
+                      <div className="space-y-3">
+                        {/* 검색 */}
+                        <div className="relative">
                           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                           <Input
                             placeholder="게임 검색..."
@@ -2287,66 +2775,90 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                             className="pl-12 h-12 text-base bg-slate-900/50 border-slate-700 text-white"
                           />
                         </div>
-                      </div>
-                      
-                      {/* 게임 타입 필터 버튼 */}
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          onClick={() => setSelectedGameType("casino")}
-                          className={`flex-1 h-11 text-base font-semibold transition-all ${
-                            selectedGameType === "casino"
-                              ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg border-2 border-purple-400"
-                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
-                          }`}
-                        >
-                          <Gamepad2 className="w-4 h-4 mr-2" />
-                          카지노
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          onClick={() => setSelectedGameType("slot")}
-                          className={`flex-1 h-11 text-base font-semibold transition-all ${
-                            selectedGameType === "slot"
-                              ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg border-2 border-blue-400"
-                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
-                          }`}
-                        >
-                          <Zap className="w-4 h-4 mr-2" />
-                          슬롯
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          onClick={() => setSelectedGameType("minigame")}
-                          className={`flex-1 h-11 text-base font-semibold transition-all ${
-                            selectedGameType === "minigame"
-                              ? "bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-lg border-2 border-orange-400"
-                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
-                          }`}
-                        >
-                          <Play className="w-4 h-4 mr-2" />
-                          미니게임
-                        </Button>
-                      </div>
 
-                      {/* 전체 노출/숨김 버튼 */}
-                      <div className="flex gap-3 justify-end">
-                        <Button
-                          variant="outline"
-                          onClick={() => handleBulkStoreProviderAccess(true)}
-                          className="px-6 py-3 h-12 text-base font-bold bg-emerald-900/30 border-2 border-emerald-600 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-500 hover:text-emerald-200"
-                        >
-                          <Eye className="w-5 h-5 mr-2" />
-                          전체 노출
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => handleBulkStoreProviderAccess(false)}
-                          className="px-6 py-3 h-12 text-base font-bold bg-red-900/30 border-2 border-red-600 text-red-300 hover:bg-red-900/50 hover:border-red-500 hover:text-red-200"
-                        >
-                          <EyeOff className="w-5 h-5 mr-2" />
-                          전체 숨김
-                        </Button>
+                        {/* 게임타입 필터 + 전체 노출/숨김 버튼 */}
+                        <div className="flex items-center justify-between gap-4">
+                          {/* 왼쪽: 게임타입 필터 버튼 */}
+                          <div className="flex gap-2">
+                            <Button
+                              variant={selectedGameType === "all" ? "default" : "outline"}
+                              onClick={() => setSelectedGameType("all")}
+                              className={`h-12 px-6 text-base font-semibold ${
+                                selectedGameType === "all"
+                                  ? "bg-purple-600 hover:bg-purple-700 text-white"
+                                  : "bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                              }`}
+                            >
+                              전체
+                            </Button>
+                            <Button
+                              variant={selectedGameType === "casino" ? "default" : "outline"}
+                              onClick={() => setSelectedGameType("casino")}
+                              className={`h-12 px-6 text-base font-semibold ${
+                                selectedGameType === "casino"
+                                  ? "bg-purple-600 hover:bg-purple-700 text-white"
+                                  : "bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                              }`}
+                            >
+                              카지노
+                            </Button>
+                            <Button
+                              variant={selectedGameType === "slot" ? "default" : "outline"}
+                              onClick={() => setSelectedGameType("slot")}
+                              className={`h-12 px-6 text-base font-semibold ${
+                                selectedGameType === "slot"
+                                  ? "bg-purple-600 hover:bg-purple-700 text-white"
+                                  : "bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                              }`}
+                            >
+                              슬롯
+                            </Button>
+                            <Button
+                              variant={selectedGameType === "minigame" ? "default" : "outline"}
+                              onClick={() => setSelectedGameType("minigame")}
+                              className={`h-12 px-6 text-base font-semibold ${
+                                selectedGameType === "minigame"
+                                  ? "bg-purple-600 hover:bg-purple-700 text-white"
+                                  : "bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                              }`}
+                            >
+                              미니게임
+                            </Button>
+                          </div>
+
+                          {/* 오른쪽: 새로고침 + 전체 노출/숨김 버튼 */}
+                          <div className="flex gap-3">
+                            <Button
+                              variant="outline"
+                              onClick={async () => {
+                                await initializeData();
+                                if (selectedApi) {
+                                  await loadGamesForApi(selectedApi);
+                                }
+                              }}
+                              className="px-4 py-3 h-12 text-base font-bold bg-blue-900/30 border-2 border-blue-600 text-blue-300 hover:bg-blue-900/50 hover:border-blue-500 hover:text-blue-200"
+                            >
+                              <RefreshCw className="w-5 h-5 mr-2" />
+                              새로고침
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => handleBulkStoreProviderAccess(true)}
+                              className="px-6 py-3 h-12 text-base font-bold bg-emerald-900/30 border-2 border-emerald-600 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-500 hover:text-emerald-200"
+                            >
+                              <Eye className="w-5 h-5 mr-2" />
+                              전체 노출
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => handleBulkStoreProviderAccess(false)}
+                              className="px-6 py-3 h-12 text-base font-bold bg-red-900/30 border-2 border-red-600 text-red-300 hover:bg-red-900/50 hover:border-red-500 hover:text-red-200"
+                            >
+                              <EyeOff className="w-5 h-5 mr-2" />
+                              전체 숨김
+                            </Button>
+                          </div>
+                        </div>
                       </div>
 
                       {/* 게임 목록 */}
@@ -2361,7 +2873,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                               // ✅ Lv1에서 노출한 제공사만 표시 (provider status='visible')
                               if (p.status !== "visible") return false;
                               
-                              // ⭐⭐⭐ 매장은 차단한 게임사도 관리 목적으로 봐야 함 - 필터링 제거!
+                              // ✅ 매장이 차단한 제공사도 표시 (허용/차단 토글 가능하도록)
                               
                               // ✅ 해당 제공사의 선택된 게임 타입의 게임이 있는지 확인
                               const hasGames = games.some(g => 
@@ -2387,16 +2899,15 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                 <div className="text-center py-12 text-slate-400">
                                   <Building2 className="w-16 h-16 mx-auto mb-4 text-slate-600" />
                                   <p>노출된 게임사가 없습니다</p>
-                                  <p className="text-sm mt-2">Lv2 게임관리에서 게임사를 먼저 노출 설정하세요.</p>
                                 </div>
                               );
                             }
 
                             return filteredProviders.map(provider => {
-                              // ✅ 앞글자부터 매핑 검색: 제공사명 + 게임명 모두 검색
+                              // ✅ 띄어쓰기 무시 검색: 제공사명 + 게임명 모두 검색
                               const searchNormalized = debouncedSearchTerm.replace(/\s/g, '').toLowerCase();
                               const providerNameNormalized = provider.name.replace(/\s/g, '').toLowerCase();
-                              const isProviderMatch = !debouncedSearchTerm || providerNameNormalized.startsWith(searchNormalized);
+                              const isProviderMatch = !debouncedSearchTerm || providerNameNormalized.includes(searchNormalized);
 
                               const providerGames = games.filter(g => {
                                 if (g.provider_id !== provider.id) return false;
@@ -2405,12 +2916,14 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                 // ✅ Lv1에서 노출한 게임만 표시 (status='visible')
                                 if (g.status !== "visible") return false;
                                 
+                                // ✅ 매장이 차단한 게임도 표시 (허용/차단 토글 가능하도록)
+                                
                                 // 제공사명이 매칭되면 모든 게임 표시
                                 if (isProviderMatch) return true;
                                 
-                                // 게임명으로 검색 (앞글자부터 매핑)
+                                // 게임명으로 검색 (띄어쓰기 무시)
                                 const gameNameNormalized = g.name.replace(/\s/g, '').toLowerCase();
-                                return gameNameNormalized.startsWith(searchNormalized);
+                                return gameNameNormalized.includes(searchNormalized);
                               });
 
                               if (providerGames.length === 0 && debouncedSearchTerm) {
@@ -2462,8 +2975,12 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                             {provider.api_type.toUpperCase()}
                                           </Badge>
                                         </div>
-                                        <div className="text-base text-slate-200 mt-1.5 font-semibold">
-                                          총 {providerGames.length}개 게임 · 차단 {blockedCount}개
+                                        <div className="text-base mt-1.5 font-semibold whitespace-nowrap">
+                                          <span className="text-slate-300">전체 {providerGames.length}개</span>
+                                          <span className="text-slate-500"> · </span>
+                                          <span className="text-red-400">차단 {blockedCount}개</span>
+                                          <span className="text-slate-500"> · </span>
+                                          <span className="text-emerald-400">허용 {providerGames.length - blockedCount}개</span>
                                         </div>
                                       </div>
                                     </div>
@@ -2472,8 +2989,10 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                       <Button
                                         variant="outline"
                                         onClick={async () => {
-                                          if (!selectedStore) return;
                                           try {
+                                            // ✅ 모든 레벨: partner_game_access 사용 (is_visible 변경 안 함)
+                                            if (!selectedStore) return;
+                                            
                                             // 해당 제공사의 모든 게임 ID
                                             const allProviderGameIds = games
                                               .filter(g => g.provider_id === provider.id)
@@ -2536,8 +3055,10 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                       <Button
                                         variant="outline"
                                         onClick={async () => {
-                                          if (!selectedStore) return;
                                           try {
+                                            // ✅ 모든 레벨: partner_game_access 사용 (is_visible 변경 안 함)
+                                            if (!selectedStore) return;
+                                            
                                             console.log("🚫 매장별 전체 차단:", { 
                                               provider: provider.name, 
                                               providerId: provider.id,
@@ -2552,6 +3073,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                               game_id: null,
                                               access_type: "provider",
                                               is_allowed: false,
+                                              game_status: "hidden" as const,
                                             };
 
                                             // 1단계: 기존 제공사 레코드 삭제
@@ -2607,16 +3129,17 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                                 key={game.id}
                                                 className={`group relative bg-slate-900/50 border rounded-md overflow-hidden transition-all hover:shadow-md hover:shadow-blue-500/20 ${
                                                   isBlocked
-                                                    ? "border-red-500 ring-1 ring-red-500/50 opacity-60"
-                                                    : "border-slate-700 hover:border-slate-600"
+                                                    ? "border-red-500 hover:border-red-400"
+                                                    : "border-emerald-500 hover:border-emerald-400"
                                                 }`}
                                               >
+                                                {/* 왼쪽 상단 아이콘 */}
                                                 <div className="absolute top-2 left-2 z-10">
-                                                  <Checkbox
-                                                    checked={isBlocked}
-                                                    onCheckedChange={() => handleToggleStoreGame(game.id)}
-                                                    className="bg-slate-900/90 border-slate-600 h-5 w-5"
-                                                  />
+                                                  {isBlocked ? (
+                                                    <EyeOff className="w-5 h-5 text-red-400" />
+                                                  ) : (
+                                                    <Eye className="w-5 h-5 text-emerald-400" />
+                                                  )}
                                                 </div>
 
                                                 <div className="aspect-[3/2] bg-slate-800 relative overflow-hidden">
@@ -2636,6 +3159,31 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                                       🎮
                                                     </div>
                                                   )}
+                                                  
+                                                  {/* 호버 시 토글 버튼 */}
+                                                  <div className="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <Button
+                                                      size="sm"
+                                                      variant="outline"
+                                                      onClick={() => handleToggleStoreGame(game.id)}
+                                                      className={isBlocked 
+                                                        ? "bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+                                                        : "bg-red-600 hover:bg-red-700 text-white border-0"
+                                                      }
+                                                    >
+                                                      {isBlocked ? (
+                                                        <>
+                                                          <Eye className="w-3 h-3 mr-1" />
+                                                          허용
+                                                        </>
+                                                      ) : (
+                                                        <>
+                                                          <EyeOff className="w-3 h-3 mr-1" />
+                                                          차단
+                                                        </>
+                                                      )}
+                                                    </Button>
+                                                  </div>
                                                 </div>
 
                                                 <div className="p-2">
@@ -2667,7 +3215,8 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
               )}
             </CardContent>
           </Card>
-        </div>
+          </div>
+        </>
       )}
 
       {/* 사용자별 게임 탭 */}
@@ -2841,78 +3390,108 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                       <p className="text-xl font-semibold text-white mb-2">API를 선택하세요</p>
                     </div>
                   ) : (
-                    <div className="space-y-6">
-                      {/* 검색 및 필터 */}
-                      <div className="flex gap-3">
-                        <div className="flex-1 relative">
-                          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-                          <Input
-                            placeholder="게임 검색..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-12 h-12 text-base bg-slate-900/50 border-slate-700 text-white"
-                          />
-                        </div>
-                      </div>
-                      
-                      {/* 게임 타입 필터 버튼 */}
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          onClick={() => setSelectedGameType("casino")}
-                          className={`flex-1 h-11 text-base font-semibold transition-all ${
-                            selectedGameType === "casino"
-                              ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg border-2 border-purple-400"
-                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
-                          }`}
-                        >
-                          <Gamepad2 className="w-4 h-4 mr-2" />
-                          카지노
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          onClick={() => setSelectedGameType("slot")}
-                          className={`flex-1 h-11 text-base font-semibold transition-all ${
-                            selectedGameType === "slot"
-                              ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg border-2 border-blue-400"
-                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
-                          }`}
-                        >
-                          <Zap className="w-4 h-4 mr-2" />
-                          슬롯
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          onClick={() => setSelectedGameType("minigame")}
-                          className={`flex-1 h-11 text-base font-semibold transition-all ${
-                            selectedGameType === "minigame"
-                              ? "bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-lg border-2 border-orange-400"
-                              : "bg-slate-800/50 text-slate-300 hover:bg-slate-700 hover:text-white border-2 border-slate-700"
-                          }`}
-                        >
-                          <Play className="w-4 h-4 mr-2" />
-                          미니게임
-                        </Button>
+                    <div className="space-y-4">
+                      {/* 검색 */}
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input
+                          placeholder="게임 검색..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-10 bg-slate-900/50 border-slate-700 text-white"
+                        />
                       </div>
 
-                      {/* 전체 노출/숨김 버튼 */}
-                      <div className="flex gap-3 justify-end">
-                        <Button
-                          variant="outline"
-                          onClick={() => handleBulkUserGameAccess(true)}
-                          className="px-6 py-3 h-12 text-base font-bold bg-emerald-900/30 border-2 border-emerald-600 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-500 hover:text-emerald-200"
-                        >
-                          <Eye className="w-5 h-5 mr-2" />
-                          전체 노출
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => handleBulkUserGameAccess(false)}
-                          className="px-6 py-3 h-12 text-base font-bold bg-red-900/30 border-2 border-red-600 text-red-300 hover:bg-red-900/50 hover:border-red-500 hover:text-red-200"
-                        >
-                          <EyeOff className="w-5 h-5 mr-2" />
-                          전체 숨김
-                        </Button>
+                      {/* 게임타입 필터 + 전체 노출/점검중/숨김 버튼 */}
+                      <div className="flex items-center justify-between gap-4">
+                        {/* 왼쪽: 게임타입 필터 버튼 */}
+                        <div className="flex gap-2">
+                          <Button
+                            variant={selectedGameType === "all" ? "default" : "outline"}
+                            onClick={() => setSelectedGameType("all")}
+                            className={`h-12 px-6 text-base font-semibold ${
+                              selectedGameType === "all"
+                                ? "bg-purple-600 hover:bg-purple-700 text-white"
+                                : "bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                            }`}
+                          >
+                            전체
+                          </Button>
+                          <Button
+                            variant={selectedGameType === "casino" ? "default" : "outline"}
+                            onClick={() => setSelectedGameType("casino")}
+                            className={`h-12 px-6 text-base font-semibold ${
+                              selectedGameType === "casino"
+                                ? "bg-purple-600 hover:bg-purple-700 text-white"
+                                : "bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                            }`}
+                          >
+                            카지노
+                          </Button>
+                          <Button
+                            variant={selectedGameType === "slot" ? "default" : "outline"}
+                            onClick={() => setSelectedGameType("slot")}
+                            className={`h-12 px-6 text-base font-semibold ${
+                              selectedGameType === "slot"
+                                ? "bg-purple-600 hover:bg-purple-700 text-white"
+                                : "bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                            }`}
+                          >
+                            슬롯
+                          </Button>
+                          <Button
+                            variant={selectedGameType === "minigame" ? "default" : "outline"}
+                            onClick={() => setSelectedGameType("minigame")}
+                            className={`h-12 px-6 text-base font-semibold ${
+                              selectedGameType === "minigame"
+                                ? "bg-purple-600 hover:bg-purple-700 text-white"
+                                : "bg-slate-900/50 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+                            }`}
+                          >
+                            미니게임
+                          </Button>
+                        </div>
+
+                        {/* 오른쪽: 새로고침 + 전체 노출/점검중/숨김 버튼 */}
+                        <div className="flex gap-3">
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              await initializeData();
+                              if (selectedApi) {
+                                await loadGamesForApi(selectedApi);
+                              }
+                            }}
+                            className="px-4 py-3 h-12 text-base font-bold bg-blue-900/30 border-2 border-blue-600 text-blue-300 hover:bg-blue-900/50 hover:border-blue-500 hover:text-blue-200"
+                          >
+                            <RefreshCw className="w-5 h-5 mr-2" />
+                            새로고침
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleBulkUserGameAccess(true)}
+                            className="px-6 py-3 h-12 text-base font-bold bg-emerald-900/30 border-2 border-emerald-600 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-500 hover:text-emerald-200"
+                          >
+                            <Eye className="w-5 h-5 mr-2" />
+                            전체 노출
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={handleBulkUserGameMaintenance}
+                            className="px-6 py-3 h-12 text-base font-bold bg-orange-900/30 border-2 border-orange-600 text-orange-300 hover:bg-orange-900/50 hover:border-orange-500 hover:text-orange-200"
+                          >
+                            <AlertTriangle className="w-5 h-5 mr-2" />
+                            전체 점검중
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleBulkUserGameAccess(false)}
+                            className="px-6 py-3 h-12 text-base font-bold bg-red-900/30 border-2 border-red-600 text-red-300 hover:bg-red-900/50 hover:border-red-500 hover:text-red-200"
+                          >
+                            <EyeOff className="w-5 h-5 mr-2" />
+                            전체 숨김
+                          </Button>
+                        </div>
                       </div>
 
                       {/* 게임 목록 */}
@@ -2927,7 +3506,11 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                               // ✅ Lv1에서 노출한 제공사만 표시 (provider status='visible')
                               if (p.status !== "visible") return false;
                               
-                              // ⭐⭐⭐ 매장은 차단한 게임사도 관리 목적으로 봐야 함 - 필터링 제거!
+                              // ✅ Lv2에서 노출한 제공사만 표시 (is_visible=true)
+                              if (!p.is_visible) return false;
+                              
+                              // ✅ 사용자 게임 관리: 매장에서 차단된 제공사는 리스트에서 제외
+                              if (storeBlockedForUser.providers.includes(p.id)) return false;
                               
                               // ✅ 해당 제공사의 선택된 게임 타입의 게임이 있는지 확인
                               const hasGames = games.some(g => 
@@ -2943,7 +3526,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                               selectedUser: selectedUser?.username,
                               selectedApi,
                               selectedGameType,
-                              storeBlockedProviders,
+                              storeBlockedForUserProviders: storeBlockedForUser.providers,
                               userBlockedProviders,
                               filteredCount: filteredProviders.length,
                               filteredProviders: filteredProviders.map(p => ({ id: p.id, name: p.name }))
@@ -2954,18 +3537,17 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                 <div className="text-center py-12 text-slate-400">
                                   <Building2 className="w-16 h-16 mx-auto mb-4 text-slate-600" />
                                   <p>노출된 게임사가 없습니다</p>
-                                  <p className="text-sm mt-2">Lv2 게임관리에서 게임사를 먼저 노출 설정하세요.</p>
                                 </div>
                               );
                             }
 
                             return filteredProviders.map(provider => {
-                              // ✅ 앞글자부터 매핑 검색: 제공사명 + 게임명 모두 검색
+                              // ✅ 띄어쓰기 무시 검색: 제공사명 + 게임명 모두 검색
                               const searchNormalized = debouncedSearchTerm.replace(/\s/g, '').toLowerCase();
                               const providerNameNormalized = provider.name.replace(/\s/g, '').toLowerCase();
-                              const isProviderMatch = !debouncedSearchTerm || providerNameNormalized.startsWith(searchNormalized);
+                              const isProviderMatch = !debouncedSearchTerm || providerNameNormalized.includes(searchNormalized);
 
-                              // 매장에서 차단되지 않은 게임만 필터링 (로직 반전)
+                              // ✅ 사용자 게임 관리: 매장에서 허용된 게임만 표시
                               const providerGames = games.filter(g => {
                                 if (g.provider_id !== provider.id) return false;
                                 if (selectedGameType !== "all" && g.type !== selectedGameType) return false;
@@ -2973,14 +3555,18 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                 // ✅ Lv1에서 노출한 게임만 표시 (status='visible')
                                 if (g.status !== "visible") return false;
                                 
-                                if (storeBlockedGames.includes(g.id)) return false; // 매장에서 차단되지 않은 게임만
+                                // ✅ Lv2에서 노출한 게임만 표시 (is_visible=true)
+                                if (!g.is_visible) return false;
+                                
+                                // ✅ 매장에서 차단된 게임은 리스트에서 제외
+                                if (storeBlockedForUser.games.includes(g.id)) return false;
                                 
                                 // 제공사명이 매칭되면 모든 게임 표시
                                 if (isProviderMatch) return true;
                                 
-                                // 게임명으로 검색 (앞글자부터 매핑)
+                                // 게임명으로 검색 (띄어쓰기 무시)
                                 const gameNameNormalized = g.name.replace(/\s/g, '').toLowerCase();
-                                return gameNameNormalized.startsWith(searchNormalized);
+                                return gameNameNormalized.includes(searchNormalized);
                               });
 
                               if (providerGames.length === 0 && debouncedSearchTerm) {
@@ -3032,8 +3618,12 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                             {provider.api_type.toUpperCase()}
                                           </Badge>
                                         </div>
-                                        <div className="text-base text-slate-200 mt-1.5 font-semibold">
-                                          매장 허용 {providerGames.length}개 · 사용자 차단 {blockedCount}개
+                                        <div className="text-base mt-1.5 font-semibold whitespace-nowrap">
+                                          <span className="text-slate-300">매장 허용 {providerGames.length}개</span>
+                                          <span className="text-slate-500"> · </span>
+                                          <span className="text-red-400">사용자 차단 {blockedCount}개</span>
+                                          <span className="text-slate-500"> · </span>
+                                          <span className="text-emerald-400">사용자 허용 {providerGames.length - blockedCount}개</span>
                                         </div>
                                       </div>
                                     </div>
@@ -3064,6 +3654,13 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                               throw error;
                                             }
                                             
+                                            // ✅ game_providers 테이블 동기화
+                                            const providerTableName = provider.api_type === 'honorapi' ? 'honor_game_providers' : 'game_providers';
+                                            await supabase
+                                              .from(providerTableName)
+                                              .update({ game_visible: 'visible' })
+                                              .eq('id', provider.id);
+                                            
                                             await loadUserGameAccess(selectedUser.id);
                                             console.log(`허용 완료: provider 레코드만 삭제`);
                                             toast.success(`${provider.name}의 모든 게임을 허용했습니다.`);
@@ -3076,6 +3673,14 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                       >
                                         <Eye className="w-5 h-5 mr-2" />
                                         전체 허용
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        onClick={() => handleProviderMaintenance(provider.id)}
+                                        className="px-5 py-2.5 text-base font-bold bg-orange-900/30 border-2 border-orange-600 text-orange-300 hover:bg-orange-900/50 hover:border-orange-500"
+                                      >
+                                        <AlertTriangle className="w-5 h-5 mr-2" />
+                                        전체 점검중
                                       </Button>
                                       <Button
                                         variant="outline"
@@ -3111,6 +3716,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                               game_id: null,
                                               access_type: "provider" as const,
                                               is_allowed: false,
+                                              game_status: "hidden" as const,
                                             };
                                             
                                             // 1단계: 기존 제공사 레코드 삭제
@@ -3133,6 +3739,13 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                               setUserBlockedProviders(previousBlockedProviders);
                                               throw error;
                                             }
+                                            
+                                            // ✅ game_providers 테이블 동기화
+                                            const providerTableName = provider.api_type === 'honorapi' ? 'honor_game_providers' : 'game_providers';
+                                            await supabase
+                                              .from(providerTableName)
+                                              .update({ game_visible: 'hidden' })
+                                              .eq('id', provider.id);
                                             
                                             await loadUserGameAccess(selectedUser.id);
                                             console.log(`차단 완료: provider 레코드 1개만 생성`);
@@ -3182,32 +3795,71 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                                     <Gamepad2 className="w-8 h-8 text-slate-600" />
                                                   )}
                                                   
-                                                  {/* 체크박스 오버레이 */}
+                                                  {/* 상태 변경 버튼 오버레이 */}
                                                   <div
-                                                    className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                                    onClick={() => handleToggleUserGame(game.id)}
+                                                    className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity p-2"
                                                   >
-                                                    <div
-                                                      className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
-                                                        isBlocked
-                                                          ? "bg-red-500 border-red-500"
-                                                          : "bg-slate-700/80 border-slate-500"
-                                                      }`}
+                                                    <Button
+                                                      size="sm"
+                                                      variant="outline"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleChangeUserGameStatus(game.id, 'visible');
+                                                      }}
+                                                      className="w-full py-1 px-2 h-auto text-xs bg-emerald-600 hover:bg-emerald-700 text-white border-0"
                                                     >
-                                                      {isBlocked && (
-                                                        <EyeOff className="w-4 h-4 text-white" />
-                                                      )}
-                                                    </div>
+                                                      <Eye className="w-3 h-3 mr-1" />
+                                                      노출
+                                                    </Button>
+                                                    <Button
+                                                      size="sm"
+                                                      variant="outline"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleChangeUserGameStatus(game.id, 'maintenance');
+                                                      }}
+                                                      className="w-full py-1 px-2 h-auto text-xs bg-orange-600 hover:bg-orange-700 text-white border-0"
+                                                    >
+                                                      <AlertTriangle className="w-3 h-3 mr-1" />
+                                                      점검중
+                                                    </Button>
+                                                    <Button
+                                                      size="sm"
+                                                      variant="outline"
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleChangeUserGameStatus(game.id, 'hidden');
+                                                      }}
+                                                      className="w-full py-1 px-2 h-auto text-xs bg-red-600 hover:bg-red-700 text-white border-0"
+                                                    >
+                                                      <EyeOff className="w-3 h-3 mr-1" />
+                                                      숨김
+                                                    </Button>
                                                   </div>
 
-                                                  {/* 차단 상태 뱃지 */}
-                                                  {isBlocked && (
-                                                    <div className="absolute top-1 right-1">
-                                                      <div className="bg-red-500 rounded-full p-1">
-                                                        <EyeOff className="w-3 h-3 text-white" />
-                                                      </div>
-                                                    </div>
-                                                  )}
+                                                  {/* 상태 뱃지 */}
+                                                  {(() => {
+                                                    const gameStatus = userGameStatus.get(game.id);
+                                                    if (gameStatus === 'maintenance') {
+                                                      return (
+                                                        <div className="absolute top-1 right-1">
+                                                          <div className="bg-orange-500 rounded-full px-2 py-0.5 flex items-center gap-1">
+                                                            <AlertTriangle className="w-3 h-3 text-white" />
+                                                            <span className="text-xs text-white font-bold">점검중</span>
+                                                          </div>
+                                                        </div>
+                                                      );
+                                                    } else if (gameStatus === 'hidden' || isBlocked) {
+                                                      return (
+                                                        <div className="absolute top-1 right-1">
+                                                          <div className="bg-red-500 rounded-full p-1">
+                                                            <EyeOff className="w-3 h-3 text-white" />
+                                                          </div>
+                                                        </div>
+                                                      );
+                                                    }
+                                                    return null;
+                                                  })()}
                                                 </div>
 
                                                 {/* 게임 이름 */}
@@ -3413,7 +4065,10 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                   제공사가 없습니다.
                 </div>
               ) : (
-                currentProviders.map(provider => (
+                // ✅ 검색어로 필터링된 결과만 표시 (providerGamesMap에 있는 제공사만)
+                currentProviders
+                  .filter(provider => providerGamesMap.has(provider.id))
+                  .map(provider => (
                   <ProviderSection
                     key={provider.id}
                     provider={provider}

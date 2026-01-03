@@ -14,6 +14,7 @@ export interface GameProvider {
   api_type: 'invest' | 'oroplay' | 'familyapi' | 'honorapi';
   status: 'visible' | 'maintenance' | 'hidden'; // 노출/점검중/비노출
   is_visible: boolean; // 사용자 페이지 노출 여부
+  game_visible?: 'visible' | 'maintenance' | 'hidden'; // Lv1 게임 노출 설정
   vendor_code?: string; // OroPlay, FamilyAPI, HonorAPI 전용
   logo_url?: string;
   created_at?: string;
@@ -1730,25 +1731,6 @@ export async function syncHonorApiGames(): Promise<SyncResult> {
   };
 }
 
-/**
- * 🆕 HonorAPI 특정 제공사만 동기화 (예: skywind)
- * @param vendorNameOrCode - 제공사 이름 또는 vendor_code (예: 'skywind')
- */
-export async function syncSpecificHonorApiProvider(vendorNameOrCode: string): Promise<SyncResult> {
-  console.log(`🔄 HonorAPI 특정 제공사 동기화 시작: ${vendorNameOrCode}`);
-  
-  const { syncSpecificHonorApiProvider: syncSpecific } = await import('./honorApi');
-  const result = await syncSpecific(vendorNameOrCode);
-  
-  return {
-    newGames: result.newGames,
-    updatedGames: result.updatedGames,
-    totalGames: result.newGames + result.updatedGames,
-    newProviders: result.newProviders,
-    updatedProviders: result.updatedProviders
-  };
-}
-
 // ============================================
 // 3. 게임 조회
 // ============================================
@@ -2173,7 +2155,8 @@ export async function updateGameFeatured(
 export async function updateProviderVisibility(
   providerId: number,
   isVisible: boolean,
-  apiType?: 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
+  apiType?: 'invest' | 'oroplay' | 'familyapi' | 'honorapi',
+  partnerId?: string
 ): Promise<void> {
   const isHonorApi = apiType ? apiType === 'honorapi' : isHonorApiProvider(providerId);
   const providerTable = isHonorApi ? 'honor_game_providers' : 'game_providers';
@@ -2192,6 +2175,61 @@ export async function updateProviderVisibility(
   }
 
   console.log(`✅ 제공사 ${providerId} 노출 설정: ${isVisible ? '노출' : '숨김'} (${providerTable})`);
+
+  // ✅ is_visible=false이고 partnerId가 있으면 partner_game_access에 기록
+  if (!isVisible && partnerId && apiType) {
+    // 기존 레코드 확인
+    const { data: existing } = await supabase
+      .from('partner_game_access')
+      .select('id')
+      .eq('partner_id', partnerId)
+      .eq('game_provider_id', providerId)
+      .eq('api_provider', apiType)
+      .eq('access_type', 'provider')
+      .is('user_id', null)
+      .single();
+
+    if (!existing) {
+      // 레코드가 없으면 삽입
+      const { error: insertError } = await supabase
+        .from('partner_game_access')
+        .insert({
+          partner_id: partnerId,
+          user_id: null,
+          api_provider: apiType,
+          game_provider_id: providerId,
+          game_id: null,
+          access_type: 'provider',
+          is_allowed: false,
+          game_status: 'hidden',
+          created_at: new Date().toISOString(),
+        });
+
+      if (insertError) {
+        console.error('❌ partner_game_access 삽입 오류:', insertError);
+      } else {
+        console.log(`✅ partner_game_access에 제공사 차단 기록 추가: partner_id=${partnerId}, provider_id=${providerId}`);
+      }
+    }
+  }
+
+  // ✅ is_visible=true이면 partner_game_access에서 제거
+  if (isVisible && partnerId && apiType) {
+    const { error: deleteError } = await supabase
+      .from('partner_game_access')
+      .delete()
+      .eq('partner_id', partnerId)
+      .eq('game_provider_id', providerId)
+      .eq('api_provider', apiType)
+      .eq('access_type', 'provider')
+      .is('user_id', null);
+
+    if (deleteError) {
+      console.error('❌ partner_game_access 삭제 오류:', deleteError);
+    } else {
+      console.log(`✅ partner_game_access에서 제공사 차단 기록 제거: partner_id=${partnerId}, provider_id=${providerId}`);
+    }
+  }
 }
 
 /**
@@ -2690,13 +2728,16 @@ export async function getUserVisibleGames(filters?: {
   search?: string;
   userId?: string; // 🆕 사용자 ID 추가
 }): Promise<Game[]> {
-  // ✅ status='visible'만 체크 (is_visible 조건 제거)
-  const allGames = await getGames({
+  // ✅ status='visible' AND is_visible=true 체크
+  const allGamesRaw = await getGames({
     type: filters?.type,
     provider_id: filters?.provider_id,
     search: filters?.search,
-    status: 'visible', // ✅ status만 체크
+    status: 'visible', // ✅ status='visible' 체크
   });
+  
+  // ✅ is_visible=true인 게임만 필터링
+  const allGames = allGamesRaw.filter(g => g.is_visible === true);
 
   console.log(`🎮 [getUserVisibleGames] 초기 게임 조회: ${allGames.length}개 (type=${filters?.type}, provider_id=${filters?.provider_id})`);
   console.log(`📋 [getUserVisibleGames] 처음 5개 게임:`, allGames.slice(0, 5).map(g => ({
@@ -2720,75 +2761,132 @@ export async function getUserVisibleGames(filters?: {
     
     console.log('👤 [getUserVisibleGames] userId:', filters.userId, '→ referrer_id:', userPartnerId, 'level:', userLevel);
     
-    // ⭐⭐⭐ 중요: Lv7만 필터링 적용! 매장(Lv2~Lv6)은 모든 게임 표시
-    if (userLevel !== 7) {
-      console.log(`✅ [getUserVisibleGames] Lv${userLevel} - 매장/관리자는 모든 게임 표시 (필터링 건너뜀)`);
-      return allGames;
+    // ⭐⭐⭐ 중요: Lv7만 partner_id 기반 필터링 적용! 매장(Lv2~Lv6)은 모든 게임 표시
+    let filteredGames = allGames;
+    
+    // ⭐ partner_id 기반 차단 (Lv7만 적용)
+    if (userLevel === 7 && userPartnerId) {
+      console.log('🎯 [getUserVisibleGames] Lv7 사용자 - partner_game_access 필터링 적용');
+      
+      // ⭐ 상위 계층 전체의 파트너 ID 조회 (자신 + 상위 파트너들)
+      const allPartnerIds = await getAllParentPartnerIds(userPartnerId);
+      console.log('🔗 [getUserVisibleGames] 상위 계층 전체:', allPartnerIds);
+      
+      // ✅ 상위 계층 전체의 차단 설정 조회 (매장 레벨: partner_id 기반)
+      const { data: blockedAccess } = await supabase
+        .from('partner_game_access')
+        .select('api_provider, game_provider_id, game_id, access_type, partner_id')
+        .in('partner_id', allPartnerIds)  // ✅ 상위 계층 전체 확인
+        .is('user_id', null) // ⭐ 매장 레벨 설정만 (user_id가 null)
+        .eq('is_allowed', false); // ✅ 블랙리스트: is_allowed=false가 차단
+      
+      const allBlockedAccess = blockedAccess || [];
+      
+      console.log('🚫 [partner_game_access - 게임 매장] 차단 목록:', allBlockedAccess.length);
+      console.log('🚫 [partner_game_access - 게임 매장] 상세:', allBlockedAccess);
+      
+      // ⭐ 블랙리스트 필터링: 차단 목록에 없는 게임만 표시
+      filteredGames = filteredGames.filter(game => {
+        // 개별 게임 차단 체크
+        const isGameBlocked = allBlockedAccess.find(
+          access =>
+            access.api_provider === game.api_type &&
+            access.game_provider_id === String(game.provider_id) &&
+            access.game_id === String(game.id) &&
+            access.access_type === 'game'
+        );
+        if (isGameBlocked) {
+          return false; // 차단된 게임 제외
+        }
+
+        // 제공사 전체 차단 체크
+        const isProviderBlocked = allBlockedAccess.find(
+          access =>
+            access.api_provider === game.api_type &&
+            access.game_provider_id === String(game.provider_id) &&
+            access.access_type === 'provider'
+        );
+        if (isProviderBlocked) {
+          return false; // 제공사 전체 차단 제외
+        }
+
+        // API 전체 차단 체크
+        const isApiBlocked = allBlockedAccess.find(
+          access =>
+            access.api_provider === game.api_type &&
+            access.access_type === 'api'
+        );
+        if (isApiBlocked) {
+          return false; // API 전체 차단 제외
+        }
+
+        return true; // 차단되지 않은 게임 표시
+      });
+
+      console.log(`✅ [partner_game_access] 게임 필터링: ${allGames.length}개 → ${filteredGames.length}개 (차단 ${allGames.length - filteredGames.length}개)`);
+    } else if (userLevel !== 7) {
+      console.log(`✅ [getUserVisibleGames] Lv${userLevel} - 매장/관리자는 모든 게임 표시 (partner_id 필터링 건너뜀)`);
     }
     
-    // ⭐ Lv7 사용자는 반드시 partner_id가 있어야 함
-    if (!userPartnerId) {
-      console.log('⚠️ [partner_game_access] Lv7인데 partner_id 없음 - 빈 목록 반환');
-      return [];
-    }
+    // 🆕 user_id 기반 차단 (모든 레벨에 적용!)
+    console.log('🎯 [getUserVisibleGames] user_id 기반 차단 설정 조회');
     
-    console.log('🎯 [getUserVisibleGames] Lv7 사용자 - partner_game_access 필터링 적용');
-    
-    // ⭐ 상위 계층 전체의 파트너 ID 조회 (자신 + 상위 파트너들)
-    const allPartnerIds = await getAllParentPartnerIds(userPartnerId);
-    console.log('🔗 [getUserVisibleGames] 상위 계층 전체:', allPartnerIds);
-    
-    // ✅ 상위 계층 전체의 차단 설정 조회 (is_allowed=false인 블랙리스트만)
-    const { data: blockedAccess } = await supabase
+    const { data: userBlockedAccess } = await supabase
       .from('partner_game_access')
-      .select('api_provider, game_provider_id, game_id, access_type, partner_id')
-      .in('partner_id', allPartnerIds)  // ✅ 상위 계층 전체 확인
-      .eq('is_allowed', false); // ✅ 블랙리스트: is_allowed=false가 차단
+      .select('api_provider, game_provider_id, game_id, access_type, is_allowed')
+      .eq('user_id', filters.userId) // ⭐ user_id만 체크 (partner_id는 함께 저장될 수 있음)
+      .eq('is_allowed', false); // 블랙리스트: is_allowed=false가 차단
     
-    const allBlockedAccess = blockedAccess || [];
+    const userBlocked = userBlockedAccess || [];
     
-    console.log('🚫 [partner_game_access - 게임] 차단 목록:', allBlockedAccess.length);
-    console.log('🚫 [partner_game_access - 게임] 상세:', allBlockedAccess);
+    console.log('🚫 [partner_game_access - user_id 게임] 차단 목록:', userBlocked.length);
+    console.log('🚫 [partner_game_access - user_id 게임] 상세:', userBlocked);
     
-    // ⭐ 블랙리스트 필터링: 차단 목록에 없는 게임만 표시
-    const filteredGames = allGames.filter(game => {
-      // 개별 게임 차단 체크
-      const isGameBlocked = allBlockedAccess.find(
-        access =>
-          access.api_provider === game.api_type &&
-          access.game_provider_id === String(game.provider_id) &&
-          access.game_id === String(game.id) &&
-          access.access_type === 'game'
-      );
-      if (isGameBlocked) {
-        return false; // 차단된 게임 제외
-      }
+    if (userBlocked.length > 0) {
+      // ⭐ 블랙리스트 필터링: 차단 목록에 없는 게임만 표시
+      const beforeCount = filteredGames.length;
+      filteredGames = filteredGames.filter(game => {
+        // 개별 게임 차단 체크
+        const isGameBlocked = userBlocked.find(
+          access =>
+            access.api_provider === game.api_type &&
+            access.game_provider_id === String(game.provider_id) &&
+            access.game_id === String(game.id) &&
+            access.access_type === 'game'
+        );
+        if (isGameBlocked) {
+          return false; // 차단된 게임 제외
+        }
 
-      // 제공사 전체 차단 체크
-      const isProviderBlocked = allBlockedAccess.find(
-        access =>
-          access.api_provider === game.api_type &&
-          access.game_provider_id === String(game.provider_id) &&
-          access.access_type === 'provider'
-      );
-      if (isProviderBlocked) {
-        return false; // 제공사 전체 차단 제외
-      }
+        // 제공사 전체 차단 체크
+        const isProviderBlocked = userBlocked.find(
+          access =>
+            access.api_provider === game.api_type &&
+            access.game_provider_id === String(game.provider_id) &&
+            access.access_type === 'provider'
+        );
+        if (isProviderBlocked) {
+          return false; // 제공사 전체 차단 제외
+        }
 
-      // API 전체 차단 체크
-      const isApiBlocked = allBlockedAccess.find(
-        access =>
-          access.api_provider === game.api_type &&
-          access.access_type === 'api'
-      );
-      if (isApiBlocked) {
-        return false; // API 전체 차단 제외
-      }
+        // API 전체 차단 체크
+        const isApiBlocked = userBlocked.find(
+          access =>
+            access.api_provider === game.api_type &&
+            access.access_type === 'api'
+        );
+        if (isApiBlocked) {
+          return false; // API 전체 차단 제외
+        }
 
-      return true; // 차단되지 않은 게임 표시
-    });
+        return true; // 차단되지 않은 게임 표시
+      });
 
-    console.log(`✅ [partner_game_access] 게임 필터링: ${allGames.length}개 → ${filteredGames.length}개 (차단 ${allGames.length - filteredGames.length}개)`);
+      console.log(`✅ [partner_game_access - user_id] 게임 필터링: ${beforeCount}개 → ${filteredGames.length}개 (차단 ${beforeCount - filteredGames.length}개)`);
+    } else {
+      console.log('✅ [partner_game_access - user_id] 차단된 게임 없음');
+    }
+    
     return filteredGames;
   }
 
@@ -2851,64 +2949,60 @@ export async function getUserVisibleProviders(filters?: {
 
     console.log('✅ Lv1 파트너 ID:', lv1Partner.id);
 
-    // 2. 활성화된 API 조회
-    const { data: apiConfigs } = await supabase
-      .from('api_configs')
-      .select('api_provider, is_active')
-      .eq('partner_id', lv1Partner.id)
-      .eq('is_active', true);
-
-    const activeApis = new Set(apiConfigs?.map(c => c.api_provider) || []);
-    
-    console.log('✅ 활성화된 API:', Array.from(activeApis));
-
-    // 3. 제공사 조회 (status='visible'만 체크)
-    // ⭐ filters.type이 있으면 제공사의 type으로 필터링
-    const providers = await getProviders({
+    // 2. 제공사 조회 (partner_id로 활성화된 API의 제공사만 가져오기)
+    // ✅ 사용자 게임 관리 탭과 완전히 동일: getProviders({ partner_id })
+    const allProviders = await getProviders({
+      partner_id: lv1Partner.id, // ⭐ 활성화된 API 필터링 자동 적용
       api_type: filters?.api_type,
       type: filters?.type, // ⭐ 제공사의 type 필드로 필터링
-      status: 'visible', // ✅ status만 체크
     });
+    
+    console.log(`📊 [getUserVisibleProviders] 제공사 조회 (활성 API): ${allProviders.length}개`);
+    
+    // 3. Benz 사용자 페이지 노출 조건: status='visible' AND is_visible=true
+    let providers = allProviders.filter(p => {
+      const statusOk = p.status === 'visible';
+      const isVisibleOk = p.is_visible === true;
+      return statusOk && isVisibleOk;
+    });
+    console.log(`📊 [getUserVisibleProviders] Benz 노출 조건 필터링 (status='visible' AND is_visible=true): ${allProviders.length}개 → ${providers.length}개`);
 
-    console.log(`📊 [getUserVisibleProviders] 제공사 조회: ${providers.length}개 (type=${filters?.type || 'all'})`);
-    console.log(`📋 [getUserVisibleProviders] 전체 제공사 상세:`, providers.map(p => ({
-      id: p.id,
-      name: p.name,
-      api_type: p.api_type,
-      type: p.type,
-      status: p.status,
-      is_visible: p.is_visible
-    })));
+    console.log(`📊 [getUserVisibleProviders] 최종 제공사 (partner_game_access 전): ${providers.length}개 (type=${filters?.type || 'all'}, userPartnerId=${userPartnerId})`);
 
-    // 4. 활성화된 API의 제공사만 필터링
-    let filteredProviders = providers.filter(p => activeApis.has(p.api_type));
-    console.log(`📊 [getUserVisibleProviders] 활성화된 API 필터링: ${filteredProviders.length}개`);
-    console.log(`📋 [getUserVisibleProviders] 활성화된 API 필터 후 제공사:`, filteredProviders.map(p => ({
-      id: p.id,
-      name: p.name,
-      api_type: p.api_type
-    })));
-
-    // 5. partner_game_access로 제공사 필터링 (블랙리스트 방식)
-    // ⭐⭐⭐ 중요: Lv7 사용자만 필터링 적용! 매장(Lv2~Lv6)은 모든 게임사 표시
-    if (userPartnerId && userLevel === 7) {
-      console.log('🎯 [getUserVisibleProviders] Lv7 사용자 - partner_game_access 필터링 적용');
+    // 4. partner_game_access로 제공사 필터링 (블랙리스트 방식)
+    // ⭐ userPartnerId가 있으면 partner_game_access에서 숨김 처리
+    let filteredProviders = providers;
+    if (userPartnerId) {
+      console.log('🎯 [getUserVisibleProviders] partner_game_access 필터링 적용 (partner_id:', userPartnerId, ')');
       
       // ⭐ 상위 계층 전체의 파트너 ID 조회 (자신 + 상위 파트너들)
       const allPartnerIds = await getAllParentPartnerIds(userPartnerId);
       console.log('🔗 [getUserVisibleProviders] 상위 계층 전체:', allPartnerIds);
       
-      // ⭐ 상위 계층 전체의 차단 설정 조회 (is_allowed=false가 차단)
-      const { data: blockedAccess } = await supabase
+      // ⭐ 상위 계층 전체의 차단 설정 조회 (매장 레벨: partner_id 기반)
+      const { data: partnerBlockedAccess } = await supabase
         .from('partner_game_access')
         .select('api_provider, game_provider_id, game_id, access_type, partner_id, is_allowed')
         .in('partner_id', allPartnerIds)  // ✅ 상위 계층 전체 확인
+        .is('user_id', null) // ⭐ 매장 레벨 설정만 (user_id가 null)
         .eq('is_allowed', false); // ⭐ 블랙리스트: is_allowed=false가 차단
       
-      const allBlockedAccess = blockedAccess || [];
+      // ⭐ 사용자별 차단 설정 조회 (사용자 레벨: user_id 기반)
+      let userBlockedAccess: any[] = [];
+      if (filters?.userId) {
+        const { data } = await supabase
+          .from('partner_game_access')
+          .select('api_provider, game_provider_id, game_id, access_type, user_id, is_allowed')
+          .eq('user_id', filters.userId) // ⭐ 사용자별 설정
+          .eq('is_allowed', false); // ⭐ 블랙리스트: is_allowed=false가 차단
+        userBlockedAccess = data || [];
+      }
       
-      console.log('🚫 [partner_game_access - 제공사] 차단 목록 (is_allowed=false):', allBlockedAccess.length);
-      console.log('🚫 [partner_game_access - 제공사] 상세:', allBlockedAccess);
+      const allBlockedAccess = [...(partnerBlockedAccess || []), ...userBlockedAccess];
+      
+      console.log('🚫 [partner_game_access - 제공사] 매장 차단:', partnerBlockedAccess?.length || 0);
+      console.log('🚫 [partner_game_access - 제공사] 사용자 차단:', userBlockedAccess.length);
+      console.log('🚫 [partner_game_access - 제공사] 총 차단:', allBlockedAccess.length);
       
       // ⭐ 블랙리스트 필터링: 차단된 제공사 제외
       if (allBlockedAccess.length > 0) {
@@ -2949,8 +3043,6 @@ export async function getUserVisibleProviders(filters?: {
       } else {
         console.log('✅ [partner_game_access] 차단된 제공사 없음 - 전체 표시');
       }
-    } else if (userPartnerId && userLevel !== 7) {
-      console.log(`✅ [getUserVisibleProviders] Lv${userLevel} - 매장/관리자는 모든 게임사 표시 (필터링 건너뜀)`);
     }
     
     console.log(`📊 [사용자 제공사] 전체: ${providers.length}개 → 활성화된 API: ${filteredProviders.length}개`);
@@ -3555,20 +3647,7 @@ async function launchInvestGame(
       if (depositResult.success) {
         console.log(`✅ [입금] API 입금 완료: ${userBalance}원`);
         
-        // ⭐ GMS 보유금을 0으로 업데이트 (API로 이동됨)
-        const { error: balanceUpdateError } = await supabase
-          .from('users')
-          .update({ 
-            balance: 0,
-            updated_at: new Date().toISOString()
-          })
-          .eq('username', username);
-
-        if (balanceUpdateError) {
-          console.error('❌ GMS 보유금 업데이트 실패:', balanceUpdateError);
-        } else {
-          console.log(`✅ GMS 보유금 0원으로 업데이트 (API로 이동 완료)`);
-        }
+        // ⭐ GMS 보유금은 그대로 유지 (게임 종료 시에만 업데이트)
       } else {
         console.error('❌ API 입금 실패:', depositResult.error);
         return {
@@ -3711,20 +3790,7 @@ async function launchOroPlayGame(
       if (depositResult.success) {
         console.log(`✅ [입금] API 입금 완료: ${userBalance}원`);
         
-        // ⭐ GMS 보유금을 0으로 업데이트 (API로 이동됨)
-        const { error: balanceUpdateError } = await supabase
-          .from('users')
-          .update({ 
-            balance: 0,
-            updated_at: new Date().toISOString()
-          })
-          .eq('username', username);
-
-        if (balanceUpdateError) {
-          console.error('❌ GMS 보유금 업데이트 실패:', balanceUpdateError);
-        } else {
-          console.log(`✅ GMS 보유금 0원으로 업데이트 (API로 이동 완료)`);
-        }
+        // ⭐ GMS 보유금은 그대로 유지 (게임 종료 시에만 업데이트)
       } else {
         console.error('❌ API 입금 실패:', depositResult.error);
         return {
@@ -3734,34 +3800,6 @@ async function launchOroPlayGame(
       }
     } catch (depositError) {
       console.error('❌ 입금 중 오류 발생:', depositError);
-      
-      // ADMIN_ALERT 형식의 에러인지 확인
-      const errorMsg = depositError instanceof Error ? depositError.message : '입금 처리 중 오류가 발생했습니다.';
-      
-      if (errorMsg.startsWith('ADMIN_ALERT:')) {
-        // ADMIN_ALERT:원래메시지||사용자메시지 형식 파싱
-        const parts = errorMsg.replace('ADMIN_ALERT:', '').split('||');
-        const adminMessage = parts[0] || '시스템 점검 중입니다 (Agent 잔고 부족)';
-        const userMessage = parts[1] || '관리자에게 문의하세요.';
-        
-        // 관리자 알림 전송
-        try {
-          await supabase.from('admin_notifications').insert([{
-            message: `[OroPlay API 에러] ${adminMessage}`,
-            type: 'error',
-            is_read: false,
-            created_at: new Date().toISOString()
-          }]);
-        } catch (notifError) {
-          console.error('❌ 관리자 알림 전송 실패:', notifError);
-        }
-        
-        return {
-          success: false,
-          error: userMessage
-        };
-      }
-      
       return {
         success: false,
         error: '입금 처리 중 오류가 발생했습니다.'
@@ -4207,20 +4245,7 @@ async function launchHonorApiGame(
 
       console.log(`✅ [입금] HonorAPI 유저 머니 지급 완료: ${addBalanceResult.balance}원, cached: ${addBalanceResult.cached}`);
 
-      // 5-3. GMS 보유금을 0으로 업데이트 (HonorAPI로 이동됨)
-      const { error: balanceUpdateError } = await supabase
-        .from('users')
-        .update({ 
-          balance: 0,
-          updated_at: new Date().toISOString()
-        })
-        .eq('username', username);
-
-      if (balanceUpdateError) {
-        console.error('❌ GMS 보유금 업데이트 실패:', balanceUpdateError);
-      } else {
-        console.log(`✅ GMS 보유금 0원으로 업데이트 (HonorAPI로 이동 완료)`);
-      }
+      // ⭐ GMS 보유금은 그대로 유지 (게임 종료 시에만 업데이트)
 
       // ⭐ 5-4. 세션 저장
       const { data: sessionData, error: sessionInsertError } = await supabase
@@ -4247,7 +4272,7 @@ async function launchHonorApiGame(
 
       console.log(`✅ [게임 진입] 완료:`);
       console.log(`   - HonorAPI 잔고: ${addBalanceResult.balance}원 (GMS에서 이동)`);
-      console.log(`   - GMS 잔고: 0원`);
+      console.log(`   - GMS 잔고: ${userBalance}원 (유지)`);
       
       return {
         success: true,

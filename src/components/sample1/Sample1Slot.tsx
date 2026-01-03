@@ -279,7 +279,7 @@ export function Sample1Slot({ user }: Sample1SlotProps) {
             <p>현재 이용 가능한 게임이 없습니다.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {games.map((game) => (
               <button
                 key={game.game_id}
@@ -363,7 +363,7 @@ export function Sample1Slot({ user }: Sample1SlotProps) {
           <p>현재 이용 가능한 슬롯 제공사가 없습니다.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {providers.map((provider, index) => (
             <button
               key={provider.id}

@@ -405,8 +405,8 @@ export function CallCycle({ user }: CallCycleProps) {
                         {t.callCycle.noVendors}
                       </SelectItem>
                     ) : (
-                      vendors.map(vendor => (
-                        <SelectItem key={vendor.code} value={vendor.code}>
+                      vendors.map((vendor, index) => (
+                        <SelectItem key={`${vendor.code}-${index}`} value={vendor.code}>
                           {vendor.name}
                         </SelectItem>
                       ))

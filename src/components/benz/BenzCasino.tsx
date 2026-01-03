@@ -33,15 +33,18 @@ interface Game {
   image_url?: string;
   provider_id: number;
   api_type?: string;
+  status?: string;
 }
 
-const FALLBACK_PROVIDERS: GameProvider[] = [
+const FALLBACK_PROVIDERS = [
   { id: 1, name: 'Evolution', name_ko: '에볼루션', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evolution.jpg', status: 'visible' },
   { id: 2, name: 'Pragmatic Play Live', name_ko: '프라그마틱 라이브', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticlive.jpg', status: 'visible' },
-  { id: 3, name: 'Skywind Live', name_ko: '스카이윈드', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/skywind.jpg', status: 'visible' },
-  { id: 4, name: 'Ezugi', name_ko: '이주기', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/ezugi.jpg', status: 'visible' },
-  { id: 5, name: 'Play Ace', name_ko: '플레이 에이스', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg', status: 'visible' },
-  { id: 6, name: 'Microgaming', name_ko: '마이크로 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg', status: 'visible' },
+  { id: 3, name: 'Microgaming', name_ko: '마이크로 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg', status: 'visible' },
+  { id: 4, name: 'Asia Gaming', name_ko: '아시아 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/asiagaming.jpg', status: 'visible' },
+  { id: 5, name: 'SA Gaming', name_ko: 'SA 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/sagaming.jpg', status: 'visible' },
+  { id: 6, name: 'Ezugi', name_ko: '이주기', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/ezugi.jpg', status: 'visible' },
+  { id: 7, name: 'Dream Gaming', name_ko: '드림 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/dreamgaming.jpg', status: 'visible' },
+  { id: 8, name: 'Play Ace', name_ko: '플레이 에이스', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg', status: 'visible' },
 ];
 
 // 게임사 이름으로 logo_url 찾기
@@ -56,21 +59,29 @@ const getLogoUrlByProviderName = (provider: GameProvider): string | undefined =>
   if ((name.includes('pragmatic') || name.includes('프라그마틱')) && (name.includes('live') || name.includes('라이브'))) {
     return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticlive.jpg';
   }
-  // Skywind Live
-  if (name.includes('skywind') || name.includes('스카이윈드')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/skywind.jpg';
+  // Microgaming
+  if (name.includes('microgaming') || name.includes('마이크로')) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg';
+  }
+  // Asia Gaming
+  if (name.includes('asia') || name.includes('아시아')) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/asiagaming.jpg';
+  }
+  // SA Gaming
+  if (name.includes('sa gaming') || name.includes('sa게이밍') || name === 'sa') {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/sagaming.jpg';
   }
   // Ezugi
   if (name.includes('ezugi') || name.includes('이주기')) {
     return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/ezugi.jpg';
   }
+  // Dream Gaming
+  if (name.includes('dream') || name.includes('드림')) {
+    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/dreamgaming.jpg';
+  }
   // Play Ace
   if (name.includes('playace') || name.includes('플레이') || name.includes('에이스')) {
     return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg';
-  }
-  // Microgaming
-  if (name.includes('microgaming') || name.includes('마이크로')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg';
   }
   
   return provider.logo_url;
@@ -96,8 +107,33 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
   useEffect(() => {
     loadProviders();
     
+    // ✅ Realtime: games, game_providers 테이블 변경 감지
+    const gamesChannel = supabase
+      .channel('benz_casino_games_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'games' },
+        () => {
+          console.log('🔄 [BenzCasino] games 테이블 변경 감지 - 리로드');
+          loadProviders();
+          if (selectedProvider) {
+            loadGames(selectedProvider);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_providers' },
+        () => {
+          console.log('🔄 [BenzCasino] game_providers 테이블 변경 감지 - 리로드');
+          loadProviders();
+        }
+      )
+      .subscribe();
+    
     return () => {
       isMountedRef.current = false;
+      supabase.removeChannel(gamesChannel);
     };
   }, []);
   
@@ -138,14 +174,15 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
   }, [providers]);
 
   const loadProviders = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
       
-      // ⭐⭐⭐ Lv7만 userId 전달 (매장은 모든 게임사 표시)
-      const providersData = await gameApi.getUserVisibleProviders({ 
-        type: 'casino', 
-        userId: user?.level === 7 ? user?.id : undefined
-      });
+      // ⭐⭐⭐ 새로운 노출 로직 사용
+      const { filterVisibleProviders } = await import('../../lib/benzGameVisibility');
+      const allProviders = await gameApi.getProviders({ type: 'casino' });
+      const providersData = await filterVisibleProviders(allProviders, user.id);
       
       console.log('🎰 [BenzCasino] API 응답 게임사:', providersData.length, '개');
       console.log('🎰 [BenzCasino] 게임사 상세:', providersData.map(p => ({
@@ -190,14 +227,6 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       };
       
       for (const provider of providersData) {
-        const name = (provider.name_ko || provider.name || '').toLowerCase();
-        
-        // ⭐ SA Gaming만 제외
-        if (name.includes('sa gaming') || name.includes('sa게이밍') || name === 'sa') {
-          console.log('🚫 [BenzCasino] 제외된 게임사:', provider.name_ko || provider.name);
-          continue; // 이 게임사는 건너뜁니다
-        }
-        
         const key = normalizeProviderName(provider);
         
         if (providerMap.has(key)) {
@@ -220,8 +249,8 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       
       // 🆕 원하는 순서대로 정렬
       const casinoOrder = [
-        'evolution', 'pragmatic_live', 'skywind', 'ezugi', 
-        'playace', 'microgaming'
+        'evolution', 'pragmatic_live', 'microgaming', 'asiagaming', 
+        'sa gaming', 'ezugi', 'dream gaming', 'playace'
       ];
       
       const sortedProviders = mergedProviders.sort((a, b) => {
@@ -235,17 +264,23 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
           if ((name.includes('pragmatic') || name.includes('프라그마틱')) && 
               (name.includes('live') || name.includes('라이브'))) return 'pragmatic_live';
           
-          // Skywind Live
-          if (name.includes('skywind') || name.includes('스카이윈드')) return 'skywind';
+          // Microgaming
+          if (name.includes('microgaming') || name.includes('마이크로')) return 'microgaming';
+          
+          // Asia Gaming
+          if (name.includes('asia') || name.includes('아시아')) return 'asiagaming';
+          
+          // SA Gaming
+          if (name.includes('sa') || name.includes('게이밍')) return 'sa gaming';
           
           // Ezugi
           if (name.includes('ezugi') || name.includes('이주기')) return 'ezugi';
           
+          // Dream Gaming
+          if (name.includes('dream') || name.includes('드림')) return 'dream gaming';
+          
           // Play Ace
           if (name.includes('playace') || name.includes('플레이') || name.includes('에이스')) return 'playace';
-          
-          // Microgaming
-          if (name.includes('microgaming') || name.includes('마이크로')) return 'microgaming';
           
           return name;
         };
@@ -281,11 +316,8 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
     }
 
     try {
-      // 🆕 페이지 전환 없이 바로 게임 실행
-      setIsProcessing(true);
-      
-      // 🆕 로비를 불러오는 중 메시지
-      toast.info(`${provider.name_ko || provider.name} 로비를 불러오는 중...`);
+      setGamesLoading(true);
+      setSelectedProvider(provider);
 
       // 🆕 통합된 게임사의 모든 provider_id로 게임 로드
       const providerIds = provider.provider_ids || [provider.id];
@@ -303,44 +335,16 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
         }
       }
 
-      console.log(`🎰 [BenzCasino] ${provider.name} 게임 목록:`, allGames.map(g => g.name));
-
-      // 🆕 로비 게임 찾기 (우선순위: Top Games > Lobby > 첫 번째 게임)
-      let lobbyGame = allGames.find(game => {
-        const gameName = (game.name || '').toLowerCase();
-        const gameNameKo = (game.name_ko || '').toLowerCase();
-        
-        return gameName.includes('top games') || 
-               gameName.includes('top') ||
-               gameNameKo.includes('탑 게임') ||
-               gameNameKo.includes('탑게임') ||
-               gameNameKo.includes('인기 게임') ||
-               gameNameKo.includes('인기게임');
-      });
-
-      if (!lobbyGame) {
-        lobbyGame = allGames.find(game => 
-          game.name?.toLowerCase().includes('lobby') || 
-          game.name_ko?.includes('로비')
-        );
-      }
-
-      if (!lobbyGame && allGames.length > 0) {
-        lobbyGame = allGames[0];
-      }
-
-      if (lobbyGame) {
-        console.log('🎰 [BenzCasino] 로비 게임 자동 실행:', lobbyGame.name);
-        setIsProcessing(false);
-        await handleGameClick(lobbyGame);
-      } else {
-        setIsProcessing(false);
-        toast.error('게임을 찾을 수 없습니다.');
-      }
+      // ⭐ 점검중 상태 추가 (benzGameVisibility 사용)
+      const { filterVisibleGames } = await import('../../lib/benzGameVisibility');
+      const gamesWithStatus = await filterVisibleGames(allGames, user.id);
+      
+      setGames(gamesWithStatus);
     } catch (error) {
       console.error('게임 로드 오류:', error);
-      setIsProcessing(false);
-      toast.error('게임 실행에 실패했습니다.');
+      setGames([]);
+    } finally {
+      setGamesLoading(false);
     }
   };
 
@@ -367,6 +371,12 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
   };
 
   const handleGameClick = async (game: Game) => {
+    // 🚫 점검중인 게임은 클릭 불가
+    if (game.status === 'maintenance') {
+      toast.warning('현재 점검 중인 게임입니다.');
+      return;
+    }
+
     // 🆕 백그라운드 프로세스 중 또는 게임 실행 중 클릭 방지
     if (isProcessing || launchingGameId) {
       toast.error('잠시 후 다시 시도해주세요.');
@@ -703,7 +713,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                     scale: 1.05,
                     transition: { duration: 0.3 }
                   }}
-                  className="cursor-pointer group"
+                  className="cursor-pointer group relative"
                   onClick={() => handleProviderClick(provider)}
                 >
                   {provider.logo_url && (
@@ -716,6 +726,16 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                         marginTop: '0%'
                       }}
                     />
+                  )}
+                  {/* 🚫 점검중 오버레이 */}
+                  {provider.status === 'maintenance' && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                      <img
+                        src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Stop.png"
+                        alt="점검중"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
                   )}
                 </motion.div>
               ))
@@ -740,9 +760,9 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
               games.map((game) => (
                 <motion.div
                   key={game.id}
-                  whileHover={{ scale: 1.05, y: -8 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="cursor-pointer group"
+                  whileHover={game.status === 'maintenance' ? {} : { scale: 1.05, y: -8 }}
+                  whileTap={game.status === 'maintenance' ? {} : { scale: 0.98 }}
+                  className={`relative ${game.status === 'maintenance' ? 'cursor-not-allowed' : 'cursor-pointer group'}`}
                   onClick={() => handleGameClick(game)}
                 >
                   <div className="relative aspect-square overflow-hidden rounded-2xl transition-all duration-500" style={{
@@ -774,7 +794,9 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                       <ImageWithFallback
                         src={game.image_url}
                         alt={game.name_ko || game.name}
-                        className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                        className={`w-full h-full object-cover transition-all duration-700 ${
+                          game.status === 'maintenance' ? '' : 'group-hover:scale-110'
+                        }`}
                         style={{ objectPosition: 'center 30%' }}
                       />
                     ) : (
@@ -786,10 +808,12 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                     )}
                     
                     {/* 그라디언트 오버레이 */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent opacity-70 group-hover:opacity-80 transition-opacity duration-500"></div>
+                    <div className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent transition-opacity duration-500 ${
+                      game.status === 'maintenance' ? 'opacity-70' : 'opacity-70 group-hover:opacity-80'
+                    }`}></div>
                     
                     {/* 한글 게임명 - 하단 고정 */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/50">
+                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/50 z-10">
                       <p className="text-white text-center line-clamp-2" style={{
                         fontFamily: 'AsiaHead, -apple-system, sans-serif',
                         fontSize: '1.5rem',
@@ -803,30 +827,48 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                     </div>
                     
                     {/* 호버 시 로즈 골드 테두리 */}
-                    <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{
-                      boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
-                    }}></div>
+                    {game.status !== 'maintenance' && (
+                      <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20" style={{
+                        boxShadow: 'inset 0 0 0 2px rgba(193, 154, 107, 0.5)'
+                      }}></div>
+                    )}
                     
                     {/* 호버 시 플레이 버튼 */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500">
-                      <div className="flex flex-col items-center gap-4">
-                        <div className="w-24 h-24 rounded-full backdrop-blur-xl flex items-center justify-center transition-all duration-500" style={{
-                          background: 'rgba(193, 154, 107, 0.15)',
-                          boxShadow: '0 0 40px rgba(193, 154, 107, 0.3), inset 0 0 20px rgba(255,255,255,0.1)',
-                          border: '2px solid rgba(193, 154, 107, 0.4)'
-                        }}>
-                          <Play className="w-12 h-12" style={{ color: '#E6C9A8', fill: '#E6C9A8' }} />
+                    {game.status !== 'maintenance' && (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500 z-20">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="w-24 h-24 rounded-full backdrop-blur-xl flex items-center justify-center transition-all duration-500" style={{
+                            background: 'rgba(193, 154, 107, 0.15)',
+                            boxShadow: '0 0 40px rgba(193, 154, 107, 0.3), inset 0 0 20px rgba(255,255,255,0.1)',
+                            border: '2px solid rgba(193, 154, 107, 0.4)'
+                          }}>
+                            <Play className="w-12 h-12" style={{ color: '#E6C9A8', fill: '#E6C9A8' }} />
+                          </div>
+                          <span className="text-white font-black text-xl tracking-wide" style={{
+                            textShadow: '0 2px 20px rgba(0,0,0,0.8)',
+                            color: '#E6C9A8',
+                            letterSpacing: '0.05em'
+                          }}>
+                            PLAY
+                          </span>
                         </div>
-                        <span className="text-white font-black text-xl tracking-wide" style={{
-                          textShadow: '0 2px 20px rgba(0,0,0,0.8)',
-                          color: '#E6C9A8',
-                          letterSpacing: '0.05em'
-                        }}>
-                          PLAY
-                        </span>
                       </div>
-                    </div>
+                    )}
                   </div>
+                  
+                  {/* 🚫 점검중 오버레이 - motion.div 직접 자식 */}
+                  {game.status === 'maintenance' && (
+                    <div className="absolute inset-0 rounded-2xl flex items-center justify-center pointer-events-none" style={{
+                      background: 'rgba(0, 0, 0, 0.5)',
+                      zIndex: 50
+                    }}>
+                      <img
+                        src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Stop.png"
+                        alt="점검중"
+                        className="w-1/2 h-1/2 object-contain"
+                      />
+                    </div>
+                  )}
                 </motion.div>
               ))
             )}

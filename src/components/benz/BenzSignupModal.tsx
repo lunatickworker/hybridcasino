@@ -33,7 +33,8 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
     bank_account: '',
     bank_holder: '',
     referrer_username: '',
-    withdrawal_password: ''
+    withdrawal_password: '',
+    point_conversion_password: ''
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -132,7 +133,8 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
       bank_account: '',
       bank_holder: '',
       referrer_username: '',
-      withdrawal_password: ''
+      withdrawal_password: '',
+      point_conversion_password: ''
     });
     setError(null);
     setNicknameCheck({ status: 'idle', message: '' });
@@ -177,6 +179,17 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
     
     if (!/^\d{4}$/.test(registerData.withdrawal_password.trim())) {
       setError('출금 비밀번호는 숫자 4자리로 입력해주세요.');
+      return;
+    }
+
+    // 포인트전환 비밀번호 검증 (숫자 4자리)
+    if (!registerData.point_conversion_password.trim()) {
+      setError('포인트전환 비밀번호를 입력해주세요.');
+      return;
+    }
+    
+    if (!/^\d{4}$/.test(registerData.point_conversion_password.trim())) {
+      setError('포인트전환 비밀번호는 숫자 4자리로 입력해주세요.');
       return;
     }
 
@@ -239,7 +252,7 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
           bank_holder: registerData.bank_holder.trim() || null,
           referrer_id: referrerData.id,
           withdrawal_password: bcrypt.hashSync(registerData.withdrawal_password.trim(), 10), // 출금 비밀번호 암호화
-          point_conversion_password: bcrypt.hashSync(registerData.withdrawal_password.trim(), 10), // 포인트전환 비밀번호도 동일하게 설정
+          point_conversion_password: bcrypt.hashSync(registerData.point_conversion_password.trim(), 10), // 포인트전환 비밀번호 암호화
           status: 'pending',
           balance: 0,
           points: 0
@@ -284,7 +297,8 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
         bank_account: '',
         bank_holder: '',
         referrer_username: '',
-        withdrawal_password: ''
+        withdrawal_password: '',
+        point_conversion_password: ''
       });
       setNicknameCheck({ status: 'idle', message: '' });
       
@@ -591,19 +605,15 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                   />
                 </div>
 
-                {/* 보안 비밀번호 (출금/포인트전환 공용) */}
-                <div>
-                  <label htmlFor="withdrawal_password" className="block text-sm mb-2" style={{ color: '#E6C9A8' }}>
-                    보안 비밀번호 (출금 및 포인트전환 공용) *
-                  </label>
+                {/* 출금 비밀번호 & 포인트전환 비밀번호 (2열) */}
+                <div className="grid grid-cols-2 gap-3">
                   <Input
                     id="withdrawal_password"
                     name="withdrawal_password"
                     type="password"
-                    placeholder="숫자 4자리를 입력해주세요 *"
+                    placeholder="출금 비밀번호 (4자리) *"
                     value={registerData.withdrawal_password}
                     onChange={handleRegisterChange}
-                    maxLength={4}
                     className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
                     style={{
                       background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
@@ -613,9 +623,22 @@ export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignup
                     disabled={isLoading}
                     required
                   />
-                  <p className="text-xs mt-1 text-gray-400">
-                    출금 및 포인트전환 시 사용되는 비밀번호입니다.
-                  </p>
+                  <Input
+                    id="point_conversion_password"
+                    name="point_conversion_password"
+                    type="password"
+                    placeholder="포인트전환 비밀번호 (4자리) *"
+                    value={registerData.point_conversion_password}
+                    onChange={handleRegisterChange}
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
+                    disabled={isLoading}
+                    required
+                  />
                 </div>
               </div>
 

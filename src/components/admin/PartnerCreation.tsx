@@ -274,18 +274,8 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
       let partnersData: Partner[] = [];
 
-      // 시스템 관리자(Lv1) 포함 조회
-      if (upperLevel === 1) {
-        const { data } = await supabase
-          .from('partners')
-          .select('id, username, nickname, partner_type, level')
-          .eq('level', 1)
-          .eq('status', 'active')
-          .order('created_at', { ascending: true });
-        
-        partnersData = data || [];
-      } else {
-        // Lv2 이상 파트너 조회
+      // ✅ Lv1: 모든 상위 레벨 파트너 조회
+      if (user.level === 1) {
         const { data } = await supabase
           .from('partners')
           .select('id, username, nickname, partner_type, level')
@@ -294,6 +284,89 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
           .order('created_at', { ascending: true });
         
         partnersData = data || [];
+      } else {
+        // ✅ Lv2~Lv6: 나의 조직 내 상위 레벨 파트너만 조회
+        // 1. 나 자신이 해당 레벨이면 포함
+        if (user.level === upperLevel) {
+          partnersData.push({
+            id: user.id,
+            username: user.username,
+            nickname: user.nickname || user.username,
+            partner_type: user.partner_type,
+            level: user.level
+          });
+        }
+
+        // 2. 나의 모든 하위 파트너 중 해당 레벨인 것들 조회
+        let myDescendantIds: string[] = [user.id];
+        
+        // 1단계 하위
+        const { data: level1 } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('parent_id', user.id);
+        
+        const level1Ids = level1?.map(p => p.id) || [];
+        myDescendantIds.push(...level1Ids);
+        
+        if (level1Ids.length > 0) {
+          // 2단계 하위
+          const { data: level2 } = await supabase
+            .from('partners')
+            .select('id')
+            .in('parent_id', level1Ids);
+          
+          const level2Ids = level2?.map(p => p.id) || [];
+          myDescendantIds.push(...level2Ids);
+          
+          if (level2Ids.length > 0) {
+            // 3단계 하위
+            const { data: level3 } = await supabase
+              .from('partners')
+              .select('id')
+              .in('parent_id', level2Ids);
+            
+            const level3Ids = level3?.map(p => p.id) || [];
+            myDescendantIds.push(...level3Ids);
+            
+            if (level3Ids.length > 0) {
+              // 4단계 하위
+              const { data: level4 } = await supabase
+                .from('partners')
+                .select('id')
+                .in('parent_id', level3Ids);
+              
+              const level4Ids = level4?.map(p => p.id) || [];
+              myDescendantIds.push(...level4Ids);
+              
+              if (level4Ids.length > 0) {
+                // 5단계 하위
+                const { data: level5 } = await supabase
+                  .from('partners')
+                  .select('id')
+                  .in('parent_id', level4Ids);
+                
+                const level5Ids = level5?.map(p => p.id) || [];
+                myDescendantIds.push(...level5Ids);
+              }
+            }
+          }
+        }
+        
+        // 3. 하위 파트너들 중 해당 레벨인 것만 필터링
+        if (myDescendantIds.length > 0) {
+          const { data } = await supabase
+            .from('partners')
+            .select('id, username, nickname, partner_type, level')
+            .in('id', myDescendantIds)
+            .eq('level', upperLevel)
+            .eq('status', 'active')
+            .order('created_at', { ascending: true });
+          
+          // 나 자신은 이미 추가했으므로 중복 제거
+          const additionalPartners = (data || []).filter(p => p.id !== user.id);
+          partnersData.push(...additionalPartners);
+        }
       }
 
       setUpperLevelPartners(partnersData);

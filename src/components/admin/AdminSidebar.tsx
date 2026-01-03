@@ -77,8 +77,6 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   '/admin/settlement/integrated': Database,
   '/admin/settlement-history': History,
   '/admin/settlement/history': History,
-  '/admin/advanced-settlement': TrendingUp,
-  '/admin/settlement/advanced': TrendingUp,
   '/admin/transactions': CreditCard,
   '/admin/transaction-approval': CreditCard,
   '/admin/games': Gamepad2,
