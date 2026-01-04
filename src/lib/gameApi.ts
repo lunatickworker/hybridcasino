@@ -3861,9 +3861,33 @@ async function launchOroPlayGame(
 
   } catch (error) {
     console.error('❌ OroPlay 게임 실행 오류:', error);
+    
+    // 에러 메시지 파싱
+    let errorMessage = '게임 실행 중 오류가 발생했습니다.';
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      // errorCode 500인 경우 더 명확한 메시지 제공
+      if (errorMessage.includes('errorCode 500')) {
+        errorMessage = 'OroPlay API 서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      }
+      // 게임 공급사 점검 중
+      else if (errorMessage.includes('errorCode 9')) {
+        errorMessage = '게임 공급사가 점검 중입니다. 잠시 후 다시 시도해주세요.';
+      }
+      // 게임 점검 중
+      else if (errorMessage.includes('errorCode 10')) {
+        errorMessage = '게임이 점검 중입니다. 잠시 후 다시 시도해주세요.';
+      }
+      // Agent 잔고 부족
+      else if (errorMessage.includes('errorCode 3')) {
+        errorMessage = '시스템 점검 중입니다. 관리자에게 문의하세요.';
+      }
+    }
+    
     return {
       success: false,
-      error: error instanceof Error ? error.message : '게임 실행 중 오류가 발생했습니다.'
+      error: errorMessage
     };
   }
 }

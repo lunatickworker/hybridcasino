@@ -350,9 +350,9 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
     if (type === 'casino') {
       launchCasinoLobby(provider);
     } else {
-      // 🆕 슬롯은 기존 방식 유지 (선택한 게임사 정보를 localStorage에 저장)
+      // 🆕 슬롯은 게임사 정보를 localStorage에 저장하고 슬롯 페이지로 이동
       localStorage.setItem('benz_selected_provider', JSON.stringify(provider));
-      onRouteChange('/benз/slot');
+      onRouteChange('/benz/slot');
     }
   };
 

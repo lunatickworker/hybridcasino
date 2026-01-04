@@ -319,6 +319,13 @@ export async function getLaunchUrl(
   lobbyUrl?: string,
   theme?: number
 ): Promise<string> {
+  console.log('🎮 [OroPlay] getLaunchUrl 호출:', {
+    vendorCode,
+    gameCode,
+    userCode,
+    language
+  });
+
   const response = await proxyCall<any>({
     url: `${OROPLAY_BASE_URL}/game/launch-url`,
     method: 'POST',
@@ -336,8 +343,22 @@ export async function getLaunchUrl(
     }
   });
   
+  console.log('📊 [OroPlay] getLaunchUrl 응답:', {
+    errorCode: response.errorCode,
+    hasMessage: !!response.message,
+    response
+  });
+
   if (response.errorCode !== undefined && response.errorCode !== 0) {
-    throw new Error(`Failed to get launch URL: errorCode ${response.errorCode}`);
+    const errorMessage = getErrorMessage(response.errorCode);
+    console.error('❌ [OroPlay] getLaunchUrl 실패:', {
+      vendorCode,
+      gameCode,
+      userCode,
+      errorCode: response.errorCode,
+      errorMessage
+    });
+    throw new Error(`Failed to get launch URL: errorCode ${response.errorCode} - ${errorMessage}`);
   }
   
   return response.message || response;
