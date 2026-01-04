@@ -383,7 +383,7 @@ export function BettingManagement({ user }: BettingManagementProps) {
       key: 'bet_amount',
       title: t('bettingManagement.betAmount'),
       render: (value: number) => (
-        <span className="font-mono text-blue-600">₩{value.toLocaleString()}</span>
+        <span className="font-mono text-blue-600">{value.toLocaleString()}</span>
       )
     },
     {
@@ -391,7 +391,7 @@ export function BettingManagement({ user }: BettingManagementProps) {
       title: t('bettingManagement.winAmount'),
       render: (value: number) => (
         <span className={`font-mono ${value > 0 ? 'text-green-600' : 'text-gray-500'}`}>
-          ₩{value.toLocaleString()}
+          {value.toLocaleString()}
         </span>
       )
     },
@@ -400,7 +400,7 @@ export function BettingManagement({ user }: BettingManagementProps) {
       title: t('bettingManagement.profitLoss'),
       render: (value: number) => (
         <span className={`font-mono ${value > 0 ? 'text-green-600' : 'text-red-600'}`}>
-          {value > 0 ? '+' : ''}₩{value.toLocaleString()}
+          {value > 0 ? '+' : ''}{value.toLocaleString()}
         </span>
       )
     },

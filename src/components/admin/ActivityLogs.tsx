@@ -108,11 +108,11 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
       if (error) throw error;
 
       // ⚡ N+1 쿼리 최적화: 배치 쿼리로 행위자 정보 조회
-      const logs = data || [];
+      const rawLogs = data || [];
       
       // 파트너와 사용자 ID를 그룹화
-      const partnerIds = [...new Set(logs.filter(l => l.actor_type === 'partner').map(l => l.actor_id))];
-      const userIds = [...new Set(logs.filter(l => l.actor_type === 'user').map(l => l.actor_id))];
+      const partnerIds = [...new Set(rawLogs.filter(l => l.actor_type === 'partner').map(l => l.actor_id))];
+      const userIds = [...new Set(rawLogs.filter(l => l.actor_type === 'user').map(l => l.actor_id))];
       
       // 배치 쿼리로 한 번에 조회
       const [partnersResult, usersResult] = await Promise.all([
@@ -129,7 +129,7 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
       const usersMap = new Map((usersResult.data || []).map(u => [u.id, u]));
 
       // 로그에 행위자 정보 병합 (클라이언트 사이드)
-      const logsWithActorInfo = logs.map(log => {
+      const logsWithActorInfo = rawLogs.map(log => {
         let actorUsername = '-';
         let actorNickname = '-';
 
@@ -295,9 +295,9 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
       header: '날짜/시간',
       sortable: true,
       render: (value: string) => (
-        <div className="text-slate-300 text-sm">
-          <div>{format(new Date(value), 'yyyy-MM-dd', { locale: ko })}</div>
-          <div className="text-xs text-slate-500">
+        <div className="text-slate-300 text-base">
+          <div className="font-medium">{format(new Date(value), 'yyyy-MM-dd', { locale: ko })}</div>
+          <div className="text-sm text-slate-500">
             {format(new Date(value), 'HH:mm:ss', { locale: ko })}
           </div>
         </div>
@@ -307,11 +307,11 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
       key: 'actor_type',
       header: '타입',
       render: (value: string) => (
-        <Badge variant={value === 'partner' ? 'default' : 'secondary'}>
+        <Badge variant={value === 'partner' ? 'default' : 'secondary'} className="text-base px-3 py-1">
           {value === 'partner' ? (
-            <><Shield className="w-3 h-3 mr-1" />관리자</>
+            <><Shield className="w-4 h-4 mr-1" />관리자</>
           ) : (
-            <><User className="w-3 h-3 mr-1" />회원</>
+            <><User className="w-4 h-4 mr-1" />회원</>
           )}
         </Badge>
       ),
@@ -322,8 +322,8 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
       sortable: true,
       render: (value: string, row: ActivityLog) => (
         <div>
-          <div className="text-slate-200">{value}</div>
-          <div className="text-xs text-slate-500">{row.actor_nickname}</div>
+          <div className="text-slate-200 text-base font-medium">{value}</div>
+          <div className="text-sm text-slate-500">{row.actor_nickname}</div>
         </div>
       ),
     },
@@ -344,7 +344,7 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
           slate: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
         };
         return (
-          <Badge variant="outline" className={colorClasses[color]}>
+          <Badge variant="outline" className={`${colorClasses[color]} text-base px-3 py-1`}>
             {getActivityTypeName(value)}
           </Badge>
         );
@@ -354,12 +354,12 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
       key: 'details',
       header: '활동 내용',
       render: (value: Record<string, any>) => (
-        <div className="text-slate-300 max-w-md">
+        <div className="text-slate-300 max-w-md text-base">
           <div className="truncate" title={value?.description}>
             {value?.description || '-'}
           </div>
           {value && Object.keys(value).length > 1 && (
-            <div className="text-xs text-slate-500 mt-1 truncate" title={JSON.stringify(value, null, 2)}>
+            <div className="text-sm text-slate-500 mt-1 truncate" title={JSON.stringify(value, null, 2)}>
               {JSON.stringify(value)}
             </div>
           )}
@@ -371,7 +371,7 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
       header: 'IP 주소',
       sortable: true,
       render: (value: string) => (
-        <span className="text-slate-400 font-mono text-xs">
+        <span className="text-slate-300 font-mono text-base">
           {value || '-'}
         </span>
       ),
@@ -380,7 +380,7 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
       key: 'user_agent',
       header: 'User Agent',
       render: (value: string) => (
-        <div className="text-slate-500 text-xs max-w-xs">
+        <div className="text-slate-300 text-base max-w-xs">
           <div className="truncate" title={value}>
             {value || '-'}
           </div>
@@ -393,18 +393,18 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
       render: (value: Record<string, any>) => (
         value?.success !== undefined ? (
           value?.success ? (
-            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-              <CheckCircle className="w-3 h-3 mr-1" />
+            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-base px-3 py-1">
+              <CheckCircle className="w-4 h-4 mr-1" />
               성공
             </Badge>
           ) : (
-            <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30">
-              <XCircle className="w-3 h-3 mr-1" />
+            <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/30 text-base px-3 py-1">
+              <XCircle className="w-4 h-4 mr-1" />
               실패
             </Badge>
           )
         ) : (
-          <span className="text-slate-500 text-sm">-</span>
+          <span className="text-slate-500 text-base">-</span>
         )
       ),
     },

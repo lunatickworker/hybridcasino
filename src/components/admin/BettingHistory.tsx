@@ -306,7 +306,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
           providerMap.set(provider.id, provider.name);
         });
         
-        console.log('✅ 제공사 맵 ��성 (fallback):', providerMap.size, '개');
+        console.log('✅ 제공사 맵 생성 (fallback):', providerMap.size, '개');
       }
       
       // ✅ 데이터 매핑 (이미 저장된 값 우선 사용, null인 경우에만 fallback)
@@ -467,19 +467,23 @@ export function BettingHistory({ user }: BettingHistoryProps) {
     {
       key: 'game_title',
       header: t.bettingHistory.gameName,
-      render: (_: any, record: BettingRecord) => (
-        <span className="text-slate-200 text-xl">{record?.game_title || `Game ${record.game_id}`}</span>
-      )
+      render: (_: any, record: BettingRecord) => {
+        // ✅ game_title이 null이면 빨간색으로 "정보 누락" 표시
+        if (!record?.game_title || record.game_title === 'null') {
+          return <span className="text-red-400 font-semibold text-xl">Game null</span>;
+        }
+        return <span className="text-slate-200 text-xl">{record.game_title}</span>;
+      }
     },
     {
       key: 'provider_name',
       header: t.bettingHistory.provider,
       render: (_: any, record: BettingRecord) => {
-        return (
-          <span className="text-slate-200 text-xl">
-            {record?.provider_name || `Provider ${record.provider_id}`}
-          </span>
-        );
+        // ✅ provider_name이 null이면 빨간색으로 "정보 누락" 표시
+        if (!record?.provider_name || record.provider_name === 'null') {
+          return <span className="text-red-400 font-semibold text-xl">Provider null</span>;
+        }
+        return <span className="text-slate-200 text-xl">{record.provider_name}</span>;
       }
     },
     {
@@ -506,6 +510,18 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       key: 'game_type',
       header: '게임타입',
       render: (_: any, record: BettingRecord) => {
+        // ✅ game_title이나 provider_name이 null이면 "누락"으로 표시
+        const hasNullInfo = !record?.game_title || record.game_title === 'null' || 
+                           !record?.provider_name || record.provider_name === 'null';
+        
+        if (hasNullInfo) {
+          return (
+            <Badge className="bg-red-500/20 text-red-300 border-red-500/50 border text-sm px-2 py-1">
+              누락
+            </Badge>
+          );
+        }
+        
         const gameType = record?.game_type || 'casino';
         const isCasino = gameType === 'casino';
         
@@ -521,7 +537,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       header: t.bettingHistory.betAmount,
       render: (_: any, record: BettingRecord) => {
         const amount = Math.abs(Number(record?.bet_amount || 0));
-        return <span className="text-orange-400 font-semibold text-xl">₩{amount.toLocaleString()}</span>;
+        return <span className="text-orange-400 font-semibold text-xl">{amount.toLocaleString()}</span>;
       }
     },
     {
@@ -530,14 +546,14 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       render: (_: any, record: BettingRecord) => {
         const amount = Number(record?.win_amount || 0);
         if (amount === 0) return <span className="text-slate-500">-</span>;
-        return <span className="text-emerald-400 font-semibold text-xl">₩{amount.toLocaleString()}</span>;
+        return <span className="text-emerald-400 font-semibold text-xl">{amount.toLocaleString()}</span>;
       }
     },
     {
       key: 'balance_before',
       header: t.bettingHistory.balanceBefore,
       render: (_: any, record: BettingRecord) => (
-        <span className="text-slate-300 text-xl">₩{Number(record?.balance_before || 0).toLocaleString()}</span>
+        <span className="text-slate-300 text-xl">{Number(record?.balance_before || 0).toLocaleString()}</span>
       )
     },
     {
@@ -550,7 +566,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         const balanceAfter = balanceBefore - betAmount + winAmount;
         
         return (
-          <span className="text-slate-300 text-xl">₩{balanceAfter.toLocaleString()}</span>
+          <span className="text-slate-300 text-xl">{balanceAfter.toLocaleString()}</span>
         );
       }
     },
@@ -566,7 +582,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         const profitColor = profit > 0 ? 'text-green-400' : profit < 0 ? 'text-red-400' : 'text-slate-400';
         return (
           <span className={`${profitColor} font-bold text-xl`}>
-            {profit > 0 ? '+' : ''}₩{profit.toLocaleString()}
+            {profit > 0 ? '+' : ''}{profit.toLocaleString()}
           </span>
         );
       }

@@ -703,7 +703,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           schema: 'public',
           table: 'transactions'
         },
-        (payload) => {
+        async (payload) => {
           console.log('💰 [헤더 알림] transactions 변경 감지:', payload.eventType, payload);
           fetchHeaderStats(); // 즉시 갱신
           
@@ -727,9 +727,18 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             const transaction = payload.new as any;
             
             if (transaction.status === 'pending') {
+              // ✅ user_id로 username 조회
+              const { data: userData } = await supabase
+                .from('users')
+                .select('username')
+                .eq('id', transaction.user_id)
+                .single();
+              
+              const username = userData?.username || transaction.user_id;
+              
               if (transaction.transaction_type === 'deposit') {
                 toast.info('새로운 입금 요청이 있습니.', {
-                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${transaction.user_id}\n클릭하면 사라집니다.`,
+                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${username}\n클릭하면 사라집니다.`,
                   duration: 10000,
                   position: 'bottom-left',
                   action: {
@@ -743,7 +752,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 });
               } else if (transaction.transaction_type === 'withdrawal') {
                 toast.warning('새로운 출금 요청이 있습니다.', {
-                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${transaction.user_id}\n클릭하면 사라집니다.`,
+                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${username}\n클릭하면 사라집니다.`,
                   duration: 10000,
                   position: 'bottom-left',
                   action: {
@@ -949,6 +958,28 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     suspicious: 0,
   });
 
+  // ✅ 조직 관리: 허용된 파트너 ID 리스트 (자신 + 하위 조직)
+  const [allowedPartnerIds, setAllowedPartnerIds] = useState<string[]>([]);
+
+  // ✅ 허용된 파트너 ID 로드
+  useEffect(() => {
+    const loadAllowedPartners = async () => {
+      if (user.level === 1) {
+        // Lv1은 모든 파트너 허용 (빈 배열 = 필터링 없음)
+        setAllowedPartnerIds([]);
+      } else {
+        // 자신과 하위 파트너 조회
+        const { data: childPartners } = await supabase
+          .rpc('get_hierarchical_partners', { p_partner_id: user.id });
+        
+        const partnerIds = [user.id, ...(childPartners?.map((p: any) => p.id) || [])];
+        setAllowedPartnerIds(partnerIds);
+      }
+    };
+
+    loadAllowedPartners();
+  }, [user.id, user.level]);
+
   // 실시간 통계 업데이트
   useEffect(() => {
     // Supabase Realtime으로 베팅 내역 모니터링
@@ -961,8 +992,22 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           schema: 'public',
           table: 'game_records'
         },
-        (payload) => {
+        async (payload) => {
           const record = payload.new as any;
+          
+          // ✅ 조직 관리 필터링: user_id로 해당 회원의 referrer_id 확인
+          if (user.level !== 1 && allowedPartnerIds.length > 0) {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('referrer_id')
+              .eq('id', record.user_id)
+              .single();
+            
+            // 허용된 파트너에 속하지 않으면 무시
+            if (!userData || !allowedPartnerIds.includes(userData.referrer_id)) {
+              return;
+            }
+          }
           
           // 모든 베팅 알림
           setBettingAlerts(prev => ({
@@ -1039,7 +1084,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     return () => {
       supabase.removeChannel(bettingChannel);
     };
-  }, [onRouteChange]);
+  }, [onRouteChange, user.level, allowedPartnerIds]);
 
   const handleLogout = () => {
     logout();

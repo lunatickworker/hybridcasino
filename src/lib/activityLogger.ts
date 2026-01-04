@@ -106,7 +106,7 @@ export async function logActivity(params: ActivityLogParams): Promise<void> {
 }
 
 /**
- * 로그인 기록
+ * 로그인 기록 - 관리자만
  */
 export async function logLogin(
   userId: string,
@@ -115,11 +115,16 @@ export async function logLogin(
   userAgent?: string,
   success: boolean = true
 ): Promise<void> {
+  // ⚠️ 일반 사용자 로그인은 기록하지 않음 (의미 없음)
+  if (userType === 'user') {
+    return;
+  }
+
   await logActivity({
     actorId: userId,
     actorType: userType,
     action: success ? 'login' : 'login_failed',
-    description: success ? '로그인 성공' : '로그인 실패',
+    description: success ? '관리자 로그인 성공' : '관리자 로그인 실패',
     ipAddress,
     userAgent,
     success
@@ -284,6 +289,63 @@ export async function logGameForceEnd(
       sessionId
     },
     ipAddress
+  });
+}
+
+/**
+ * 게임 실행 시 API 입금 기록
+ */
+export async function logGameDeposit(
+  userId: string,
+  username: string,
+  apiType: string,
+  amount: number,
+  gameId?: number,
+  gameName?: string
+): Promise<void> {
+  await logActivity({
+    actorId: userId,
+    actorType: 'user',
+    action: 'game_launch',
+    targetType: 'game',
+    description: `게임 실행 - API 입금: ₩${amount.toLocaleString()} (${apiType.toUpperCase()})`,
+    details: {
+      username,
+      apiType,
+      amount,
+      gameId,
+      gameName,
+      action: 'api_deposit'
+    }
+  });
+}
+
+/**
+ * 게임 종료 시 API 출금 + GMS 보유금 증가 기록
+ */
+export async function logGameWithdraw(
+  userId: string,
+  username: string,
+  apiType: string,
+  withdrawAmount: number,
+  beforeBalance: number,
+  afterBalance: number
+): Promise<void> {
+  await logActivity({
+    actorId: userId,
+    actorType: 'user',
+    action: 'game_end',
+    targetType: 'game',
+    description: `게임 종료 - API 출금: ₩${withdrawAmount.toLocaleString()} → GMS 보유금: ₩${beforeBalance.toLocaleString()} → ₩${afterBalance.toLocaleString()}`,
+    details: {
+      username,
+      apiType,
+      withdrawAmount,
+      beforeBalance,
+      afterBalance,
+      balanceChange: afterBalance - beforeBalance,
+      action: 'api_withdraw_and_sync'
+    }
   });
 }
 

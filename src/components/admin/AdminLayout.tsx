@@ -92,7 +92,7 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
           </header>
           
           <main className="flex-1 p-6 overflow-y-auto bg-[#0a0e1a] admin-scrollbar">
-            <div className="max-w-[1600px] mx-auto space-y-6 min-w-[1000px]">
+            <div className="max-w-[2400px] mx-auto space-y-6 min-w-[1000px]">
               {children}
             </div>
           </main>

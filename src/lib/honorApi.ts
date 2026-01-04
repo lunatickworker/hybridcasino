@@ -791,10 +791,23 @@ export async function syncHonorApiBettingHistory(): Promise<{
             .single();
           
           // ⭐ DB에 제공사 이름이 있으면 사용, 없으면 API 응답값 (vendor) 사용
-          providerName = provider?.name || tx.details.game.vendor || 'Unknown Provider';
+          providerName = provider?.name || tx.details?.game?.vendor || 'Unknown Provider';
         } else {
           // ⭐ game이 없을 경우, API 응답값 (vendor) 사용
-          providerName = tx.details.game.vendor || 'Unknown Provider';
+          providerName = tx.details?.game?.vendor || 'Unknown Provider';
+        }
+        
+        // ✅ NULL 방지: providerName이 여전히 비어있거나 'null' 문자열이면 기본값 설정
+        if (!providerName || providerName === 'null' || providerName.trim() === '') {
+          providerName = 'Unknown Provider';
+          console.warn(`⚠️ [HonorAPI] 제공사 이름 누락: txid=${tx.id}, game_code=${tx.details?.game?.id}`);
+        }
+        
+        // ✅ NULL 방지: game_title 정교한 fallback
+        let gameTitle = game?.name || tx.details?.game?.title || tx.details?.game?.name || tx.details?.game?.id || 'Unknown Game';
+        if (!gameTitle || gameTitle === 'null' || gameTitle.trim() === '') {
+          gameTitle = 'Unknown Game';
+          console.warn(`⚠️ [HonorAPI] 게임 이름 누락: txid=${tx.id}, game_code=${tx.details?.game?.id}`);
         }
 
         // 같은 라운드의 win 트랜잭션 찾기
@@ -829,7 +842,7 @@ export async function syncHonorApiBettingHistory(): Promise<{
             game_id: game?.id || null,
             provider_id: null,  // ⚠️ HonorAPI는 별도 provider 테이블 사용 (game_providers FK 제약 회피)
             provider_name: providerName,  // ⭐ 항상 유효한 값 보장
-            game_title: game?.name || tx.details.game.title || tx.details.game.id || 'Unknown',  // ⭐ fallback 추가
+            game_title: gameTitle,  // ⭐ fallback 추가
             game_type: game?.type || tx.details.game.type || 'slot',
             bet_amount: betAmount,
             win_amount: winAmount,

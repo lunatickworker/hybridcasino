@@ -1,9 +1,14 @@
 import { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, RefreshCw, Search, Info, ChevronDown, ChevronRight } from "lucide-react";
+import { Calendar as CalendarIcon, RefreshCw, Search, Info, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Calendar } from "../ui/calendar";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Badge } from "../ui/badge";
+import { MetricCard } from "./MetricCard";
 import { toast } from "sonner@2.0.3";
 import { Partner } from "../../types";
 import { supabase } from "../../lib/supabase";
@@ -85,6 +90,8 @@ interface SummaryStats {
   totalRolling: number;
   totalSettlementProfit: number;
   totalActualSettlementProfit: number; // 실정산수익 추가
+  errorBetAmount: number; // ✅ NEW: 베팅정보오류금액
+  errorBetCount: number;  // ✅ NEW: 베팅정보오류건수
 }
 
 export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
@@ -117,8 +124,13 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     totalWinLoss: 0,
     totalRolling: 0,
     totalSettlementProfit: 0,
-    totalActualSettlementProfit: 0 // 실정산수익 추가
+    totalActualSettlementProfit: 0, // 실정산수익 추가
+    errorBetAmount: 0, // ✅ NEW: 베팅정보오류금액
+    errorBetCount: 0   // ✅ NEW: 베팅정보오류건수
   });
+  
+  // ✅ 베팅정보오류 통계를 별도로 state 관리
+  const [bettingErrors, setBettingErrors] = useState({ errorBetAmount: 0, errorBetCount: 0 });
 
   useEffect(() => {
     fetchSettlementData();
@@ -149,12 +161,13 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
   const getRowBackgroundColor = (level: number): string => {
     switch (level) {
-      case 2: return '#FFE0E0'; // 운영사(대본) - 연한 빨간색
-      case 3: return '#E3F2FD'; // 본사 - 연한 파란색
-      case 4: return '#E8F5E9'; // 부본사 - 연한 초록색
-      case 5: return '#FFF9E6'; // 총판 - 연한 노란색
-      case 6: return '#F3E5F5'; // 매장 - 연한 보라색
-      default: return '#ffffff'; // 회원 - 흰색
+      case 1: return 'rgba(147, 51, 234, 0.08)'; // 슈퍼관리자 - 보라색
+      case 2: return 'rgba(239, 68, 68, 0.08)'; // 운영사(대본) - 빨간색
+      case 3: return 'rgba(59, 130, 246, 0.08)'; // 본사 - 파란색
+      case 4: return 'rgba(34, 197, 94, 0.08)'; // 부본사 - 초록색
+      case 5: return 'rgba(245, 158, 11, 0.08)'; // 총판 - 주황색
+      case 6: return 'rgba(236, 72, 153, 0.08)'; // 매장 - 핑크색
+      default: return 'transparent'; // 회원 - 투명
     }
   };
 
@@ -291,6 +304,27 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
       if (gameError) throw gameError;
       console.log('✅ 게임 기록:', gameRecords?.length || 0, '개', showCumulative ? '(누적)' : '(기간)');
+      
+      // ✅ 베팅정보오류 통계 계산
+      let errorBetAmount = 0;
+      let errorBetCount = 0;
+      
+      if (gameRecords && gameRecords.length > 0) {
+        for (const record of gameRecords) {
+          const hasNullInfo = !record.game_title || record.game_title === 'null' || 
+                             !record.provider_name || record.provider_name === 'null';
+          
+          if (hasNullInfo) {
+            errorBetCount++;
+            errorBetAmount += Math.abs(record.bet_amount || 0);
+          }
+        }
+      }
+      
+      console.log('✅ 베팅정보오류:', { errorBetCount, errorBetAmount });
+      
+      // ✅ 오류 통계를 state에 저장
+      setBettingErrors({ errorBetAmount, errorBetCount });
       
       // 게임 기록 샘플 확인
       if (gameRecords && gameRecords.length > 0) {
@@ -783,7 +817,9 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       totalWinLoss: filteredRows.reduce((sum, r) => sum + r.totalWinLoss, 0),
       totalRolling: filteredRows.reduce((sum, r) => sum + r.totalIndividualRolling, 0),
       totalSettlementProfit: filteredRows.reduce((sum, r) => sum + r.totalSettlement, 0),
-      totalActualSettlementProfit: filteredRows.reduce((sum, r) => sum + r.actualSettlementProfit, 0) // 실정산수익 추가
+      totalActualSettlementProfit: filteredRows.reduce((sum, r) => sum + r.actualSettlementProfit, 0), // 실정산수익 추가
+      errorBetAmount: bettingErrors.errorBetAmount, // ✅ NEW: 베팅정보오류금액
+      errorBetCount: bettingErrors.errorBetCount    // ✅ NEW: 베팅정보오류건수
     };
 
     setSummary(summary);
@@ -867,342 +903,248 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   const visibleRows = getVisibleRows();
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#f5f6fa', fontFamily: '"Noto Sans KR", "Apple SD Gothic Neo", sans-serif', padding: '24px' }}>
-      {/* 1. 상단 안내 영역 */}
-      <div className="mb-5">
-        <div className="flex items-start gap-3 p-4" style={{ backgroundColor: '#FFF8E1', border: '1px solid #FFE082' }}>
-          <Info className="size-5 flex-shrink-0" style={{ color: '#F57C00', marginTop: '2px' }} />
-          <div style={{ color: '#E65100', fontSize: '13px', lineHeight: '1.7' }}>
-            <p>• 통합 정산 실시간 양식은 자정 이후 입금 출금 내역에 대한 실시간 정산 데이터를 표기합니다.</p>
-            <p>• 기간 검색 시 기간 검색 또는 코드 검색으로 나온 데이터의 총 합계 데이터를 표기합니다.</p>
-            <p>• 사용자 입금/출금: 사용자가 직접 신청한 입출금 내역 (transaction_type: deposit/withdrawal)</p>
-            <p>• 관리자 입금/출금: 관리자가 직접 처리한 입출금 내역 (transaction_type: admin_deposit/admin_withdrawal)</p>
-          </div>
+    <div className="space-y-6">
+      {/* 페이지 헤더 */}
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+            <TrendingUp className="h-6 w-6 text-cyan-400" />
+            통합 정산 관리
+          </h1>
+          <p className="text-muted-foreground">
+            파트너 및 회원의 입출금, 베팅, 정산 내역을 확인합니다
+          </p>
         </div>
+        <Button
+          onClick={fetchSettlementData}
+          disabled={loading}
+          className="bg-cyan-600 hover:bg-cyan-700 text-white"
+        >
+          <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+          새로고침
+        </Button>
       </div>
 
-      {/* 2. 상단 정보 카드 - 2줄 가로 배치 */}
-      <div className="mb-5 bg-white">
-        {/* 첫 번째 줄 */}
-        <div className="flex" style={{ borderBottom: '1px solid #e0e0e0' }}>
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#FFF9E6', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>사용자 입금</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.totalDeposit)}</p>
-          </div>
-          
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#FFF9E6', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>사용자 출금</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.totalWithdrawal)}</p>
-          </div>
+      {/* 통계 카드 */}
+      <div className="grid gap-5 md:grid-cols-4">
+        <MetricCard
+          title="총 베팅액"
+          value={`${formatNumber(summary.totalBet)}원`}
+          subtitle="카지노 + 슬롯"
+          icon={TrendingUp}
+          color="blue"
+        />
 
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#FFF9E6', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>관리자 입금</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.adminTotalDeposit)}</p>
-          </div>
+        <MetricCard
+          title="총 당첨액"
+          value={`${formatNumber(summary.totalWin)}원`}
+          subtitle="총 베팅 대비 당첨"
+          icon={TrendingDown}
+          color="purple"
+        />
 
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#FFF9E6', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>관리자 출금</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.adminTotalWithdrawal)}</p>
-          </div>
+        <MetricCard
+          title="총 롤링금"
+          value={`${formatNumber(summary.totalRolling)}원`}
+          subtitle="정산 롤링 합계"
+          icon={DollarSign}
+          color="green"
+        />
 
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E8F5E9', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#2E7D32', fontWeight: 600, marginBottom: '8px' }}>포인트지급</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.pointGiven)}</p>
-          </div>
-
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E8F5E9', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#2E7D32', fontWeight: 600, marginBottom: '8px' }}>포인트회수</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.pointRecovered)}</p>
-          </div>
-
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E3F2FD', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#1976D2', fontWeight: 600, marginBottom: '8px' }}>입출차액</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: summary.depositWithdrawalDiff < 0 ? '#D32F2F' : '#2E7D32', lineHeight: 1 }}>{formatNumber(summary.depositWithdrawalDiff)}</p>
-          </div>
-
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E3F2FD' }}>
-            <p style={{ fontSize: '12px', color: '#1976D2', fontWeight: 600, marginBottom: '8px' }}>총베팅</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.totalBet)}</p>
-          </div>
-        </div>
-
-        {/* 두 번째 줄 */}
-        <div className="flex">
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E8F5E9', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#2E7D32', fontWeight: 600, marginBottom: '8px' }}>카지노 베팅</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.casinoBet)}</p>
-          </div>
-
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E8F5E9', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#2E7D32', fontWeight: 600, marginBottom: '8px' }}>카지노 당첨</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.casinoWin)}</p>
-          </div>
-
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E3F2FD', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#1976D2', fontWeight: 600, marginBottom: '8px' }}>슬롯 베팅</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.slotBet)}</p>
-          </div>
-
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E3F2FD', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#1976D2', fontWeight: 600, marginBottom: '8px' }}>슬롯 당첨</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.slotWin)}</p>
-          </div>
-
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E3F2FD', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#1976D2', fontWeight: 600, marginBottom: '8px' }}>총당첨</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.totalWin)}</p>
-          </div>
-
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E3F2FD', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#1976D2', fontWeight: 600, marginBottom: '8px' }}>윈로스</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: summary.totalWinLoss < 0 ? '#D32F2F' : '#000000', lineHeight: 1 }}>{formatNumber(Math.abs(summary.totalWinLoss))}</p>
-          </div>
-
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E3F2FD', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#1976D2', fontWeight: 600, marginBottom: '8px' }}>총롤링금</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.totalRolling)}</p>
-          </div>
-
-          <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#E3F2FD' }}>
-            <p style={{ fontSize: '12px', color: '#1976D2', fontWeight: 600, marginBottom: '8px' }}>정산수익</p>
-            <p style={{ fontSize: '32px', fontWeight: 700, color: '#2E7D32', lineHeight: 1 }}>{formatNumber(summary.totalSettlementProfit)}</p>
-          </div>
-        </div>
+        <MetricCard
+          title="정산 수익"
+          value={`${formatNumber(summary.totalSettlementProfit)}원`}
+          subtitle="롤링 + 루징 정산"
+          icon={DollarSign}
+          color="cyan"
+        />
       </div>
 
-      {/* 3. 필터 및 검색 영역 */}
-      <div className="p-5 mb-5" style={{ backgroundColor: '#E8EAF6' }}>
-        <div className="flex flex-wrap items-center gap-3">
-          {/* 날짜 필터 탭 */}
-          <button
+      {/* 세부 통계 카드 */}
+      <div className="grid gap-5 md:grid-cols-4">
+        <MetricCard
+          title="입출 차액"
+          value={`${formatNumber(summary.depositWithdrawalDiff)}원`}
+          subtitle="입금 - 출금"
+          icon={TrendingUp}
+          color={summary.depositWithdrawalDiff >= 0 ? "green" : "red"}
+        />
+
+        <MetricCard
+          title="카지노 베팅"
+          value={`${formatNumber(summary.casinoBet)}원`}
+          subtitle="카지노 게임 베팅"
+          icon={TrendingUp}
+          color="blue"
+        />
+
+        <MetricCard
+          title="슬롯 베팅"
+          value={`${formatNumber(summary.slotBet)}원`}
+          subtitle="슬롯 게임 베팅"
+          icon={TrendingUp}
+          color="purple"
+        />
+
+        <MetricCard
+          title="베팅정보오류"
+          value={`${formatNumber(summary.errorBetAmount)}원`}
+          subtitle={`오류 ${summary.errorBetCount}건`}
+          icon={AlertCircle}
+          color="red"
+        />
+      </div>
+
+      {/* 정산 데이터 테이블 */}
+      <div className="glass-card rounded-xl p-6">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-700/50">
+          <div className="flex items-center gap-2">
+            <CalendarIcon className="h-8 w-8 text-slate-400" />
+            <h3 className="text-2xl font-semibold text-slate-100">정산 데이터</h3>
+          </div>
+        </div>
+
+        {/* 필터 영역 */}
+        <div className="flex items-center gap-3 mb-6 flex-wrap">
+          {/* 날짜 빠른 선택 */}
+          <Button
             onClick={() => {
               setDateFilterType('today');
               const today = new Date();
               setDateRange({ from: startOfDay(today), to: endOfDay(today) });
             }}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: dateFilterType === 'today' ? '#3F51B5' : '#C5CAE9',
-              color: dateFilterType === 'today' ? '#ffffff' : '#3F51B5',
-              fontSize: '13px',
-              fontWeight: 600,
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
+            variant={dateFilterType === 'today' ? 'default' : 'outline'}
+            className="h-10"
           >
             오늘
-          </button>
-
-          <button
+          </Button>
+          <Button
             onClick={() => {
               setDateFilterType('yesterday');
               const yesterday = subDays(new Date(), 1);
               setDateRange({ from: startOfDay(yesterday), to: endOfDay(yesterday) });
             }}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: dateFilterType === 'yesterday' ? '#3F51B5' : '#C5CAE9',
-              color: dateFilterType === 'yesterday' ? '#ffffff' : '#3F51B5',
-              fontSize: '13px',
-              fontWeight: 600,
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
+            variant={dateFilterType === 'yesterday' ? 'default' : 'outline'}
+            className="h-10"
           >
             어제
-          </button>
-
-          <button
+          </Button>
+          <Button
             onClick={() => {
               setDateFilterType('week');
               const today = new Date();
               setDateRange({ from: startOfDay(subDays(today, 7)), to: endOfDay(today) });
             }}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: dateFilterType === 'week' ? '#3F51B5' : '#C5CAE9',
-              color: dateFilterType === 'week' ? '#ffffff' : '#3F51B5',
-              fontSize: '13px',
-              fontWeight: 600,
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
+            variant={dateFilterType === 'week' ? 'default' : 'outline'}
+            className="h-10"
           >
             일주일
-          </button>
-
-          <button
+          </Button>
+          <Button
             onClick={() => {
               setDateFilterType('month');
               const today = new Date();
               setDateRange({ from: startOfDay(subDays(today, 30)), to: endOfDay(today) });
             }}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: dateFilterType === 'month' ? '#3F51B5' : '#C5CAE9',
-              color: dateFilterType === 'month' ? '#ffffff' : '#3F51B5',
-              fontSize: '13px',
-              fontWeight: 600,
-              border: 'none',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
+            variant={dateFilterType === 'month' ? 'default' : 'outline'}
+            className="h-10"
           >
             한달
-          </button>
+          </Button>
 
+          {/* 날짜 범위 선택 */}
           <Popover>
             <PopoverTrigger asChild>
-              <button
-                onClick={() => setDateFilterType('custom')}
-                className="flex items-center gap-2"
-                style={{
-                  padding: '10px 20px',
-                  backgroundColor: dateFilterType === 'custom' ? '#3F51B5' : '#C5CAE9',
-                  color: dateFilterType === 'custom' ? '#ffffff' : '#3F51B5',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-[280px] justify-start text-left font-normal input-premium",
+                  !dateRange && "text-muted-foreground"
+                )}
               >
-                <CalendarIcon className="size-4" />
-                기간 검색
-              </button>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateRange?.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "yyyy-MM-dd", { locale: ko })} -{" "}
+                      {format(dateRange.to, "yyyy-MM-dd", { locale: ko })}
+                    </>
+                  ) : (
+                    format(dateRange.from, "yyyy-MM-dd", { locale: ko })
+                  )
+                ) : (
+                  <span>날짜 선택</span>
+                )}
+              </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
+            <PopoverContent className="w-auto p-0 bg-slate-800 border-slate-700" align="start">
               <Calendar
                 initialFocus
                 mode="range"
                 defaultMonth={dateRange?.from}
                 selected={dateRange}
-                onSelect={(range) => {
-                  setDateRange(range);
-                  setDateFilterType('custom');
-                }}
+                onSelect={setDateRange}
                 numberOfMonths={2}
                 locale={ko}
               />
             </PopoverContent>
           </Popover>
 
-          <div style={{ width: '1px', height: '32px', backgroundColor: '#9FA8DA', margin: '0 8px' }} />
+          {/* 레벨 필터 */}
+          <Select value={levelFilter} onValueChange={(value: any) => setLevelFilter(value)}>
+            <SelectTrigger className="w-[160px] input-premium">
+              <SelectValue placeholder="레벨" />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 border-slate-700">
+              <SelectItem value="all">전체</SelectItem>
+              <SelectItem value="2">운영사(대본)</SelectItem>
+              <SelectItem value="3">본사</SelectItem>
+              <SelectItem value="4">부본사</SelectItem>
+              <SelectItem value="5">총판</SelectItem>
+              <SelectItem value="6">매장</SelectItem>
+              <SelectItem value="user">회원</SelectItem>
+            </SelectContent>
+          </Select>
 
-          {/* 등급 필터 */}
-          <div className="flex items-center gap-2">
-            <span style={{ fontSize: '13px', color: '#3F51B5', fontWeight: 600 }}>등급</span>
-            <div className="flex gap-2">
-              {[
-                { value: 'all', label: '전체' },
-                { value: '2', label: '운영사(대본)' },
-                { value: '3', label: '본사' },
-                { value: '4', label: '부본사' },
-                { value: '5', label: '총판' },
-                { value: '6', label: '매장' },
-                { value: 'user', label: '회원' }
-              ].map(item => (
-                <button
-                  key={item.value}
-                  onClick={() => setLevelFilter(item.value as any)}
-                  className="px-4 py-2 transition-all hover:opacity-80"
-                  style={{
-                    backgroundColor: levelFilter === item.value ? '#5C6BC0' : '#C5CAE9',
-                    color: levelFilter === item.value ? '#ffffff' : '#3F51B5',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    border: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+          {/* 검색 */}
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-2.5 h-6 w-6 text-slate-400" />
+            <Input
+              placeholder="코드 검색..."
+              className="pl-10 input-premium"
+              value={codeSearch}
+              onChange={(e) => setCodeSearch(e.target.value)}
+            />
           </div>
 
-          <div style={{ width: '1px', height: '32px', backgroundColor: '#9FA8DA' }} />
+          {/* 추가 옵션 */}
+          <Button
+            onClick={toggleExpandAll}
+            variant="outline"
+            className="h-10"
+          >
+            {expandAll ? <ChevronDown className="h-4 w-4 mr-2" /> : <ChevronRight className="h-4 w-4 mr-2" />}
+            {expandAll ? '전체 접기' : '전체 펼치기'}
+          </Button>
 
-          {/* 코드 검색 */}
-          <input
-            type="text"
-            placeholder="아이디 검색..."
-            value={codeSearch}
-            onChange={(e) => setCodeSearch(e.target.value)}
-            className="px-4 py-2"
-            style={{
-              backgroundColor: '#ffffff',
-              color: '#1A237E',
-              fontSize: '13px',
-              fontWeight: 500,
-              border: '1.5px solid #9FA8DA',
-              width: '200px',
-              outline: 'none'
-            }}
-          />
-
-          {/* 누적정산 & 새로고침 */}
-          <div className="flex items-center gap-2 ml-auto">
-            <button
-              onClick={toggleExpandAll}
-              className="flex items-center gap-2 px-4 py-2 transition-all hover:opacity-80"
-              style={{
-                backgroundColor: '#7E57C2',
-                color: '#ffffff',
-                fontSize: '13px',
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              {expandAll ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-              {expandAll ? '전체 접기' : '전체 펼치기'}
-            </button>
-
-            <button
-              onClick={() => setShowCumulative(!showCumulative)}
-              className="px-4 py-2 transition-all hover:opacity-80"
-              style={{
-                backgroundColor: showCumulative ? '#5C6BC0' : '#78909C',
-                color: '#ffffff',
-                fontSize: '13px',
-                fontWeight: 600,
-                border: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              누적정산 {showCumulative ? '끔' : '표기'}
-            </button>
-            
-            <button
-              onClick={fetchSettlementData}
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 transition-all hover:opacity-80"
-              style={{
-                backgroundColor: '#5C6BC0',
-                color: '#ffffff',
-                fontSize: '13px',
-                fontWeight: 600,
-                border: 'none',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.6 : 1
-              }}
-            >
-              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
-              새로고침
-            </button>
-          </div>
+          <Button
+            onClick={() => setShowCumulative(!showCumulative)}
+            variant={showCumulative ? 'default' : 'outline'}
+            className="h-10"
+          >
+            누적정산 {showCumulative ? '끔' : '표기'}
+          </Button>
         </div>
-      </div>
 
-      {/* 4. 데이터 테이블 영역 */}
-      <div className="overflow-hidden bg-white shadow-sm mb-5">
+        {/* 데이터 테이블 */}
         {loading ? (
-          <div className="flex justify-center py-12">
+          <div className="flex items-center justify-center py-12">
             <LoadingSpinner />
+          </div>
+        ) : visibleRows.length === 0 ? (
+          <div className="text-center py-12 text-slate-400">
+            정산 데이터가 없습니다.
           </div>
         ) : (
           <div className="overflow-x-auto" style={{
@@ -1226,40 +1168,56 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                 }
               `
             }} />
-            <table className="w-full" style={{ borderCollapse: 'collapse', minWidth: '1800px' }}>
+            <table className="w-full">
               <thead>
-                <tr style={{ borderBottom: '2px solid #E0E0E0' }}>
-                  <th className="p-3 text-center sticky left-0 z-10" style={{ backgroundColor: '#FAFAFA', color: '#212121', fontSize: '13px', fontWeight: 700, width: '80px', whiteSpace: 'nowrap' }}>등급</th>
-                  <th className="p-3 text-left sticky left-[80px] z-10" style={{ backgroundColor: '#FAFAFA', color: '#212121', fontSize: '13px', fontWeight: 700, width: '120px' }}>아이디</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#FAFAFA', color: '#212121', fontSize: '13px', fontWeight: 700 }}>보유머니</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#FAFAFA', color: '#212121', fontSize: '13px', fontWeight: 700 }}>롤링포인트</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#FFF9E6', color: '#F57F17', fontSize: '13px', fontWeight: 700 }}>입금</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#FFF9E6', color: '#F57F17', fontSize: '13px', fontWeight: 700 }}>출금</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#FFF9E6', color: '#F57F17', fontSize: '13px', fontWeight: 700 }}>관리자입금</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#FFF9E6', color: '#F57F17', fontSize: '13px', fontWeight: 700 }}>관리자출금</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E8F5E9', color: '#2E7D32', fontSize: '13px', fontWeight: 700 }}>포인트지급</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E8F5E9', color: '#2E7D32', fontSize: '13px', fontWeight: 700 }}>포인트회수</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E3F2FD', color: '#1976D2', fontSize: '13px', fontWeight: 700 }}>입출차액</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#FAFAFA', color: '#212121', fontSize: '13px', fontWeight: 700 }}>카지노롤링</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#FAFAFA', color: '#212121', fontSize: '13px', fontWeight: 700 }}>카지노루징</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#FAFAFA', color: '#212121', fontSize: '13px', fontWeight: 700 }}>슬롯롤링</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#FAFAFA', color: '#212121', fontSize: '13px', fontWeight: 700 }}>슬롯루징</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E8F5E9', color: '#2E7D32', fontSize: '13px', fontWeight: 700 }}>총베팅</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E8F5E9', color: '#2E7D32', fontSize: '13px', fontWeight: 700 }}>총당첨</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E3F2FD', color: '#1976D2', fontSize: '13px', fontWeight: 700 }}>윈로스</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E3F2FD', color: '#1976D2', fontSize: '13px', fontWeight: 700 }}>GGR</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E8F5E9', color: '#2E7D32', fontSize: '13px', fontWeight: 700 }}>카지노개별롤링</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E8F5E9', color: '#2E7D32', fontSize: '13px', fontWeight: 700 }}>슬롯개별롤링</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E3F2FD', color: '#1976D2', fontSize: '13px', fontWeight: 700 }}>총롤링금</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E3F2FD', color: '#1976D2', fontSize: '13px', fontWeight: 700 }}>총루징</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E3F2FD', color: '#1976D2', fontSize: '13px', fontWeight: 700 }}>롤링금</th>
-                  <th className="p-3 text-center" style={{ backgroundColor: '#E3F2FD', color: '#1976D2', fontSize: '13px', fontWeight: 700 }}>낙첨금</th>
+                <tr className="border-b border-slate-700">
+                  {/* 기본 정보 */}
+                  <th className="px-4 py-3 text-left text-white sticky left-0 bg-slate-900 z-10 whitespace-nowrap">등급</th>
+                  <th className="px-4 py-3 text-left text-white bg-slate-900 whitespace-nowrap">아이디</th>
+                  <th className="px-4 py-3 text-right text-white bg-slate-900 whitespace-nowrap">보유머니</th>
+                  <th className="px-4 py-3 text-right text-white bg-slate-900 whitespace-nowrap">롤링포인트</th>
+                  
+                  {/* 입출금 관련 - 주황색 계열 */}
+                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">입금</th>
+                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">출금</th>
+                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">관리자입금</th>
+                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">관리자출금</th>
+                  
+                  {/* 포인트 관련 - 초록색 계열 */}
+                  <th className="px-4 py-3 text-right text-white bg-green-950/60 whitespace-nowrap">포인트지급</th>
+                  <th className="px-4 py-3 text-right text-white bg-green-950/60 whitespace-nowrap">포인트회수</th>
+                  
+                  {/* 입출차액 - 청록색 */}
+                  <th className="px-4 py-3 text-right text-white bg-cyan-950/60 whitespace-nowrap">입출차액</th>
+                  
+                  {/* 요율 정보 - 회색 계열 */}
+                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">카지노롤링%</th>
+                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">카지노루징%</th>
+                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">슬롯롤링%</th>
+                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">슬롯루징%</th>
+                  
+                  {/* 베팅/당첨 - 파란색/보라색 계열 */}
+                  <th className="px-4 py-3 text-right text-white bg-blue-950/60 whitespace-nowrap">총베팅</th>
+                  <th className="px-4 py-3 text-right text-white bg-blue-950/60 whitespace-nowrap">총당첨</th>
+                  
+                  {/* 윈로스/GGR - 앰버 계열 */}
+                  <th className="px-4 py-3 text-right text-white bg-amber-950/60 whitespace-nowrap">GGR</th>
+                  
+                  {/* 롤링 정보 - 에메랄드 계열 */}
+                  <th className="px-4 py-3 text-right text-white bg-emerald-950/60 whitespace-nowrap">카지노개별롤링</th>
+                  <th className="px-4 py-3 text-right text-white bg-emerald-950/60 whitespace-nowrap">슬롯개별롤링</th>
+                  
+                  {/* 정산 결과 - 틸/초록 계열 */}
+                  <th className="px-4 py-3 text-right text-white bg-teal-950/60 whitespace-nowrap">총롤링금</th>
+                  <th className="px-4 py-3 text-right text-white bg-teal-950/60 whitespace-nowrap">총루징</th>
+                  <th className="px-4 py-3 text-right text-white bg-green-950/70 whitespace-nowrap">롤링금</th>
+                  <th className="px-4 py-3 text-right text-white bg-green-950/70 whitespace-nowrap">낙첨금</th>
                 </tr>
               </thead>
               <tbody>
                 {visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan={25} className="p-8 text-center" style={{ color: '#757575', fontSize: '14px' }}>
+                    <td colSpan={24} className="p-8 text-center text-slate-400">
                       데이터가 없습니다.
                     </td>
                   </tr>
@@ -1269,15 +1227,15 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                     return (
                       <tr 
                         key={row.id} 
-                        style={{
-                          backgroundColor: bgColor,
-                          borderBottom: '1px solid #E0E0E0',
-                          cursor: row.hasChildren ? 'pointer' : 'default'
+                        className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors"
+                        style={{ 
+                          cursor: row.hasChildren ? 'pointer' : 'default',
+                          backgroundColor: bgColor
                         }}
                         onClick={() => row.hasChildren && toggleRow(row.id)}
                       >
-                        <td className="p-3 sticky left-0 z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 600, width: '80px', whiteSpace: 'nowrap' }}>
-                          <div className="flex items-center justify-center gap-1">
+                        <td className="px-4 py-3 text-slate-300 sticky left-0 z-10 whitespace-nowrap" style={{ backgroundColor: bgColor }}>
+                          <div className="flex items-center gap-1">
                             {row.hasChildren && row.level > 0 && (
                               expandedRows.has(row.id) ? 
                                 <ChevronDown className="size-4" /> : 
@@ -1286,30 +1244,31 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                             {row.levelName}
                           </div>
                         </td>
-                        <td className="p-3 sticky left-[80px] z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 500, width: '120px' }}>{row.username}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.balance)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.points)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.deposit)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.withdrawal)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminDeposit)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminWithdrawal)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointGiven)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointRecovered)}</td>
-                        <td className="p-3 text-right" style={{ color: row.depositWithdrawalDiff < 0 ? '#D32F2F' : '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.depositWithdrawalDiff)}</td>
-                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoRollingRate}%</td>
-                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoLosingRate}%</td>
-                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotRollingRate}%</td>
-                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotLosingRate}%</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalBet)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWin)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWinLoss)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.ggr)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.casinoIndividualRolling)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.slotIndividualRolling)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalRolling)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalLosing)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalIndividualRolling)}</td>
-                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalIndividualLosing)}</td>
+                        <td className="px-4 py-3 text-slate-200 font-mono whitespace-nowrap">{row.username}</td>
+                        <td className="px-4 py-3 text-right text-slate-300 font-mono whitespace-nowrap">{formatNumber(row.balance)}</td>
+                        <td className="px-4 py-3 text-right text-cyan-400 font-mono whitespace-nowrap">{formatNumber(row.points)}</td>
+                        <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.deposit)}</td>
+                        <td className="px-4 py-3 text-right text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.withdrawal)}</td>
+                        <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.adminDeposit)}</td>
+                        <td className="px-4 py-3 text-right text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.adminWithdrawal)}</td>
+                        <td className="px-4 py-3 text-right text-blue-400 font-mono whitespace-nowrap">{formatNumber(row.pointGiven)}</td>
+                        <td className="px-4 py-3 text-right text-orange-400 font-mono whitespace-nowrap">{formatNumber(row.pointRecovered)}</td>
+                        <td className={cn("px-4 py-3 text-right font-mono whitespace-nowrap", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                          {formatNumber(row.depositWithdrawalDiff)}
+                        </td>
+                        <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.casinoRollingRate}%</td>
+                        <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.casinoLosingRate}%</td>
+                        <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.slotRollingRate}%</td>
+                        <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.slotLosingRate}%</td>
+                        <td className="px-4 py-3 text-right text-cyan-400 font-mono whitespace-nowrap">{formatNumber(row.totalBet)}</td>
+                        <td className="px-4 py-3 text-right text-purple-400 font-mono whitespace-nowrap">{formatNumber(row.totalWin)}</td>
+                        <td className="px-4 py-3 text-right text-amber-400 font-mono whitespace-nowrap">{formatNumber(row.ggr)}</td>
+                        <td className="px-4 py-3 text-right text-green-400 font-mono whitespace-nowrap">{formatNumber(row.casinoIndividualRolling)}</td>
+                        <td className="px-4 py-3 text-right text-green-400 font-mono whitespace-nowrap">{formatNumber(row.slotIndividualRolling)}</td>
+                        <td className="px-4 py-3 text-right text-teal-400 font-mono whitespace-nowrap">{formatNumber(row.totalRolling)}</td>
+                        <td className="px-4 py-3 text-right text-teal-400 font-mono whitespace-nowrap">{formatNumber(row.totalLosing)}</td>
+                        <td className="px-4 py-3 text-right text-green-400 font-mono font-semibold whitespace-nowrap">{formatNumber(row.totalIndividualRolling)}</td>
+                        <td className="px-4 py-3 text-right text-green-400 font-mono font-semibold whitespace-nowrap">{formatNumber(row.totalIndividualLosing)}</td>
                       </tr>
                     );
                   })
@@ -1318,61 +1277,6 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
             </table>
           </div>
         )}
-      </div>
-
-      {/* 5. 계산 방식 설명 */}
-      <div className="bg-white p-4">
-        <div className="flex items-start gap-12">
-          {/* 좌측: 기본 수식 */}
-          <div className="flex-shrink-0" style={{ width: '300px' }}>
-            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#212121', marginBottom: '12px' }}>계산 방식</h3>
-            <div className="space-y-2">
-              <div className="grid grid-cols-[70px_1fr] gap-3 items-start">
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#424242' }}>낙첨금</div>
-                <div style={{ fontSize: '12px', color: '#616161', lineHeight: '1.6' }}>
-                  (총베팅 - 당첨금 - 총 롤링금) × 루징률
-                </div>
-              </div>
-              <div className="grid grid-cols-[70px_1fr] gap-3 items-start">
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#424242' }}>롤링금</div>
-                <div style={{ fontSize: '12px', color: '#616161', lineHeight: '1.6' }}>
-                  총베팅 × 롤링률
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 우측: 계층별 롤링 배분 */}
-          <div className="flex-1">
-            <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#212121', marginBottom: '12px' }}>계층별 롤링 배분</h4>
-            <div className="space-y-2">
-              <div className="grid grid-cols-[60px_1fr] gap-3 items-start">
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#424242' }}>본사</div>
-                <div style={{ fontSize: '12px', color: '#616161', lineHeight: '1.6' }}>
-                  본사 전체 롤링금 - 부본사별 전체 롤링금 = 본사 롤링금
-                </div>
-              </div>
-              <div className="grid grid-cols-[60px_1fr] gap-3 items-start">
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#424242' }}>부본사</div>
-                <div style={{ fontSize: '12px', color: '#616161', lineHeight: '1.6' }}>
-                  부본사 전체 롤링금 - 총판별 전체 롤링금 = 부본사 롤링금
-                </div>
-              </div>
-              <div className="grid grid-cols-[60px_1fr] gap-3 items-start">
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#424242' }}>총판</div>
-                <div style={{ fontSize: '12px', color: '#616161', lineHeight: '1.6' }}>
-                  총판 전체 롤링금 - 매장별 전체 롤링금 = 총판 롤링금
-                </div>
-              </div>
-              <div className="grid grid-cols-[60px_1fr] gap-3 items-start">
-                <div style={{ fontSize: '12px', fontWeight: 600, color: '#424242' }}>매장</div>
-                <div style={{ fontSize: '12px', color: '#616161', lineHeight: '1.6' }}>
-                  매장 전체 롤링금 - 회원별 롤링금 = 매장 롤링금
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -167,7 +167,7 @@ export async function handleChangeBalanceCallback(
       .update({ balance: newBalance })
       .eq('id', user.id);
 
-    // 게임 기록 저장
+    // 게임 정보 조회 (vendor_code로)
     const { data: gameData } = await supabase
       .from('games')
       .select('id, provider_id, game_type, name, name_ko') // ✅ name, name_ko 추가
@@ -185,13 +185,24 @@ export async function handleChangeBalanceCallback(
       
       providerName = providerData?.name_ko || providerData?.name || null;
     }
+    
+    // ✅ NULL 방지: 게임 정보가 없어도 최소한 기본값 사용
+    const finalGameTitle = gameData?.name_ko || gameData?.name || `Game ${vendorKey}`;
+    const finalProviderName = providerName || `Provider ${vendorKey.split('-')[0] || 'Unknown'}`;
+    
+    console.log(`🎮 [/changebalance] 게임 정보:`, {
+      vendorKey,
+      gameData: gameData ? 'found' : 'not found',
+      gameTitle: finalGameTitle,
+      providerName: finalProviderName
+    });
 
     await supabase.from('game_records').insert({
       user_id: user.id,
       game_id: gameData?.id || null,
       provider_id: gameData?.provider_id || null,
-      provider_name: providerName, // ✅ provider_name 추가
-      game_title: gameData?.name_ko || gameData?.name || null, // ✅ game_title 추가
+      provider_name: finalProviderName, // ✅ 항상 값 보장
+      game_title: finalGameTitle, // ✅ 항상 값 보장
       api_type: 'familyapi',
       transaction_id: tranId,
       bet_id: betId,
@@ -343,20 +354,32 @@ export async function handleChangeBalanceSlotCallback(
       
       providerName = providerData?.name_ko || providerData?.name || null;
     }
+    
+    // ✅ NULL 방지: 게임 정보가 없어도 최소한 기본값 사용
+    const finalGameTitle = gameData?.name_ko || gameData?.name || `Game ${gameKey || vendorKey}`;
+    const finalProviderName = providerName || `Provider ${vendorKey.split('-')[0] || 'Unknown'}`;
+    
+    console.log(`🎮 [/changebalance/slot] 게임 정보:`, {
+      vendorKey,
+      gameKey,
+      gameData: gameData ? 'found' : 'not found',
+      gameTitle: finalGameTitle,
+      providerName: finalProviderName
+    });
 
     await supabase.from('game_records').insert({
       user_id: user.id,
       game_id: gameData?.id || null,
       provider_id: gameData?.provider_id || null,
-      provider_name: providerName, // ✅ provider_name 추가
-      game_title: gameData?.name_ko || gameData?.name || null, // ✅ game_title 추가
+      provider_name: finalProviderName, // ✅ 항상 값 보장
+      game_title: finalGameTitle, // ✅ 항상 값 보장
       api_type: 'familyapi',
       transaction_id: tranId,
       bet_id: betId,
       bet_key: betKey,
       vendor_key: vendorKey,
       game_key: gameKey,
-      game_type: gameData?.game_type || gameType || 'slot', // ✅ games 테이블에서 가져온 game_type 우선 사용
+      game_type: gameData?.game_type || 'slot', // ✅ 슬롯 엔드포인트이므로 기본값 'slot'
       tran_type: tranType,
       bet_amount: debit || 0,
       win_amount: credit || 0,

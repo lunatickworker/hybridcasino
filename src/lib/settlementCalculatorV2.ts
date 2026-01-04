@@ -24,6 +24,14 @@ export interface GameTypeBettingStats {
 }
 
 /**
+ * ✅ NEW: 베팅정보오류 통계
+ */
+export interface BettingErrorStats {
+  errorBetAmount: number;  // 오류 베팅액
+  errorCount: number;       // 오류 건수
+}
+
+/**
  * 사용자별 베팅 통계 + 커미션율
  */
 export interface UserBettingWithCommission {
@@ -91,7 +99,7 @@ export async function getBettingStatsByGameType(
       // ✅ game_records 테이블에서 game_type을 직접 가져옴
       let query = supabase
         .from('game_records')
-        .select('bet_amount, win_amount, game_type')
+        .select('bet_amount, win_amount, game_type, game_title, provider_name')
         .in('user_id', chunk)
         .gte('played_at', startDate)
         .lte('played_at', endDate);
@@ -112,6 +120,15 @@ export async function getBettingStatsByGameType(
 
         // 베팅 데이터 집계
         for (const record of bettingData) {
+          // ✅ NULL 체크: game_title이나 provider_name이 null이면 정산에서 제외
+          const hasNullInfo = !record.game_title || record.game_title === 'null' || 
+                             !record.provider_name || record.provider_name === 'null';
+          
+          if (hasNullInfo) {
+            console.warn('⚠️ 베팅정보 누락 (정산 제외):', record);
+            continue; // 정산에 포함하지 않음
+          }
+          
           // ✅ bet_amount가 음수로 저장되므로 절대값 사용
           const bet = Math.abs(record.bet_amount || 0);
           const win = record.win_amount || 0;
@@ -274,7 +291,7 @@ export async function getBettingStatsWithUserCommission(
       // 각 사용자별 게임 기록 조회
       let query = supabase
         .from('game_records')
-        .select('user_id, bet_amount, win_amount, game_type')
+        .select('user_id, bet_amount, win_amount, game_type, game_title, provider_name')
         .in('user_id', chunk)
         .gte('played_at', startDate)
         .lte('played_at', endDate);
@@ -305,6 +322,15 @@ export async function getBettingStatsWithUserCommission(
       for (const record of gameRecords) {
         const userId = record.user_id;
         if (!userId) continue;
+
+        // ✅ NULL 체크: game_title이나 provider_name이 null이면 정산에서 제외
+        const hasNullInfo = !record.game_title || record.game_title === 'null' || 
+                           !record.provider_name || record.provider_name === 'null';
+        
+        if (hasNullInfo) {
+          console.warn('⚠️ 베팅정보 누락 (정산 제외):', record);
+          continue; // 정산에 포함하지 않음
+        }
 
         const bet = Math.abs(record.bet_amount || 0);
         const win = record.win_amount || 0;
@@ -412,5 +438,83 @@ export async function getBettingStatsWithUserCommission(
         totalSlotLoss: 0,
       }
     };
+  }
+}
+
+/**
+ * ✅ NEW: 베팅정보오류 통계 조회
+ * - game_title이나 provider_name이 null인 베팅 집계
+ * @param userIds 사용자 ID 배열
+ * @param startDate 시작 날짜
+ * @param endDate 종료 날짜
+ * @param apiFilter API 필터
+ * @returns 오류 베팅액과 건수
+ */
+export async function getBettingErrorStats(
+  userIds: string[],
+  startDate: string,
+  endDate: string,
+  apiFilter: 'all' | 'invest' | 'oroplay' | 'familyapi' | 'honorapi' = 'all'
+): Promise<BettingErrorStats> {
+  if (userIds.length === 0) {
+    return { errorBetAmount: 0, errorCount: 0 };
+  }
+
+  console.log('[getBettingErrorStats] 오류 통계 조회 시작:', {
+    userCount: userIds.length,
+    startDate,
+    endDate,
+    apiFilter
+  });
+
+  try {
+    const CHUNK_SIZE = 100;
+    let errorBetAmount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < userIds.length; i += CHUNK_SIZE) {
+      const chunk = userIds.slice(i, i + CHUNK_SIZE);
+
+      let query = supabase
+        .from('game_records')
+        .select('bet_amount, game_title, provider_name')
+        .in('user_id', chunk)
+        .gte('played_at', startDate)
+        .lte('played_at', endDate);
+
+      if (apiFilter !== 'all') {
+        query = query.eq('api_type', apiFilter);
+      }
+
+      const { data: bettingData, error } = await query;
+
+      if (error) {
+        console.error('베팅 오류 데이터 조회 오류:', error);
+        continue;
+      }
+
+      if (bettingData && bettingData.length > 0) {
+        for (const record of bettingData) {
+          // ✅ NULL 체크: game_title이나 provider_name이 null인 경우
+          const hasNullInfo = !record.game_title || record.game_title === 'null' || 
+                             !record.provider_name || record.provider_name === 'null';
+          
+          if (hasNullInfo) {
+            errorCount++;
+            errorBetAmount += Math.abs(record.bet_amount || 0);
+          }
+        }
+      }
+    }
+
+    console.log('[getBettingErrorStats] 오류 통계 조회 완료:', {
+      errorCount,
+      errorBetAmount
+    });
+
+    return { errorBetAmount, errorCount };
+  } catch (error) {
+    console.error('베팅 오류 통계 계산 실패:', error);
+    return { errorBetAmount: 0, errorCount: 0 };
   }
 }

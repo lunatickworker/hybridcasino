@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { investApi } from './investApi';
 import { oroplayApi } from './oroplayApi';
 import * as familyApi from './familyApi';
+import { logGameDeposit, logGameWithdraw } from './activityLogger';
 
 // ============================================
 // 타입 정의
@@ -3646,6 +3647,15 @@ async function launchInvestGame(
 
       if (depositResult.success) {
         console.log(`✅ [입금] API 입금 완료: ${userBalance}원`);
+        
+        // ⭐ 활동 로그 기록: 게임 실행 시 API 입금
+        await logGameDeposit(
+          userData.id,
+          username,
+          'invest',
+          userBalance,
+          gameId
+        ).catch(err => console.error('❌ 게임 입금 로그 실패:', err));
       } else {
         console.error('❌ API 입금 실패:', depositResult.error);
         return {
@@ -5073,6 +5083,16 @@ export async function syncBalanceOnSessionEnd(
               console.error('❌ [세션 종료] users.balance 업데이트 실패:', userBalanceError);
             } else {
               console.log(`✅ [세션 종료] users.balance 증가: ${currentUser.balance}원 → ${newBalance}원 (+${finalBalance}원)`);
+              
+              // ⭐ 활동 로그 기록: 게임 종료 시 API 출금 + GMS 보유금 증가
+              await logGameWithdraw(
+                userId,
+                user.username,
+                apiType,
+                finalBalance,
+                currentUser.balance || 0,
+                newBalance
+              ).catch(err => console.error('❌ 게임 출금 로그 실패:', err));
             }
           }
           
