@@ -364,16 +364,16 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       setIsProcessing(true);
       setLaunchingProviderId(provider.id);
 
-      // ⭐ Evolution 게임사는 game_id=5176126을 바로 실행
+      // ⭐ Evolution 게임사는 game_id=5185869를 바로 실행
       const providerName = (provider.name || '').toLowerCase();
       if (providerName.includes('evolution') || (provider.name_ko || '').includes('에볼루션')) {
-        console.log('🎰 [Evolution] game_id=5176126 직접 실행');
+        console.log('🎰 [Evolution] game_id=5185869 직접 실행');
         
         // 🆕 active 세션 체크
         const activeSession = await gameApi.checkActiveSession(user.id);
         
         // ⭐ 1. 다른 API 게임이 실행 중인지 체크
-        if (activeSession?.isActive && activeSession.game_id !== 5176126) {
+        if (activeSession?.isActive && activeSession.game_id !== 5185869) {
           toast.error('잠시 후 다시 시도해주세요.');
           
           // ⭐ 관리자 알림 생성
@@ -394,7 +394,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
 
         // ⭐ 2. 같은 게임의 active 세션이 있는지 체크 (중복 실행 방지)
         if (activeSession?.isActive && 
-            activeSession.game_id === 5176126 && 
+            activeSession.game_id === 5185869 && 
             activeSession.status === 'active' && 
             activeSession.launch_url) {
           
@@ -472,7 +472,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         }
 
         // ⭐ 3. 새로운 세션으로 Evolution 게임 실행
-        const launchResult = await gameApi.generateGameLaunchUrl(user.id, 5176126);
+        const launchResult = await gameApi.generateGameLaunchUrl(user.id, 5185869);
         
         if (!launchResult.success || !launchResult.launchUrl) {
           toast.error(launchResult.error || 'Evolution 게임을 시작할 수 없습니다.');

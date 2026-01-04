@@ -272,19 +272,21 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                   계좌 정보
                 </h4>
                 <div className="grid grid-cols-1 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
-                      <Building2 className="w-4 h-4" />
-                      은행명
-                    </Label>
-                    <div className="p-3 rounded-lg bg-white/5 text-white">
-                      {user.bank_name || '-'}
+                  <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 2fr' }}>
+                    <div className="space-y-2">
+                      <Label className="text-gray-400 text-sm flex items-center gap-2">
+                        <Building2 className="w-4 h-4" />
+                        은행명
+                      </Label>
+                      <div className="p-3 rounded-lg bg-white/5 text-white">
+                        {user.bank_name || '-'}
+                      </div>
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm">계좌번호</Label>
-                    <div className="p-3 rounded-lg bg-white/5 text-white font-mono">
-                      {user.bank_account || '-'}
+                    <div className="space-y-2">
+                      <Label className="text-gray-400 text-sm">계좌번호</Label>
+                      <div className="p-3 rounded-lg bg-white/5 text-white font-mono">
+                        {user.bank_account || '-'}
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -293,7 +295,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                       {user.bank_holder || '-'}
                     </div>
                   </div>
-                  <div className="space-y-2 col-span-2">
+                  <div className="space-y-2">
                     <Label className="text-gray-400 text-sm flex items-center gap-2">
                       <Info className="w-4 h-4" />
                       메모
@@ -332,19 +334,31 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                       {Number(user.total_withdraw || 0).toLocaleString()} 원
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                  <div className="p-4 rounded-lg bg-white/5">
+                    <div className="text-sm text-gray-400 mb-1 flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
                       가입일
-                    </Label>
-                    <div className="p-3 rounded-lg bg-white/5 text-white">
-                      {user.created_at ? new Date(user.created_at).toLocaleString('ko-KR') : '-'}
+                    </div>
+                    <div className="text-white">
+                      {user.created_at ? new Date(user.created_at).toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : '-'}
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm">최근 접속</Label>
-                    <div className="p-3 rounded-lg bg-white/5 text-white">
-                      {user.last_login_at ? new Date(user.last_login_at).toLocaleString('ko-KR') : '-'}
+                  <div className="p-4 rounded-lg bg-white/5">
+                    <div className="text-sm text-gray-400 mb-1">최근 접속</div>
+                    <div className="text-white">
+                      {user.last_login_at ? new Date(user.last_login_at).toLocaleString('ko-KR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : '-'}
                     </div>
                   </div>
                 </div>
@@ -357,10 +371,9 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                 background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.1) 100%)',
                 borderColor: 'rgba(59, 130, 246, 0.3)'
               }}>
-                <AlertCircle className="h-4 w-4 text-blue-400" />
+                <Info className="h-4 w-4 text-blue-400" />
                 <AlertDescription className="text-blue-300">
-                  출금 및 포인트전환 비밀번호는 숫자 4자리로 설정해야 합니다.
-                  기존 비밀번호가 있는 경우 덮어쓰기 됩니다.
+                  출금 및 포인트전환 비밀번호는 숫자 4자리로 설정해야 합니다. 기존 비밀번호가 있는 경우 덮어쓰기 됩니다.
                 </AlertDescription>
               </Alert>
 
@@ -394,9 +407,9 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                   <div className="flex gap-3">
                     <Input
                       type="password"
-                      placeholder="예: 1234"
+                      placeholder="• • • •"
                       value={withdrawalPassword}
-                      onChange={(e) => setWithdrawalPassword(e.target.value)}
+                      onChange={(e) => setWithdrawalPassword(e.target.value.replace(/\D/g, ''))}
                       maxLength={4}
                       className="flex-1 h-12 text-lg text-white"
                       style={{
@@ -415,8 +428,31 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                         border: '1px solid rgba(193, 154, 107, 0.3)'
                       }}
                     >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      설정
+                      {isUpdating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          설정 중...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          설정
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => setWithdrawalPassword('')}
+                      disabled={!withdrawalPassword.trim()}
+                      className="h-12 px-6 font-semibold"
+                      style={{
+                        background: !withdrawalPassword.trim()
+                          ? 'rgba(100, 100, 100, 0.5)'
+                          : 'linear-gradient(135deg, rgba(239, 68, 68, 0.6) 0%, rgba(185, 28, 28, 0.6) 100%)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)'
+                      }}
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      리셋
                     </Button>
                   </div>
                 </div>
@@ -454,7 +490,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                       type="password"
                       placeholder="예: 1234"
                       value={pointConversionPassword}
-                      onChange={(e) => setPointConversionPassword(e.target.value)}
+                      onChange={(e) => setPointConversionPassword(e.target.value.replace(/\D/g, ''))}
                       maxLength={4}
                       className="flex-1 h-12 text-lg text-white"
                       style={{
@@ -473,48 +509,85 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                         border: '1px solid rgba(193, 154, 107, 0.3)'
                       }}
                     >
-                      <CheckCircle className="w-4 h-4 mr-2" />
-                      설정
+                      {isUpdating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          설정 중...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          설정
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => setPointConversionPassword('')}
+                      disabled={!pointConversionPassword.trim()}
+                      className="h-12 px-6 font-semibold"
+                      style={{
+                        background: !pointConversionPassword.trim()
+                          ? 'rgba(100, 100, 100, 0.5)'
+                          : 'linear-gradient(135deg, rgba(239, 68, 68, 0.6) 0%, rgba(185, 28, 28, 0.6) 100%)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)'
+                      }}
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      리셋
                     </Button>
                   </div>
                 </div>
               </div>
 
-              {/* 추가 보안 정보 */}
+              {/* 보안 상태 */}
               <div className="space-y-4">
                 <h4 className="font-bold flex items-center gap-2" style={{ color: '#E6C9A8' }}>
                   <Shield className="w-5 h-5" />
                   보안 상태
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-lg bg-white/5">
-                    <div className="text-sm text-gray-400 mb-2">출금 비밀번호</div>
+                  <div className="p-5 rounded-lg" style={{
+                    background: user.withdrawal_password 
+                      ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(21, 128, 61, 0.15) 100%)'
+                      : 'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(161, 98, 7, 0.15) 100%)',
+                    border: user.withdrawal_password 
+                      ? '1px solid rgba(34, 197, 94, 0.4)' 
+                      : '1px solid rgba(234, 179, 8, 0.4)'
+                  }}>
+                    <div className="text-sm text-gray-300 mb-3">출금 비밀번호</div>
                     <div className="flex items-center gap-2">
                       {user.withdrawal_password ? (
                         <>
-                          <CheckCircle className="w-4 h-4 text-green-400" />
-                          <span className="text-green-400 font-semibold">설정됨</span>
+                          <CheckCircle className="w-5 h-5 text-green-400" />
+                          <span className="text-green-300 font-semibold text-lg">설정됨</span>
                         </>
                       ) : (
                         <>
-                          <AlertCircle className="w-4 h-4 text-yellow-400" />
-                          <span className="text-yellow-400 font-semibold">미설정</span>
+                          <AlertCircle className="w-5 h-5 text-yellow-400" />
+                          <span className="text-yellow-300 font-semibold text-lg">미설정</span>
                         </>
                       )}
                     </div>
                   </div>
-                  <div className="p-4 rounded-lg bg-white/5">
-                    <div className="text-sm text-gray-400 mb-2">포인트전환 비밀번호</div>
+                  <div className="p-5 rounded-lg" style={{
+                    background: user.point_conversion_password 
+                      ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(21, 128, 61, 0.15) 100%)'
+                      : 'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(161, 98, 7, 0.15) 100%)',
+                    border: user.point_conversion_password 
+                      ? '1px solid rgba(34, 197, 94, 0.4)' 
+                      : '1px solid rgba(234, 179, 8, 0.4)'
+                  }}>
+                    <div className="text-sm text-gray-300 mb-3">포인트전환 비밀번호</div>
                     <div className="flex items-center gap-2">
                       {user.point_conversion_password ? (
                         <>
-                          <CheckCircle className="w-4 h-4 text-green-400" />
-                          <span className="text-green-400 font-semibold">설정됨</span>
+                          <CheckCircle className="w-5 h-5 text-green-400" />
+                          <span className="text-green-300 font-semibold text-lg">설정됨</span>
                         </>
                       ) : (
                         <>
-                          <AlertCircle className="w-4 h-4 text-yellow-400" />
-                          <span className="text-yellow-400 font-semibold">미설정</span>
+                          <AlertCircle className="w-5 h-5 text-yellow-400" />
+                          <span className="text-yellow-300 font-semibold text-lg">미설정</span>
                         </>
                       )}
                     </div>

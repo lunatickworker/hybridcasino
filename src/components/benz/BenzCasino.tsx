@@ -383,6 +383,33 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
+    // ⭐ Evolution 게임사는 game_id=5185869를 바로 실행
+    const providerName = (provider.name || '').toLowerCase();
+    if (providerName.includes('evolution') || (provider.name_ko || '').includes('에볼루션')) {
+      console.log('🎰 [Evolution] game_id=5185869 직접 실행');
+      setIsProcessing(true);
+      
+      try {
+        // Evolution Top Games 게임 객체 생성
+        const evolutionGame: Game = {
+          id: '5185869',
+          name: 'Evolution Top Games',
+          name_ko: 'Evolution Top Games',
+          game_code: 'evolution_top_games',
+          provider_id: 6717,
+          api_type: 'honor'
+        };
+        
+        await handleGameClick(evolutionGame);
+      } catch (error) {
+        console.error('Evolution 게임 실행 오류:', error);
+        toast.error('Evolution 게임 실행에 실패했습니다.');
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
     setSelectedProvider(provider);
     await loadGames(provider);
   };

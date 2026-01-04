@@ -710,7 +710,10 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   };
 
   const formatNumber = (num: number): string => {
-    return new Intl.NumberFormat('ko-KR').format(Math.round(num));
+    return new Intl.NumberFormat('ko-KR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1
+    }).format(num);
   };
 
   const visibleRows = getVisibleRows();
