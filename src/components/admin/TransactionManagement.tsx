@@ -33,7 +33,7 @@ interface TransactionManagementProps {
 export function TransactionManagement({ user }: TransactionManagementProps) {
   const { t, language, formatCurrency } = useLanguage();
   const { lastMessage, sendMessage } = useWebSocketContext();
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(false); // ⚡ 초기 로딩 제거
   const [refreshing, setRefreshing] = useState(false);
   
   // URL 해시에서 탭 정보 읽기
@@ -48,133 +48,328 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   const [activeTab, setActiveTab] = useState(getInitialTab());
   
   // 데이터 상태
-  const [pendingDeposits, setPendingDeposits] = useState<Transaction[]>([]);
-  const [pendingWithdrawals, setPendingWithdrawals] = useState<Transaction[]>([]);
-  const [completedDeposits, setCompletedDeposits] = useState<Transaction[]>([]);
-  const [completedWithdrawals, setCompletedWithdrawals] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   
-  // 검색/필터 상태
-  const [depositSearch, setDepositSearch] = useState("");
-  const [withdrawalSearch, setWithdrawalSearch] = useState("");
-  const [historySearch, setHistorySearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  // 필터 상태
+  const [periodFilter, setPeriodFilter] = useState("today");
+  const [searchTerm, setSearchTerm] = useState("");
   
-  // 다이얼로그 상태
-  const [actionDialog, setActionDialog] = useState<{
-    open: boolean;
-    transaction: Transaction | null;
-    action: 'approve' | 'reject';
-    memo: string;
-  }>({
+  // 데이터 리로드 트리거 (Realtime 이벤트용)
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+  
+  // 통계 데이터
+  const [stats, setStats] = useState({
+    totalDeposit: 0,
+    totalWithdrawal: 0,
+    pendingDepositCount: 0,
+    pendingWithdrawalCount: 0
+  });
+
+  // 승인/거절 Dialog 상태
+  const [actionDialog, setActionDialog] = useState({
     open: false,
-    transaction: null,
-    action: 'approve',
+    transaction: null as Transaction | null,
+    action: 'approve' as 'approve' | 'reject',
     memo: ''
   });
 
-  // 데이터 로드
-  const loadData = useCallback(async () => {
-    try {
-      // 대기 중인 입금 신청
-      const { data: depositsData } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          user:users!transactions_user_id_fkey (
-            id, username, nickname, bank_name, account_number
-          )
-        `)
-        .eq('transaction_type', 'deposit')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+  // 강제 입출금 Dialog 상태
+  const [forceDialog, setForceDialog] = useState({
+    open: false,
+    type: 'deposit' as 'deposit' | 'withdrawal',
+    userId: '',
+    amount: '',
+    memo: ''
+  });
 
-      // 대기 중인 출금 신청
-      const { data: withdrawalsData } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          user:users!transactions_user_id_fkey (
-            id, username, nickname, bank_name, account_number
-          )
-        `)
-        .eq('transaction_type', 'withdrawal')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+  // 회원 검색 Popover 상태
+  const [userSearchOpen, setUserSearchOpen] = useState(false);
 
-      // 처리 완료된 입금 기록
-      const { data: completedDepositsData } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          user:users!transactions_user_id_fkey (
-            id, username, nickname, bank_name, account_number
-          ),
-          processor:partners!transactions_processed_by_fkey (
-            username, nickname
-          )
-        `)
-        .eq('transaction_type', 'deposit')
-        .in('status', ['completed', 'rejected'])
-        .order('processed_at', { ascending: false })
-        .limit(100);
+  // 금액 단축 버튼 값들 (포인트 모달과 동일하게)
+  const amountShortcuts = [
+    1000,
+    3000, 
+    5000,
+    10000,
+    30000,
+    50000,
+    100000,
+    300000,
+    500000,
+    1000000
+  ];
 
-      // 처리 완료된 출금 기록
-      const { data: completedWithdrawalsData } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          user:users!transactions_user_id_fkey (
-            id, username, nickname, bank_name, account_number
-          ),
-          processor:partners!transactions_processed_by_fkey (
-            username, nickname
-          )
-        `)
-        .eq('transaction_type', 'withdrawal')
-        .in('status', ['completed', 'rejected'])
-        .order('processed_at', { ascending: false })
-        .limit(100);
-
-      // 사용자 목록 (포인트 지급용)
-      const { data: usersData } = await supabase
-        .from('users')
-        .select('*')
-        .order('username');
-
-      setPendingDeposits(depositsData || []);
-      setPendingWithdrawals(withdrawalsData || []);
-      setCompletedDeposits(completedDepositsData || []);
-      setCompletedWithdrawals(completedWithdrawalsData || []);
-      setUsers(usersData || []);
-    } catch (error) {
-      console.error('데이터 로드 실패:', error);
-      toast.error(t.transactionManagement.dataLoadFailed);
-    } finally {
-      setInitialLoading(false);
-      setRefreshing(false);
-    }
-  }, [t]);
-
+  // URL 해시 변경 감지하여 탭 업데이트
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    // 컴포넌트 마운트 시에도 해시 확인
+    const checkHash = () => {
+      const fullHash = window.location.hash; // #/admin/transactions#deposit-request
+      const anchorIndex = fullHash.indexOf('#', 1); // 두 번째 # 찾기
+      
+      if (anchorIndex !== -1) {
+        const anchor = fullHash.substring(anchorIndex + 1); // deposit-request
+        if (anchor === 'deposit-request' || anchor === 'withdrawal-request' || anchor === 'deposit-history' || anchor === 'withdrawal-history') {
+          setActiveTab(anchor);
+        }
+      }
+    };
+
+    checkHash(); // 마운트 시 즉시 실행
+
+    const handleHashChange = () => {
+      checkHash();
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // ⚡ 데이터 로드 최적화 (병렬 쿼리)
+  const loadData = async (isInitial = false) => {
+    try {
+      if (!isInitial) {
+        setRefreshing(true);
+      }
+      
+      const dateRange = getDateRange(periodFilter);
+      
+      // ⚡ 1단계: 계층 정보를 먼저 조회 (중복 제거)
+      let hierarchicalPartners: any[] = [];
+      let partnerIds: string[] = [user.id];
+      
+      if (user.level > 1) {
+        const { data } = await supabase.rpc('get_hierarchical_partners', { p_partner_id: user.id });
+        hierarchicalPartners = data || [];
+        const childPartnerIds = hierarchicalPartners
+          .filter((p: any) => p.level > user.level)
+          .map((p: any) => p.id);
+        partnerIds = [user.id, ...childPartnerIds];
+      }
+      
+      // ⚡ 2단계: 회원 ID 목록 조회
+      let targetUserIds: string[] = [];
+      
+      if (user.level > 1) {
+        const { data: userList } = await supabase
+          .from('users')
+          .select('id')
+          .in('referrer_id', partnerIds);
+        
+        targetUserIds = userList?.map(u => u.id) || [];
+        
+        if (targetUserIds.length === 0) {
+          setTransactions([]);
+          setUsers([]);
+          setStats({ totalDeposit: 0, totalWithdrawal: 0, pendingDepositCount: 0, pendingWithdrawalCount: 0 });
+          return;
+        }
+      }
+      
+      // ⚡ 3단계: 거래 데이터 + 활성 사용자 목록 병렬 조회
+      let transactionQuery = supabase
+        .from('transactions')
+        .select('*')
+        .gte('created_at', dateRange.start)
+        .lte('created_at', dateRange.end)
+        .order('created_at', { ascending: false });
+        
+      if (user.level > 1 && targetUserIds.length > 0) {
+        transactionQuery = transactionQuery.in('user_id', targetUserIds);
+      }
+      
+      let userListQuery = supabase
+        .from('users')
+        .select('id, nickname, username, balance, bank_name, bank_account, bank_holder')
+        .eq('status', 'active')
+        .order('nickname');
+        
+      if (user.level > 1) {
+        userListQuery = userListQuery.in('referrer_id', partnerIds);
+      }
+      
+      const [transactionsResult, usersResult] = await Promise.all([
+        transactionQuery,
+        userListQuery
+      ]);
+      
+      const transactionsData = transactionsResult.data || [];
+      setUsers(usersResult.data || []);
+      
+      // ⚡ 4단계: 관련 데이터 배치 조회 (병렬)
+      const userIds = [...new Set(transactionsData.map(t => t.user_id).filter(Boolean))];
+      
+      if (userIds.length === 0) {
+        setTransactions([]);
+        setStats({ totalDeposit: 0, totalWithdrawal: 0, pendingDepositCount: 0, pendingWithdrawalCount: 0 });
+        return;
+      }
+      
+      const processedByIds = [...new Set(transactionsData.map(t => t.processed_by).filter(Boolean))];
+      
+      const [usersInfoResult, partnersInfoResult] = await Promise.all([
+        supabase.from('users').select('id, nickname, username, balance, bank_name, bank_account, bank_holder, referrer_id').in('id', userIds),
+        processedByIds.length > 0 
+          ? supabase.from('partners').select('id, nickname, level').in('id', processedByIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
+      
+      const usersInfo = usersInfoResult.data || [];
+      const partnersInfo = partnersInfoResult.data || [];
+      
+      // ⚡ 5단계: referrer 정보 조회
+      const referrerIds = [...new Set(usersInfo.map(u => u.referrer_id).filter(Boolean))];
+      const referrersResult = referrerIds.length > 0
+        ? await supabase.from('partners').select('id, nickname, level').in('id', referrerIds)
+        : { data: [], error: null };
+      
+      // ⚡ 6단계: Map 생성 및 데이터 병합 (클라이언트 사이드)
+      const usersMap = new Map(usersInfo.map(u => [u.id, u]));
+      const referrersMap = new Map((referrersResult.data || []).map(p => [p.id, p]));
+      const partnersMap = new Map(partnersInfo.map(p => [p.id, p]));
+
+      const transactionsWithRelations = transactionsData.map(t => {
+        const userInfo = t.user_id ? usersMap.get(t.user_id) : null;
+        return {
+          ...t,
+          user: userInfo ? {
+            ...userInfo,
+            referrer: userInfo.referrer_id ? referrersMap.get(userInfo.referrer_id) : null
+          } : null,
+          processed_partner: t.processed_by ? partnersMap.get(t.processed_by) : null
+        };
+      });
+
+      setTransactions(transactionsWithRelations);
+
+      // 통계 계산 - 모든 입출금 타입 포함 (deposit, admin_deposit, withdrawal, admin_withdrawal)
+      if (transactionsData) {
+        // 입금: deposit + admin_deposit (completed만)
+        const depositSum = transactionsData
+          .filter(t => 
+            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && 
+            t.status === 'completed'
+          )
+          .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+        
+        // 출금: withdrawal + admin_withdrawal (completed만)
+        const withdrawalSum = transactionsData
+          .filter(t => 
+            (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && 
+            t.status === 'completed'
+          )
+          .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+        
+        // 대기 중인 입금 신청 (사용자 요청만)
+        const pendingDeposits = transactionsData.filter(t => 
+          t.transaction_type === 'deposit' && t.status === 'pending'
+        );
+        
+        // 대기 중인 출금 신청 (사용자 요청만)
+        const pendingWithdrawals = transactionsData.filter(t => 
+          t.transaction_type === 'withdrawal' && t.status === 'pending'
+        );
+
+        console.log('📊 통계 계산:', {
+          depositSum,
+          withdrawalSum,
+          depositCount: transactionsData.filter(t => 
+            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && 
+            t.status === 'completed'
+          ).length,
+          withdrawalCount: transactionsData.filter(t => 
+            (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && 
+            t.status === 'completed'
+          ).length
+        });
+
+        setStats({
+          totalDeposit: depositSum,
+          totalWithdrawal: withdrawalSum,
+          pendingDepositCount: pendingDeposits.length,
+          pendingWithdrawalCount: pendingWithdrawals.length
+        });
+      }
+    } catch (error) {
+      console.error('❌ 데이터 로드 실패:', error);
+      toast.error(t.transactionManagement.loadDataFailed);
+    } finally {
+      if (isInitial) {
+        setInitialLoading(false);
+      } else {
+        setRefreshing(false);
+      }
+    }
+  };
+
+  // 날짜 범위 계산
+  const getDateRange = (filter: string) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    switch (filter) {
+      case 'today':
+        return { start: today.toISOString(), end: now.toISOString() };
+      case 'week':
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - 7);
+        return { start: weekStart.toISOString(), end: now.toISOString() };
+      case 'month':
+        const monthStart = new Date(today);
+        monthStart.setMonth(today.getMonth() - 1);
+        return { start: monthStart.toISOString(), end: now.toISOString() };
+      default:
+        return { start: today.toISOString(), end: now.toISOString() };
+    }
+  };
+
+  // ✅ 페이지 진입 시 자동으로 데이터 로드
+  useEffect(() => {
+    loadData(true);
+  }, []);
+
+  // 필터 변경 시 데이터 재로드
+  useEffect(() => {
+    if (!initialLoading) {
+      loadData(false);
+    }
+  }, [periodFilter, reloadTrigger]);
+
+  // Realtime 구독: transactions 테이블 변경 감지
+  useEffect(() => {
+    const channel = supabase
+      .channel('transactions-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions'
+        },
+        (payload) => {
+          console.log('💰 transactions 테이블 변경 감지:', payload);
+          setReloadTrigger(prev => prev + 1);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // WebSocket 메시지 수신 처리
   useEffect(() => {
-    if (lastMessage?.type === 'transaction_created' || 
-        lastMessage?.type === 'transaction_processed') {
-      loadData();
+    if (lastMessage) {
+      // 입출금 관련 메시지 수신 시 데이터 재로드
+      if (['deposit_approved', 'withdrawal_approved', 'deposit_rejected', 'withdrawal_rejected'].includes(lastMessage.type)) {
+        console.log('💬 WebSocket 입출금 알림:', lastMessage);
+        setReloadTrigger(prev => prev + 1);
+      }
     }
-  }, [lastMessage, loadData]);
+  }, [lastMessage]);
 
-  // 새로고침
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadData();
-  };
-
-  // 승인/거절 다이얼로그 열기
+  // 승인/거절 Dialog 열기
   const openActionDialog = (transaction: Transaction, action: 'approve' | 'reject') => {
     setActionDialog({
       open: true,
@@ -211,46 +406,24 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
           let adminBalance = 0;
           
-          // ✅ Lv1: API별 잔고 사용 (활성화된 API 중 가장 작은 금액)
+          // 레벨별 보유금 계산
           if (adminPartnerData.level === 1) {
-            const { data: apiConfigs } = await supabase
+            // Lv1: api_configs에서 실제 보유금 조회
+            const { data: apiConfigsData } = await supabase
               .from('api_configs')
-              .select('balance, api_provider, is_active')
-              .eq('partner_id', user.id)
-              .eq('is_active', true);
+              .select('balance')
+              .eq('partner_id', user.id);
             
-            const balances = apiConfigs?.map((c: any) => c.balance || 0) || [];
-            adminBalance = balances.length > 0 ? Math.min(...balances) : 0;
-            
-            console.log('💰 Lv1 관리자 보유금 (API별 최소값):', {
-              apiConfigs: apiConfigs?.map((c: any) => ({ provider: c.api_provider, balance: c.balance })),
-              minBalance: adminBalance
-            });
-          }
-          // ✅ Lv2: 4개 지갑 합산
-          else if (adminPartnerData.level === 2) {
-            adminBalance = 
-              (adminPartnerData.invest_balance || 0) +
-              (adminPartnerData.oroplay_balance || 0) +
-              (adminPartnerData.familyapi_balance || 0) +
-              (adminPartnerData.honorapi_balance || 0);
-            
-            console.log('💰 Lv2 관리자 보유금 (4개 지갑 합산):', {
-              invest: adminPartnerData.invest_balance,
-              oroplay: adminPartnerData.oroplay_balance,
-              familyapi: adminPartnerData.familyapi_balance,
-              honorapi: adminPartnerData.honorapi_balance,
-              total: adminBalance
-            });
-          }
-          // ✅ Lv3~Lv6: GMS 머니 (partners.balance)
-          else {
+            adminBalance = apiConfigsData?.reduce((sum: number, config: any) => sum + (parseFloat(config.balance?.toString() || '0')), 0) || 0;
+          } else if (adminPartnerData.level === 2) {
+            // Lv2: 4개 지갑 합계
+            adminBalance = (parseFloat(adminPartnerData.invest_balance?.toString() || '0') || 0) +
+                          (parseFloat(adminPartnerData.oroplay_balance?.toString() || '0') || 0) +
+                          (parseFloat(adminPartnerData.familyapi_balance?.toString() || '0') || 0) +
+                          (parseFloat(adminPartnerData.honorapi_balance?.toString() || '0') || 0);
+          } else {
+            // Lv3~Lv6: GMS 머니
             adminBalance = parseFloat(adminPartnerData.balance?.toString() || '0');
-            
-            console.log('💰 Lv3~Lv6 관리자 보유금 (GMS 머니):', {
-              level: adminPartnerData.level,
-              balance: adminBalance
-            });
           }
 
           // 보유금 검증
@@ -311,22 +484,22 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       if (error) throw error;
 
-      // 승인인 경우 balance 업데이트
+      // ✅ 승인인 경우: users 테이블 balance 업데이트 (CRITICAL FIX)
       if (action === 'approve') {
-        const amount = Math.floor(parseFloat(transaction.amount.toString()));
-        
-        // 1️⃣ 현재 사용자 정보 조회
+        // 1️⃣ 현재 사용자 잔고 확인
         const { data: currentUserData, error: currentUserError } = await supabase
           .from('users')
           .select('balance, username')
           .eq('id', transaction.user_id)
           .single();
 
-        if (currentUserError || !currentUserData) {
-          throw new Error(t.transactionManagement.userBalanceUpdateFailed);
+        if (currentUserError) {
+          console.error('❌ [사용자 조회 실패]:', currentUserError);
+          throw new Error('사용자 정보를 조회할 수 없습니다.');
         }
 
-        const currentBalance = parseFloat(currentUserData.balance?.toString() || '0');
+        const currentBalance = parseFloat(currentUserData?.balance?.toString() || '0');
+        const amount = parseFloat(transaction.amount?.toString() || '0');
         
         // 2️⃣ 새로운 잔고 계산
         let newBalance = currentBalance;
@@ -390,29 +563,24 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           throw new Error('관리자 보유금을 조회할 수 없습니다.');
         }
 
+        // 레벨별 보유금 계산
         let currentPartnerBalance = 0;
-        
-        // ✅ Lv1: API별 잔고 사용 (활성화된 API 중 가장 작은 금액)
         if (partnerData.level === 1) {
-          const { data: apiConfigs } = await supabase
+          // Lv1: api_configs에서 실제 보유금 조회
+          const { data: apiConfigsData } = await supabase
             .from('api_configs')
-            .select('balance, api_provider, is_active')
-            .eq('partner_id', responsiblePartnerId)
-            .eq('is_active', true);
+            .select('balance')
+            .eq('partner_id', responsiblePartnerId);
           
-          const balances = apiConfigs?.map((c: any) => c.balance || 0) || [];
-          currentPartnerBalance = balances.length > 0 ? Math.min(...balances) : 0;
-        }
-        // ✅ Lv2: 4개 지갑 합산
-        else if (partnerData.level === 2) {
-          currentPartnerBalance = 
-            (partnerData.invest_balance || 0) +
-            (partnerData.oroplay_balance || 0) +
-            (partnerData.familyapi_balance || 0) +
-            (partnerData.honorapi_balance || 0);
-        }
-        // ✅ Lv3~Lv6: GMS 머니 (partners.balance)
-        else {
+          currentPartnerBalance = apiConfigsData?.reduce((sum: number, config: any) => sum + (parseFloat(config.balance?.toString() || '0')), 0) || 0;
+        } else if (partnerData.level === 2) {
+          // Lv2: 4개 지갑 합계
+          currentPartnerBalance = (parseFloat(partnerData.invest_balance?.toString() || '0') || 0) +
+                        (parseFloat(partnerData.oroplay_balance?.toString() || '0') || 0) +
+                        (parseFloat(partnerData.familyapi_balance?.toString() || '0') || 0) +
+                        (parseFloat(partnerData.honorapi_balance?.toString() || '0') || 0);
+        } else {
+          // Lv3~Lv6: GMS 머니
           currentPartnerBalance = parseFloat(partnerData?.balance?.toString() || '0');
         }
 
@@ -423,44 +591,36 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           balance: currentPartnerBalance
         });
 
-        // 6️⃣ 입금/출금에 따른 관리자 보유금 계산 및 업데이트
+        // 6️⃣ 입금/출금에 따른 파트너 보유금 계산 및 업데이트
         if (transaction.transaction_type === 'deposit') {
-          // 입금: 관리자 보유금 차감
+          // 입금: 파트너 보유금 차감
           if (currentPartnerBalance < amount) {
             throw new Error(
-              `관리자(${partnerData?.username})의 보유금이 부족하여 입금을 승인할 수 없습니다.\\n\\n` +
-              `현재 보유금: ₩${currentPartnerBalance.toLocaleString()}\\n` +
-              `승인 금액: ₩${amount.toLocaleString()}\\n` +
+              `담당 관리자(${partnerData?.username})의 보유금이 부족하여 입금을 승인할 수 없습니다.\n\n` +
+              `현재 보유금: ₩${currentPartnerBalance.toLocaleString()}\n` +
+              `승인 금액: ₩${amount.toLocaleString()}\n` +
               `부족 금액: ₩${(amount - currentPartnerBalance).toLocaleString()}`
             );
           }
 
           const newPartnerBalance = currentPartnerBalance - amount;
 
-          // ✅ Lv3~Lv6: GMS 머니 차감
-          if (partnerData.level && partnerData.level >= 3) {
-            const { error: partnerUpdateError } = await supabase
-              .from('partners')
-              .update({
-                balance: newPartnerBalance,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', responsiblePartnerId);
+          const { error: partnerUpdateError } = await supabase
+            .from('partners')
+            .update({
+              balance: newPartnerBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', responsiblePartnerId);
 
-            if (partnerUpdateError) {
-              console.error('❌ [관리자 보유금 차감 실패]:', partnerUpdateError);
-              throw new Error('관리자 보유금 차감에 실패했습니다.');
-            }
-          }
-          // ✅ Lv1, Lv2는 별도 처리 필요 (여기서는 검증만 통과)
-          else {
-            console.log('⚠️ Lv1/Lv2는 보유금 차감을 별도로 처리합니다 (API 동기화)');
+          if (partnerUpdateError) {
+            console.error('❌ [관리자 보유금 차감 실패]:', partnerUpdateError);
+            throw new Error('관리자 보유금 차감에 실패했습니다.');
           }
 
           console.log('✅ [관리자 보유금 차감 완료]:', {
             partner_id: responsiblePartnerId,
             partner_username: partnerData?.username,
-            level: partnerData?.level,
             before: currentPartnerBalance,
             after: newPartnerBalance,
             deducted: amount
@@ -481,30 +641,22 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           // 출금: 관리자 보유금 증가
           const newPartnerBalance = currentPartnerBalance + amount;
 
-          // ✅ Lv3~Lv6: GMS 머니 증가
-          if (partnerData.level && partnerData.level >= 3) {
-            const { error: partnerUpdateError } = await supabase
-              .from('partners')
-              .update({
-                balance: newPartnerBalance,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', responsiblePartnerId);
+          const { error: partnerUpdateError } = await supabase
+            .from('partners')
+            .update({
+              balance: newPartnerBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', responsiblePartnerId);
 
-            if (partnerUpdateError) {
-              console.error('❌ [관리자 보유금 증가 실패]:', partnerUpdateError);
-              throw new Error('관리자 보유금 증가에 실패했습니다.');
-            }
-          }
-          // ✅ Lv1, Lv2는 별도 처리 필요
-          else {
-            console.log('⚠️ Lv1/Lv2는 보유금 증가를 별도로 처리합니다 (API 동기화)');
+          if (partnerUpdateError) {
+            console.error('❌ [관리자 보유금 증가 실패]:', partnerUpdateError);
+            throw new Error('관리자 보유금 증가에 실패했습니다.');
           }
 
           console.log('✅ [관리자 보유금 증가 완료]:', {
             partner_id: responsiblePartnerId,
             partner_username: partnerData?.username,
-            level: partnerData?.level,
             before: currentPartnerBalance,
             after: newPartnerBalance,
             added: amount
@@ -533,514 +685,991 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         userId: transaction.user_id
       });
       
-      setActionDialog({ ...actionDialog, open: false });
-      await loadData();
-    } catch (error: any) {
+      setActionDialog({ open: false, transaction: null, action: 'approve', memo: '' });
+      // loadData 호출 제거 - Realtime subscription이 자동으로 처리
+    } catch (error) {
       console.error('거래 처리 실패:', error);
-      toast.error(`거래 처리 실패: ${error.message}`);
+      toast.error(error instanceof Error ? error.message : t.transactionManagement.transactionProcessFailed);
     } finally {
       setRefreshing(false);
     }
   };
 
-  // 거래 상태 뱃지
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" | "success" }> = {
-      pending: { label: t.transactionManagement.statusPending, variant: "outline" },
-      completed: { label: t.transactionManagement.statusCompleted, variant: "success" },
-      rejected: { label: t.transactionManagement.statusRejected, variant: "destructive" }
-    };
+  // 강제 입출금 처리 (UserManagement와 동일한 로직)
+  const handleForceTransaction = async () => {
+    try {
+      setRefreshing(true);
+      const { type, userId, amount, memo } = forceDialog;
 
-    const config = statusConfig[status] || statusConfig.pending;
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+      if (!userId || !amount) {
+        toast.error(t.transactionManagement.enterMemberAndAmount);
+        return;
+      }
+
+      const selectedUser = users.find(u => u.id === userId);
+      if (!selectedUser) {
+        toast.error(t.transactionManagement.memberNotFoundError);
+        return;
+      }
+
+      if (!selectedUser.username) {
+        toast.error(t.transactionManagement.memberUsernameNotFound);
+        return;
+      }
+
+      // amount를 정수로 변환 (Guidelines: 입금액/출금액은 숫자만)
+      const amountNum = Math.floor(parseFloat(amount));
+      const balanceBefore = parseFloat(selectedUser.balance?.toString() || '0');
+
+      console.log('💰 강제 입출금 처리 시작:', {
+        type,
+        username: selectedUser.username,
+        amount: amountNum,
+        balanceBefore
+      });
+
+      // 출금 시 보유금 검증
+      if (type === 'withdrawal' && amountNum > balanceBefore) {
+        toast.error(t.transactionManagement.withdrawalExceedsBalance.replace('{{balance}}', balanceBefore.toLocaleString()));
+        setRefreshing(false);
+        return;
+      }
+      
+      // ✅ 강제 지급 시: 관리자(Lv2~Lv6)의 GMS 머니 잔고 검증
+      if (type === 'deposit' && user.level >= 2 && user.level <= 6) {
+        const { data: adminPartner, error: adminPartnerError } = await supabase
+          .from('partners')
+          .select('balance')
+          .eq('id', user.id)
+          .single();
+
+        if (adminPartnerError || !adminPartner) {
+          toast.error('관리자 정보를 찾을 수 없습니다.');
+          setRefreshing(false);
+          return;
+        }
+
+        const adminBalance = parseFloat(adminPartner.balance?.toString() || '0');
+        
+        if (adminBalance < amountNum) {
+          toast.error(`보유금이 부족합니다 (현재: ${adminBalance.toLocaleString()}원, 필요: ${amountNum.toLocaleString()}원)`);
+          setRefreshing(false);
+          return;
+        }
+
+        console.log('✅ 관리자 GMS 머니 잔고 확인:', {
+          level: user.level,
+          currentBalance: adminBalance,
+          requiredAmount: amountNum,
+          afterBalance: adminBalance - amountNum
+        });
+      }
+      
+      // OPCODE 정보 조회
+      const opcodeInfo = await getAdminOpcode(user);
+      
+      // 시스템관리자면 첫 번째 OPCODE 사용
+      const config = isMultipleOpcode(opcodeInfo) 
+        ? opcodeInfo.opcodes[0] 
+        : opcodeInfo;
+
+      console.log('🔑 OPCODE 설정:', {
+        opcode: config.opcode,
+        token: '***' + config.token.slice(-4),
+        secretKey: '***' + config.secretKey.slice(-4)
+      });
+
+      // Invest API를 통한 실제 입출금 처리
+      let apiResult;
+      if (type === 'deposit') {
+        console.log('📥 입금 API 호출 중...');
+        apiResult = await depositBalance(
+          selectedUser.username,
+          amountNum,
+          config.opcode,
+          config.token,
+          config.secretKey
+        );
+      } else {
+        console.log('📤 출금 API 호출 중...');
+        apiResult = await withdrawBalance(
+          selectedUser.username,
+          amountNum,
+          config.opcode,
+          config.token,
+          config.secretKey
+        );
+      }
+
+      // API 호출 실패 시
+      if (!apiResult.success || apiResult.error) {
+        throw new Error(apiResult.error || 'Invest API 호출 실패');
+      }
+
+      console.log('✅ Invest API 강제 입출금 완료:', apiResult);
+
+      // API 응답에서 balance_after 파싱 (리소스 재사용: extractBalanceFromResponse 사용)
+      const balanceAfter = extractBalanceFromResponse(apiResult.data, selectedUser.username);
+      console.log('💰 실제 잔고:', balanceAfter);
+
+      // 거래 기록 생성 (관리자 강제 입출금 타입 사용)
+      const now = new Date().toISOString();
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          id: crypto.randomUUID(), // ✅ id 명시적 설정
+          user_id: userId,
+          partner_id: user.id,
+          transaction_type: type === 'deposit' ? 'admin_deposit' : 'admin_withdrawal',
+          amount: amountNum,
+          status: 'completed',
+          balance_before: balanceBefore,
+          balance_after: balanceAfter,
+          memo: memo || `[관리자 강제 ${type === 'deposit' ? '입금' : '출금'}]`,
+          processed_by: user.id,
+          processed_at: now,
+          created_at: now, // ✅ created_at 명시적 설정
+          updated_at: now, // ✅ updated_at도 설정
+          external_response: apiResult.data
+        });
+
+      if (transactionError) throw transactionError;
+
+      // ✅ 트리거가 자동으로 users.balance 업데이트 (251번 SQL)
+      // ✅ Realtime 이벤트 자동 발생 → UserHeader 즉시 업데이트
+      console.log('✅ transactions INSERT 완료 → 트리거가 users.balance 자동 업데이트');
+
+      // ✅ Lv2~Lv6 관리자가 사용자에게 입출금하는 경우: GMS 머니(balance) 차감/증가
+      if (user.level >= 2 && user.level <= 6) {
+        const { data: adminPartner, error: adminPartnerError } = await supabase
+          .from('partners')
+          .select('balance')
+          .eq('id', user.id)
+          .single();
+
+        if (adminPartnerError || !adminPartner) {
+          console.warn(`⚠️ Lv${user.level} 관리자의 partners 정보를 찾을 수 없습니다.`);
+        } else {
+          const currentBalance = adminPartner.balance || 0;
+          const newBalance = type === 'deposit' 
+            ? currentBalance - amountNum 
+            : currentBalance + amountNum;
+
+          const { error: updateBalanceError } = await supabase
+            .from('partners')
+            .update({ 
+              balance: newBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id);
+
+          if (updateBalanceError) {
+            console.error(`❌ Lv${user.level} balance 업데이트 실패:`, updateBalanceError);
+          } else {
+            console.log(`✅ Lv${user.level} balance 업데이트: ${currentBalance} → ${newBalance}`);
+            
+            // 관리자 잔고 변경 로그 기록
+            await supabase
+              .from('partner_balance_logs')
+              .insert({
+                partner_id: user.id,
+                balance_before: currentBalance,
+                balance_after: newBalance,
+                amount: type === 'deposit' ? -amountNum : amountNum,
+                transaction_type: type === 'deposit' ? 'withdrawal' : 'deposit',
+                from_partner_id: type === 'deposit' ? user.id : userId,
+                to_partner_id: type === 'deposit' ? userId : user.id,
+                processed_by: user.id,
+                memo: `[강제${type === 'deposit' ? '입금' : '출금'}] ${selectedUser.username}에게 ${amountNum.toLocaleString()}원 ${type === 'deposit' ? '입금' : '회수'}${memo ? `: ${memo}` : ''}`
+              });
+          }
+        }
+      }
+
+      const successMsg = type === 'deposit' 
+        ? t.transactionManagement.forceDepositSuccess.replace('{{balance}}', balanceAfter.toLocaleString())
+        : t.transactionManagement.forceWithdrawalSuccess.replace('{{balance}}', balanceAfter.toLocaleString());
+      toast.success(successMsg);
+      
+      // WebSocket으로 실시간 알림
+      sendMessage({
+        type: 'admin_force_transaction',
+        data: { 
+          userId, 
+          type, 
+          amount: amountNum,
+          balanceAfter,
+          processedBy: user.nickname
+        }
+      });
+
+      setForceDialog({ open: false, type: 'deposit', userId: '', amount: '', memo: '' });
+      // loadData 호출 제거 - Realtime subscription이 자동으로 처리
+    } catch (error) {
+      console.error('강제 입출금 실패:', error);
+      toast.error(error instanceof Error ? error.message : t.transactionManagement.forceTransactionFailed);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
-  // 입금 신청 필터링
-  const filteredPendingDeposits = pendingDeposits.filter(t => {
-    const searchLower = depositSearch.toLowerCase();
-    return (
-      (t.user as any)?.username?.toLowerCase().includes(searchLower) ||
-      (t.user as any)?.nickname?.toLowerCase().includes(searchLower) ||
-      t.amount.toString().includes(searchLower)
-    );
-  });
+  // 초기 로드
+  useEffect(() => {
+    loadData(true);
+  }, []);
 
-  // 출금 신청 필터링
-  const filteredPendingWithdrawals = pendingWithdrawals.filter(t => {
-    const searchLower = withdrawalSearch.toLowerCase();
-    return (
-      (t.user as any)?.username?.toLowerCase().includes(searchLower) ||
-      (t.user as any)?.nickname?.toLowerCase().includes(searchLower) ||
-      t.amount.toString().includes(searchLower)
-    );
-  });
+  // reloadTrigger 변경 시 데이터 로드 (Realtime 이벤트 처리)
+  useEffect(() => {
+    if (reloadTrigger > 0 && !initialLoading) {
+      console.log('🔄 Realtime 트리거 데이터 로드:', reloadTrigger);
+      loadData(false);
+    }
+  }, [reloadTrigger]);
 
-  // 처리 완료 입금 필터링
-  const filteredCompletedDeposits = completedDeposits.filter(t => {
-    const searchLower = historySearch.toLowerCase();
-    const statusMatch = statusFilter === 'all' || t.status === statusFilter;
-    return statusMatch && (
-      (t.user as any)?.username?.toLowerCase().includes(searchLower) ||
-      (t.user as any)?.nickname?.toLowerCase().includes(searchLower) ||
-      t.amount.toString().includes(searchLower)
-    );
-  });
+  // 필터 변경 시 자동 새로고침 (깜박임 없이)
+  useEffect(() => {
+    if (!initialLoading) {
+      console.log('📅 기간 필터 변경:', periodFilter);
+      loadData(false);
+    }
+  }, [periodFilter]);
 
-  // 처리 완료 출금 필터링
-  const filteredCompletedWithdrawals = completedWithdrawals.filter(t => {
-    const searchLower = historySearch.toLowerCase();
-    const statusMatch = statusFilter === 'all' || t.status === statusFilter;
-    return statusMatch && (
-      (t.user as any)?.username?.toLowerCase().includes(searchLower) ||
-      (t.user as any)?.nickname?.toLowerCase().includes(searchLower) ||
-      t.amount.toString().includes(searchLower)
-    );
-  });
+  // Realtime subscription for transactions table (즉시 업데이트)
+  useEffect(() => {
+    console.log('🔌 Realtime subscription 설정 중...');
+    
+    const transactionsChannel = supabase
+      .channel('transactions-realtime-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions'
+        },
+        (payload) => {
+          console.log('💳 transactions 테이블 변경 감지:', payload.eventType, payload.new);
+          // reloadTrigger 증가로 데이터 리로드 트리거
+          setReloadTrigger(prev => prev + 1);
+        }
+      )
+      .subscribe((status) => {
+        console.log('💳 transactions 채널 구독 상태:', status);
+      });
+
+    // users 테이블 변경 감지 (보유금 업데이트 감지)
+    const usersChannel = supabase
+      .channel('users-realtime-balance-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users'
+        },
+        (payload) => {
+          console.log('👤 users 테이블 변경 감지:', payload.new);
+          // reloadTrigger 증가로 데이터 리로드 트리거
+          setReloadTrigger(prev => prev + 1);
+        }
+      )
+      .subscribe((status) => {
+        console.log('👤 users 채널 구독 상태:', status);
+      });
+
+    return () => {
+      console.log('🔌 Realtime subscription 정리 중...');
+      supabase.removeChannel(transactionsChannel);
+      supabase.removeChannel(usersChannel);
+    };
+  }, []);
+
+  // WebSocket 메시지 처리
+  useEffect(() => {
+    if (lastMessage?.type === 'transaction_update' || 
+        lastMessage?.type === 'deposit_request' || 
+        lastMessage?.type === 'withdrawal_request' ||
+        lastMessage?.type === 'admin_force_transaction' ||
+        lastMessage?.type === 'transaction_processed') {
+      console.log('📨 WebSocket 메시지 수신:', lastMessage.type);
+      setReloadTrigger(prev => prev + 1);
+    }
+  }, [lastMessage]);
 
   if (initialLoading) {
     return <LoadingSpinner />;
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+  // 탭별 데이터 필터링
+  const filterBySearch = (t: Transaction) => 
+    searchTerm === '' || t.user?.nickname?.toLowerCase().includes(searchTerm.toLowerCase());
+
+  const depositRequests = transactions.filter(t => 
+    t.transaction_type === 'deposit' && 
+    t.status === 'pending' &&
+    filterBySearch(t)
+  );
+
+  const withdrawalRequests = transactions.filter(t => 
+    t.transaction_type === 'withdrawal' && 
+    t.status === 'pending' &&
+    filterBySearch(t)
+  );
+
+  // 입출금내역: 사용자가 요청한 입출금만 (deposit, withdrawal) - completed와 rejected 포함
+  const completedTransactions = transactions.filter(t => 
+    (t.transaction_type === 'deposit' || t.transaction_type === 'withdrawal') &&
+    (t.status === 'completed' || t.status === 'rejected') &&
+    filterBySearch(t)
+  );
+
+  // 관리자 입출금내역: 관리자가 강제 처리한 입출금만 (admin_deposit, admin_withdrawal, admin_adjustment) - completed와 rejected 포함
+  const adminTransactions = transactions.filter(t => 
+    (t.transaction_type === 'admin_deposit' || 
+     t.transaction_type === 'admin_withdrawal' || 
+     t.transaction_type === 'admin_adjustment') &&
+    (t.status === 'completed' || t.status === 'rejected') &&
+    filterBySearch(t)
+  );
+  
+  console.log('🔍 관리자 입출금내역 필터링:', {
+    total: transactions.length,
+    adminDeposit: transactions.filter(t => t.transaction_type === 'admin_deposit').length,
+    adminWithdrawal: transactions.filter(t => t.transaction_type === 'admin_withdrawal').length,
+    adminAdjustment: transactions.filter(t => t.transaction_type === 'admin_adjustment').length,
+    filtered: adminTransactions.length
+  });
+
+  // 거래 테이블 컬럼
+  const getColumns = (showActions = false) => [
+    {
+      header: t.transactionManagement.transactionDate,
+      cell: (row: Transaction) => (
+        <span className="text-base text-slate-300">
+          {new Date(row.created_at).toLocaleString('ko-KR')}
+        </span>
+      )
+    },
+    {
+      header: t.transactionManagement.member,
+      cell: (row: Transaction) => (
         <div>
-          <h1>{t.transactionManagement.title}</h1>
-          <p className="text-gray-500">{t.transactionManagement.subtitle}</p>
+          <p className="font-medium text-slate-200 text-base">{row.user?.nickname}</p>
+          <p className="text-sm text-slate-500">{row.user?.username}</p>
+          {row.user?.referrer && (
+            <p className="text-sm text-blue-400 mt-0.5">
+              소속: {row.user.referrer.nickname}
+            </p>
+          )}
         </div>
-        <Button onClick={handleRefresh} disabled={refreshing} variant="outline">
-          <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
-          {t.common.refresh}
+      )
+    },
+    {
+      header: t.transactionManagement.transactionType,
+      cell: (row: Transaction) => {
+        const typeMap: any = {
+          deposit: { text: t.transactionManagement.deposit, color: 'bg-emerald-600' },
+          withdrawal: { text: t.transactionManagement.withdrawal, color: 'bg-orange-600' },
+          admin_deposit: { text: t.transactionManagement.adminDeposit, color: 'bg-teal-600' },
+          admin_withdrawal: { text: t.transactionManagement.adminWithdrawal, color: 'bg-rose-600' },
+          admin_adjustment: { 
+            text: row.memo?.includes('강제 출금') ? t.transactionManagement.withdrawal : t.transactionManagement.deposit, 
+            color: row.memo?.includes('강제 출금') ? 'bg-rose-600' : 'bg-teal-600'
+          }
+        };
+        const type = typeMap[row.transaction_type] || { text: row.transaction_type, color: 'bg-slate-600' };
+        return <Badge className={`${type.color} text-white text-sm px-3 py-1`}>{type.text}</Badge>;
+      }
+    },
+    {
+      header: t.transactionManagement.amount,
+      cell: (row: Transaction) => {
+        // withdrawal 계열은 마이너스, deposit 계열은 플러스
+        const isWithdrawal = row.transaction_type === 'withdrawal' || 
+                             row.transaction_type === 'admin_withdrawal' ||
+                             (row.transaction_type === 'admin_adjustment' && row.memo?.includes('강제 출금'));
+        return (
+          <span className={cn(
+            "font-mono font-semibold text-2xl",
+            isWithdrawal ? 'text-red-400' : 'text-green-400'
+          )}>
+            {isWithdrawal ? '-' : '+'}
+            {formatCurrency(parseFloat(row.amount.toString()))}
+          </span>
+        );
+      }
+    },
+    {
+      header: t.transactionManagement.balanceAfter,
+      cell: (row: Transaction) => (
+        <span className="font-mono text-cyan-400 text-2xl">
+          {formatCurrency(parseFloat(row.balance_after?.toString() || '0'))}
+        </span>
+      )
+    },
+    {
+      header: t.transactionManagement.status,
+      cell: (row: Transaction) => {
+        const statusMap: any = {
+          pending: { text: t.transactionManagement.pending, color: 'bg-amber-600' },
+          completed: { text: t.transactionManagement.completed, color: 'bg-emerald-600' },
+          rejected: { text: t.transactionManagement.rejected, color: 'bg-rose-600' }
+        };
+        const status = statusMap[row.status] || { text: row.status, color: 'bg-slate-600' };
+        return <Badge className={`${status.color} text-white text-sm px-3 py-1`}>{status.text}</Badge>;
+      }
+    },
+    {
+      header: t.transactionManagement.memo,
+      cell: (row: Transaction) => (
+        <div className="max-w-xs">
+          <span className="text-base text-slate-400 block truncate" title={row.memo || ''}>
+            {row.memo || '-'}
+          </span>
+        </div>
+      )
+    },
+    {
+      header: t.transactionManagement.processor,
+      cell: (row: Transaction) => (
+        <span className="text-base text-slate-400">
+          {row.processed_partner?.nickname || '-'}
+        </span>
+      )
+    },
+    ...(showActions ? [{
+      header: t.transactionManagement.actions,
+      cell: (row: Transaction) => (
+        <div className="flex items-center gap-2">
+          <Button
+            size="default"
+            onClick={() => openActionDialog(row, 'approve')}
+            disabled={refreshing}
+            className="h-10 px-5 text-base bg-green-600 hover:bg-green-700"
+          >
+            {t.transactionManagement.approve}
+          </Button>
+          <Button
+            size="default"
+            variant="outline"
+            onClick={() => openActionDialog(row, 'reject')}
+            disabled={refreshing}
+            className="h-10 px-5 text-base border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
+          >
+            {t.transactionManagement.reject}
+          </Button>
+        </div>
+      )
+    }] : [])
+  ];
+
+  return (
+    <>
+      <style>{`
+        .compact-table .table-premium thead th {
+          padding: 0.875rem 1rem !important;
+          font-size: 1rem !important;
+        }
+        .compact-table .table-premium tbody td {
+          padding: 0.875rem 1rem !important;
+        }
+        .compact-table .table-premium tbody tr {
+          border-bottom: 1px solid rgba(71, 85, 105, 0.2) !important;
+        }
+      `}</style>
+      <div className="space-y-6">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h1 className="text-4xl font-bold text-slate-100">{t.transactionManagement.title}</h1>
+          <p className="text-xl text-slate-400">{t.transactionManagement.subtitle}</p>
+        </div>
+        <Button onClick={() => setForceDialog({ ...forceDialog, open: true })} className="btn-premium-primary h-14 px-8 text-xl">
+          <Plus className="h-7 w-7 mr-3" />
+          {t.transactionManagement.forceTransaction}
         </Button>
       </div>
 
       {/* 통계 카드 */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
         <MetricCard
-          title={t.transactionManagement.pendingDeposits}
-          value={pendingDeposits.length}
-          icon={Clock}
-          trend={{ value: 0, isPositive: true }}
-          color="blue"
-        />
-        <MetricCard
-          title={t.transactionManagement.pendingWithdrawals}
-          value={pendingWithdrawals.length}
-          icon={AlertTriangle}
-          trend={{ value: 0, isPositive: false }}
-          color="orange"
-        />
-        <MetricCard
-          title={t.transactionManagement.completedDeposits}
-          value={completedDeposits.length}
+          title={t.transactionManagement.totalDeposit}
+          value={formatCurrency(stats.totalDeposit)}
+          subtitle={t.transactionManagement.accumulatedDeposit}
           icon={TrendingUp}
-          trend={{ value: 0, isPositive: true }}
           color="green"
         />
+        
         <MetricCard
-          title={t.transactionManagement.completedWithdrawals}
-          value={completedWithdrawals.length}
+          title={t.transactionManagement.totalWithdrawal}
+          value={formatCurrency(stats.totalWithdrawal)}
+          subtitle={t.transactionManagement.accumulatedWithdrawal}
           icon={TrendingDown}
-          trend={{ value: 0, isPositive: true }}
-          color="purple"
+          color="red"
+        />
+        
+        <MetricCard
+          title={t.transactionManagement.depositRequests}
+          value={`${stats.pendingDepositCount}건`}
+          subtitle={t.transactionManagement.pendingProcessing}
+          icon={Clock}
+          color="amber"
+        />
+        
+        <MetricCard
+          title={t.transactionManagement.withdrawalRequests}
+          value={`${stats.pendingWithdrawalCount}건`}
+          subtitle={t.transactionManagement.pendingProcessing}
+          icon={AlertTriangle}
+          color="orange"
         />
       </div>
 
-      {/* 탭 */}
-      <Tabs 
-        value={activeTab} 
-        onValueChange={(value) => {
-          setActiveTab(value);
-          window.location.hash = value;
-        }}
-      >
-        <TabsList>
-          <TabsTrigger value="deposit-request">
-            {t.transactionManagement.depositRequests} ({pendingDeposits.length})
-          </TabsTrigger>
-          <TabsTrigger value="withdrawal-request">
-            {t.transactionManagement.withdrawalRequests} ({pendingWithdrawals.length})
-          </TabsTrigger>
-          <TabsTrigger value="deposit-history">
-            {t.transactionManagement.depositHistory}
-          </TabsTrigger>
-          <TabsTrigger value="withdrawal-history">
-            {t.transactionManagement.withdrawalHistory}
-          </TabsTrigger>
-        </TabsList>
+      {/* 탭 컨텐츠 */}
+      <div className="glass-card rounded-xl p-5">
+        {/* 탭 리스트 */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <div className="bg-slate-800/30 rounded-xl p-1.5 border border-slate-700/40">
+            <TabsList className="bg-transparent h-auto p-0 border-0 gap-2 w-full grid grid-cols-4">
+              <TabsTrigger 
+                value="completed-history"
+                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500/20 data-[state=active]:to-emerald-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20 data-[state=active]:border data-[state=active]:border-green-400/30 transition-all duration-200"
+              >
+                {t.transactionManagement.completedHistoryTab}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="admin-history"
+                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500/20 data-[state=active]:to-amber-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-orange-500/20 data-[state=active]:border data-[state=active]:border-orange-400/30 transition-all duration-200"
+              >
+                {t.transactionManagement.adminHistoryTab}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="deposit-request"
+                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500/20 data-[state=active]:to-cyan-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20 data-[state=active]:border data-[state=active]:border-blue-400/30 transition-all duration-200"
+              >
+                {t.transactionManagement.depositRequestTab}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="withdrawal-request"
+                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-purple-500/20 data-[state=active]:to-pink-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20 data-[state=active]:border data-[state=active]:border-purple-400/30 transition-all duration-200"
+              >
+                {t.transactionManagement.withdrawalRequestTab}
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-        {/* 입금 신청 탭 */}
-        <TabsContent value="deposit-request">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t.transactionManagement.depositRequests}</CardTitle>
-              <div className="flex items-center gap-2 mt-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder={t.common.search}
-                    value={depositSearch}
-                    onChange={(e) => setDepositSearch(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                columns={[
-                  {
-                    key: 'created_at',
-                    header: t.transactionManagement.requestTime,
-                    render: (_, row) => new Date(row.created_at).toLocaleString(language === 'ko' ? 'ko-KR' : 'en-US')
-                  },
-                  {
-                    key: 'user',
-                    header: t.transactionManagement.username,
-                    render: (_, row) => (
-                      <div>
-                        <div>{(row.user as any)?.username}</div>
-                        <div className="text-sm text-gray-500">{(row.user as any)?.nickname}</div>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'amount',
-                    header: t.transactionManagement.amount,
-                    render: (value) => formatCurrency(value)
-                  },
-                  {
-                    key: 'memo',
-                    header: t.transactionManagement.memo,
-                    render: (value) => value || '-'
-                  },
-                  {
-                    key: 'actions',
-                    header: t.common.actions,
-                    render: (_, row) => (
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => openActionDialog(row, 'approve')}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          {t.transactionManagement.approve}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => openActionDialog(row, 'reject')}
-                        >
-                          <XCircle className="h-4 w-4 mr-1" />
-                          {t.transactionManagement.reject}
-                        </Button>
-                      </div>
-                    )
-                  }
-                ]}
-                data={filteredPendingDeposits}
+          {/* 필터 영역 - 컴팩트하게 한 줄로 */}
+          <div className="flex items-center gap-3 bg-slate-800/20 rounded-lg p-3 border border-slate-700/30">
+            {/* 기간 정렬 */}
+            <Select value={periodFilter} onValueChange={setPeriodFilter}>
+              <SelectTrigger className="w-[160px] h-11 text-base bg-slate-800/50 border-slate-600">
+                <SelectValue placeholder={t.transactionManagement.period} />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-800 border-slate-700">
+                <SelectItem value="today">{t.transactionManagement.today}</SelectItem>
+                <SelectItem value="week">{t.transactionManagement.lastWeek}</SelectItem>
+                <SelectItem value="month">{t.transactionManagement.lastMonth}</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* 검색 */}
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+              <Input
+                placeholder={t.transactionManagement.searchMembers}
+                className="pl-10 h-11 text-base bg-slate-800/50 border-slate-600"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
 
-        {/* 출금 신청 탭 */}
-        <TabsContent value="withdrawal-request">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t.transactionManagement.withdrawalRequests}</CardTitle>
-              <div className="flex items-center gap-2 mt-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder={t.common.search}
-                    value={withdrawalSearch}
-                    onChange={(e) => setWithdrawalSearch(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                columns={[
-                  {
-                    key: 'created_at',
-                    header: t.transactionManagement.requestTime,
-                    render: (_, row) => new Date(row.created_at).toLocaleString(language === 'ko' ? 'ko-KR' : 'en-US')
-                  },
-                  {
-                    key: 'user',
-                    header: t.transactionManagement.username,
-                    render: (_, row) => (
-                      <div>
-                        <div>{(row.user as any)?.username}</div>
-                        <div className="text-sm text-gray-500">{(row.user as any)?.nickname}</div>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'amount',
-                    header: t.transactionManagement.amount,
-                    render: (value) => formatCurrency(value)
-                  },
-                  {
-                    key: 'bank_info',
-                    header: t.transactionManagement.bankInfo,
-                    render: (_, row) => (
-                      <div className="text-sm">
-                        <div>{(row.user as any)?.bank_name}</div>
-                        <div className="text-gray-500">{(row.user as any)?.account_number}</div>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'memo',
-                    header: t.transactionManagement.memo,
-                    render: (value) => value || '-'
-                  },
-                  {
-                    key: 'actions',
-                    header: t.common.actions,
-                    render: (_, row) => (
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => openActionDialog(row, 'approve')}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          {t.transactionManagement.approve}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => openActionDialog(row, 'reject')}
-                        >
-                          <XCircle className="h-4 w-4 mr-1" />
-                          {t.transactionManagement.reject}
-                        </Button>
-                      </div>
-                    )
-                  }
-                ]}
-                data={filteredPendingWithdrawals}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            {/* 새로고침 */}
+            <Button
+              onClick={() => {
+                console.log('🔄 수동 새로고침');
+                loadData(false);
+              }}
+              disabled={refreshing}
+              variant="outline"
+              className="h-11 px-5 text-base bg-slate-800/50 border-slate-600 hover:bg-slate-700"
+            >
+              <RefreshCw className={cn("h-5 w-5 mr-2", refreshing && "animate-spin")} />
+              {t.transactionManagement.refresh}
+            </Button>
+          </div>
 
-        {/* 입금 내역 탭 */}
-        <TabsContent value="deposit-history">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t.transactionManagement.depositHistory}</CardTitle>
-              <div className="flex items-center gap-2 mt-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder={t.common.search}
-                    value={historySearch}
-                    onChange={(e) => setHistorySearch(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t.common.all}</SelectItem>
-                    <SelectItem value="completed">{t.transactionManagement.statusCompleted}</SelectItem>
-                    <SelectItem value="rejected">{t.transactionManagement.statusRejected}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                columns={[
-                  {
-                    key: 'processed_at',
-                    header: t.transactionManagement.processedTime,
-                    render: (_, row) => row.processed_at ? new Date(row.processed_at).toLocaleString(language === 'ko' ? 'ko-KR' : 'en-US') : '-'
-                  },
-                  {
-                    key: 'user',
-                    header: t.transactionManagement.username,
-                    render: (_, row) => (
-                      <div>
-                        <div>{(row.user as any)?.username}</div>
-                        <div className="text-sm text-gray-500">{(row.user as any)?.nickname}</div>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'amount',
-                    header: t.transactionManagement.amount,
-                    render: (value) => formatCurrency(value)
-                  },
-                  {
-                    key: 'status',
-                    header: t.transactionManagement.status,
-                    render: (value) => getStatusBadge(value)
-                  },
-                  {
-                    key: 'processor',
-                    header: t.transactionManagement.processor,
-                    render: (_, row) => (row.processor as any)?.username || '-'
-                  },
-                  {
-                    key: 'memo',
-                    header: t.transactionManagement.memo,
-                    render: (value) => value || '-'
-                  }
-                ]}
-                data={filteredCompletedDeposits}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+          {/* 입금 신청 탭 */}
+          <TabsContent value="deposit-request" className="compact-table">
+            <DataTable
+              searchable={false}
+              columns={getColumns(true)}
+              data={depositRequests}
+              loading={initialLoading}
+              emptyMessage={t.transactionManagement.noDepositRequests}
+            />
+          </TabsContent>
 
-        {/* 출금 내역 탭 */}
-        <TabsContent value="withdrawal-history">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t.transactionManagement.withdrawalHistory}</CardTitle>
-              <div className="flex items-center gap-2 mt-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder={t.common.search}
-                    value={historySearch}
-                    onChange={(e) => setHistorySearch(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t.common.all}</SelectItem>
-                    <SelectItem value="completed">{t.transactionManagement.statusCompleted}</SelectItem>
-                    <SelectItem value="rejected">{t.transactionManagement.statusRejected}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                columns={[
-                  {
-                    key: 'processed_at',
-                    header: t.transactionManagement.processedTime,
-                    render: (_, row) => row.processed_at ? new Date(row.processed_at).toLocaleString(language === 'ko' ? 'ko-KR' : 'en-US') : '-'
-                  },
-                  {
-                    key: 'user',
-                    header: t.transactionManagement.username,
-                    render: (_, row) => (
-                      <div>
-                        <div>{(row.user as any)?.username}</div>
-                        <div className="text-sm text-gray-500">{(row.user as any)?.nickname}</div>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'amount',
-                    header: t.transactionManagement.amount,
-                    render: (value) => formatCurrency(value)
-                  },
-                  {
-                    key: 'bank_info',
-                    header: t.transactionManagement.bankInfo,
-                    render: (_, row) => (
-                      <div className="text-sm">
-                        <div>{(row.user as any)?.bank_name}</div>
-                        <div className="text-gray-500">{(row.user as any)?.account_number}</div>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'status',
-                    header: t.transactionManagement.status,
-                    render: (value) => getStatusBadge(value)
-                  },
-                  {
-                    key: 'processor',
-                    header: t.transactionManagement.processor,
-                    render: (_, row) => (row.processor as any)?.username || '-'
-                  },
-                  {
-                    key: 'memo',
-                    header: t.transactionManagement.memo,
-                    render: (value) => value || '-'
-                  }
-                ]}
-                data={filteredCompletedWithdrawals}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          {/* 출금 신청 탭 */}
+          <TabsContent value="withdrawal-request" className="compact-table">
+            <DataTable
+              searchable={false}
+              columns={getColumns(true)}
+              data={withdrawalRequests}
+              loading={initialLoading}
+              emptyMessage={t.transactionManagement.noWithdrawalRequests}
+            />
+          </TabsContent>
 
-      {/* 승인/거절 다이얼로그 */}
+          {/* 입출금 내역 탭 (승인된 모든 거래) */}
+          <TabsContent value="completed-history" className="compact-table">
+            <DataTable
+              searchable={false}
+              columns={getColumns(false)}
+              data={completedTransactions}
+              loading={initialLoading}
+              emptyMessage={t.transactionManagement.noTransactionHistory}
+            />
+          </TabsContent>
+
+          {/* 관리자 입출금 내역 탭 */}
+          <TabsContent value="admin-history" className="compact-table">
+            <DataTable
+              searchable={false}
+              columns={getColumns(false)}
+              data={adminTransactions}
+              loading={initialLoading}
+              emptyMessage={t.transactionManagement.noAdminTransactionHistory}
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* 승인/거절 확인 Dialog */}
       <Dialog open={actionDialog.open} onOpenChange={(open) => setActionDialog({ ...actionDialog, open })}>
-        <DialogContent>
+        <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-[350px]">
           <DialogHeader>
-            <DialogTitle>
-              {actionDialog.action === 'approve' ? t.transactionManagement.confirmApproval : t.transactionManagement.confirmRejection}
+            <DialogTitle className="text-white text-2xl">
+              {actionDialog.action === 'approve' ? t.transactionManagement.approveTransaction : t.transactionManagement.rejectTransaction}
             </DialogTitle>
-            <DialogDescription>
-              {actionDialog.transaction && (
-                <div className="space-y-2 mt-4">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">{t.transactionManagement.username}:</span>
-                    <span>{(actionDialog.transaction.user as any)?.username}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">{t.transactionManagement.amount}:</span>
-                    <span>{formatCurrency(actionDialog.transaction.amount)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">{t.transactionManagement.type}:</span>
-                    <span>
-                      {actionDialog.transaction.transaction_type === 'deposit' 
-                        ? t.transactionManagement.deposit 
-                        : t.transactionManagement.withdrawal}
-                    </span>
-                  </div>
-                  {actionDialog.action === 'reject' && (
-                    <div className="mt-4">
-                      <Label>{t.transactionManagement.rejectReason}</Label>
-                      <Textarea
-                        value={actionDialog.memo}
-                        onChange={(e) => setActionDialog({ ...actionDialog, memo: e.target.value })}
-                        placeholder={t.transactionManagement.rejectReasonPlaceholder}
-                        className="mt-2"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
+            <DialogDescription className="text-slate-400 text-lg">
+              {actionDialog.action === 'approve' 
+                ? t.transactionManagement.confirmApproveMessage
+                : t.transactionManagement.enterRejectReason}
             </DialogDescription>
           </DialogHeader>
+          
+          {actionDialog.transaction && (
+            <div className="space-y-4">
+              <div className="p-6 bg-slate-800/50 rounded-lg space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-slate-400 text-lg">{t.transactionManagement.member}:</span>
+                  <span className="text-white text-lg">{actionDialog.transaction.user?.nickname}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400 text-lg">{t.transactionManagement.transactionType}:</span>
+                  <span className="text-white text-lg">
+                    {actionDialog.transaction.transaction_type === 'deposit' ? t.transactionManagement.deposit : t.transactionManagement.withdrawal}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400 text-lg">{t.transactionManagement.amount}:</span>
+                  <span className="text-green-400 font-mono text-xl">
+                    {formatCurrency(parseFloat(actionDialog.transaction.amount.toString()))}
+                  </span>
+                </div>
+              </div>
+
+              {actionDialog.action === 'reject' && (
+                <div className="space-y-2">
+                  <Label htmlFor="transaction-reject-reason" className="text-slate-300 text-lg">{t.transactionManagement.rejectReason}</Label>
+                  <Textarea
+                    id="transaction-reject-reason"
+                    name="reject_reason"
+                    value={actionDialog.memo}
+                    onChange={(e) => setActionDialog({ ...actionDialog, memo: e.target.value })}
+                    placeholder={t.transactionManagement.rejectReasonPlaceholder}
+                    className="bg-slate-800 border-slate-700 text-white text-lg"
+                    rows={4}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setActionDialog({ ...actionDialog, open: false })}>
-              {t.common.cancel}
+            <Button 
+              variant="outline" 
+              onClick={() => setActionDialog({ ...actionDialog, open: false })}
+              disabled={refreshing}
+              className="h-12 px-6 text-lg"
+            >
+              {t.transactionManagement.cancel}
             </Button>
-            <Button
+            <Button 
               onClick={handleTransactionAction}
-              className={actionDialog.action === 'approve' ? 'bg-green-600 hover:bg-green-700' : ''}
-              variant={actionDialog.action === 'reject' ? 'destructive' : 'default'}
+              disabled={refreshing || (actionDialog.action === 'reject' && !actionDialog.memo)}
+              className={`h-12 px-6 text-lg ${actionDialog.action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
             >
               {actionDialog.action === 'approve' ? t.transactionManagement.approve : t.transactionManagement.reject}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+
+      {/* 강제 입출금 Dialog */}
+      <Dialog open={forceDialog.open} onOpenChange={(open) => setForceDialog({ ...forceDialog, open })}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-2xl">
+              {forceDialog.type === 'deposit' ? (
+                <>
+                  <Gift className="h-8 w-8 text-emerald-500" />
+                  {t.transactionManagement.forceDeposit}
+                </>
+              ) : (
+                <>
+                  <MinusCircle className="h-8 w-8 text-rose-500" />
+                  {t.transactionManagement.forceWithdrawal}
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-lg">
+              {t.transactionManagement.adjustMemberBalance}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-6 py-4">
+            <div className="grid gap-3">
+              <Label htmlFor="force-dialog-type" className="text-lg">{t.transactionManagement.transactionTypeLabel}</Label>
+              <Select value={forceDialog.type} onValueChange={(value: 'deposit' | 'withdrawal') => setForceDialog({ ...forceDialog, type: value })}>
+                <SelectTrigger id="force-dialog-type" className="input-premium h-14 text-lg">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700">
+                  <SelectItem value="deposit" className="text-lg py-3">{t.transactionManagement.deposit}</SelectItem>
+                  <SelectItem value="withdrawal" className="text-lg py-3">{t.transactionManagement.withdrawal}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-3">
+              <Label htmlFor="force-dialog-user-search" className="text-lg">{t.transactionManagement.selectMember}</Label>
+              <Popover open={userSearchOpen} onOpenChange={setUserSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="force-dialog-user-search"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={userSearchOpen}
+                    className="justify-between input-premium h-14 text-lg"
+                  >
+                    {forceDialog.userId
+                      ? users.find(u => u.id === forceDialog.userId)?.username + 
+                        ` (${users.find(u => u.id === forceDialog.userId)?.nickname})` +
+                        ` - ${parseFloat(users.find(u => u.id === forceDialog.userId)?.balance?.toString() || '0').toLocaleString()}원`
+                      : t.transactionManagement.selectMemberPlaceholder}
+                    <ChevronsUpDown className="ml-2 h-6 w-6 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[580px] p-0 bg-slate-800 border-slate-700">
+                  <Command className="bg-slate-800">
+                    <CommandInput 
+                      placeholder={t.transactionManagement.selectMemberPlaceholder}
+                      className="h-12 text-lg text-slate-100 placeholder:text-slate-500"
+                    />
+                    <CommandList>
+                      <CommandEmpty className="text-slate-400 py-8 text-center text-lg">{t.transactionManagement.memberNotFound}</CommandEmpty>
+                      <CommandGroup className="max-h-80 overflow-auto">
+                        {users.map(u => (
+                          <CommandItem
+                            key={u.id}
+                            value={`${u.username} ${u.nickname}`}
+                            onSelect={() => {
+                              setForceDialog({ ...forceDialog, userId: u.id });
+                              setUserSearchOpen(false);
+                            }}
+                            className="flex items-center justify-between cursor-pointer hover:bg-slate-700/50 text-slate-300 py-3"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Check
+                                className={`mr-2 h-6 w-6 ${
+                                  forceDialog.userId === u.id ? `opacity-100 ${forceDialog.type === 'deposit' ? 'text-emerald-500' : 'text-rose-500'}` : "opacity-0"
+                                }`}
+                              />
+                              <div>
+                                <div className="font-medium text-slate-100 text-lg">{u.username}</div>
+                                <div className="text-base text-slate-400">{u.nickname}</div>
+                              </div>
+                            </div>
+                            <div className="text-lg">
+                              <span className="text-cyan-400 font-mono">{parseFloat(u.balance?.toString() || '0').toLocaleString()}원</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* 선택된 회원 정보 표시 */}
+            {forceDialog.userId && (() => {
+              const selectedUser = users.find(u => u.id === forceDialog.userId);
+              return selectedUser ? (
+                <div className="p-5 bg-slate-800/50 rounded-lg border border-slate-700">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-lg text-slate-400">{t.transactionManagement.selectedMember}</span>
+                    <span className="text-cyan-400 font-medium text-xl">{selectedUser.nickname}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg text-slate-400">{t.transactionManagement.currentBalance}</span>
+                    <span className="font-mono text-cyan-400 text-xl">
+                      {parseFloat(selectedUser.balance?.toString() || '0').toLocaleString()}원
+                    </span>
+                  </div>
+                </div>
+              ) : null;
+            })()}
+
+            <div className="grid gap-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="force-dialog-amount" className="text-lg">{t.transactionManagement.amountLabel}</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setForceDialog({ ...forceDialog, amount: '0' })}
+                  className={`h-10 px-4 text-base text-slate-400 ${
+                    forceDialog.type === 'deposit' 
+                      ? 'hover:text-orange-400 hover:bg-orange-500/10' 
+                      : 'hover:text-red-400 hover:bg-red-500/10'
+                  }`}
+                >
+                  {t.transactionManagement.deleteAll}
+                </Button>
+              </div>
+              <Input
+                id="force-dialog-amount"
+                name="amount"
+                type="number"
+                value={forceDialog.amount}
+                onChange={(e) => {
+                  const inputAmount = parseFloat(e.target.value || '0');
+                  
+                  // 출금 타입이고 회원이 선택된 경우 보유금 검증
+                  if (forceDialog.type === 'withdrawal' && forceDialog.userId) {
+                    const selectedUser = users.find(u => u.id === forceDialog.userId);
+                    if (selectedUser) {
+                      const userBalance = parseFloat(selectedUser.balance?.toString() || '0');
+                      if (inputAmount > userBalance) {
+                        toast.error(`출금 금액이 보유금(${userBalance.toLocaleString()}원)을 초과할 수 없습니다.`);
+                        setForceDialog({ ...forceDialog, amount: userBalance.toString() });
+                        return;
+                      }
+                    }
+                  }
+                  
+                  setForceDialog({ ...forceDialog, amount: e.target.value });
+                }}
+                placeholder={t.transactionManagement.enterAmountPlaceholder}
+                className="input-premium h-14 text-lg"
+              />
+            </div>
+
+            {/* 금액 단축 버튼 */}
+            <div className="grid gap-3">
+              <Label className="text-slate-400 text-lg">{t.transactionManagement.quickInput}</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {amountShortcuts.map((amt) => (
+                  <Button
+                    key={amt}
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const currentAmount = parseFloat(forceDialog.amount || '0');
+                      const newAmount = currentAmount + amt;
+                      
+                      // 출금 타입이고 회원이 선택된 경우 보유금 검증
+                      if (forceDialog.type === 'withdrawal' && forceDialog.userId) {
+                        const selectedUser = users.find(u => u.id === forceDialog.userId);
+                        if (selectedUser) {
+                          const userBalance = parseFloat(selectedUser.balance?.toString() || '0');
+                          if (newAmount > userBalance) {
+                            toast.error(`출금 금액이 보유금(${userBalance.toLocaleString()}원)을 초과할 수 없습니다.`);
+                            setForceDialog({ ...forceDialog, amount: userBalance.toString() });
+                            return;
+                          }
+                        }
+                      }
+                      
+                      setForceDialog({ 
+                        ...forceDialog, 
+                        amount: newAmount.toString() 
+                      });
+                    }}
+                    className={`h-12 text-base transition-all bg-slate-800/50 border-slate-700 text-slate-300 ${
+                      forceDialog.type === 'deposit'
+                        ? 'hover:bg-orange-500/20 hover:border-orange-500/60 hover:text-orange-400 hover:shadow-[0_0_15px_rgba(251,146,60,0.3)]'
+                        : 'hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-400 hover:shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                    }`}
+                  >
+                    +{amt >= 10000 ? `${amt / 10000}만` : `${amt / 1000}천`}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* 전액출금 버튼 (출금 시에만) */}
+            {forceDialog.type === 'withdrawal' && forceDialog.userId && (
+              <div className="grid gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const selectedUser = users.find(u => u.id === forceDialog.userId);
+                    if (selectedUser) {
+                      const balance = parseFloat(selectedUser.balance?.toString() || '0');
+                      setForceDialog({ ...forceDialog, amount: balance.toString() });
+                    }
+                  }}
+                  className="w-full h-12 text-lg bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40 hover:border-red-500"
+                >
+                  <Trash2 className="h-6 w-6 mr-3" />
+                  {t.transactionManagement.fullWithdrawal}
+                </Button>
+              </div>
+            )}
+
+            {/* 메모 */}
+            <div className="grid gap-3">
+              <Label htmlFor="force-dialog-memo" className="text-lg">{t.transactionManagement.memoLabel}</Label>
+              <Textarea
+                id="force-dialog-memo"
+                name="memo"
+                value={forceDialog.memo}
+                onChange={(e) => setForceDialog({ ...forceDialog, memo: e.target.value })}
+                placeholder={t.transactionManagement.memoPlaceholder}
+                className="input-premium min-h-[120px] text-lg"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              type="button"
+              onClick={handleForceTransaction}
+              disabled={refreshing || !forceDialog.userId || !forceDialog.amount || parseFloat(forceDialog.amount) <= 0}
+              className={`w-full h-14 text-xl ${forceDialog.type === 'deposit' ? 'btn-premium-warning' : 'btn-premium-danger'}`}
+            >
+              {refreshing ? t.transactionManagement.processing : forceDialog.type === 'deposit' ? t.transactionManagement.forceDeposit : t.transactionManagement.forceWithdrawal}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </div>
+    </>
   );
 }
+
+export default TransactionManagement;

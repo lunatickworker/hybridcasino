@@ -104,52 +104,81 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   const [isProcessing, setIsProcessing] = useState(false); // 🆕 백그라운드 프로세스 상태
   const isMountedRef = useRef(true);
   const closeProcessingRef = useRef<Map<number, boolean>>(new Map()); // 🆕 세션별 종료 처리 중 상태
+  const selectedProviderRef = useRef<GameProvider | null>(null); // ⚡ 최신 selectedProvider 추적
+
+  // ⚡ selectedProvider 변경 시 ref 업데이트
+  useEffect(() => {
+    selectedProviderRef.current = selectedProvider;
+  }, [selectedProvider]);
 
   useEffect(() => {
     loadProviders();
     
-    // ✅ Realtime: games, game_providers, honor_games, honor_games_provider 테이블 변경 감지
+    // ✅ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
     const gamesChannel = supabase
       .channel('benz_slot_games_changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'games' },
-        () => {
-          console.log('🔄 [BenzSlot] games 테이블 변경 감지 - 리로드');
+        { event: 'UPDATE', schema: 'public', table: 'games' },
+        (payload) => {
+          console.log('🔄 [BenzSlot] games 테이블 UPDATE 감지:', payload);
           loadProviders();
-          if (selectedProvider) {
-            loadGames(selectedProvider);
+          // ⚡ ref로 최신 selectedProvider 참조
+          if (selectedProviderRef.current) {
+            console.log('🔄 [BenzSlot] 게임 목록 새로고침 시작...');
+            loadGames(selectedProviderRef.current);
           }
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'game_providers' },
-        () => {
-          console.log('🔄 [BenzSlot] game_providers 테이블 변경 감지 - 리로드');
+        { event: 'UPDATE', schema: 'public', table: 'game_providers' },
+        (payload) => {
+          console.log('🔄 [BenzSlot] game_providers 테이블 UPDATE 감지:', payload);
           loadProviders();
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'honor_games' },
-        () => {
-          console.log('🔄 [BenzSlot] honor_games 테이블 변경 감지 - 리로드');
+        { event: 'UPDATE', schema: 'public', table: 'honor_games' },
+        (payload) => {
+          console.log('🔄 [BenzSlot] honor_games 테이블 UPDATE 감지:', payload);
           loadProviders();
-          if (selectedProvider) {
-            loadGames(selectedProvider);
+          // ⚡ ref로 최신 selectedProvider 참조
+          if (selectedProviderRef.current) {
+            console.log('🔄 [BenzSlot] 게임 목록 새로고침 시작...');
+            loadGames(selectedProviderRef.current);
           }
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'honor_games_provider' },
-        () => {
-          console.log('🔄 [BenzSlot] honor_games_provider 테이블 변경 감지 - 리로드');
+        { event: 'UPDATE', schema: 'public', table: 'honor_games_provider' },
+        (payload) => {
+          console.log('🔄 [BenzSlot] honor_games_provider 테이블 UPDATE 감지:', payload);
           loadProviders();
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'partner_game_access' },
+        (payload) => {
+          console.log('🔄 [BenzSlot] partner_game_access 테이블 변경 감지:', payload);
+          loadProviders();
+          if (selectedProviderRef.current) {
+            console.log('🔄 [BenzSlot] 게임 목록 새로고침 시작...');
+            loadGames(selectedProviderRef.current);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 [BenzSlot] Realtime 구독 상태:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [BenzSlot] Realtime 구독 성공!');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('❌ [BenzSlot] Realtime 구독 실패:', status);
+        }
+      });
     
     return () => {
       isMountedRef.current = false;
@@ -335,9 +364,14 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       return;
     }
 
+    setSelectedProvider(provider);
+    await loadGames(provider);
+  };
+
+  // ⚡ 게임 목록 로드 함수 (Realtime 콜백에서도 사용)
+  const loadGames = async (provider: GameProvider) => {
     try {
       setGamesLoading(true);
-      setSelectedProvider(provider);
 
       // 🆕 통합된 게임사의 모든 provider_id로 게임 로드
       const providerIds = provider.provider_ids || [provider.id];

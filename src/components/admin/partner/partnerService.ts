@@ -97,92 +97,79 @@ export const fetchPartners = async (currentUserId: string, userLevel: number) =>
     }
   }
 
-  // 하위 파트너와 사용자 수 집계 + 보유금 실시간 표시
-  const partnersWithCounts = await Promise.all(
-    allPartners.map(async (partner) => {
-      // 🔍 디버깅: 커미션 값 확인
-      if (partner.username === 'gms12' || partner.username === 'testbu' || partner.username === 'testbon') {
-        console.log(`🔍 [${partner.username}] 원본 커미션 데이터:`, {
-          casino_rolling_commission: partner.casino_rolling_commission,
-          casino_losing_commission: partner.casino_losing_commission,
-          slot_rolling_commission: partner.slot_rolling_commission,
-          slot_losing_commission: partner.slot_losing_commission,
-          commission_rolling: partner.commission_rolling,
-          commission_losing: partner.commission_losing,
-          withdrawal_fee: partner.withdrawal_fee
-        });
-      }
-      
-      // 하위 파트너 수 조회
-      const { count: childCount } = await supabase
-        .from('partners')
-        .select('*', { count: 'exact' })
-        .eq('parent_id', partner.id);
+  // ⚡ 하위 파트너와 사용자 수 집계 + 보유금 실시간 표시 (배치 쿼리로 최적화)
+  const partnerIds = allPartners.map(p => p.id);
+  
+  // ⚡ 병렬 배치 쿼리로 최적화
+  const [childCountsResult, userCountsResult, apiConfigsResult] = await Promise.all([
+    // 모든 파트너의 하위 파트너 수를 한 번에 조회
+    supabase
+      .from('partners')
+      .select('parent_id')
+      .in('parent_id', partnerIds),
+    // 모든 파트너의 사용자 수를 한 번에 조회
+    supabase
+      .from('users')
+      .select('referrer_id')
+      .in('referrer_id', partnerIds),
+    // Lv1 파트너들의 API 보유금을 한 번에 조회
+    supabase
+      .from('api_configs')
+      .select('partner_id, api_provider, balance')
+      .in('partner_id', partnerIds)
+  ]);
 
-      // 관리하는 사용자 수 조회
-      const { count: userCount } = await supabase
-        .from('users')
-        .select('*', { count: 'exact' })
-        .eq('referrer_id', partner.id);
+  // 집계 맵 생성
+  const childCountMap = new Map<string, number>();
+  childCountsResult.data?.forEach(row => {
+    childCountMap.set(row.parent_id, (childCountMap.get(row.parent_id) || 0) + 1);
+  });
 
-      let investBalance = 0;
-      let oroplayBalance = 0;
-      
-      if (partner.level === 1) {
-        // Lv1: api_configs 테이블에서 조회
-        const { data: investData } = await supabase
-          .from('api_configs')
-          .select('balance')
-          .eq('partner_id', partner.id)
-          .eq('api_provider', 'invest')
-          .maybeSingle();
-        
-        const { data: oroplayData } = await supabase
-          .from('api_configs')
-          .select('balance')
-          .eq('partner_id', partner.id)
-          .eq('api_provider', 'oroplay')
-          .maybeSingle();
-        
-        investBalance = investData?.balance || 0;
-        oroplayBalance = oroplayData?.balance || 0;
-      } else if (partner.level === 2) {
-        // Lv2: 두 개 지갑 사용
-        investBalance = partner.invest_balance || 0;
-        oroplayBalance = partner.oroplay_balance || 0;
-      }
+  const userCountMap = new Map<string, number>();
+  userCountsResult.data?.forEach(row => {
+    userCountMap.set(row.referrer_id, (userCountMap.get(row.referrer_id) || 0) + 1);
+  });
 
-      // Lv2의 경우 selected_apis 조회 (컬럼이 없으면 무시)
-      let selectedApis: string[] | undefined = undefined;
-      if (partner.level === 2 && isSystemAdmin) {
-        try {
-          const { data: apiData } = await supabase
-            .from('partners')
-            .select('selected_apis')
-            .eq('id', partner.id)
-            .maybeSingle();
-          
-          if (apiData?.selected_apis) {
-            selectedApis = apiData.selected_apis;
-          }
-        } catch (error) {
-          // selected_apis 컬럼이 없으면 무시
-          console.log('selected_apis 컬럼 없음 (무시)');
-        }
-      }
+  const apiBalanceMap = new Map<string, { invest: number; oroplay: number }>();
+  apiConfigsResult.data?.forEach(config => {
+    if (!apiBalanceMap.has(config.partner_id)) {
+      apiBalanceMap.set(config.partner_id, { invest: 0, oroplay: 0 });
+    }
+    const balances = apiBalanceMap.get(config.partner_id)!;
+    if (config.api_provider === 'invest') {
+      balances.invest = config.balance || 0;
+    } else if (config.api_provider === 'oroplay') {
+      balances.oroplay = config.balance || 0;
+    }
+  });
 
-      return {
-        ...partner,
-        parent_nickname: partner.parent?.nickname || '-',
-        child_count: childCount || 0,
-        user_count: userCount || 0,
-        balance: partner.level === 1 || partner.level === 2 ? 0 : (partner.balance || 0),
-        invest_balance: investBalance,
-        oroplay_balance: oroplayBalance,
-        selected_apis: selectedApis
-      };
-    })
-  );
+  // 파트너 데이터에 집계 정보 추가
+  const partnersWithCounts = allPartners.map(partner => {
+    let investBalance = 0;
+    let oroplayBalance = 0;
+    
+    if (partner.level === 1) {
+      // Lv1: api_configs에서 조회한 데이터 사용
+      const balances = apiBalanceMap.get(partner.id);
+      investBalance = balances?.invest || 0;
+      oroplayBalance = balances?.oroplay || 0;
+    } else if (partner.level === 2) {
+      // Lv2: partners 테이블의 컬럼 사용
+      investBalance = partner.invest_balance || 0;
+      oroplayBalance = partner.oroplay_balance || 0;
+    }
+
+    return {
+      ...partner,
+      parent_nickname: partner.parent?.nickname || '-',
+      child_count: childCountMap.get(partner.id) || 0,
+      user_count: userCountMap.get(partner.id) || 0,
+      balance: partner.level === 1 || partner.level === 2 ? 0 : (partner.balance || 0),
+      invest_balance: investBalance,
+      oroplay_balance: oroplayBalance,
+      selected_apis: undefined
+    };
+  });
 
   return partnersWithCounts;
 };

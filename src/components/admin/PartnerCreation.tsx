@@ -56,7 +56,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
   const [availableParents, setAvailableParents] = useState<Partner[]>([]); // 소속 파트너 목록
   const [upperLevelPartners, setUpperLevelPartners] = useState<Partner[]>([]); // 상위 레벨 파트너 목록
   const [parentApis, setParentApis] = useState<string[]>([]); // 상위 파트너의 selected_apis
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // ⚡ 초기 로딩을 false로 변경
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -261,7 +261,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     }
   };
 
-  // 상위 레벨 파트너 목록 로드
+  // ⚡ 최적화된 상위 레벨 파트너 목록 로드
   const loadUpperLevelPartners = async (selectedLevel: number, autoSelect: boolean = false) => {
     try {
       // 선택된 레벨의 상위 레벨 계산 (예: Lv3 선택 시 Lv2 파트너 목록)
@@ -285,7 +285,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         
         partnersData = data || [];
       } else {
-        // ✅ Lv2~Lv6: 나의 조직 내 상위 레벨 파트너만 조회
+        // ⚡ Lv2~Lv6: BFS 방식으로 하위 파트너 조회 (배치 쿼리)
         // 1. 나 자신이 해당 레벨이면 포함
         if (user.level === upperLevel) {
           partnersData.push({
@@ -297,63 +297,26 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
           });
         }
 
-        // 2. 나의 모든 하위 파트너 중 해당 레벨인 것들 조회
-        let myDescendantIds: string[] = [user.id];
+        // 2. BFS로 모든 하위 파트너 ID 수집
+        const myDescendantIds: string[] = [user.id];
+        const queue = [user.id];
         
-        // 1단계 하위
-        const { data: level1 } = await supabase
-          .from('partners')
-          .select('id')
-          .eq('parent_id', user.id);
-        
-        const level1Ids = level1?.map(p => p.id) || [];
-        myDescendantIds.push(...level1Ids);
-        
-        if (level1Ids.length > 0) {
-          // 2단계 하위
-          const { data: level2 } = await supabase
+        while (queue.length > 0) {
+          const currentBatch = queue.splice(0, queue.length);
+          
+          const { data: children } = await supabase
             .from('partners')
             .select('id')
-            .in('parent_id', level1Ids);
+            .in('parent_id', currentBatch);
           
-          const level2Ids = level2?.map(p => p.id) || [];
-          myDescendantIds.push(...level2Ids);
-          
-          if (level2Ids.length > 0) {
-            // 3단계 하위
-            const { data: level3 } = await supabase
-              .from('partners')
-              .select('id')
-              .in('parent_id', level2Ids);
-            
-            const level3Ids = level3?.map(p => p.id) || [];
-            myDescendantIds.push(...level3Ids);
-            
-            if (level3Ids.length > 0) {
-              // 4단계 하위
-              const { data: level4 } = await supabase
-                .from('partners')
-                .select('id')
-                .in('parent_id', level3Ids);
-              
-              const level4Ids = level4?.map(p => p.id) || [];
-              myDescendantIds.push(...level4Ids);
-              
-              if (level4Ids.length > 0) {
-                // 5단계 하위
-                const { data: level5 } = await supabase
-                  .from('partners')
-                  .select('id')
-                  .in('parent_id', level4Ids);
-                
-                const level5Ids = level5?.map(p => p.id) || [];
-                myDescendantIds.push(...level5Ids);
-              }
-            }
+          if (children && children.length > 0) {
+            const childIds = children.map(c => c.id);
+            myDescendantIds.push(...childIds);
+            queue.push(...childIds);
           }
         }
         
-        // 3. 하위 파트너들 중 해당 레벨인 것만 필터링
+        // 3. 하위 파트너들 중 해당 레벨인 것만 필터링 (한 번의 쿼리로)
         if (myDescendantIds.length > 0) {
           const { data } = await supabase
             .from('partners')

@@ -37,36 +37,33 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
   const [filteredPartners, setFilteredPartners] = useState<PartnerConnection[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [stats, setStats] = useState<PartnerStats>({ totalUsers: 0, totalUserBalance: 0 });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // ⚡ 초기 로딩을 false로 변경
   const reloadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [allPartnerIds, setAllPartnerIds] = useState<string[]>([]);
 
-  // 모든 하위 파트너 ID를 재귀적으로 가져오기
+  // ⚡ 최적화된 하위 파트너 ID 조회 (배치 쿼리)
   const getAllChildPartnerIds = async (partnerId: string): Promise<string[]> => {
-    const partnerIds: string[] = [];
-    const queue: string[] = [partnerId];
+    const allPartnerIds: string[] = [];
+    let currentLevelIds = [partnerId];
 
-    while (queue.length > 0) {
-      const currentId = queue.shift()!;
-      
-      // 직속 하위 파트너 조회
+    // BFS 방식으로 레벨별 배치 조회
+    while (currentLevelIds.length > 0) {
       const { data, error } = await supabase
         .from('partners')
         .select('id')
-        .eq('parent_id', currentId);
+        .in('parent_id', currentLevelIds);
 
-      if (!error && data) {
-        for (const partner of data) {
-          partnerIds.push(partner.id);
-          queue.push(partner.id);
-        }
-      }
+      if (error || !data || data.length === 0) break;
+
+      const nextLevelIds = data.map(p => p.id);
+      allPartnerIds.push(...nextLevelIds);
+      currentLevelIds = nextLevelIds;
     }
 
-    return partnerIds;
+    return allPartnerIds;
   };
 
-  // 파트너 접속 현황 로드
+  // ⚡ 최적화된 파트너 접속 현황 로드
   const loadPartnerConnections = async (isInitial = false) => {
     try {
       if (isInitial) setLoading(true);
@@ -100,6 +97,7 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
         // 하위 파트너가 없으면 빈 배열
         setPartners([]);
         setAllPartnerIds([]);
+        setStats({ totalUsers: 0, totalUserBalance: 0 });
         if (isInitial) setLoading(false);
         return;
       }
@@ -108,45 +106,48 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
 
       if (error) throw error;
 
-      // parent nickname을 가져오기 위해 parent_id 목록 조회
+      // ⚡ 병렬 쿼리로 최적화 - parent nickname과 사용자 통계를 동시 조회
       const parentIds = [...new Set((data || []).map((p: any) => p.parent_id).filter(Boolean))];
-      let parentMap: Record<string, string> = {};
-      
-      if (parentIds.length > 0) {
-        const { data: parentData } = await supabase
-          .from('partners')
-          .select('id, nickname')
-          .in('id', parentIds);
-        
-        if (parentData) {
-          parentMap = parentData.reduce((acc, p) => {
-            acc[p.id] = p.nickname;
-            return acc;
-          }, {} as Record<string, string>);
-        }
+      const partnerIds = (data || []).map((p: any) => p.id);
+      const allPartnerIdsForStats = user.level === 1 
+        ? partnerIds
+        : [user.id, ...childPartnerIds];
+
+      const [parentDataResult, usersDataResult] = await Promise.all([
+        // parent nickname 조회
+        parentIds.length > 0
+          ? supabase.from('partners').select('id, nickname').in('id', parentIds)
+          : Promise.resolve({ data: null }),
+        // 모든 사용자 통계 조회 (한 번만)
+        allPartnerIdsForStats.length > 0
+          ? supabase.from('users').select('referrer_id, balance').in('referrer_id', allPartnerIdsForStats)
+          : Promise.resolve({ data: null })
+      ]);
+
+      // parent nickname 맵 생성
+      const parentMap: Record<string, string> = {};
+      if (parentDataResult.data) {
+        parentDataResult.data.forEach(p => {
+          parentMap[p.id] = p.nickname;
+        });
       }
 
-      // 각 파트너별 사용자 통계 조회
+      // 파트너별 사용자 통계 집계
       const partnerUserStats: Record<string, { count: number; balance: number }> = {};
-      
-      if (data && data.length > 0) {
-        const partnerIds = data.map((p: any) => p.id);
-        
-        // 각 파트너의 사용자 수와 보유금 합계 조회
-        const { data: usersData } = await supabase
-          .from('users')
-          .select('referrer_id, balance')
-          .in('referrer_id', partnerIds);
-        
-        if (usersData) {
-          usersData.forEach((user: any) => {
-            if (!partnerUserStats[user.referrer_id]) {
-              partnerUserStats[user.referrer_id] = { count: 0, balance: 0 };
-            }
-            partnerUserStats[user.referrer_id].count += 1;
-            partnerUserStats[user.referrer_id].balance += user.balance || 0;
-          });
-        }
+      let totalUsers = 0;
+      let totalUserBalance = 0;
+
+      if (usersDataResult.data) {
+        usersDataResult.data.forEach((user: any) => {
+          if (!partnerUserStats[user.referrer_id]) {
+            partnerUserStats[user.referrer_id] = { count: 0, balance: 0 };
+          }
+          partnerUserStats[user.referrer_id].count += 1;
+          partnerUserStats[user.referrer_id].balance += user.balance || 0;
+          
+          totalUsers += 1;
+          totalUserBalance += user.balance || 0;
+        });
       }
 
       // 데이터 포맷팅
@@ -170,15 +171,8 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
 
       setPartners(formattedPartners);
       setFilteredPartners(formattedPartners);
-      
-      // 모든 파트너 ID 저장 (자신 포함)
-      const partnerIdsForUsers = user.level === 1 
-        ? formattedPartners.map(p => p.id)
-        : [user.id, ...childPartnerIds];
-      setAllPartnerIds(partnerIdsForUsers);
-
-      // 사용자 통계 조회
-      await loadUserStats(partnerIdsForUsers);
+      setAllPartnerIds(allPartnerIdsForStats);
+      setStats({ totalUsers, totalUserBalance });
 
     } catch (error: any) {
       console.error("파트너 접속 현황 로드 오류:", error);
@@ -187,30 +181,7 @@ export function PartnerConnectionStatus({ user }: PartnerConnectionStatusProps) 
     }
   };
 
-  // 사용자 통계 로드
-  const loadUserStats = async (partnerIds: string[]) => {
-    try {
-      if (partnerIds.length === 0) {
-        setStats({ totalUsers: 0, totalUserBalance: 0 });
-        return;
-      }
-
-      // users 테이블에서 해당 파트너들의 사용자 조회
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, balance')
-        .in('referrer_id', partnerIds);
-
-      if (error) throw error;
-
-      const totalUsers = data?.length || 0;
-      const totalUserBalance = data?.reduce((sum, user) => sum + (user.balance || 0), 0) || 0;
-
-      setStats({ totalUsers, totalUserBalance });
-    } catch (error: any) {
-      console.error("사용자 통계 로드 오류:", error);
-    }
-  };
+  // ⚡ loadUserStats 함수 제거 - loadPartnerConnections에서 통합 처리
 
   // 검색 필터링
   useEffect(() => {

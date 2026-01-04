@@ -63,12 +63,85 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
   const [launchingGameId, setLaunchingGameId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false); // 🆕 백엔드 처리 중 상태
   const isMountedRef = useRef(true);
+  const selectedProviderRef = useRef<GameProvider | null>(null); // ⚡ 최신 selectedProvider 추적
+
+  // ⚡ selectedProvider 변경 시 ref 업데이트
+  useEffect(() => {
+    selectedProviderRef.current = selectedProvider;
+  }, [selectedProvider]);
 
   useEffect(() => {
     loadProviders();
     
+    // ⚡ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
+    const gamesChannel = supabase
+      .channel('benz_minigame_games_changes')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'games' },
+        (payload) => {
+          console.log('🔄 [BenzMinigame] games 테이블 UPDATE 감지:', payload);
+          loadProviders();
+          // ⚡ ref로 최신 selectedProvider 참조
+          if (selectedProviderRef.current) {
+            console.log('🔄 [BenzMinigame] 게임 목록 새로고침 시작...');
+            loadGames(selectedProviderRef.current);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'game_providers' },
+        (payload) => {
+          console.log('🔄 [BenzMinigame] game_providers 테이블 UPDATE 감지:', payload);
+          loadProviders();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'honor_games' },
+        (payload) => {
+          console.log('🔄 [BenzMinigame] honor_games 테이블 UPDATE 감지:', payload);
+          loadProviders();
+          // ⚡ ref로 최신 selectedProvider 참조
+          if (selectedProviderRef.current) {
+            console.log('🔄 [BenzMinigame] 게임 목록 새로고침 시작...');
+            loadGames(selectedProviderRef.current);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'honor_games_provider' },
+        (payload) => {
+          console.log('🔄 [BenzMinigame] honor_games_provider 테이블 UPDATE 감지:', payload);
+          loadProviders();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'partner_game_access' },
+        (payload) => {
+          console.log('🔄 [BenzMinigame] partner_game_access 테이블 변경 감지:', payload);
+          loadProviders();
+          if (selectedProviderRef.current) {
+            console.log('🔄 [BenzMinigame] 게임 목록 새로고침 시작...');
+            loadGames(selectedProviderRef.current);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 [BenzMinigame] Realtime 구독 상태:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [BenzMinigame] Realtime 구독 성공!');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('❌ [BenzMinigame] Realtime 구독 실패:', status);
+        }
+      });
+    
     return () => {
       isMountedRef.current = false;
+      supabase.removeChannel(gamesChannel);
     };
   }, []);
 
@@ -101,9 +174,14 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
   };
 
   const handleProviderClick = async (provider: GameProvider) => {
+    setSelectedProvider(provider);
+    await loadGames(provider);
+  };
+
+  // ⚡ 게임 목록 로드 함수 (Realtime 콜백에서도 사용)
+  const loadGames = async (provider: GameProvider) => {
     try {
       setGamesLoading(true);
-      setSelectedProvider(provider);
 
       const gamesData = await gameApi.getUserVisibleGames({
         type: 'minigame',

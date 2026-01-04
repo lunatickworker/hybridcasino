@@ -709,50 +709,45 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
 
   // API 변경 시 게임 재로드
   useEffect(() => {
-    if (selectedApi && providers.length > 0) {
+    if (selectedApi && allGames.length > 0) {
       loadGames();
     }
-  }, [selectedApi, providers.length]);
+  }, [selectedApi, allGames]);
 
+  // ⚡ 최적화된 초기 데이터 로드
   const initializeData = async () => {
     try {
-      setLoading(true);
-
-      // ✅ Lv2~Lv7: selected_apis 기반으로 제공사 조회
-      const providersData = await gameApi.getProviders({ 
-        partner_id: user.id,
-      });
-      setProviders(providersData);
-
-      // ✅ Lv2~Lv7: partner_game_access에서 차단된 제공사 및 게임 목록 조회
-      console.log(`🔍 [Lv${user.level}] 차단된 제공사 및 게임 목록 조회 시작...`);
-      const [blockedProviders, blockedGames] = await Promise.all([
+      // ⚡ 병렬로 모든 초기 데이터 조회
+      console.log(`🔍 [Lv${user.level}] 초기 데이터 병렬 조회 시작...`);
+      
+      const [providersData, blockedProviders, blockedGames, allGamesData] = await Promise.all([
+        gameApi.getProviders({ partner_id: user.id }),
         gameApi.getPartnerBlockedProviders(user.id),
-        gameApi.getPartnerBlockedGames(user.id)
+        gameApi.getPartnerBlockedGames(user.id),
+        gameApi.getGames({}) // 모든 API의 게임 로드 (차단 관리용)
       ]);
+
+      // 상태 업데이트
+      setProviders(providersData);
       setBlockedProviderIds(blockedProviders);
       setBlockedGameIds(blockedGames);
-      console.log(`📋 [Lv${user.level}] 차단된 제공사: ${blockedProviders.size}개, 차단된 게임: ${blockedGames.size}개`);
+      setAllGames(allGamesData);
+      
+      console.log(`✅ [Lv${user.level}] 초기 데이터 로드 완료: 제공사 ${providersData.length}개, 차단된 제공사 ${blockedProviders.size}개, 차단된 게임 ${blockedGames.size}개, 전체 게임 ${allGamesData.length}개`);
 
-      // ⭐ 모든 API의 게임 로드 (차단 관리용)
-      await loadAllGamesForBlocking();
-
-      // 첫 번째 API 선택
+      // 첫 번째 API 선택 및 게임 로드
       const uniqueApiTypes = [...new Set(providersData.map(p => p.api_type))];
       if (uniqueApiTypes.length > 0 && !selectedApi) {
         const firstApi = uniqueApiTypes[0];
         setSelectedApi(firstApi);
         
-        // API 선택 후 게임 로드
-        setTimeout(async () => {
-          await loadGamesForApi(firstApi);
-        }, 100);
+        // 첫 API의 게임만 필터링
+        const apiGames = allGamesData.filter(g => g.api_type === firstApi);
+        setGames(apiGames);
       }
     } catch (error) {
       console.error("❌ 초기 데이터 로드 실패:", error);
       toast.error(t.transactionManagement.loadDataFailed);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -781,15 +776,16 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     }
   };
 
+  // ⚡ API 변경 시 게임 로드 (로딩 없이)
   const loadGames = async () => {
     if (!selectedApi) {
       setGames([]);
       return;
     }
 
-    setLoading(true);
-    await loadGamesForApi(selectedApi);
-    setLoading(false);
+    // allGames에서 필터링
+    const apiGames = allGames.filter(g => g.api_type === selectedApi);
+    setGames(apiGames);
   };
 
   const handleInitializeProviders = async () => {

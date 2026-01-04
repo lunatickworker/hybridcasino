@@ -41,7 +41,7 @@ interface BannerManagementProps {
 export function BannerManagement({ user }: BannerManagementProps) {
   const { t } = useLanguage();
   const [banners, setBanners] = useState<Banner[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // ⚡ 초기 로딩을 false로 유지
   const [saving, setSaving] = useState(false);
   const [editingBanner, setEditingBanner] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -61,30 +61,48 @@ export function BannerManagement({ user }: BannerManagementProps) {
   });
 
   useEffect(() => {
-    loadTimezoneSettings();
-    loadBanners();
+    loadInitialData();
   }, [user.id]);
 
-  // 시스템 타임존 설정 로드
-  const loadTimezoneSettings = async () => {
+  // ⚡ 초기 데이터 로드 최적화 - 병렬 처리
+  const loadInitialData = async () => {
     try {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('setting_value')
-        .eq('setting_key', 'timezone_offset')
-        .maybeSingle();
+      // 타임존 설정과 배너 데이터를 병렬로 조회
+      const [timezoneResult, bannersResult] = await Promise.all([
+        supabase
+          .from('system_settings')
+          .select('setting_value')
+          .eq('setting_key', 'timezone_offset')
+          .maybeSingle(),
+        user.level > 1
+          ? supabase
+              .from('banners')
+              .select('*')
+              .eq('partner_id', user.id)
+              .order('display_order', { ascending: true })
+          : supabase
+              .from('banners')
+              .select('*')
+              .order('display_order', { ascending: true })
+      ]);
 
-      if (!error && data) {
-        setTimezoneOffset(parseInt(data.setting_value));
-        console.log('📅 [배너 관리] 시스템 타임존:', `UTC${parseInt(data.setting_value) >= 0 ? '+' : ''}${data.setting_value}`);
+      // 타임존 설정 처리
+      if (!timezoneResult.error && timezoneResult.data) {
+        setTimezoneOffset(parseInt(timezoneResult.data.setting_value));
+        console.log('📅 [배너 관리] 시스템 타임존:', `UTC${parseInt(timezoneResult.data.setting_value) >= 0 ? '+' : ''}${timezoneResult.data.setting_value}`);
       }
+
+      // 배너 데이터 처리
+      if (bannersResult.error) throw bannersResult.error;
+      setBanners(bannersResult.data || []);
     } catch (error) {
-      console.error('타임존 설정 로드 실패:', error);
+      console.error('초기 데이터 로드 실패:', error);
+      toast.error(t.bannerManagement.loadBannersFailed);
     }
   };
 
+  // ⚡ 배너 목록 재조회 (저장/삭제 후)
   const loadBanners = async () => {
-    setLoading(true);
     try {
       let query = supabase
         .from('banners')
@@ -103,8 +121,6 @@ export function BannerManagement({ user }: BannerManagementProps) {
     } catch (error) {
       console.error('배너 로드 실패:', error);
       toast.error(t.bannerManagement.loadBannersFailed);
-    } finally {
-      setLoading(false);
     }
   };
 

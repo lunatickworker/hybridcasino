@@ -21,7 +21,14 @@ interface AdminLayoutProps {
 export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutProps) {
   const { authState } = useAuth();
   const { connected } = useWebSocketContext();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem('admin-sidebar-open');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('admin-sidebar-open', JSON.stringify(sidebarOpen));
+  }, [sidebarOpen]);
 
   if (!authState.user) {
     return (

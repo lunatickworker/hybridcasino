@@ -42,8 +42,9 @@ interface Message {
 
 export function CustomerSupport({ user }: CustomerSupportProps) {
   const { t } = useLanguage();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // ⚡ 초기 로딩을 false로 변경
   const [messages, setMessages] = useState<Message[]>([]);
+  const [allMessages, setAllMessages] = useState<Message[]>([]); // ⚡ 전체 데이터 캐시
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -105,13 +106,13 @@ export function CustomerSupport({ user }: CustomerSupportProps) {
     };
   }, [user.id]);
 
-  // 메시지 목록 조회
-  const fetchMessages = async () => {
+  // ⚡ 최적화된 메시지 목록 조회 (배치 쿼리)
+  const fetchMessages = async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
 
       // 현재 관리자가 receiver인 메시지 조회 (사용자가 보낸 문의)
-      let query = supabase
+      const query = supabase
         .from('messages')
         .select('*')
         .eq('receiver_type', 'partner')
@@ -119,52 +120,84 @@ export function CustomerSupport({ user }: CustomerSupportProps) {
         .eq('sender_type', 'user')
         .is('parent_id', null); // 최상위 메시지만
 
-      // 상태 필터
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-
-      // 검색
-      if (searchTerm) {
-        query = query.or(`subject.ilike.%${searchTerm}%,content.ilike.%${searchTerm}%`);
-      }
-
       const { data: messagesData, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // 각 메시지의 답글 조회 및 sender 정보 가져오기
-      const messagesWithDetails = await Promise.all(
-        (messagesData || []).map(async (msg) => {
-          // 답글 조회
-          const { data: replies } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('parent_id', msg.id)
-            .order('created_at', { ascending: true });
+      if (!messagesData || messagesData.length === 0) {
+        setAllMessages([]);
+        applyFilters([]);
+        return;
+      }
 
-          // sender 정보 조회
-          const { data: senderData } = await supabase
-            .from('users')
-            .select('username')
-            .eq('id', msg.sender_id)
-            .single();
+      // ⚡ 배치 쿼리로 최적화 - 답글과 sender 정보를 병렬로 조회
+      const messageIds = messagesData.map(m => m.id);
+      const senderIds = [...new Set(messagesData.map(m => m.sender_id))];
 
-          return {
-            ...msg,
-            sender_username: senderData?.username || t.settlement.unknown,
-            replies: replies || []
-          };
-        })
+      const [repliesResult, sendersResult] = await Promise.all([
+        // 모든 답글을 한 번에 조회
+        supabase
+          .from('messages')
+          .select('*')
+          .in('parent_id', messageIds)
+          .order('created_at', { ascending: true }),
+        // 모든 sender 정보를 한 번에 조회
+        supabase
+          .from('users')
+          .select('id, username')
+          .in('id', senderIds)
+      ]);
+
+      // 답글을 parent_id별로 그룹화
+      const repliesByParent: Record<string, Message[]> = {};
+      (repliesResult.data || []).forEach((reply: any) => {
+        if (!repliesByParent[reply.parent_id]) {
+          repliesByParent[reply.parent_id] = [];
+        }
+        repliesByParent[reply.parent_id].push(reply);
+      });
+
+      // sender 정보를 맵으로 변환
+      const sendersMap = new Map(
+        (sendersResult.data || []).map(s => [s.id, s.username])
       );
 
-      setMessages(messagesWithDetails);
+      // 데이터 조합
+      const messagesWithDetails = messagesData.map(msg => ({
+        ...msg,
+        sender_username: sendersMap.get(msg.sender_id) || t.settlement.unknown,
+        replies: repliesByParent[msg.id] || []
+      }));
+
+      setAllMessages(messagesWithDetails);
+      applyFilters(messagesWithDetails);
     } catch (error) {
       console.error('메시지 조회 오류:', error);
       toast.error(t.customerSupport.loadInquiriesFailed);
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
+  };
+
+  // ⚡ 클라이언트 사이드 필터링
+  const applyFilters = (data: Message[] = allMessages) => {
+    let filtered = [...data];
+
+    // 상태 필터
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(m => m.status === statusFilter);
+    }
+
+    // 검색어 필터
+    if (searchTerm.trim()) {
+      const query = searchTerm.toLowerCase();
+      filtered = filtered.filter(m =>
+        m.subject.toLowerCase().includes(query) ||
+        m.content.toLowerCase().includes(query)
+      );
+    }
+
+    setMessages(filtered);
   };
 
   // 메시지 읽음 처리
@@ -228,16 +261,20 @@ export function CustomerSupport({ user }: CustomerSupportProps) {
     }
   };
 
+  // ⚡ 초기 로드 (한 번만)
   useEffect(() => {
-    fetchMessages();
+    fetchMessages(true);
+  }, []);
+
+  // ⚡ 필터 변경시 클라이언트 사이드 필터링
+  useEffect(() => {
+    applyFilters();
   }, [statusFilter]);
 
-  // 디바운스 검색
+  // ⚡ 디바운스 검색 (클라이언트 사이드)
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchTerm !== undefined) {
-        fetchMessages();
-      }
+      applyFilters();
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);

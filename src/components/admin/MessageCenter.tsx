@@ -58,8 +58,9 @@ export function MessageCenter({ user }: MessageCenterProps) {
     );
   }
 
-  const [loading, setLoading] = useState(true); // 초기 로드만 true
+  const [loading, setLoading] = useState(false); // ⚡ 초기 로딩을 false로 변경
   const [messages, setMessages] = useState<Message[]>([]);
+  const [allMessages, setAllMessages] = useState<Message[]>([]); // ⚡ 전체 데이터 캐시
   const [activeTab, setActiveTab] = useState('received'); // received, sent
   const [messageTypeFilter, setMessageTypeFilter] = useState('all');
   const [readFilter, setReadFilter] = useState('all');
@@ -146,10 +147,10 @@ export function MessageCenter({ user }: MessageCenterProps) {
     }
   };
 
-  // 메시지 목록 조회
-  const fetchMessages = async () => {
+  // ⚡ 최적화된 메시지 목록 조회 (배치 쿼리)
+  const fetchMessages = async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
       
       let query = supabase
         .from('messages')
@@ -167,96 +168,136 @@ export function MessageCenter({ user }: MessageCenterProps) {
           .eq('sender_id', user.id);
       }
 
-      // 필터 적용
-      if (messageTypeFilter !== 'all') {
-        query = query.eq('message_type', messageTypeFilter);
-      }
-      
-      if (readFilter !== 'all') {
-        const isRead = readFilter === 'read';
-        query = query.eq('status', isRead ? 'read' : 'unread');
-      }
-      
-      if (searchTerm) {
-        query = query.or(`subject.ilike.%${searchTerm}%,content.ilike.%${searchTerm}%`);
-      }
-
       const { data, error } = await query;
 
       if (error) throw error;
 
-      // 메시지에 대한 답글 수 및 사용자 정보 조회
-      const messagesWithDetails = await Promise.all(
-        (data || []).map(async (message: any) => {
-          // 답글 수 조회
-          const { count } = await supabase
-            .from('messages')
-            .select('*', { count: 'exact' })
-            .eq('parent_id', message.id);
+      if (!data || data.length === 0) {
+        setAllMessages([]);
+        applyFilters([]);
+        return;
+      }
 
-          // 발신자 정보 조회
-          let senderUsername = '알 수 없음';
-          if (message.sender_type === 'user') {
-            const { data: senderData } = await supabase
-              .from('users')
-              .select('username')
-              .eq('id', message.sender_id)
-              .single();
-            senderUsername = senderData?.username || '사용자';
-          } else if (message.sender_type === 'partner') {
-            const { data: senderData } = await supabase
-              .from('partners')
-              .select('username')
-              .eq('id', message.sender_id)
-              .single();
-            senderUsername = senderData?.username || '관리자';
-          }
+      // ⚡ 배치 쿼리로 최적화 - 답글 수와 사용자 정보를 병렬로 조회
+      const messageIds = data.map(m => m.id);
+      const senderIds = [...new Set(data.map(m => m.sender_id))];
+      const receiverIds = [...new Set(data.map(m => m.receiver_id))];
+      
+      // sender_type과 receiver_type별로 ID 그룹화
+      const userSenderIds = [...new Set(data.filter(m => m.sender_type === 'user').map(m => m.sender_id))];
+      const partnerSenderIds = [...new Set(data.filter(m => m.sender_type === 'partner').map(m => m.sender_id))];
+      const userReceiverIds = [...new Set(data.filter(m => m.receiver_type === 'user').map(m => m.receiver_id))];
+      const partnerReceiverIds = [...new Set(data.filter(m => m.receiver_type === 'partner').map(m => m.receiver_id))];
 
-          // 수신자 정보 조회
-          let recipientUsername = '알 수 없음';
-          if (message.receiver_type === 'user') {
-            const { data: recipientData } = await supabase
-              .from('users')
-              .select('username')
-              .eq('id', message.receiver_id)
-              .single();
-            recipientUsername = recipientData?.username || '사용자';
-          } else if (message.receiver_type === 'partner') {
-            const { data: recipientData } = await supabase
-              .from('partners')
-              .select('username')
-              .eq('id', message.receiver_id)
-              .single();
-            recipientUsername = recipientData?.username || '관리자';
-          }
+      // 병렬로 모든 데이터 조회
+      const [repliesResult, userSendersResult, partnerSendersResult, userReceiversResult, partnerReceiversResult] = await Promise.all([
+        // 모든 답글 수를 한 번에 조회
+        supabase
+          .from('messages')
+          .select('parent_id')
+          .in('parent_id', messageIds),
+        // 사용자 sender 정보
+        userSenderIds.length > 0 
+          ? supabase.from('users').select('id, username').in('id', userSenderIds)
+          : Promise.resolve({ data: [] }),
+        // 파트너 sender 정보
+        partnerSenderIds.length > 0
+          ? supabase.from('partners').select('id, username').in('id', partnerSenderIds)
+          : Promise.resolve({ data: [] }),
+        // 사용자 receiver 정보
+        userReceiverIds.length > 0
+          ? supabase.from('users').select('id, username').in('id', userReceiverIds)
+          : Promise.resolve({ data: [] }),
+        // 파트너 receiver 정보
+        partnerReceiverIds.length > 0
+          ? supabase.from('partners').select('id, username').in('id', partnerReceiverIds)
+          : Promise.resolve({ data: [] })
+      ]);
 
-          return {
-            id: message.id,
-            sender_type: message.sender_type,
-            sender_id: message.sender_id,
-            sender_username: senderUsername,
-            recipient_type: message.receiver_type,
-            recipient_id: message.receiver_id,
-            recipient_username: recipientUsername,
-            title: message.subject,
-            content: message.content,
-            message_type: message.message_type,
-            is_read: message.status === 'read',
-            read_at: message.read_at,
-            parent_message_id: message.parent_id,
-            created_at: message.created_at,
-            reply_count: count || 0
-          };
-        })
-      );
+      // 답글 수를 parent_id별로 그룹화
+      const replyCounts: Record<string, number> = {};
+      (repliesResult.data || []).forEach((reply: any) => {
+        replyCounts[reply.parent_id] = (replyCounts[reply.parent_id] || 0) + 1;
+      });
 
-      setMessages(messagesWithDetails);
+      // sender/receiver 정보를 맵으로 변환
+      const userSendersMap = new Map((userSendersResult.data || []).map(u => [u.id, u.username]));
+      const partnerSendersMap = new Map((partnerSendersResult.data || []).map(p => [p.id, p.username]));
+      const userReceiversMap = new Map((userReceiversResult.data || []).map(u => [u.id, u.username]));
+      const partnerReceiversMap = new Map((partnerReceiversResult.data || []).map(p => [p.id, p.username]));
+
+      // 데이터 조합
+      const messagesWithDetails = data.map((message: any) => {
+        // sender username 조회
+        let senderUsername = '알 수 없음';
+        if (message.sender_type === 'user') {
+          senderUsername = userSendersMap.get(message.sender_id) || '사용자';
+        } else if (message.sender_type === 'partner') {
+          senderUsername = partnerSendersMap.get(message.sender_id) || '관리자';
+        }
+
+        // receiver username 조회
+        let recipientUsername = '알 수 없음';
+        if (message.receiver_type === 'user') {
+          recipientUsername = userReceiversMap.get(message.receiver_id) || '사용자';
+        } else if (message.receiver_type === 'partner') {
+          recipientUsername = partnerReceiversMap.get(message.receiver_id) || '관리자';
+        }
+
+        return {
+          id: message.id,
+          sender_type: message.sender_type,
+          sender_id: message.sender_id,
+          sender_username: senderUsername,
+          recipient_type: message.receiver_type,
+          recipient_id: message.receiver_id,
+          recipient_username: recipientUsername,
+          title: message.subject,
+          content: message.content,
+          message_type: message.message_type,
+          is_read: message.status === 'read',
+          read_at: message.read_at,
+          parent_message_id: message.parent_id,
+          created_at: message.created_at,
+          reply_count: replyCounts[message.id] || 0
+        };
+      });
+
+      setAllMessages(messagesWithDetails);
+      applyFilters(messagesWithDetails);
     } catch (error) {
       console.error('메시지 조회 오류:', error);
       toast.error(t.messageCenter.loadMessagesFailed);
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
+  };
+
+  // ⚡ 클라이언트 사이드 필터링
+  const applyFilters = (data: Message[] = allMessages) => {
+    let filtered = [...data];
+
+    // 메시지 유형 필터
+    if (messageTypeFilter !== 'all') {
+      filtered = filtered.filter(m => m.message_type === messageTypeFilter);
+    }
+
+    // 읽음/안읽음 필터
+    if (readFilter !== 'all') {
+      const isRead = readFilter === 'read';
+      filtered = filtered.filter(m => m.is_read === isRead);
+    }
+
+    // 검색어 필터
+    if (searchTerm.trim()) {
+      const query = searchTerm.toLowerCase();
+      filtered = filtered.filter(m =>
+        (m.title && m.title.toLowerCase().includes(query)) ||
+        m.content.toLowerCase().includes(query)
+      );
+    }
+
+    setMessages(filtered);
   };
 
   // 메시지 읽음 처리
@@ -445,16 +486,20 @@ export function MessageCenter({ user }: MessageCenterProps) {
     }
   }, [lastMessage]);
 
+  // ⚡ 초기 로드 (한 번만)
   useEffect(() => {
-    fetchMessages();
-  }, [activeTab, messageTypeFilter, readFilter]);
+    fetchMessages(true);
+  }, [activeTab]); // activeTab 변경시에만 서버 재조회
 
-  // 디바운스 검색
+  // ⚡ 필터 변경시 클라이언트 사이드 필터링
+  useEffect(() => {
+    applyFilters();
+  }, [messageTypeFilter, readFilter]);
+
+  // ⚡ 디바운스 검색 (클라이언트 사이드)
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchTerm !== undefined) {
-        fetchMessages();
-      }
+      applyFilters();
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);

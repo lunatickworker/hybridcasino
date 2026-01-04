@@ -103,33 +103,101 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
   const [isProcessing, setIsProcessing] = useState(false); // 🆕 백그라운드 프로세스 상태
   const isMountedRef = useRef(true);
   const closeProcessingRef = useRef<Map<number, boolean>>(new Map()); // 🆕 세션별 종료 처리 중 상태
+  const selectedProviderRef = useRef<GameProvider | null>(null); // ⚡ 최신 selectedProvider 추적
+
+  // ⚡ selectedProvider 변경 시 ref 업데이트
+  useEffect(() => {
+    selectedProviderRef.current = selectedProvider;
+  }, [selectedProvider]);
+
+  // ⚡ 페이지가 포커스될 때 자동 새로고침 (백업 메커니즘)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('👁️ [BenzCasino] 페이지 포커스 감지 - 데이터 새로고침');
+        loadProviders();
+        if (selectedProviderRef.current) {
+          loadGames(selectedProviderRef.current);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     loadProviders();
     
-    // ✅ Realtime: games, game_providers 테이블 변경 감지
+    // ⚡ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
     const gamesChannel = supabase
       .channel('benz_casino_games_changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'games' },
-        () => {
-          console.log('🔄 [BenzCasino] games 테이블 변경 감지 - 리로드');
+        { event: 'UPDATE', schema: 'public', table: 'games' },
+        (payload) => {
+          console.log('🔄 [BenzCasino] games 테이블 UPDATE 감지:', payload);
           loadProviders();
-          if (selectedProvider) {
-            loadGames(selectedProvider);
+          // ⚡ ref로 최신 selectedProvider 참조
+          if (selectedProviderRef.current) {
+            console.log('🔄 [BenzCasino] 게임 목록 새로고침 시작...');
+            loadGames(selectedProviderRef.current);
           }
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'game_providers' },
-        () => {
-          console.log('🔄 [BenzCasino] game_providers 테이블 변경 감지 - 리로드');
+        { event: 'UPDATE', schema: 'public', table: 'game_providers' },
+        (payload) => {
+          console.log('🔄 [BenzCasino] game_providers 테이블 UPDATE 감지:', payload);
           loadProviders();
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'honor_games' },
+        (payload) => {
+          console.log('🔄 [BenzCasino] honor_games 테이블 UPDATE 감지:', payload);
+          loadProviders();
+          // ⚡ ref로 최신 selectedProvider 참조
+          if (selectedProviderRef.current) {
+            console.log('🔄 [BenzCasino] 게임 목록 새로고침 시작...');
+            loadGames(selectedProviderRef.current);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'honor_games_provider' },
+        (payload) => {
+          console.log('🔄 [BenzCasino] honor_games_provider 테이블 UPDATE 감지:', payload);
+          loadProviders();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'partner_game_access' },
+        (payload) => {
+          console.log('🔄 [BenzCasino] partner_game_access 테이블 변경 감지:', payload);
+          // ⚡ 현재 사용자의 접근 권한이 변경된 경우만 새로고침
+          loadProviders();
+          if (selectedProviderRef.current) {
+            console.log('🔄 [BenzCasino] 게임 목록 새로고침 시작...');
+            loadGames(selectedProviderRef.current);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 [BenzCasino] Realtime 구독 상태:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [BenzCasino] Realtime 구독 성공!');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('❌ [BenzCasino] Realtime 구독 실패:', status);
+        }
+      });
     
     return () => {
       isMountedRef.current = false;
@@ -315,9 +383,14 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
+    setSelectedProvider(provider);
+    await loadGames(provider);
+  };
+
+  // ⚡ 게임 목록 로드 함수 (Realtime 콜백에서도 사용)
+  const loadGames = async (provider: GameProvider) => {
     try {
       setGamesLoading(true);
-      setSelectedProvider(provider);
 
       // 🆕 통합된 게임사의 모든 provider_id로 게임 로드
       const providerIds = provider.provider_ids || [provider.id];

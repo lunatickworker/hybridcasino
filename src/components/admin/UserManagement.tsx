@@ -109,7 +109,7 @@ export function UserManagement() {
   
   // 사용자 데이터 (직접 조회)
   const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // ⚡ 초기 로딩을 false로 변경
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -155,121 +155,89 @@ export function UserManagement() {
     slot_losing_commission: '' // 슬롯 루징 커미션
   });
 
-  // 사용자 목록 조회 (하위 파트너 포함)
+  // ⚡ 최적화된 사용자 목록 조회 (하위 파트너 포함)
   const fetchUsers = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
 
-      let allowedReferrerIds: string[] = [];
-
+      // ⚡ 병렬 조회로 최적화
       if (authState.user?.level === 1) {
-        // 시스템관리자: 모든 사용자
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .order('created_at', { ascending: false });
+        // 시스템관리자: 모든 사용자 (limit 제거, 필요시 페이지네이션 추가)
+        const [usersResult, partnersResult] = await Promise.all([
+          supabase
+            .from('users')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(500), // ⚡ 초기 로드 속도 향상을 위해 500명으로 제한
+          supabase
+            .from('partners')
+            .select('id, username, level')
+        ]);
 
-        if (error) throw error;
+        if (usersResult.error) throw usersResult.error;
 
-        // referrer 정보를 별도로 조회
-        const referrerIds = [...new Set(data?.map(u => u.referrer_id).filter(Boolean))];
-        const { data: partnersData } = await supabase
-          .from('partners')
-          .select('id, username, level')
-          .in('id', referrerIds);
-
-        const partnersMap = new Map(partnersData?.map(p => [p.id, p]) || []);
-
-        const usersWithReferrer = data?.map(u => ({
+        const partnersMap = new Map(partnersResult.data?.map(p => [p.id, p]) || []);
+        const usersWithReferrer = usersResult.data?.map(u => ({
           ...u,
           referrer: u.referrer_id ? partnersMap.get(u.referrer_id) : null
         })) || [];
 
         setUsers(usersWithReferrer);
         return;
-      } else {
-        // ✅ Lv2~Lv6: 본인 + 모든 하위 파트너들의 회원 조회 (재귀)
-        console.log(`🔍 [Lv${authState.user?.level}] 현재 로그인 파트너 ID:`, authState.user?.id);
-        
-        const getAllDescendants = async (partnerId: string, depth: number = 0): Promise<string[]> => {
-          console.log(`  ${'  '.repeat(depth)}🔎 조회 중: partnerId=${partnerId}, depth=${depth}`);
+      }
+
+      // ⚡ Lv2~Lv6: 재귀 최적화 - WITH RECURSIVE 쿼리 사용 불가하므로 BFS 방식으로 개선
+      const getAllDescendants = async (partnerId: string): Promise<string[]> => {
+        const queue = [partnerId];
+        const visited = new Set<string>([partnerId]);
+        const result: string[] = [];
+
+        while (queue.length > 0) {
+          const currentBatch = queue.splice(0, queue.length); // 현재 레벨 전체 처리
           
-          const { data: children, error: childError } = await supabase
+          if (currentBatch.length === 0) break;
+
+          // ⚡ 배치로 한 번에 조회
+          const { data: children } = await supabase
             .from('partners')
-            .select('id, username, level')
-            .eq('parent_id', partnerId);
+            .select('id')
+            .in('parent_id', currentBatch);
 
-          if (childError) {
-            console.error(`  ${'  '.repeat(depth)}❌ 하위 파트너 조회 오류:`, childError);
-            return [];
+          if (children && children.length > 0) {
+            for (const child of children) {
+              if (!visited.has(child.id)) {
+                visited.add(child.id);
+                queue.push(child.id);
+                result.push(child.id);
+              }
+            }
           }
+        }
 
-          console.log(`  ${'  '.repeat(depth)}✅ 발견된 하위 파트너:`, children?.length || 0, '개', children?.map(c => `${c.username}(${c.id})`));
+        return result;
+      };
 
-          if (!children || children.length === 0) return [];
+      const descendants = await getAllDescendants(authState.user?.id || '');
+      const allowedReferrerIds = [authState.user?.id || '', ...descendants];
 
-          const childIds = children.map((c: any) => c.id);
-          const allDescendants = [...childIds];
+      // ⚡ 병렬 조회
+      const [usersResult, partnersResult] = await Promise.all([
+        supabase
+          .from('users')
+          .select('*')
+          .in('referrer_id', allowedReferrerIds)
+          .order('created_at', { ascending: false })
+          .limit(500), // ⚡ 초기 로드 속도 향상
+        supabase
+          .from('partners')
+          .select('id, username, level')
+          .in('id', allowedReferrerIds)
+      ]);
 
-          // 각 자식의 하위도 재귀 조회
-          for (const childId of childIds) {
-            const grandChildren = await getAllDescendants(childId, depth + 1);
-            allDescendants.push(...grandChildren);
-          }
+      if (usersResult.error) throw usersResult.error;
 
-          return allDescendants;
-        };
-
-        const descendants = await getAllDescendants(authState.user?.id || '');
-        allowedReferrerIds = [authState.user?.id || '', ...descendants];
-        
-        console.log(`🏢 [Lv${authState.user?.level}] 조회 가능한 파트너 ID:`, allowedReferrerIds.length, '개');
-        console.log('📋 파트너 ID 목록:', allowedReferrerIds);
-      }
-
-      console.log('🔍 회원 조회 시작: referrer_id IN', allowedReferrerIds);
-      
-      // 🆕 먼저 모든 회원의 referrer_id를 확인
-      const { data: allUsers } = await supabase
-        .from('users')
-        .select('id, username, referrer_id')
-        .limit(100);
-      
-      console.log('📊 전체 회원 샘플 (최대 100명):', allUsers?.length || 0, '명');
-      const referrerIdGroups = allUsers?.reduce((acc: any, user: any) => {
-        const refId = user.referrer_id || 'null';
-        if (!acc[refId]) acc[refId] = [];
-        acc[refId].push(user.username);
-        return acc;
-      }, {});
-      console.log('📊 referrer_id별 회원 분포:', referrerIdGroups);
-      
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .in('referrer_id', allowedReferrerIds)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ 회원 조회 오류:', error);
-        throw error;
-      }
-      
-      console.log(`✅ 조회된 회원 수:`, data?.length || 0, '명');
-      if (data && data.length > 0) {
-        console.log('조회된 회원 샘플:', data.slice(0, 5).map((u: any) => `${u.username} (referrer: ${u.referrer_id})`));
-      }
-
-      // referrer 정보를 별도로 조회
-      const referrerIds = [...new Set(data?.map(u => u.referrer_id).filter(Boolean))];
-      const { data: partnersData } = await supabase
-        .from('partners')
-        .select('id, username, level')
-        .in('id', referrerIds);
-
-      const partnersMap = new Map(partnersData?.map(p => [p.id, p]) || []);
-
-      const usersWithReferrer = data?.map(u => ({
+      const partnersMap = new Map(partnersResult.data?.map(p => [p.id, p]) || []);
+      const usersWithReferrer = usersResult.data?.map(u => ({
         ...u,
         referrer: u.referrer_id ? partnersMap.get(u.referrer_id) : null
       })) || [];

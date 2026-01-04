@@ -34,7 +34,7 @@ interface ActivityLogsProps {
 
 export function ActivityLogs({ user }: ActivityLogsProps) {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // ⚡ 초기 로딩을 false로 유지
   const [refreshing, setRefreshing] = useState(false);
   const [cleaningLogs, setCleaningLogs] = useState(false);
   
@@ -107,43 +107,52 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
 
       if (error) throw error;
 
-      // 행위자 정보 조회 (username, nickname)
-      const logsWithActorInfo = await Promise.all(
-        (data || []).map(async (log) => {
-          let actorUsername = '-';
-          let actorNickname = '-';
+      // ⚡ N+1 쿼리 최적화: 배치 쿼리로 행위자 정보 조회
+      const logs = data || [];
+      
+      // 파트너와 사용자 ID를 그룹화
+      const partnerIds = [...new Set(logs.filter(l => l.actor_type === 'partner').map(l => l.actor_id))];
+      const userIds = [...new Set(logs.filter(l => l.actor_type === 'user').map(l => l.actor_id))];
+      
+      // 배치 쿼리로 한 번에 조회
+      const [partnersResult, usersResult] = await Promise.all([
+        partnerIds.length > 0 
+          ? supabase.from('partners').select('id, username, nickname').in('id', partnerIds)
+          : Promise.resolve({ data: [], error: null }),
+        userIds.length > 0
+          ? supabase.from('users').select('id, username, nickname').in('id', userIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
 
-          if (log.actor_type === 'partner') {
-            const { data: partnerData } = await supabase
-              .from('partners')
-              .select('username, nickname')
-              .eq('id', log.actor_id)
-              .single();
-            
-            if (partnerData) {
-              actorUsername = partnerData.username;
-              actorNickname = partnerData.nickname || partnerData.username;
-            }
-          } else if (log.actor_type === 'user') {
-            const { data: userData } = await supabase
-              .from('users')
-              .select('username, nickname')
-              .eq('id', log.actor_id)
-              .single();
-            
-            if (userData) {
-              actorUsername = userData.username;
-              actorNickname = userData.nickname || userData.username;
-            }
+      // Map으로 빠른 조회 구조 생성
+      const partnersMap = new Map((partnersResult.data || []).map(p => [p.id, p]));
+      const usersMap = new Map((usersResult.data || []).map(u => [u.id, u]));
+
+      // 로그에 행위자 정보 병합 (클라이언트 사이드)
+      const logsWithActorInfo = logs.map(log => {
+        let actorUsername = '-';
+        let actorNickname = '-';
+
+        if (log.actor_type === 'partner') {
+          const partner = partnersMap.get(log.actor_id);
+          if (partner) {
+            actorUsername = partner.username;
+            actorNickname = partner.nickname || partner.username;
           }
+        } else if (log.actor_type === 'user') {
+          const user = usersMap.get(log.actor_id);
+          if (user) {
+            actorUsername = user.username;
+            actorNickname = user.nickname || user.username;
+          }
+        }
 
-          return {
-            ...log,
-            actor_username: actorUsername,
-            actor_nickname: actorNickname
-          };
-        })
-      );
+        return {
+          ...log,
+          actor_username: actorUsername,
+          actor_nickname: actorNickname
+        };
+      });
 
       setLogs(logsWithActorInfo);
     } catch (error) {

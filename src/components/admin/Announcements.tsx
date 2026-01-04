@@ -60,9 +60,10 @@ export function Announcements({ user }: AnnouncementsProps) {
     );
   }
 
-  const [loading, setLoading] = useState(true); // 초기 로드만 true
+  const [loading, setLoading] = useState(false); // ⚡ 초기 로드 (한 번만)
   const [uploading, setUploading] = useState(false);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [allAnnouncements, setAllAnnouncements] = useState<Announcement[]>([]); // ⚡ 전체 데이터 캐시
   const [statusFilter, setStatusFilter] = useState('all');
   const [targetFilter, setTargetFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -174,34 +175,18 @@ export function Announcements({ user }: AnnouncementsProps) {
     setFormData(prev => ({ ...prev, image_url: '' }));
   };
 
-  // 공지사항 목록 조회 (partner_id 기반)
-  const fetchAnnouncements = async () => {
+  // ⚡ 최적화된 공지사항 목록 조회 (필터 제거, 전체 데이터 로드)
+  const fetchAnnouncements = async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial) setLoading(true);
       
       let query = supabase
         .from('announcements')
-        .select(`
-          *,
-          partners!announcements_partner_id_fkey(username)
-        `);
+        .select('*');
 
       // 시스템관리자가 아니면 본인이 작성한 공지만 조회
       if (user.level > 1) {
         query = query.eq('partner_id', user.id);
-      }
-
-      // 필터 적용
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-      
-      if (targetFilter !== 'all') {
-        query = query.eq('target_audience', targetFilter);
-      }
-      
-      if (searchTerm) {
-        query = query.or(`title.ilike.%${searchTerm}%,content.ilike.%${searchTerm}%`);
       }
 
       const { data, error } = await query
@@ -210,10 +195,23 @@ export function Announcements({ user }: AnnouncementsProps) {
 
       if (error) throw error;
 
+      // 파트너 정보를 별도로 조회
+      const partnerIds = [...new Set(data?.map(a => a.partner_id) || [])];
+      
+      let partnersMap = new Map<string, string>();
+      if (partnerIds.length > 0) {
+        const { data: partnersData } = await supabase
+          .from('partners')
+          .select('id, username')
+          .in('id', partnerIds);
+        
+        partnersMap = new Map(partnersData?.map(p => [p.id, p.username]) || []);
+      }
+
       const formattedAnnouncements = (data || []).map((announcement: any) => ({
         id: announcement.id,
         partner_id: announcement.partner_id,
-        partner_username: announcement.partners?.username || t.announcements.unknown,
+        partner_username: partnersMap.get(announcement.partner_id) || t.announcements.unknown,
         title: announcement.title,
         content: announcement.content,
         image_url: announcement.image_url,
@@ -229,13 +227,40 @@ export function Announcements({ user }: AnnouncementsProps) {
         updated_at: announcement.updated_at
       }));
 
-      setAnnouncements(formattedAnnouncements);
+      setAllAnnouncements(formattedAnnouncements); // ⚡ 전체 데이터 캐시
+      applyFilters(formattedAnnouncements); // ⚡ 클라이언트 필터링 적용
     } catch (error) {
       console.error(t.announcements.loadFailed, error);
       toast.error(t.announcements.loadFailed);
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
+  };
+
+  // ⚡ 클라이언트 사이드 필터링
+  const applyFilters = (data: Announcement[] = allAnnouncements) => {
+    let filtered = [...data];
+
+    // 상태 필터
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(a => a.status === statusFilter);
+    }
+
+    // 대상 필터
+    if (targetFilter !== 'all') {
+      filtered = filtered.filter(a => a.target_audience === targetFilter);
+    }
+
+    // 검색어 필터
+    if (searchTerm.trim()) {
+      const query = searchTerm.toLowerCase();
+      filtered = filtered.filter(a =>
+        a.title.toLowerCase().includes(query) ||
+        a.content.toLowerCase().includes(query)
+      );
+    }
+
+    setAnnouncements(filtered);
   };
 
   // 공지사항 저장/수정
@@ -377,15 +402,18 @@ export function Announcements({ user }: AnnouncementsProps) {
   };
 
   useEffect(() => {
-    fetchAnnouncements();
+    fetchAnnouncements(true);
+  }, []);
+
+  // ⚡ 필터 변경시 클라이언트 사이드 필터링
+  useEffect(() => {
+    applyFilters();
   }, [statusFilter, targetFilter]);
 
-  // 디바운스 검색
+  // ⚡ 디바운스 검색 (클라이언트 사이드)
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchTerm !== undefined) {
-        fetchAnnouncements();
-      }
+      applyFilters();
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
@@ -830,3 +858,5 @@ export function Announcements({ user }: AnnouncementsProps) {
     </div>
   );
 }
+
+export default Announcements;

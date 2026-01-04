@@ -31,6 +31,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   const onlineChannelRef = useRef<any>(null);
   const balanceChannelRef = useRef<any>(null);
   const isMountedRef = useRef(true);
+  const inactivityTimerRef = useRef<NodeJS.Timeout>(); // ⏰ 비활성 타이머
 
   // ==========================================================================
   // 화면 크기 감지
@@ -422,7 +423,30 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   }, [user?.id]);
 
   // ==========================================================================
-  // 30분 무활동 시 자동 로그아웃
+  // 1분 30초 비활성 시 자동 로그아웃
+  // ==========================================================================
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('⏰ [Benz 자동 로그아웃] 1분 30초 타이머 시작');
+
+    // 1분 30초 = 90초 = 90000ms
+    inactivityTimerRef.current = setTimeout(() => {
+      console.log('⏰ [Benz 자동 로그아웃] 1분 30초 경과 - 로그아웃 실행');
+      toast.info('세션이 만료되었습니다.');
+      onLogout();
+    }, 90000);
+
+    return () => {
+      if (inactivityTimerRef.current) {
+        console.log('⏰ [Benz 자동 로그아웃] 타이머 정리');
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, [user?.id, onLogout]);
+
+  // ==========================================================================
+  // 30분 무활동 시 자동 로그아웃 (기존 로직 유지)
   // ==========================================================================
   useEffect(() => {
     if (!user?.id) return;
