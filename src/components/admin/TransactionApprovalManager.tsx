@@ -173,12 +173,8 @@ export function TransactionApprovalManager({ user }: TransactionApprovalManagerP
       } else if (activeTab === 'withdrawal') {
         query = query.eq('transaction_type', 'withdrawal').eq('status', 'pending');
       } else if (activeTab === 'history') {
-        query = query.in('transaction_type', ['deposit', 'withdrawal']);
-        if (filterStatus !== 'all') {
-          query = query.eq('status', filterStatus);
-        }
-      } else if (activeTab === 'admin-history') {
-        query = query.in('transaction_type', ['admin_deposit', 'admin_withdrawal']);
+        // ⭐ 전체입출금내역: 사용자 + 관리자 입출금 모두 표시
+        query = query.in('transaction_type', ['deposit', 'withdrawal', 'admin_deposit', 'admin_withdrawal']);
         if (filterStatus !== 'all') {
           query = query.eq('status', filterStatus);
         }
@@ -337,10 +333,7 @@ export function TransactionApprovalManager({ user }: TransactionApprovalManagerP
                 출금 신청
               </TabsTrigger>
               <TabsTrigger value="history" className="data-[state=active]:bg-purple-600">
-                입출금 내역
-              </TabsTrigger>
-              <TabsTrigger value="admin-history" className="data-[state=active]:bg-purple-600">
-                관리자 입출금 내역
+                전체입출금내역
               </TabsTrigger>
             </TabsList>
 

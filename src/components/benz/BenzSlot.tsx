@@ -574,7 +574,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
             
             console.log('🔄 [게임 종료] 처리 시작:', sessionId);
             closeProcessingRef.current.set(sessionId, true);
-            setIsProcessing(true); // 🔥 클릭 방지 활성화
             
             try {
               const checker = (window as any).gameWindowCheckers?.get(sessionId);
@@ -586,13 +585,18 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
               (window as any).gameWindows?.delete(sessionId);
               await (window as any).syncBalanceAfterGame?.(sessionId);
               
+              // ✅ 게임 종료 5초 후 베팅 내역 새로고침 이벤트 발생
+              setTimeout(() => {
+                console.log('🔄 [베팅 내역] 새로고침 이벤트 발생');
+                window.dispatchEvent(new CustomEvent('refresh-betting-history'));
+              }, 5000);
+              
               console.log('✅ [게임 종료] 처리 완료:', sessionId);
             } catch (error) {
               console.error('❌ [게임 종료] 에러:', error);
             } finally {
               // 처리 완료 후 플래그 제거
               closeProcessingRef.current.delete(sessionId);
-              setIsProcessing(false); // 🔥 클릭 방지 해제
             }
           };
           
@@ -681,7 +685,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
               
               console.log('🔄 [게임 종료] 처리 시작:', sessionId);
               closeProcessingRef.current.set(sessionId, true);
-              setIsProcessing(true); // 🔥 클릭 방지 활성화
               
               try {
                 const checker = (window as any).gameWindowCheckers?.get(sessionId);
@@ -695,13 +698,18 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                 // withdrawal API 호출 (syncBalanceAfterGame 내부에서 처리)
                 await (window as any).syncBalanceAfterGame?.(sessionId);
                 
+                // ✅ 게임 종료 5초 후 베팅 내역 새로고침 이벤트 발생
+                setTimeout(() => {
+                  console.log('🔄 [베팅 내역] 새로고침 이벤트 발생');
+                  window.dispatchEvent(new CustomEvent('refresh-betting-history'));
+                }, 5000);
+                
                 console.log('✅ [게임 종료] 처리 완료:', sessionId);
               } catch (error) {
                 console.error('❌ [게임 종료] 에러:', error);
               } finally {
                 // 처리 완료 후 플래그 제거
                 closeProcessingRef.current.delete(sessionId);
-                setIsProcessing(false); // 🔥 클릭 방지 해제
               }
             };
             

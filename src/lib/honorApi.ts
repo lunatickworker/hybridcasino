@@ -10,6 +10,30 @@ const HONORAPI_BASE_URL = 'https://api.honorlink.org/api';
 const PROXY_URL = 'https://vi8282.com/proxy';
 
 // ============================================
+// Rate Limiter (429 에러 방지)
+// ============================================
+
+class HonorApiRateLimiter {
+  private lastCallTime: number = 0;
+  private minInterval: number = 1500; // 최소 1.5초 간격 (429 에러 방지)
+
+  async waitForSlot(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastCall = now - this.lastCallTime;
+    
+    if (timeSinceLastCall < this.minInterval) {
+      const waitTime = this.minInterval - timeSinceLastCall;
+      console.log(`⏳ [HonorAPI Rate Limiter] ${waitTime}ms 대기 중...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    this.lastCallTime = Date.now();
+  }
+}
+
+const rateLimiter = new HonorApiRateLimiter();
+
+// ============================================
 // 타입 정의
 // ============================================
 
@@ -169,9 +193,19 @@ async function proxyCall<T = any>(
   let lastError: any = null;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
+    // ✅ Rate Limiter 적용 (모든 요청에 1.5초 간격 보장)
+    await rateLimiter.waitForSlot();
+    
     if (attempt > 0) {
       console.log(`🔄 [HonorAPI] 재시도 ${attempt}/${retries}...`);
-      await new Promise(resolve => setTimeout(resolve, Math.min(1000 * Math.pow(2, attempt - 1), 5000)));
+      // ✅ 429 에러의 경우 더 긴 대기 시간 (exponential backoff)
+      const baseDelay = 2000; // 2초 기본 대기
+      const backoffDelay = baseDelay * Math.pow(2, attempt - 1);
+      const maxDelay = 10000; // 최대 10초
+      const waitTime = Math.min(backoffDelay, maxDelay);
+      
+      console.log(`⏳ [HonorAPI] ${waitTime}ms 대기 중...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
     }
 
     try {

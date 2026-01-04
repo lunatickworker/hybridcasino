@@ -1829,20 +1829,21 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                   </Button>
                 </div>
 
-                {/* 중단: 커미션 잔액 */}
-                <div className="space-y-2 mb-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <DollarSign className="h-6 w-6 text-emerald-400" />
-                    <h3 className="text-lg font-semibold text-slate-300">전환 가능 커미션</h3>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={loadLatestCommissions}
-                      className="h-7 px-2 text-xs hover:bg-slate-700"
-                    >
-                      새로고침
-                    </Button>
-                  </div>
+                {/* 중단: 커미션 잔액 - Lv3 이상만 표시 */}
+                {user.level > 2 && (
+                  <div className="space-y-2 mb-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <DollarSign className="h-6 w-6 text-emerald-400" />
+                      <h3 className="text-lg font-semibold text-slate-300">전환 가능 커미션</h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={loadLatestCommissions}
+                        className="h-7 px-2 text-xs hover:bg-slate-700"
+                      >
+                        새로고침
+                      </Button>
+                    </div>
                   
                   <div className="grid grid-cols-2 gap-2">
                     {/* 카지노 롤링 */}
@@ -1962,10 +1963,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     </div>
                   </div>
 
-                  <div className="text-xs text-slate-500 text-center mt-2">
-                    💡 커미션을 클릭하면 보유금으로 전환됩니다
+                    <div className="text-xs text-slate-500 text-center mt-2">
+                      💡 커미션을 클릭하면 보유금으로 전환됩니다
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* 하단: 비밀번호 변경 버튼 */}
                 <Button

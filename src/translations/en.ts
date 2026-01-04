@@ -858,8 +858,7 @@ export const en = {
     // Tabs
     depositRequestTab: 'Deposit Requests',
     withdrawalRequestTab: 'Withdrawal Requests',
-    completedHistoryTab: 'Transaction History',
-    adminHistoryTab: 'Admin Transaction History',
+    completedHistoryTab: 'All Transaction History',
     
     // Filters
     period: 'Period',

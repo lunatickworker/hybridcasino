@@ -147,8 +147,17 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
       )
       .subscribe();
 
+    // ✅ 게임 종료 후 베팅 내역 새로고침 이벤트 리스너
+    const handleRefreshBettingHistory = () => {
+      console.log('🔄 [베팅 내역] 새로고침 이벤트 수신');
+      loadRecords();
+    };
+
+    window.addEventListener('refresh-betting-history', handleRefreshBettingHistory);
+
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener('refresh-betting-history', handleRefreshBettingHistory);
     };
   }, [user.username]);
 

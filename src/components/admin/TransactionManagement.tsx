@@ -39,21 +39,23 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   // URL 해시에서 탭 정보 읽기
   const getInitialTab = () => {
     const hash = window.location.hash.substring(1);
-    if (hash === 'deposit-request' || hash === 'withdrawal-request' || hash === 'deposit-history' || hash === 'withdrawal-history') {
+    if (hash === 'deposit-request' || hash === 'withdrawal-request' || hash === 'completed-history') {
       return hash;
     }
-    return "deposit-request";
+    return "completed-history";
   };
   
   const [activeTab, setActiveTab] = useState(getInitialTab());
   
   // 데이터 상태
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [pointTransactions, setPointTransactions] = useState<any[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   
   // 필터 상태
   const [periodFilter, setPeriodFilter] = useState("today");
   const [searchTerm, setSearchTerm] = useState("");
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState("all");
   
   // 데이터 리로드 트리거 (Realtime 이벤트용)
   const [reloadTrigger, setReloadTrigger] = useState(0);
@@ -166,7 +168,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         }
       }
       
-      // ⚡ 3단계: 거래 데이터 + 활성 사용자 목록 병렬 조회
+      // ⚡ 3단계: 거래 데이터 + 포인트 거래 데이터 + 활성 사용자 목록 병렬 조회
       let transactionQuery = supabase
         .from('transactions')
         .select('*')
@@ -176,6 +178,18 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         
       if (user.level > 1 && targetUserIds.length > 0) {
         transactionQuery = transactionQuery.in('user_id', targetUserIds);
+      }
+      
+      // 포인트 거래 조회
+      let pointTransactionQuery = supabase
+        .from('point_transactions')
+        .select('*')
+        .gte('created_at', dateRange.start)
+        .lte('created_at', dateRange.end)
+        .order('created_at', { ascending: false });
+        
+      if (user.level > 1 && targetUserIds.length > 0) {
+        pointTransactionQuery = pointTransactionQuery.in('user_id', targetUserIds);
       }
       
       let userListQuery = supabase
@@ -188,13 +202,40 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         userListQuery = userListQuery.in('referrer_id', partnerIds);
       }
       
-      const [transactionsResult, usersResult] = await Promise.all([
+      const [transactionsResult, pointTransactionsResult, usersResult] = await Promise.all([
         transactionQuery,
+        pointTransactionQuery,
         userListQuery
       ]);
       
       const transactionsData = transactionsResult.data || [];
+      const pointTransactionsData = pointTransactionsResult.data || [];
       setUsers(usersResult.data || []);
+      
+      // 포인트 거래 데이터 처리
+      const pointUserIds = [...new Set(pointTransactionsData.map(t => t.user_id).filter(Boolean))];
+      const pointPartnerIds = [...new Set(pointTransactionsData.map(t => t.partner_id).filter(Boolean))];
+      
+      const [pointUsersResult, pointPartnersResult] = await Promise.all([
+        pointUserIds.length > 0 
+          ? supabase.from('users').select('id, nickname, username').in('id', pointUserIds)
+          : Promise.resolve({ data: [], error: null }),
+        pointPartnerIds.length > 0 
+          ? supabase.from('partners').select('id, nickname').in('id', pointPartnerIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
+      
+      const pointUsersMap = new Map((pointUsersResult.data || []).map(u => [u.id, u]));
+      const pointPartnersMap = new Map((pointPartnersResult.data || []).map(p => [p.id, p]));
+      
+      const processedPointTransactions = pointTransactionsData.map(pt => ({
+        ...pt,
+        user_username: pointUsersMap.get(pt.user_id)?.username || '',
+        user_nickname: pointUsersMap.get(pt.user_id)?.nickname || '',
+        partner_nickname: pointPartnersMap.get(pt.partner_id)?.nickname || ''
+      }));
+      
+      setPointTransactions(processedPointTransactions);
       
       // ⚡ 4단계: 관련 데이터 배치 조회 (병렬)
       const userIds = [...new Set(transactionsData.map(t => t.user_id).filter(Boolean))];
@@ -1016,35 +1057,73 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     filterBySearch(t)
   );
 
-  // 입출금내역: 사용자가 요청한 입출금만 (deposit, withdrawal) - completed와 rejected 포함
-  const completedTransactions = transactions.filter(t => 
-    (t.transaction_type === 'deposit' || t.transaction_type === 'withdrawal') &&
-    (t.status === 'completed' || t.status === 'rejected') &&
-    filterBySearch(t)
-  );
-
-  // 관리자 입출금내역: 관리자가 강제 처리한 입출금만 (admin_deposit, admin_withdrawal, admin_adjustment) - completed와 rejected 포함
-  const adminTransactions = transactions.filter(t => 
-    (t.transaction_type === 'admin_deposit' || 
-     t.transaction_type === 'admin_withdrawal' || 
-     t.transaction_type === 'admin_adjustment') &&
-    (t.status === 'completed' || t.status === 'rejected') &&
-    filterBySearch(t)
-  );
-  
-  console.log('🔍 관리자 입출금내역 필터링:', {
-    total: transactions.length,
-    adminDeposit: transactions.filter(t => t.transaction_type === 'admin_deposit').length,
-    adminWithdrawal: transactions.filter(t => t.transaction_type === 'admin_withdrawal').length,
-    adminAdjustment: transactions.filter(t => t.transaction_type === 'admin_adjustment').length,
-    filtered: adminTransactions.length
-  });
+  // 전체입출금내역: 사용자 + 관리자 입출금 + 포인트 거래 통합
+  const completedTransactions = (() => {
+    // 입출금 거래 필터링
+    const filteredTransactions = transactions.filter(t => {
+      const typeMatch = (() => {
+        if (transactionTypeFilter === 'all') return true;
+        if (transactionTypeFilter === 'user_deposit') return t.transaction_type === 'deposit';
+        if (transactionTypeFilter === 'user_withdrawal') return t.transaction_type === 'withdrawal';
+        if (transactionTypeFilter === 'admin_deposit') return t.transaction_type === 'admin_deposit';
+        if (transactionTypeFilter === 'admin_withdrawal') return t.transaction_type === 'admin_withdrawal';
+        return false;
+      })();
+      
+      return (t.transaction_type === 'deposit' || 
+       t.transaction_type === 'withdrawal' ||
+       t.transaction_type === 'admin_deposit' || 
+       t.transaction_type === 'admin_withdrawal' || 
+       t.transaction_type === 'admin_adjustment') &&
+      (t.status === 'completed' || t.status === 'rejected') &&
+      filterBySearch(t) &&
+      typeMatch;
+    });
+    
+    // 포인트 거래 필터링 및 변환
+    const filteredPointTransactions = pointTransactions
+      .filter(pt => {
+        const searchMatch = searchTerm === '' || 
+          pt.user_nickname?.toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const typeMatch = (() => {
+          if (transactionTypeFilter === 'all') return true;
+          if (transactionTypeFilter === 'point_give') {
+            // 포인트 지급: earn 타입 또는 admin_adjustment에서 양수
+            return pt.transaction_type === 'earn' || 
+                   (pt.transaction_type === 'admin_adjustment' && pt.amount > 0);
+          }
+          if (transactionTypeFilter === 'point_recover') {
+            // 포인트 회수: use 타입 또는 admin_adjustment에서 음수
+            return pt.transaction_type === 'use' || 
+                   (pt.transaction_type === 'admin_adjustment' && pt.amount < 0);
+          }
+          return false;
+        })();
+        
+        return searchMatch && typeMatch;
+      })
+      .map(pt => ({
+        ...pt,
+        // 포인트 거래를 transactions 형식으로 변환
+        status: 'completed',
+        user: {
+          nickname: pt.user_nickname,
+          username: pt.user_username
+        }
+      }));
+    
+    // 입출금 거래와 포인트 거래 병합 후 시간순 정렬
+    return [...filteredTransactions, ...filteredPointTransactions].sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  })();
 
   // 거래 테이블 컬럼
   const getColumns = (showActions = false) => [
     {
       header: t.transactionManagement.transactionDate,
-      cell: (row: Transaction) => (
+      cell: (row: any) => (
         <span className="text-base text-slate-300">
           {new Date(row.created_at).toLocaleString('ko-KR')}
         </span>
@@ -1052,10 +1131,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     },
     {
       header: t.transactionManagement.member,
-      cell: (row: Transaction) => (
+      cell: (row: any) => (
         <div>
-          <p className="font-medium text-slate-200 text-base">{row.user?.nickname}</p>
-          <p className="text-sm text-slate-500">{row.user?.username}</p>
+          <p className="font-medium text-slate-200 text-base">{row.user?.nickname || row.user_nickname}</p>
+          <p className="text-sm text-slate-500">{row.user?.username || row.user_username}</p>
           {row.user?.referrer && (
             <p className="text-sm text-blue-400 mt-0.5">
               소속: {row.user.referrer.nickname}
@@ -1066,7 +1145,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     },
     {
       header: t.transactionManagement.transactionType,
-      cell: (row: Transaction) => {
+      cell: (row: any) => {
         const typeMap: any = {
           deposit: { text: t.transactionManagement.deposit, color: 'bg-emerald-600' },
           withdrawal: { text: t.transactionManagement.withdrawal, color: 'bg-orange-600' },
@@ -1075,16 +1154,43 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           admin_adjustment: { 
             text: row.memo?.includes('강제 출금') ? t.transactionManagement.withdrawal : t.transactionManagement.deposit, 
             color: row.memo?.includes('강제 출금') ? 'bg-rose-600' : 'bg-teal-600'
-          }
+          },
+          // 포인트 거래 타입
+          earn: { text: '포인트획득', color: 'bg-amber-600' },
+          use: { text: '포인트사용', color: 'bg-purple-600' },
+          convert_to_balance: { text: '머니전환', color: 'bg-blue-600' }
         };
+        
+        // admin_adjustment for points
+        if (row.transaction_type === 'admin_adjustment' && row.points_before !== undefined) {
+          const isGive = row.amount > 0;
+          return <Badge className={`${isGive ? 'bg-amber-600' : 'bg-purple-600'} text-white text-sm px-3 py-1`}>
+            {isGive ? '포인트지급' : '포인트회수'}
+          </Badge>;
+        }
+        
         const type = typeMap[row.transaction_type] || { text: row.transaction_type, color: 'bg-slate-600' };
         return <Badge className={`${type.color} text-white text-sm px-3 py-1`}>{type.text}</Badge>;
       }
     },
     {
       header: t.transactionManagement.amount,
-      cell: (row: Transaction) => {
-        // withdrawal 계열은 마이너스, deposit 계열은 플러스
+      cell: (row: any) => {
+        // 포인트 거래인 경우
+        if (row.points_before !== undefined) {
+          const isNegative = row.amount < 0;
+          return (
+            <span className={cn(
+              "font-mono font-semibold text-2xl",
+              isNegative ? 'text-red-400' : 'text-green-400'
+            )}>
+              {isNegative ? '' : '+'}
+              {Math.abs(row.amount).toLocaleString()}P
+            </span>
+          );
+        }
+        
+        // 일반 입출금 거래
         const isWithdrawal = row.transaction_type === 'withdrawal' || 
                              row.transaction_type === 'admin_withdrawal' ||
                              (row.transaction_type === 'admin_adjustment' && row.memo?.includes('강제 출금'));
@@ -1101,15 +1207,27 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     },
     {
       header: t.transactionManagement.balanceAfter,
-      cell: (row: Transaction) => (
-        <span className="font-mono text-cyan-400 text-2xl">
-          {formatCurrency(parseFloat(row.balance_after?.toString() || '0'))}
-        </span>
-      )
+      cell: (row: any) => {
+        // 포인트 거래인 경우
+        if (row.points_after !== undefined) {
+          return (
+            <span className="font-mono text-amber-400 text-2xl">
+              {row.points_after.toLocaleString()}P
+            </span>
+          );
+        }
+        
+        // 일반 입출금 거래
+        return (
+          <span className="font-mono text-cyan-400 text-2xl">
+            {formatCurrency(parseFloat(row.balance_after?.toString() || '0'))}
+          </span>
+        );
+      }
     },
     {
       header: t.transactionManagement.status,
-      cell: (row: Transaction) => {
+      cell: (row: any) => {
         const statusMap: any = {
           pending: { text: t.transactionManagement.pending, color: 'bg-amber-600' },
           completed: { text: t.transactionManagement.completed, color: 'bg-emerald-600' },
@@ -1121,7 +1239,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     },
     {
       header: t.transactionManagement.memo,
-      cell: (row: Transaction) => (
+      cell: (row: any) => (
         <div className="max-w-xs">
           <span className="text-base text-slate-400 block truncate" title={row.memo || ''}>
             {row.memo || '-'}
@@ -1131,9 +1249,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     },
     {
       header: t.transactionManagement.processor,
-      cell: (row: Transaction) => (
+      cell: (row: any) => (
         <span className="text-base text-slate-400">
-          {row.processed_partner?.nickname || '-'}
+          {row.processed_partner?.nickname || row.partner_nickname || '-'}
         </span>
       )
     },
@@ -1230,18 +1348,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         {/* 탭 리스트 */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <div className="bg-slate-800/30 rounded-xl p-1.5 border border-slate-700/40">
-            <TabsList className="bg-transparent h-auto p-0 border-0 gap-2 w-full grid grid-cols-4">
+            <TabsList className="bg-transparent h-auto p-0 border-0 gap-2 w-full grid grid-cols-3">
               <TabsTrigger 
                 value="completed-history"
                 className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-green-500/20 data-[state=active]:to-emerald-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20 data-[state=active]:border data-[state=active]:border-green-400/30 transition-all duration-200"
               >
                 {t.transactionManagement.completedHistoryTab}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="admin-history"
-                className="bg-transparent text-slate-400 text-lg rounded-lg px-6 py-4 data-[state=active]:bg-gradient-to-br data-[state=active]:from-orange-500/20 data-[state=active]:to-amber-500/10 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-orange-500/20 data-[state=active]:border data-[state=active]:border-orange-400/30 transition-all duration-200"
-              >
-                {t.transactionManagement.adminHistoryTab}
               </TabsTrigger>
               <TabsTrigger 
                 value="deposit-request"
@@ -1283,6 +1395,96 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               />
             </div>
 
+            {/* 거래 유형 필터 버튼 (전체입출금내역 탭에서만 표시) */}
+            {activeTab === 'completed-history' && (
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => setTransactionTypeFilter('all')}
+                  variant={transactionTypeFilter === 'all' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-11 px-4 text-sm",
+                    transactionTypeFilter === 'all' 
+                      ? "bg-blue-600 hover:bg-blue-700 text-white" 
+                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                  )}
+                >
+                  전체
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('user_deposit')}
+                  variant={transactionTypeFilter === 'user_deposit' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-11 px-4 text-sm",
+                    transactionTypeFilter === 'user_deposit' 
+                      ? "bg-green-600 hover:bg-green-700 text-white" 
+                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                  )}
+                >
+                  사용자입금
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('user_withdrawal')}
+                  variant={transactionTypeFilter === 'user_withdrawal' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-11 px-4 text-sm",
+                    transactionTypeFilter === 'user_withdrawal' 
+                      ? "bg-red-600 hover:bg-red-700 text-white" 
+                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                  )}
+                >
+                  사용자출금
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('admin_deposit')}
+                  variant={transactionTypeFilter === 'admin_deposit' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-11 px-4 text-sm",
+                    transactionTypeFilter === 'admin_deposit' 
+                      ? "bg-cyan-600 hover:bg-cyan-700 text-white" 
+                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                  )}
+                >
+                  관리자입금
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('admin_withdrawal')}
+                  variant={transactionTypeFilter === 'admin_withdrawal' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-11 px-4 text-sm",
+                    transactionTypeFilter === 'admin_withdrawal' 
+                      ? "bg-orange-600 hover:bg-orange-700 text-white" 
+                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                  )}
+                >
+                  관리자출금
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('point_give')}
+                  variant={transactionTypeFilter === 'point_give' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-11 px-4 text-sm",
+                    transactionTypeFilter === 'point_give' 
+                      ? "bg-amber-600 hover:bg-amber-700 text-white" 
+                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                  )}
+                >
+                  포인트지급
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('point_recover')}
+                  variant={transactionTypeFilter === 'point_recover' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-11 px-4 text-sm",
+                    transactionTypeFilter === 'point_recover' 
+                      ? "bg-purple-600 hover:bg-purple-700 text-white" 
+                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                  )}
+                >
+                  포인트회수
+                </Button>
+              </div>
+            )}
+
             {/* 새로고침 */}
             <Button
               onClick={() => {
@@ -1320,7 +1522,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             />
           </TabsContent>
 
-          {/* 입출금 내역 탭 (승인된 모든 거래) */}
+          {/* 전체입출금내역 탭 (사용자 + 관리자 입출금 통합) */}
           <TabsContent value="completed-history" className="compact-table">
             <DataTable
               searchable={false}
@@ -1328,17 +1530,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               data={completedTransactions}
               loading={initialLoading}
               emptyMessage={t.transactionManagement.noTransactionHistory}
-            />
-          </TabsContent>
-
-          {/* 관리자 입출금 내역 탭 */}
-          <TabsContent value="admin-history" className="compact-table">
-            <DataTable
-              searchable={false}
-              columns={getColumns(false)}
-              data={adminTransactions}
-              loading={initialLoading}
-              emptyMessage={t.transactionManagement.noAdminTransactionHistory}
             />
           </TabsContent>
         </Tabs>

@@ -136,6 +136,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
   // 현재 잔고 및 포인트 조회
   const fetchCurrentBalance = async () => {
     try {
+      // ⭐ 1. users 테이블에서 balance와 points 조회
       const { data, error } = await supabase
         .from('users')
         .select('balance, points')
@@ -144,7 +145,48 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
 
       if (error) throw error;
       
-      setCurrentBalance(parseFloat(data.balance) || 0);
+      const currentDbBalance = parseFloat(data.balance) || 0;
+      let displayBalance = currentDbBalance;
+      
+      // ⭐ 2. balance가 0이면 최근 세션의 balance_before를 사용 (게임 중일 가능성)
+      if (currentDbBalance === 0) {
+        const { data: recentSession } = await supabase
+          .from('game_launch_sessions')
+          .select('balance_before, status, launched_at')
+          .eq('user_id', user.id)
+          .order('launched_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (recentSession && recentSession.balance_before > 0) {
+          // 최근 10분 이내 세션이면 balance_before 사용
+          const sessionTime = new Date(recentSession.launched_at).getTime();
+          const now = Date.now();
+          const diffMinutes = (now - sessionTime) / 1000 / 60;
+          
+          if (diffMinutes <= 10) {
+            displayBalance = parseFloat(recentSession.balance_before) || 0;
+            console.log(`💰 [UI] DB balance=0, 최근 세션 balance_before 표시: ${displayBalance}원 (세션: ${recentSession.status}, ${diffMinutes.toFixed(1)}분 전)`);
+          }
+        }
+      } else {
+        // ⭐ 3. balance가 0이 아니어도 active/ending 세션이 있으면 balance_before 사용
+        const { data: activeSession } = await supabase
+          .from('game_launch_sessions')
+          .select('balance_before, status')
+          .eq('user_id', user.id)
+          .in('status', ['active', 'ending'])
+          .order('launched_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (activeSession && activeSession.balance_before > 0) {
+          displayBalance = parseFloat(activeSession.balance_before) || 0;
+          console.log(`💰 [UI] 게임 중 (${activeSession.status}) - balance_before 표시: ${displayBalance}원 (DB: ${currentDbBalance}원)`);
+        }
+      }
+      
+      setCurrentBalance(displayBalance);
       setCurrentPoints(parseFloat(data.points) || 0);
     } catch (error) {
       console.error('잔고 조회 오류:', error);

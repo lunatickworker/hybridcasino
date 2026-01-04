@@ -170,14 +170,28 @@ export async function handleChangeBalanceCallback(
     // 게임 기록 저장
     const { data: gameData } = await supabase
       .from('games')
-      .select('id, provider_id, game_type') // ✅ game_type 추가
+      .select('id, provider_id, game_type, name, name_ko') // ✅ name, name_ko 추가
       .eq('vendor_code', vendorKey)
       .maybeSingle();
+
+    // 게임사 이름 조회
+    let providerName = null;
+    if (gameData?.provider_id) {
+      const { data: providerData } = await supabase
+        .from('game_providers')
+        .select('name, name_ko')
+        .eq('id', gameData.provider_id)
+        .maybeSingle();
+      
+      providerName = providerData?.name_ko || providerData?.name || null;
+    }
 
     await supabase.from('game_records').insert({
       user_id: user.id,
       game_id: gameData?.id || null,
       provider_id: gameData?.provider_id || null,
+      provider_name: providerName, // ✅ provider_name 추가
+      game_title: gameData?.name_ko || gameData?.name || null, // ✅ game_title 추가
       api_type: 'familyapi',
       transaction_id: tranId,
       bet_id: betId,
@@ -313,15 +327,29 @@ export async function handleChangeBalanceSlotCallback(
     // 게임 기록 저장 (game_code로 매칭)
     const { data: gameData } = await supabase
       .from('games')
-      .select('id, provider_id, game_type') // ✅ game_type 추가
+      .select('id, provider_id, game_type, name, name_ko') // ✅ name, name_ko 추가
       .eq('game_code', gameKey)
       .eq('vendor_code', vendorKey)
       .maybeSingle();
+
+    // 게임사 이름 조회
+    let providerName = null;
+    if (gameData?.provider_id) {
+      const { data: providerData } = await supabase
+        .from('game_providers')
+        .select('name, name_ko')
+        .eq('id', gameData.provider_id)
+        .maybeSingle();
+      
+      providerName = providerData?.name_ko || providerData?.name || null;
+    }
 
     await supabase.from('game_records').insert({
       user_id: user.id,
       game_id: gameData?.id || null,
       provider_id: gameData?.provider_id || null,
+      provider_name: providerName, // ✅ provider_name 추가
+      game_title: gameData?.name_ko || gameData?.name || null, // ✅ game_title 추가
       api_type: 'familyapi',
       transaction_id: tranId,
       bet_id: betId,

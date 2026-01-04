@@ -230,11 +230,23 @@ async function syncOroPlayGameRecords(apiConfig: any) {
 
         const { data: gameData } = await supabase
           .from('games')
-          .select('id, provider_id, game_type') // ✅ game_type 추가
+          .select('id, provider_id, game_type, name, name_ko') // ✅ name, name_ko 추가
           .eq('vendor_code', bet.vendorCode)
           .eq('game_code', bet.gameCode)
           .eq('api_type', 'oroplay')
           .maybeSingle();
+
+        // ✅ 제공사 정보 조회 (게임이 있을 경우)
+        let providerName = null;
+        if (gameData?.provider_id) {
+          const { data: providerData } = await supabase
+            .from('game_providers')
+            .select('name, name_ko')
+            .eq('id', gameData.provider_id)
+            .maybeSingle();
+          
+          providerName = providerData?.name_ko || providerData?.name || null;
+        }
 
         const { error } = await supabase
           .from('game_records')
@@ -246,6 +258,8 @@ async function syncOroPlayGameRecords(apiConfig: any) {
             user_id: userId,
             game_id: gameData?.id || null,
             provider_id: gameData?.provider_id || null,
+            game_title: gameData?.name_ko || gameData?.name || bet.gameCode, // ✅ 게임명 저장
+            provider_name: providerName, // ✅ 제공사명 저장
             game_type: gameData?.game_type || 'casino', // ✅ game_type 추가
             bet_amount: bet.betAmount,
             win_amount: bet.winAmount,

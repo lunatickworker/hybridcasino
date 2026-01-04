@@ -424,14 +424,37 @@ async function syncOroplayBets(): Promise<any> {
             continue;
           }
 
+          console.log(`   📦 OroPlay bet: vendor=${bet.vendorCode}, game=${bet.gameCode}`);
+
           // 게임 정보 조회 (vendor_code와 game_code로 매칭)
           const { data: gameData } = await supabase
             .from('games')
-            .select('id, provider_id, game_type') // ✅ game_type 추가
+            .select('id, provider_id, game_type, name, name_ko')
             .eq('vendor_code', bet.vendorCode)
             .eq('game_code', bet.gameCode)
             .eq('api_type', 'oroplay')
             .maybeSingle();
+
+          console.log(`   🎮 게임 매칭: ${gameData ? '성공 - ' + (gameData.name_ko || gameData.name) : '실패 - gameCode 사용'}`);
+
+          // 게임사 이름 결정
+          let providerName = bet.vendorCode; // ⭐ OroPlay는 vendorCode만 제공
+          if (gameData?.provider_id) {
+            const { data: providerData } = await supabase
+              .from('game_providers')
+              .select('name, name_ko')
+              .eq('id', gameData.provider_id)
+              .maybeSingle();
+            
+            if (providerData) {
+              providerName = providerData.name_ko || providerData.name;
+            }
+          }
+
+          // 게임 제목 결정
+          const gameTitle = gameData?.name_ko || gameData?.name || bet.gameCode; // ⭐ OroPlay는 gameCode만 제공
+
+          console.log(`   ✅ 저장: provider="${providerName}", game="${gameTitle}"`);
 
           const { error } = await supabase
             .from('game_records')
@@ -443,7 +466,9 @@ async function syncOroplayBets(): Promise<any> {
               user_id: userId,
               game_id: gameData?.id || null,
               provider_id: gameData?.provider_id || null,
-              game_type: gameData?.game_type || 'casino', // ✅ game_type 추가
+              provider_name: providerName,
+              game_title: gameTitle,
+              game_type: gameData?.game_type || 'slot',
               bet_amount: bet.betAmount,
               win_amount: bet.winAmount,
               balance_before: bet.beforeBalance,
@@ -455,6 +480,7 @@ async function syncOroplayBets(): Promise<any> {
 
           if (error) {
             if (error.code !== '23505') { // 중복이 아닌 에러만 카운트
+              console.error(`   ❌ 저장 오류:`, error);
               totalErrors++;
             }
           } else {
@@ -748,8 +774,10 @@ async function syncHonorapiBets(): Promise<any> {
             .eq('game_code', tx.details.game.id)
             .maybeSingle();
 
+          console.log(`   🎮 HonorAPI 게임 매칭: code=${tx.details.game.id}, 결과=${game ? '성공' : '실패'}`);
+
           // 제공사 정보 조회
-          let providerName = '';
+          let providerName = tx.details.game.vendor || 'Unknown'; // ✅ 기본값 설정
           if (game?.provider_id) {
             const { data: provider } = await supabase
               .from('honor_game_providers')
@@ -757,8 +785,15 @@ async function syncHonorapiBets(): Promise<any> {
               .eq('id', game.provider_id)
               .maybeSingle();
             
-            providerName = provider?.name || tx.details.game.vendor || '';
+            if (provider?.name) {
+              providerName = provider.name;
+            }
           }
+
+          // 게임 제목 결정
+          const gameTitle = game?.name || tx.details.game.title || tx.details.game.id || 'Unknown Game';
+
+          console.log(`   📝 저장할 데이터: provider=${providerName}, game=${gameTitle}`);
 
           // 같은 라운드의 win 트랜잭션 찾기
           const winTx = transactions.find(
@@ -780,7 +815,7 @@ async function syncHonorapiBets(): Promise<any> {
               game_id: game?.id || null,
               provider_id: null,  // HonorAPI는 별도 provider 테이블 사용
               provider_name: providerName,
-              game_title: game?.name || tx.details.game.title || '',
+              game_title: gameTitle,
               game_type: game?.type || tx.details.game.type || 'slot',
               bet_amount: betAmount,
               win_amount: winAmount,
@@ -798,6 +833,7 @@ async function syncHonorapiBets(): Promise<any> {
 
           if (error) {
             if (error.code !== '23505') { // 중복이 아닌 에러만 카운트
+              console.error(`   ❌ HonorAPI 저장 오류:`, error);
               totalErrors++;
             }
           } else {

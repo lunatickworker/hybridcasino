@@ -862,8 +862,7 @@ export const ko = {
     // 탭
     depositRequestTab: '입금 신청',
     withdrawalRequestTab: '출금 신청',
-    completedHistoryTab: '입출금 내역',
-    adminHistoryTab: '관리자 입출금 내역',
+    completedHistoryTab: '전체입출금내역',
     
     // 필터
     period: '기간',

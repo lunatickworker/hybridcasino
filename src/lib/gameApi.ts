@@ -3646,17 +3646,6 @@ async function launchInvestGame(
 
       if (depositResult.success) {
         console.log(`✅ [입금] API 입금 완료: ${userBalance}원`);
-        
-        // ⭐ GMS 보유금 차감 (API로 입금했으므로 0원으로 설정)
-        await supabase
-          .from('users')
-          .update({ 
-            balance: 0,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userData.id);
-        
-        console.log(`✅ [입금] users.balance 차감 완료: ${userBalance}원 → 0원`);
       } else {
         console.error('❌ API 입금 실패:', depositResult.error);
         return {
@@ -3683,6 +3672,41 @@ async function launchInvestGame(
 
     if (result.success && result.data?.game_url) {
       console.log(`✅ [게임 실행] URL 생성 완료`);
+      
+      // ⭐ 4-1. 세션 저장 (⭐⭐ balance 업데이트 전에 먼저 세션 insert!)
+      const { data: sessionData, error: sessionInsertError } = await supabase
+        .from('game_launch_sessions')
+        .insert({
+          user_id: userData.id,
+          api_type: 'invest',
+          game_id: gameId,
+          status: 'active',
+          launch_url: result.data.game_url,
+          balance_before: userBalance,
+          opcode: apiConfig.opcode,
+          launched_at: new Date().toISOString(),
+          last_activity_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (sessionInsertError) {
+        console.error('❌ [Invest] 세션 저장 실패:', sessionInsertError);
+      } else {
+        console.log('✅ [Invest] 세션 저장 완료, ID:', sessionData?.id);
+      }
+      
+      // ⭐ 4-2. GMS 보유금 차감 (⭐⭐ 세션 insert 후에 balance 업데이트!)
+      await supabase
+        .from('users')
+        .update({ 
+          balance: 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userData.id);
+      
+      console.log(`✅ [입금] users.balance 차감 완료: ${userBalance}원 → 0원`);
+      
       console.log(`✅ [게임 진입] 완료:`);
       console.log(`   - API 잔고: ${userBalance}원 (GMS에서 이동)`);
       console.log(`   - GMS 잔고: 0원`);
@@ -3798,17 +3822,6 @@ async function launchOroPlayGame(
 
       if (depositResult.success) {
         console.log(`✅ [입금] API 입금 완료: ${userBalance}원`);
-        
-        // ⭐ GMS 보유금 차감 (API로 입금했으므로 0원으로 설정)
-        await supabase
-          .from('users')
-          .update({ 
-            balance: 0,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', userData.id);
-        
-        console.log(`✅ [입금] users.balance 차감 완료: ${userBalance}원 → 0원`);
       } else {
         console.error('❌ API 입금 실패:', depositResult.error);
         return {
@@ -3858,6 +3871,17 @@ async function launchOroPlayGame(
       } else {
         console.log('✅ [OroPlay] 세션 저장 완료, ID:', sessionData?.id);
       }
+      
+      // ⭐ 7. GMS 보유금 차감 (⭐⭐ 세션 insert 후에 balance 업데이트!)
+      await supabase
+        .from('users')
+        .update({ 
+          balance: 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userData.id);
+      
+      console.log(`✅ [입금] users.balance 차감 완료: ${userBalance}원 → 0원`);
       
       console.log(`✅ [게임 진입] 완료:`);
       console.log(`   - API 잔고: ${userBalance}원 (GMS에서 이동)`);
@@ -4287,18 +4311,7 @@ async function launchHonorApiGame(
 
       console.log(`✅ [입금] HonorAPI 유저 머니 지급 완료: ${addBalanceResult.balance}원, cached: ${addBalanceResult.cached}`);
 
-      // ⭐ GMS 보유금 차감 (API로 입금했으므로 0원으로 설정)
-      await supabase
-        .from('users')
-        .update({ 
-          balance: 0,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userData.id);
-      
-      console.log(`✅ [입금] users.balance 차감 완료: ${userBalance}원 → 0원`);
-
-      // ⭐ 5-4. 세션 저장
+      // ⭐ 5-4. 세션 저장 (⭐⭐ balance 업데이트 전에 먼저 세션 insert!)
       const { data: sessionData, error: sessionInsertError } = await supabase
         .from('game_launch_sessions')
         .insert({
@@ -4320,6 +4333,17 @@ async function launchHonorApiGame(
       } else {
         console.log('✅ [HonorAPI] 세션 저장 완료, ID:', sessionData?.id);
       }
+
+      // ⭐ GMS 보유금 차감 (⭐⭐ 세션 insert 후에 balance 업데이트!)
+      await supabase
+        .from('users')
+        .update({ 
+          balance: 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userData.id);
+      
+      console.log(`✅ [입금] users.balance 차감 완료: ${userBalance}원 → 0원`);
 
       console.log(`✅ [게임 진입] 완료:`);
       console.log(`   - HonorAPI 잔고: ${addBalanceResult.balance}원 (GMS에서 이동)`);
