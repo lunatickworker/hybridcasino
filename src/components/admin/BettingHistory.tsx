@@ -30,6 +30,7 @@ interface BettingRecord {
   game_title?: string;
   provider_name?: string;
   game_type?: string;
+  api_type?: string; // ✅ API 타입 추가
   bet_amount: number;
   win_amount: number;
   balance_before: number;
@@ -305,7 +306,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
           providerMap.set(provider.id, provider.name);
         });
         
-        console.log('✅ 제공사 맵 생성 (fallback):', providerMap.size, '개');
+        console.log('✅ 제공사 맵 ��성 (fallback):', providerMap.size, '개');
       }
       
       // ✅ 데이터 매핑 (이미 저장된 값 우선 사용, null인 경우에만 fallback)
@@ -424,19 +425,32 @@ export function BettingHistory({ user }: BettingHistoryProps) {
     if (filteredRecords.length > 0) {
       const totalBetAmount = filteredRecords.reduce((sum, r) => sum + Math.abs(parseFloat(r.bet_amount?.toString() || '0')), 0);
       const totalWinAmount = filteredRecords.reduce((sum, r) => sum + parseFloat(r.win_amount?.toString() || '0'), 0);
+      
+      // ✅ 카지노/슬롯 베팅액 분리 집계
+      const casinoBetAmount = filteredRecords
+        .filter(r => r.game_type === 'casino' || !r.game_type) // game_type이 없으면 카지노로 간주
+        .reduce((sum, r) => sum + Math.abs(parseFloat(r.bet_amount?.toString() || '0')), 0);
+      
+      const slotBetAmount = filteredRecords
+        .filter(r => r.game_type === 'slot')
+        .reduce((sum, r) => sum + Math.abs(parseFloat(r.bet_amount?.toString() || '0')), 0);
 
       return {
         totalBets: filteredRecords.length,
         totalBetAmount,
         totalWinAmount,
-        netProfit: totalBetAmount - totalWinAmount  // ✅ 순손익 = 총 베팅액 - 당첨액
+        netProfit: totalBetAmount - totalWinAmount,  // ✅ 순손익 = 총 베팅액 - 당첨액
+        casinoBetAmount,  // ✅ 카지노 베팅액
+        slotBetAmount     // ✅ 슬롯 베팅액
       };
     } else {
       return {
         totalBets: 0,
         totalBetAmount: 0,
         totalWinAmount: 0,
-        netProfit: 0
+        netProfit: 0,
+        casinoBetAmount: 0,
+        slotBetAmount: 0
       };
     }
   }, [filteredRecords]);
@@ -465,6 +479,40 @@ export function BettingHistory({ user }: BettingHistoryProps) {
           <span className="text-slate-200 text-xl">
             {record?.provider_name || `Provider ${record.provider_id}`}
           </span>
+        );
+      }
+    },
+    {
+      key: 'api_type',
+      header: 'API',
+      render: (_: any, record: BettingRecord) => {
+        const apiType = record?.api_type || '-';
+        const apiColors: Record<string, string> = {
+          'invest': 'bg-blue-500/20 text-blue-300 border-blue-500/50',
+          'oroplay': 'bg-purple-500/20 text-purple-300 border-purple-500/50',
+          'familyapi': 'bg-green-500/20 text-green-300 border-green-500/50',
+          'honorapi': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50'
+        };
+        const colorClass = apiColors[apiType] || 'bg-slate-500/20 text-slate-300 border-slate-500/50';
+        
+        return (
+          <Badge className={`${colorClass} border text-sm px-2 py-1`}>
+            {apiType.toUpperCase()}
+          </Badge>
+        );
+      }
+    },
+    {
+      key: 'game_type',
+      header: '게임타입',
+      render: (_: any, record: BettingRecord) => {
+        const gameType = record?.game_type || 'casino';
+        const isCasino = gameType === 'casino';
+        
+        return (
+          <Badge className={`${isCasino ? 'bg-orange-500/20 text-orange-300 border-orange-500/50' : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50'} border text-sm px-2 py-1`}>
+            {isCasino ? '카지노' : '슬롯'}
+          </Badge>
         );
       }
     },
@@ -570,7 +618,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   return (
     <div className="space-y-6">
       {/* 통계 카드 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
         <MetricCard
           title={t.bettingHistory.totalBets}
           value={stats.totalBets.toLocaleString()}
@@ -594,6 +642,18 @@ export function BettingHistory({ user }: BettingHistoryProps) {
           value={`₩${stats.netProfit.toLocaleString()}`}
           icon={CreditCard}
           color={stats.netProfit <= 0 ? "green" : "red"}
+        />
+        <MetricCard
+          title="카지노 베팅"
+          value={`₩${stats.casinoBetAmount.toLocaleString()}`}
+          icon={CreditCard}
+          color="orange"
+        />
+        <MetricCard
+          title="슬롯 베팅"
+          value={`₩${stats.slotBetAmount.toLocaleString()}`}
+          icon={CreditCard}
+          color="cyan"
         />
       </div>
 
