@@ -456,6 +456,10 @@ async function syncOroplayBets(): Promise<any> {
 
           console.log(`   ✅ 저장: provider="${providerName}", game="${gameTitle}"`);
 
+          // ⭐ NULL 방지 최종 체크
+          const finalProviderName = providerName || bet.vendorCode || 'Unknown Provider';
+          const finalGameTitle = gameTitle || bet.gameCode || 'Unknown Game';
+
           const { error } = await supabase
             .from('game_records')
             .insert({
@@ -466,8 +470,8 @@ async function syncOroplayBets(): Promise<any> {
               user_id: userId,
               game_id: gameData?.id || null,
               provider_id: gameData?.provider_id || null,
-              provider_name: providerName,
-              game_title: gameTitle,
+              provider_name: finalProviderName, // ✅ NULL 방지
+              game_title: finalGameTitle, // ✅ NULL 방지
               game_type: gameData?.game_type || 'slot',
               bet_amount: bet.betAmount,
               win_amount: bet.winAmount,

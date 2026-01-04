@@ -383,9 +383,18 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
+    // ⭐ 디버깅: 게임사 정보 출력
+    console.log('🎯 [Provider Click]', {
+      name: provider.name,
+      name_ko: provider.name_ko,
+      vendor_code: provider.vendor_code,
+      provider_ids: provider.provider_ids
+    });
+
     // ⭐ Evolution 게임사는 game_id=5185869를 바로 실행
     const providerName = (provider.name || '').toLowerCase();
     const providerNameKo = (provider.name_ko || '').toLowerCase();
+    const vendorCode = (provider.vendor_code || '').toLowerCase();
     
     if (providerName.includes('evolution') || providerNameKo.includes('에볼루션')) {
       console.log('🎰 [Evolution] game_id=5185869 직접 실행');
@@ -470,7 +479,11 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
     }
 
     // ⭐ Microgaming 카드 클릭 시 로비 게임(id: 2159875) 바로 실행
-    if (providerName.includes('microgaming') || providerNameKo.includes('마이크로')) {
+    const isMicrogaming = providerName.includes('micro') || 
+                          providerNameKo.includes('마이크로') || 
+                          vendorCode.includes('micro');
+    
+    if (isMicrogaming) {
       console.log('🎰 [Microgaming] game_id=2159875 직접 실행');
       setIsProcessing(true);
       
@@ -547,8 +560,9 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
-    setSelectedProvider(provider);
-    await loadGames(provider);
+    // ⭐ 다른 모든 게임사는 게임 목록으로 이동하지 않고 토스트 메시지만 표시
+    console.log(`⚠️ [${provider.name_ko || provider.name}] 로비 게임이 등록되지 않았습니다.`);
+    toast.error('해당 게임사는 준비 중입니다.');
   };
 
   // ⚡ 게임 목록 로드 함수 (Realtime 콜백에서도 사용)

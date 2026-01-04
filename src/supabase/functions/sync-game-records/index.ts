@@ -248,6 +248,10 @@ async function syncOroPlayGameRecords(apiConfig: any) {
           providerName = providerData?.name_ko || providerData?.name || null;
         }
 
+        // ⭐ NULL 방지: providerName이 null이면 vendorCode 사용
+        const finalProviderName = providerName || bet.vendorCode || 'Unknown Provider';
+        const finalGameTitle = gameData?.name_ko || gameData?.name || bet.gameCode || 'Unknown Game';
+
         const { error } = await supabase
           .from('game_records')
           .insert({
@@ -258,8 +262,8 @@ async function syncOroPlayGameRecords(apiConfig: any) {
             user_id: userId,
             game_id: gameData?.id || null,
             provider_id: gameData?.provider_id || null,
-            game_title: gameData?.name_ko || gameData?.name || bet.gameCode, // ✅ 게임명 저장
-            provider_name: providerName, // ✅ 제공사명 저장
+            game_title: finalGameTitle, // ✅ NULL 방지
+            provider_name: finalProviderName, // ✅ NULL 방지
             game_type: gameData?.game_type || 'casino', // ✅ game_type 추가
             bet_amount: bet.betAmount,
             win_amount: bet.winAmount,
