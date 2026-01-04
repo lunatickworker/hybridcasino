@@ -255,8 +255,9 @@ export function UserLayout({ user, currentRoute, onRouteChange, onLogout, childr
             // 게임창 닫기
             (window as any).forceCloseGameWindow?.(newSession.id);
             
-            // 보유금 동기화
-            await syncBalanceForSession(newSession.id);
+            // ⚠️ 보유금 동기화는 syncBalanceAfterGame에서 이미 처리되었으므로 
+            // Realtime에서는 UI 업데이트만 수행 (중복 방지)
+            // await syncBalanceForSession(newSession.id); // ❌ 제거
             
             // 알림
             if (newSession.status === 'force_ended') {

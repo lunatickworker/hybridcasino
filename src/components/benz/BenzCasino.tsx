@@ -412,6 +412,63 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
+    // ⭐ 프라그마틱 라이브 카드 클릭 시 로비 게임(id: 2283279) 바로 실행
+    if ((providerName.includes('pragmatic') || providerNameKo.includes('프라그마틱')) && 
+        (providerName.includes('live') || providerNameKo.includes('라이브'))) {
+      
+      console.log('🎰 [Pragmatic Live] game_id=2283279 직접 실행');
+      setIsProcessing(true);
+      
+      try {
+        // Pragmatic Live 로비 게임 객체 생성
+        const pragmaticLobbyGame: Game = {
+          id: '2283279',
+          name: 'lobby',
+          name_ko: 'lobby',
+          game_code: 'lobby',
+          provider_id: 0,
+          api_type: 'honor',
+          vendor_code: 'casino-pragmatic'
+        };
+        
+        await handleGameClick(pragmaticLobbyGame);
+      } catch (error) {
+        console.error('Pragmatic Live 로비 실행 오류:', error);
+        toast.error('Pragmatic Live 게임 실행에 실패했습니다.');
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // ⭐ SA Gaming 카드 클릭 시 로비 게임(id: 2534627) 바로 실행
+    if (providerName.includes('sa') || providerNameKo.includes('sa') || providerNameKo.includes('게이밍')) {
+      
+      console.log('🎰 [SA Gaming] game_id=2534627 직접 실행');
+      setIsProcessing(true);
+      
+      try {
+        // SA Gaming 로비 게임 객체 생성
+        const saLobbyGame: Game = {
+          id: '2534627',
+          name: 'lobby',
+          name_ko: 'lobby',
+          game_code: 'lobby',
+          provider_id: 0,
+          api_type: 'honor',
+          vendor_code: 'casino-sa'
+        };
+        
+        await handleGameClick(saLobbyGame);
+      } catch (error) {
+        console.error('SA Gaming 로비 실행 오류:', error);
+        toast.error('SA Gaming 게임 실행에 실패했습니다.');
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
     // ⭐ 드림게이밍, 플레이에이스, 마이크로게이밍도 로비 바로 실행
     if (providerName.includes('dream') || providerNameKo.includes('드림') ||
         providerName.includes('playace') || providerNameKo.includes('플레이') || providerNameKo.includes('에이스') ||

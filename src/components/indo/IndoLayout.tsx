@@ -233,7 +233,10 @@ export function IndoLayout({ user, currentRoute, onRouteChange, onLogout, childr
             console.log('🛑 [Indo 세션 종료]', newSession.id, newSession.status);
             
             (window as any).forceCloseGameWindow?.(newSession.id);
-            await syncBalanceForSession(newSession.id);
+            
+            // ⚠️ 보유금 동기화는 syncBalanceAfterGame에서 이미 처리되었으므로 
+            // Realtime에서는 UI 업데이트만 수행 (중복 방지)
+            // await syncBalanceForSession(newSession.id); // ❌ 제거
             
             if (newSession.status === 'force_ended') {
               toast.error('네트워크 오류가 발생 되었습니다. 다시 시작해 주세요');

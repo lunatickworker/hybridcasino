@@ -2208,68 +2208,67 @@ export function UserManagement() {
         }
         setShowCreateDialog(open);
       }}>
-        <DialogContent className="sm:max-w-[700px] bg-slate-900/90 backdrop-blur-md border-slate-700/60 shadow-2xl shadow-blue-500/20">
+        <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto bg-slate-900/90 backdrop-blur-md border-slate-700/60 shadow-2xl shadow-blue-500/20">
           <DialogHeader>
-            <DialogTitle className="text-3xl text-slate-100 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">{t.userManagement.newUser}</DialogTitle>
-            <DialogDescription className="text-lg text-slate-400">
+            <DialogTitle className="text-2xl text-slate-100 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">{t.userManagement.newUser}</DialogTitle>
+            <DialogDescription className="text-sm text-slate-400">
               {t.userManagement.createUserDescription}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 py-4">
+          <div className="space-y-4 py-3">
             {/* 벌크 생성 모드 토글 */}
-            <div className="flex items-center justify-between p-5 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-lg border border-blue-500/30">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                  <Users className="h-7 w-7 text-blue-400" />
+            <div className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-lg border border-blue-500/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-blue-400" />
                 </div>
                 <div>
-                  <Label htmlFor="bulk_mode" className="text-slate-100 cursor-pointer text-xl">
+                  <Label htmlFor="bulk_mode" className="text-slate-100 cursor-pointer text-base">
                     벌크 생성 모드
                   </Label>
-                  <p className="text-base text-slate-400 mt-1">여러 회원을 한 번에 생성합니다 (예: dev1 ~ dev40)</p>
+                  <p className="text-xs text-slate-400 mt-0.5">여러 회원을 한 번에 생성합니다 (예: dev1 ~ dev40)</p>
                 </div>
               </div>
               <Switch
                 id="bulk_mode"
                 checked={formData.bulk_mode}
                 onCheckedChange={(checked) => setFormData(prev => ({ ...prev, bulk_mode: checked }))}
-                className="scale-125"
               />
             </div>
 
             {/* 기본 정보 섹션 */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
-                <div className="w-1.5 h-6 bg-gradient-to-b from-blue-400 to-cyan-400 rounded-full"></div>
-                <h4 className="text-lg font-semibold text-slate-200">기본 정보</h4>
-                <span className="text-base text-red-400">* 필수</span>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-slate-700/50">
+                <div className="w-1 h-5 bg-gradient-to-b from-blue-400 to-cyan-400 rounded-full"></div>
+                <h4 className="text-base font-semibold text-slate-200">기본 정보</h4>
+                <span className="text-xs text-red-400">* 필수</span>
               </div>
 
               {/* 벌크 모드일 때 */}
               {formData.bulk_mode ? (
                 <>
-                  <div className="space-y-4 bg-slate-800/30 p-5 rounded-lg border border-slate-700/50">
-                    <div className="grid grid-cols-4 items-center gap-5">
-                      <Label htmlFor="bulk_start" className="text-right text-slate-300 text-lg">
+                  <div className="space-y-3 bg-slate-800/30 p-3 rounded-lg border border-slate-700/50">
+                    <div className="grid grid-cols-4 items-center gap-3">
+                      <Label htmlFor="bulk_start" className="text-right text-slate-300 text-sm">
                         시작 ID <span className="text-red-400">*</span>
                       </Label>
                       <Input
                         id="bulk_start"
                         value={formData.bulk_start}
                         onChange={(e) => setFormData(prev => ({ ...prev, bulk_start: e.target.value }))}
-                        className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
+                        className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
                         placeholder="예: dev1"
                       />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-5">
-                      <Label htmlFor="bulk_end" className="text-right text-slate-300 text-lg">
+                    <div className="grid grid-cols-4 items-center gap-3">
+                      <Label htmlFor="bulk_end" className="text-right text-slate-300 text-sm">
                         종료 ID <span className="text-red-400">*</span>
                       </Label>
                       <Input
                         id="bulk_end"
                         value={formData.bulk_end}
                         onChange={(e) => setFormData(prev => ({ ...prev, bulk_end: e.target.value }))}
-                        className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
+                        className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
                         placeholder="예: dev40"
                       />
                     </div>
@@ -2286,16 +2285,16 @@ export function UserManagement() {
                     if (start && end && start.prefix === end.prefix) {
                       const count = end.num - start.num + 1;
                       return (
-                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-5">
-                          <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <Bell className="h-6 w-6 text-blue-400" />
+                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                          <div className="flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                              <Bell className="h-4 w-4 text-blue-400" />
                             </div>
                             <div>
-                              <p className="text-lg text-blue-300 font-medium mb-1.5">
+                              <p className="text-sm text-blue-300 font-medium mb-0.5">
                                 {formData.bulk_start} ~ {formData.bulk_end}
                               </p>
-                              <p className="text-base text-slate-400">
+                              <p className="text-xs text-slate-400">
                                 총 <strong className="text-blue-400">{count}개</strong> 회원이 생성됩니다
                               </p>
                             </div>
@@ -2325,15 +2324,15 @@ export function UserManagement() {
                     return '';
                   })()}
                 </div>
-                <div className="grid grid-cols-4 items-center gap-5">
-                  <Label htmlFor="nickname" className="text-right text-slate-300 text-lg">
+                <div className="grid grid-cols-4 items-center gap-3">
+                  <Label htmlFor="nickname" className="text-right text-slate-300 text-sm">
                     닉네임 접두사
                   </Label>
                   <Input
                     id="nickname"
                     value={formData.nickname}
                     onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
-                    className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
+                    className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
                     placeholder="비워두면 아이디와 동일"
                   />
                 </div>
@@ -2341,35 +2340,35 @@ export function UserManagement() {
             ) : (
               <>
                   {/* 단일 생성 모드일 때 */}
-                  <div className="grid grid-cols-4 items-center gap-5">
-                    <Label htmlFor="username" className="text-right text-slate-300 text-lg">
+                  <div className="grid grid-cols-4 items-center gap-3">
+                    <Label htmlFor="username" className="text-right text-slate-300 text-sm">
                       {t.userManagement.username} <span className="text-red-400">*</span>
                     </Label>
                     <Input
                       id="username"
                       value={formData.username}
                       onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                      className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
+                      className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
                       placeholder={t.userManagement.enterUsername}
                     />
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-5">
-                    <Label htmlFor="nickname" className="text-right text-slate-300 text-lg">
+                  <div className="grid grid-cols-4 items-center gap-3">
+                    <Label htmlFor="nickname" className="text-right text-slate-300 text-sm">
                       {t.userManagement.nickname}
                     </Label>
                     <Input
                       id="nickname"
                       value={formData.nickname}
                       onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
-                      className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
+                      className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
                       placeholder={t.userManagement.enterNickname}
                     />
                   </div>
                 </>
               )}
               
-              <div className="grid grid-cols-4 items-center gap-5">
-                <Label htmlFor="password" className="text-right text-slate-300 text-lg">
+              <div className="grid grid-cols-4 items-center gap-3">
+                <Label htmlFor="password" className="text-right text-slate-300 text-sm">
                   {t.common.password} <span className="text-red-400">*</span>
                 </Label>
                 <Input
@@ -2377,7 +2376,7 @@ export function UserManagement() {
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
+                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
                   placeholder={t.userManagement.enterInitialPassword}
                 />
               </div>
@@ -2410,17 +2409,17 @@ export function UserManagement() {
               };
               
               return (
-                <div className="space-y-5">
-                  <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
-                    <div className="w-1.5 h-6 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
-                    <h4 className="text-lg font-semibold text-slate-200">조직 설정</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 pb-1.5 border-b border-slate-700/50">
+                    <div className="w-1 h-5 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
+                    <h4 className="text-base font-semibold text-slate-200">조직 설정</h4>
                   </div>
                   
                   {/* 3단 필터 - 한 줄에 3열 */}
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-3 gap-3">
                     {/* 1단: 파트너 권한 드롭다운 */}
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 text-base">파트너 권한</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-300 text-xs">파트너 권한</Label>
                       <Select 
                         value={selectedLevel === '' ? 'all' : selectedLevel.toString()} 
                         onValueChange={(value) => {
@@ -2428,18 +2427,18 @@ export function UserManagement() {
                           setFormData(prev => ({ ...prev, selected_referrer_id: '' }));
                         }}
                       >
-                        <SelectTrigger className="input-premium focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/20 text-base h-11">
+                        <SelectTrigger className="input-premium focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/20 text-sm h-9">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-slate-800 border-slate-700">
-                          <SelectItem value="all" className="text-slate-200 focus:bg-slate-700 text-base py-2">
+                          <SelectItem value="all" className="text-slate-200 focus:bg-slate-700 text-sm py-1.5">
                             전체
                           </SelectItem>
                           {uniqueLevels.map(level => (
                             <SelectItem 
                               key={level} 
                               value={level.toString()} 
-                              className="text-slate-200 focus:bg-slate-700 text-base py-2"
+                              className="text-slate-200 focus:bg-slate-700 text-sm py-1.5"
                             >
                               {levelMap[level] || `Level ${level}`}
                             </SelectItem>
@@ -2449,18 +2448,18 @@ export function UserManagement() {
                     </div>
                     
                     {/* 2단: 파트너 아이디 드롭다운 */}
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 text-base">파트너 아이디</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-300 text-xs">파트너 아이디</Label>
                       <Select 
                         value={formData.selected_referrer_id || undefined} 
                         onValueChange={(value) => setFormData(prev => ({ ...prev, selected_referrer_id: value }))}
                       >
-                        <SelectTrigger className="input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-base h-11">
+                        <SelectTrigger className="input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9">
                           <SelectValue placeholder="파트너 선택" />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-800 border-slate-700 max-h-[300px]">
+                        <SelectContent className="bg-slate-800 border-slate-700 max-h-[200px]">
                           {searchFilteredPartners.length === 0 ? (
-                            <div className="text-center py-3 text-slate-400 text-sm">
+                            <div className="text-center py-2 text-slate-400 text-xs">
                               파트너가 없습니다
                             </div>
                           ) : (
@@ -2471,7 +2470,7 @@ export function UserManagement() {
                                 <SelectItem 
                                   key={partner.id} 
                                   value={partner.id} 
-                                  className="text-slate-200 focus:bg-slate-700 focus:text-slate-100 text-base py-2"
+                                  className="text-slate-200 focus:bg-slate-700 focus:text-slate-100 text-sm py-1.5"
                                 >
                                   {partner.nickname || partner.username} ({levelText}){isSelf ? ' ⭐' : ''}
                                 </SelectItem>
@@ -2483,14 +2482,14 @@ export function UserManagement() {
                     </div>
                     
                     {/* 3단: 검색 필터 */}
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 text-base">검색</Label>
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-300 text-xs">검색</Label>
                       <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                         <Input
                           value={partnerSearchTerm}
                           onChange={(e) => setPartnerSearchTerm(e.target.value)}
-                          className="input-premium focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20 text-base h-11 pl-10"
+                          className="input-premium focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20 text-sm h-9 pl-8"
                           placeholder="아이디/닉네임 검색"
                         />
                       </div>
@@ -2504,14 +2503,14 @@ export function UserManagement() {
                       const levelText = levelMap[selectedPartner.level] || `Level ${selectedPartner.level}`;
                       const isSelf = selectedPartner.id === authState.user?.id;
                       return (
-                        <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
-                          <div className="flex items-center gap-3">
-                            <Users className="h-5 w-5 text-purple-400" />
+                        <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-2.5">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-purple-400" />
                             <div>
-                              <p className="text-base text-purple-300 font-medium">
+                              <p className="text-sm text-purple-300 font-medium">
                                 선택된 파트너: {selectedPartner.nickname || selectedPartner.username}
                               </p>
-                              <p className="text-sm text-slate-400">
+                              <p className="text-xs text-slate-400">
                                 권한: {levelText} {isSelf && '⭐ 본인'}
                               </p>
                             </div>
@@ -2526,55 +2525,55 @@ export function UserManagement() {
             })()}
 
             {/* 은행 정보 섹션 */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
-                <div className="w-1.5 h-6 bg-gradient-to-b from-green-400 to-emerald-400 rounded-full"></div>
-                <h4 className="text-lg font-semibold text-slate-200">은행 정보</h4>
-                <span className="text-base text-slate-400">선택사항</span>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-slate-700/50">
+                <div className="w-1 h-5 bg-gradient-to-b from-green-400 to-emerald-400 rounded-full"></div>
+                <h4 className="text-base font-semibold text-slate-200">은행 정보</h4>
+                <span className="text-xs text-slate-400">선택사항</span>
               </div>
-              <div className="grid grid-cols-4 items-center gap-5">
-                <Label className="text-right text-slate-300 text-lg">
+              <div className="grid grid-cols-4 items-center gap-3">
+                <Label className="text-right text-slate-300 text-sm">
                   {t.userManagement.bankName}
                 </Label>
               <Select 
                 value={formData.bank_name || undefined} 
                 onValueChange={(value) => setFormData(prev => ({ ...prev, bank_name: value }))}
               >
-                <SelectTrigger className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12">
+                <SelectTrigger className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9">
                   <SelectValue placeholder={t.userManagement.selectBank} />
                 </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700">
+                <SelectContent className="bg-slate-800 border-slate-700 max-h-[200px]">
                   {BANK_LIST.map(bank => (
-                    <SelectItem key={bank} value={bank} className="text-slate-200 focus:bg-slate-700 focus:text-slate-100 text-lg py-3">{bank}</SelectItem>
+                    <SelectItem key={bank} value={bank} className="text-slate-200 focus:bg-slate-700 focus:text-slate-100 text-sm py-1.5">{bank}</SelectItem>
                   ))}
                 </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-4 items-center gap-5">
-                <Label htmlFor="bank_account" className="text-right text-slate-300 text-lg">
+              <div className="grid grid-cols-4 items-center gap-3">
+                <Label htmlFor="bank_account" className="text-right text-slate-300 text-sm">
                   {t.userManagement.accountNumber}
                 </Label>
                 <Input
                   id="bank_account"
                   value={formData.bank_account}
                   onChange={(e) => setFormData(prev => ({ ...prev, bank_account: e.target.value }))}
-                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
+                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
                   placeholder={t.userManagement.enterAccountNumber}
                 />
               </div>
             </div>
 
             {/* 커미션 설정 섹션 */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
-                <div className="w-1.5 h-6 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
-                <h4 className="text-lg font-semibold text-slate-200">커미션 설정</h4>
-                <span className="text-base text-slate-400">베팅액의 %</span>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-slate-700/50">
+                <div className="w-1 h-5 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
+                <h4 className="text-base font-semibold text-slate-200">커미션 설정</h4>
+                <span className="text-xs text-slate-400">베팅액의 %</span>
               </div>
-              <div className="grid grid-cols-2 gap-5">
+              <div className="grid grid-cols-2 gap-3">
                 {/* 카지노 롤링 */}
-                <div className="space-y-2">
-                  <Label htmlFor="casino_rolling" className="text-slate-300 text-base">
+                <div className="space-y-1.5">
+                  <Label htmlFor="casino_rolling" className="text-slate-300 text-xs">
                     🎰 카지노 롤링 (%)
                   </Label>
                   <Input
@@ -2585,13 +2584,13 @@ export function UserManagement() {
                     max="100"
                     value={formData.casino_rolling_commission}
                     onChange={(e) => setFormData(prev => ({ ...prev, casino_rolling_commission: e.target.value }))}
-                    className="input-premium focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/20 text-lg h-12"
+                    className="input-premium focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/20 text-sm h-9"
                     placeholder="0.00"
                   />
                 </div>
                 {/* 카지노 루징 */}
-                <div className="space-y-2">
-                  <Label htmlFor="casino_losing" className="text-slate-300 text-base">
+                <div className="space-y-1.5">
+                  <Label htmlFor="casino_losing" className="text-slate-300 text-xs">
                     🎰 카지노 루징 (%)
                   </Label>
                   <Input
@@ -2602,13 +2601,13 @@ export function UserManagement() {
                     max="100"
                     value={formData.casino_losing_commission}
                     onChange={(e) => setFormData(prev => ({ ...prev, casino_losing_commission: e.target.value }))}
-                    className="input-premium focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/20 text-lg h-12"
+                    className="input-premium focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/20 text-sm h-9"
                     placeholder="0.00"
                   />
                 </div>
                 {/* 슬롯 롤링 */}
-                <div className="space-y-2">
-                  <Label htmlFor="slot_rolling" className="text-slate-300 text-base">
+                <div className="space-y-1.5">
+                  <Label htmlFor="slot_rolling" className="text-slate-300 text-xs">
                     🎮 슬롯 롤링 (%)
                   </Label>
                   <Input
@@ -2619,13 +2618,13 @@ export function UserManagement() {
                     max="100"
                     value={formData.slot_rolling_commission}
                     onChange={(e) => setFormData(prev => ({ ...prev, slot_rolling_commission: e.target.value }))}
-                    className="input-premium focus:border-pink-500/60 focus:ring-2 focus:ring-pink-500/20 text-lg h-12"
+                    className="input-premium focus:border-pink-500/60 focus:ring-2 focus:ring-pink-500/20 text-sm h-9"
                     placeholder="0.00"
                   />
                 </div>
                 {/* 슬롯 루징 */}
-                <div className="space-y-2">
-                  <Label htmlFor="slot_losing" className="text-slate-300 text-base">
+                <div className="space-y-1.5">
+                  <Label htmlFor="slot_losing" className="text-slate-300 text-xs">
                     🎮 슬롯 루징 (%)
                   </Label>
                   <Input
@@ -2636,7 +2635,7 @@ export function UserManagement() {
                     max="100"
                     value={formData.slot_losing_commission}
                     onChange={(e) => setFormData(prev => ({ ...prev, slot_losing_commission: e.target.value }))}
-                    className="input-premium focus:border-pink-500/60 focus:ring-2 focus:ring-pink-500/20 text-lg h-12"
+                    className="input-premium focus:border-pink-500/60 focus:ring-2 focus:ring-pink-500/20 text-sm h-9"
                     placeholder="0.00"
                   />
                 </div>
@@ -2644,41 +2643,41 @@ export function UserManagement() {
             </div>
 
             {/* 메모 섹션 */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-3 pb-2 border-b border-slate-700/50">
-                <div className="w-1.5 h-6 bg-gradient-to-b from-amber-400 to-orange-400 rounded-full"></div>
-                <h4 className="text-lg font-semibold text-slate-200">메모</h4>
-                <span className="text-base text-slate-400">선택사항</span>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-slate-700/50">
+                <div className="w-1 h-5 bg-gradient-to-b from-amber-400 to-orange-400 rounded-full"></div>
+                <h4 className="text-base font-semibold text-slate-200">메모</h4>
+                <span className="text-xs text-slate-400">선택사항</span>
               </div>
-              <div className="grid grid-cols-4 items-center gap-5">
-                <Label htmlFor="memo" className="text-right text-slate-300 text-lg">
+              <div className="grid grid-cols-4 items-center gap-3">
+                <Label htmlFor="memo" className="text-right text-slate-300 text-sm">
                   {t.common.note}
                 </Label>
                 <Input
                   id="memo"
                   value={formData.memo}
                   onChange={(e) => setFormData(prev => ({ ...prev, memo: e.target.value }))}
-                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-lg h-12"
+                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
                   placeholder={t.userManagement.adminMemo}
                 />
               </div>
             </div>
           </div>
-          <DialogFooter className="gap-3">
+          <DialogFooter className="gap-2">
             <Button 
               type="button" 
               variant="outline"
               onClick={() => setShowCreateDialog(false)}
-              className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 text-lg px-6 py-3 h-auto"
+              className="bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-slate-100 text-sm px-4 py-2 h-9"
             >
               {t.common.cancel}
             </Button>
             <Button 
               type="button"
               onClick={createUser}
-              className="btn-premium-primary text-lg px-6 py-3 h-auto"
+              className="btn-premium-primary text-sm px-4 py-2 h-9"
             >
-              <Plus className="h-6 w-6 mr-2" />
+              <Plus className="h-4 w-4 mr-1.5" />
               {t.userManagement.createUser}
             </Button>
           </DialogFooter>
