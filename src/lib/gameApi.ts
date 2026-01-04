@@ -4430,7 +4430,7 @@ export async function checkActiveSession(userId: string): Promise<{
   ready_status?: 'waiting' | 'popup_opened' | 'popup_blocked';
 } | null> {
   try {
-    // ⭐ active 세션만 체크 (ready 상태 제거)
+    // ⭐ active 또는 ending 세션 체크 (ending은 종료 처리 중이므로 다른 게임 실행 차단!)
     const { data, error } = await supabase
       .from('game_launch_sessions')
       .select(`
@@ -4442,7 +4442,7 @@ export async function checkActiveSession(userId: string): Promise<{
         ready_status
       `)
       .eq('user_id', userId)
-      .eq('status', 'active')
+      .in('status', ['active', 'ending'])  // active 또는 ending 상태 모두 체크
       .order('launched_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -4808,6 +4808,25 @@ export async function syncBalanceOnSessionEnd(
   apiType: 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
 ): Promise<void> {
   try {
+    console.log(`🔄 [세션 종료 시작] userId=${userId}, apiType=${apiType}`);
+    
+    // 🚨 Step 0: 세션 상태를 즉시 'ending'으로 변경 (다른 게임 실행 차단!)
+    const { error: endingError } = await supabase
+      .from('game_launch_sessions')
+      .update({
+        status: 'ending', // 중간 상태로 변경
+        last_activity_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('status', 'active');
+
+    if (endingError) {
+      console.error('❌ [세션 종료] 상태 변경 실패 (ending):', endingError);
+      // 실패해도 계속 진행 (최악의 경우 중복 실행 가능하지만, 돈 손실보다는 나음)
+    } else {
+      console.log('✅ [세션 종료] 상태를 ending으로 변경 완료 (다른 게임 실행 차단)');
+    }
+    
     // ⭐ 병렬 처리: 사용자 정보 조회
     const { data: user, error: userError } = await supabase
       .from('users')
@@ -4942,6 +4961,21 @@ export async function syncBalanceOnSessionEnd(
         } else {
           console.log(`✅ [세션 종료] Invest API 출금 완료: ${currentBalance}원`);
           
+          // 🚨 CRITICAL: users.balance를 즉시 업데이트 (다른 게임 실행 시 돈 손실 방지!)
+          const { error: userBalanceError } = await supabase
+            .from('users')
+            .update({ 
+              balance: finalBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId);
+
+          if (userBalanceError) {
+            console.error('❌ [세션 종료] users.balance 업데이트 실패:', userBalanceError);
+          } else {
+            console.log(`✅ [세션 종료] users.balance 즉시 업데이트 완료: ${finalBalance}원 (돈 손실 방지)`);
+          }
+          
           // 5. ⭐ api_configs.balance 업데이트 (통합 컬럼 사용)
           const { error: balanceError } = await supabase
             .from('api_configs')
@@ -4977,6 +5011,21 @@ export async function syncBalanceOnSessionEnd(
             // ⭐ 실제 출금된 금액 사용 (API 응답값)
             const withdrawnAmount = withdrawResult.balance || currentBalance;
             finalBalance = withdrawnAmount; // 실제 출금된 금액으로 업데이트
+            
+            // 🚨 CRITICAL: users.balance를 즉시 업데이트 (다른 게임 실행 시 돈 손실 방지!)
+            const { error: userBalanceError } = await supabase
+              .from('users')
+              .update({ 
+                balance: finalBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', userId);
+
+            if (userBalanceError) {
+              console.error('❌ [세션 종료] users.balance 업데이트 실패:', userBalanceError);
+            } else {
+              console.log(`✅ [세션 종료] users.balance 즉시 업데이트 완료: ${finalBalance}원 (돈 손실 방지)`);
+            }
             
             // 5. ⭐ api_configs.balance 업데이트 (통합 컬럼 사용)
             const { error: balanceError } = await supabase
@@ -5022,6 +5071,21 @@ export async function syncBalanceOnSessionEnd(
       
       // ⭐ ��수된 금액을 그대로 사용 (음수일 리 없음 - API가 실제 회수한 양수 금액)
       finalBalance = Math.abs(recoveredAmount); // 절대값으로 보장
+      
+      // 🚨 CRITICAL: users.balance를 즉시 업데이트 (다른 게임 실행 시 돈 손실 방지!)
+      const { error: userBalanceError } = await supabase
+        .from('users')
+        .update({ 
+          balance: finalBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      if (userBalanceError) {
+        console.error('❌ [세션 종료] users.balance 업데이트 실패:', userBalanceError);
+      } else {
+        console.log(`✅ [세션 종료] users.balance 즉시 업데이트 완료: ${finalBalance}원 (돈 손실 방지)`);
+      }
       
       // ⭐ api_configs.balance 업데이트 (회수한 금액을 GMS 머니로 반환)
       if (recoveredAmount > 0) {
@@ -5072,26 +5136,13 @@ export async function syncBalanceOnSessionEnd(
       finalBalance = correctedBalance;
     }
 
-    // 6. users.balance 최종 업데이트 (API 출금/회수 완료 후)
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ 
-        balance: finalBalance,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId);
-
-    if (updateError) {
-      console.error('❌ [세션 종료] users.balance 업데이트 실패:', updateError);
-      console.error('   - userId:', userId);
-      console.error('   - finalBalance:', finalBalance);
-      console.error('   - error details:', JSON.stringify(updateError));
-      // ⚠️ 세션 종료는 계속 진행 (세션이 active 상태로 남지 않도록)
-    } else {
-      console.log(`✅ [세션 종료] users.balance 업데이트 완료: ${finalBalance}원`);
+    // 6. users.balance는 이미 각 API 처리 직후 즉시 업데이트되었음 (위에서 처리)
+    // FamilyAPI만 여기서 처리 (Seamless 방식이므로 이미 callback으로 업데이트됨)
+    if (apiType === 'familyapi') {
+      console.log(`ℹ️ [FamilyAPI Seamless] users.balance는 이미 callback으로 업데이트되었습니다: ${finalBalance}원`);
     }
 
-    // 7. 세션 종료 상태 전환
+    // 7. 세션 종료 상태 전환 (ending → ended)
     const { error: sessionError } = await supabase
       .from('game_launch_sessions')
       .update({
@@ -5100,7 +5151,7 @@ export async function syncBalanceOnSessionEnd(
         last_activity_at: new Date().toISOString()
       })
       .eq('user_id', userId)
-      .eq('status', 'active');
+      .eq('status', 'ending'); // ending 상태인 세션을 ended로 변경
 
     if (sessionError) {
       console.error('❌ 세션 종료 처리 실패:', sessionError);

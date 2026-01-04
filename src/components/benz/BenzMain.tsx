@@ -352,7 +352,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
     } else {
       // 🆕 슬롯은 기존 방식 유지 (선택한 게임사 정보를 localStorage에 저장)
       localStorage.setItem('benz_selected_provider', JSON.stringify(provider));
-      onRouteChange('/benz/slot');
+      onRouteChange('/benз/slot');
     }
   };
 
@@ -366,7 +366,9 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
 
       // ⭐ Evolution 게임사는 game_id=5185869를 바로 실행
       const providerName = (provider.name || '').toLowerCase();
-      if (providerName.includes('evolution') || (provider.name_ko || '').includes('에볼루션')) {
+      const providerNameKo = (provider.name_ko || '').toLowerCase();
+      
+      if (providerName.includes('evolution') || providerNameKo.includes('에볼루션')) {
         console.log('🎰 [Evolution] game_id=5185869 직접 실행');
         
         // 🆕 active 세션 체크
@@ -577,7 +579,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       );
 
       if (!lobbyGame) {
-        toast.error('로비 게임을 찾을 수 없습니다. 게임 목록 페이지로 이동합니다.');
+        toast.error('로비가 없습니다. 리스트로 이동합니다.');
         localStorage.setItem('benz_selected_provider', JSON.stringify(provider));
         onRouteChange('/benz/casino');
         return;

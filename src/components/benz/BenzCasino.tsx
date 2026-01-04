@@ -385,7 +385,9 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
 
     // ⭐ Evolution 게임사는 game_id=5185869를 바로 실행
     const providerName = (provider.name || '').toLowerCase();
-    if (providerName.includes('evolution') || (provider.name_ko || '').includes('에볼루션')) {
+    const providerNameKo = (provider.name_ko || '').toLowerCase();
+    
+    if (providerName.includes('evolution') || providerNameKo.includes('에볼루션')) {
       console.log('🎰 [Evolution] game_id=5185869 직접 실행');
       setIsProcessing(true);
       
@@ -404,6 +406,57 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       } catch (error) {
         console.error('Evolution 게임 실행 오류:', error);
         toast.error('Evolution 게임 실행에 실패했습니다.');
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // ⭐ 드림게이밍, 플레이에이스, 마이크로게이밍도 로비 바로 실행
+    if (providerName.includes('dream') || providerNameKo.includes('드림') ||
+        providerName.includes('playace') || providerNameKo.includes('플레이') || providerNameKo.includes('에이스') ||
+        providerName.includes('microgaming') || providerNameKo.includes('마이크로')) {
+      
+      console.log(`🎰 [${provider.name_ko || provider.name}] 로비 게임 바로 실행`);
+      setIsProcessing(true);
+      
+      try {
+        // 게임 목록 로드
+        await loadGames(provider);
+        
+        // 로비 게임 찾기
+        const providerIds = provider.provider_ids || [provider.id];
+        let allGames: Game[] = [];
+
+        for (const providerId of providerIds) {
+          const gamesData = await gameApi.getUserVisibleGames({
+            type: 'casino',
+            provider_id: providerId,
+            userId: user.id
+          });
+
+          if (gamesData && gamesData.length > 0) {
+            allGames = [...allGames, ...gamesData];
+          }
+        }
+
+        const lobbyGame = allGames.find(game => 
+          game.name?.toLowerCase().includes('lobby') || 
+          game.name_ko?.includes('로비')
+        );
+
+        if (!lobbyGame) {
+          toast.error('로비가 없습니다. 리스트로 이동합니다.');
+          setSelectedProvider(provider);
+          setIsProcessing(false);
+          return;
+        }
+
+        // 로비 게임 실행
+        await handleGameClick(lobbyGame);
+      } catch (error) {
+        console.error(`${provider.name_ko || provider.name} 로비 실행 오류:`, error);
+        toast.error('게임 실행에 실패했습니다.');
       } finally {
         setIsProcessing(false);
       }

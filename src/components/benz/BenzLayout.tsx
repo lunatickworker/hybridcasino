@@ -324,9 +324,9 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           return;
         }
 
-        // ⭐ active 상태만 처리 (이미 종료된 세션은 무시)
+        // ⭐ active 상태만 처리 (ending/ended 세션은 무시)
         if (session.status !== 'active') {
-          console.log(`⏭️ [Benz 게임창 닫힘] 이미 종료된 세션: status=${session.status}`);
+          console.log(`⏭️ [Benz 게임창 닫힘] 이미 종료 중이거나 종료된 세션: status=${session.status}`);
           return;
         }
 
@@ -423,71 +423,71 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   }, [user?.id]);
 
   // ==========================================================================
-  // 1분 30초 비활성 시 자동 로그아웃
+  // 1분 30초 비활성 시 자동 로그아웃 (⚠️ 임시 비활성화)
   // ==========================================================================
-  useEffect(() => {
-    if (!user?.id) return;
+  // useEffect(() => {
+  //   if (!user?.id) return;
 
-    console.log('⏰ [Benz 자동 로그아웃] 1분 30초 타이머 시작');
+  //   console.log('⏰ [Benz 자동 로그아웃] 1분 30초 타이머 시작');
 
-    // 1분 30초 = 90초 = 90000ms
-    inactivityTimerRef.current = setTimeout(() => {
-      console.log('⏰ [Benz 자동 로그아웃] 1분 30초 경과 - 로그아웃 실행');
-      toast.info('세션이 만료되었습니다.');
-      onLogout();
-    }, 90000);
+  //   // 1분 30초 = 90초 = 90000ms
+  //   inactivityTimerRef.current = setTimeout(() => {
+  //     console.log('⏰ [Benz 자동 로그아웃] 1분 30초 경과 - 로그아웃 실행');
+  //     toast.info('세션이 만료되었습니다.');
+  //     onLogout();
+  //   }, 90000);
 
-    return () => {
-      if (inactivityTimerRef.current) {
-        console.log('⏰ [Benz 자동 로그아웃] 타이머 정리');
-        clearTimeout(inactivityTimerRef.current);
-      }
-    };
-  }, [user?.id, onLogout]);
+  //   return () => {
+  //     if (inactivityTimerRef.current) {
+  //       console.log('⏰ [Benz 자동 로그아웃] 타이머 정리');
+  //       clearTimeout(inactivityTimerRef.current);
+  //     }
+  //   };
+  // }, [user?.id, onLogout]);
 
   // ==========================================================================
-  // 30분 무활동 시 자동 로그아웃 (기존 로직 유지)
+  // 30분 무활동 시 자동 로그아웃 (⚠️ 임시 비활성화)
   // ==========================================================================
-  useEffect(() => {
-    if (!user?.id) return;
+  // useEffect(() => {
+  //   if (!user?.id) return;
 
-    const checkAutoLogout = async () => {
-      try {
-        const { data: userData, error } = await supabase
-          .from('users')
-          .select('balance_sync_started_at, is_online')
-          .eq('id', user.id)
-          .single();
+  //   const checkAutoLogout = async () => {
+  //     try {
+  //       const { data: userData, error } = await supabase
+  //         .from('users')
+  //         .select('balance_sync_started_at, is_online')
+  //         .eq('id', user.id)
+  //         .single();
 
-        if (error || !userData?.is_online || !userData.balance_sync_started_at) {
-          return;
-        }
+  //       if (error || !userData?.is_online || !userData.balance_sync_started_at) {
+  //         return;
+  //       }
 
-        const startedAt = new Date(userData.balance_sync_started_at);
-        const now = new Date();
-        const elapsedMinutes = (now.getTime() - startedAt.getTime()) / 1000 / 60;
+  //       const startedAt = new Date(userData.balance_sync_started_at);
+  //       const now = new Date();
+  //       const elapsedMinutes = (now.getTime() - startedAt.getTime()) / 1000 / 60;
 
-        if (elapsedMinutes >= 30) {
-          await supabase
-            .from('users')
-            .update({ is_online: false })
-            .eq('id', user.id);
+  //       if (elapsedMinutes >= 30) {
+  //         await supabase
+  //           .from('users')
+  //           .update({ is_online: false })
+  //           .eq('id', user.id);
 
-          onLogout();
-        }
-      } catch (err) {
-        console.error('❌ [Benz 자동 로그아웃 체크 오류]:', err);
-      }
-    };
+  //         onLogout();
+  //       }
+  //     } catch (err) {
+  //       console.error('❌ [Benz 자동 로그아웃 체크 오류]:', err);
+  //     }
+  //   };
 
-    autoLogoutTimerRef.current = setInterval(checkAutoLogout, 10000);
+  //   autoLogoutTimerRef.current = setInterval(checkAutoLogout, 10000);
 
-    return () => {
-      if (autoLogoutTimerRef.current) {
-        clearInterval(autoLogoutTimerRef.current);
-      }
-    };
-  }, [user?.id, onLogout]);
+  //   return () => {
+  //     if (autoLogoutTimerRef.current) {
+  //       clearInterval(autoLogoutTimerRef.current);
+  //     }
+  //   };
+  // }, [user?.id, onLogout]);
 
   // ==========================================================================
   // 온라인 상태 모니터링 (Realtime)
