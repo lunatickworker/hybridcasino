@@ -177,7 +177,8 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                         style={{
                           fontSize: '20px',
                           color: '#888773',
-                          textShadow: 'none'
+                          textShadow: 'none',
+                          fontFamily: 'AsiHead, Arial, sans-serif'
                         }}
                       >
                         {item.label}
@@ -258,7 +259,8 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                         style={{
                           fontSize: '20px',
                           color: '#888773',
-                          textShadow: 'none'
+                          textShadow: 'none',
+                          fontFamily: 'AsiHead, Arial, sans-serif'
                         }}
                       >
                         {item.label}

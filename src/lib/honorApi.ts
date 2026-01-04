@@ -778,10 +778,11 @@ export async function syncHonorApiBettingHistory(): Promise<{
         // ✅ 올바른 잔액 계산: balance_after = balance_before - betAmount + winAmount
         const balanceAfter = tx.before - betAmount + winAmount;
 
-        // ✅ external 데이터 추출 (게임 상세 결과)
-        const external = tx.external ? {
-          id: tx.external.id,
-          detail: tx.external.detail
+        // ✅ external 데이터 추출 (Evolution 게임만 저장)
+        const isEvolution = tx.details.game.vendor?.toLowerCase().includes('evolution');
+        const external = (isEvolution && tx.external) ? {
+          id: String(tx.external.id || ''),
+          detail: tx.external.detail || null
         } : null;
 
         // game_records에 저장 (중복 체크: external_txid + api_type unique)
@@ -1336,7 +1337,7 @@ export function extractBalanceFromResponse(response: any, username: string): num
     return typeof response.balance === 'number' ? response.balance : parseFloat(response.balance) || 0;
   }
   
-  // amount 필드가 있을 수 있음 (출��� 응답)
+  // amount 필드가 있을 수 있음 (출 응답)
   if (response?.amount !== undefined) {
     return typeof response.amount === 'number' ? response.amount : parseFloat(response.amount) || 0;
   }

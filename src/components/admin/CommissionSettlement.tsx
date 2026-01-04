@@ -94,9 +94,18 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
     
     setLoading(true);
     try {
+      console.log('🔍 [파트너별정산] 데이터 조회 시작', {
+        dateRange: {
+          from: dateRange.from.toISOString(),
+          to: dateRange.to.toISOString()
+        },
+        user: { id: user.id, username: user.username, level: user.level }
+      });
+
       // 본인의 하위 파트너 조회 (재귀적)
       const descendantPartnerIds = await getDescendantPartnerIds(user.id);
       const allPartnerIds = [user.id, ...descendantPartnerIds];
+      console.log('✅ 허용된 파트너:', allPartnerIds.length, '개');
 
       // 파트너 정보 조회 (Lv2~Lv6만)
       const { data: partners, error: partnersError } = await supabase
@@ -109,6 +118,7 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
         .order('username', { ascending: true });
 
       if (partnersError) throw partnersError;
+      console.log('✅ 파트너 데이터:', partners?.length || 0, '개');
 
       const rows: PartnerSettlementRow[] = [];
 
@@ -165,9 +175,9 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
         // 게임 데이터
         const { data: gameRecords } = await supabase
           .from('game_records')
-          .select('*')
-          .gte('created_at', dateRange.from.toISOString())
-          .lte('created_at', dateRange.to.toISOString())
+          .select('game_type, bet_amount, win_amount')
+          .gte('played_at', dateRange.from.toISOString())
+          .lte('played_at', dateRange.to.toISOString())
           .in('user_id', userIds);
 
         const casinoBet = gameRecords
@@ -266,10 +276,11 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
         });
       }
 
+      console.log('✅ 파트너별 정산 데이터 처리 완료:', rows.length, '개');
       setData(rows);
 
     } catch (error) {
-      console.error('정산 데이터 조회 실패:', error);
+      console.error('❌ 정산 데이터 조회 실패:', error);
       toast.error('정산 데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
@@ -324,8 +335,8 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
       const { data: gameRecords } = await supabase
         .from('game_records')
         .select('game_type, bet_amount')
-        .gte('created_at', fromDate.toISOString())
-        .lte('created_at', toDate.toISOString())
+        .gte('played_at', fromDate.toISOString())
+        .lte('played_at', toDate.toISOString())
         .in('user_id', childUserIds);
 
       const casinoBet = gameRecords
@@ -371,8 +382,8 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
       const { data: gameRecords } = await supabase
         .from('game_records')
         .select('game_type, bet_amount, win_amount')
-        .gte('created_at', fromDate.toISOString())
-        .lte('created_at', toDate.toISOString())
+        .gte('played_at', fromDate.toISOString())
+        .lte('played_at', toDate.toISOString())
         .in('user_id', childUserIds);
 
       const casinoBet = gameRecords
@@ -427,8 +438,8 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
 
   const formatNumber = (num: number): string => {
     return new Intl.NumberFormat('ko-KR', {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(num);
   };
 
@@ -714,55 +725,63 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
                 </tr>
               </thead>
               <tbody>
-                {visibleRows.map((row, idx) => {
-                  const bgColor = getRowBackgroundColor(row.level);
-                  return (
-                    <tr 
-                      key={row.id} 
-                      style={{
-                        backgroundColor: bgColor,
-                        borderBottom: '1px solid #E0E0E0',
-                        cursor: row.hasChildren ? 'pointer' : 'default'
-                      }}
-                      onClick={() => row.hasChildren && toggleRow(row.id)}
-                    >
-                      <td className="p-3 sticky left-0 z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 600, width: '80px', whiteSpace: 'nowrap' }}>
-                        <div className="flex items-center justify-center gap-1">
-                          {row.hasChildren && row.level > 0 && (
-                            expandedRows.has(row.id) ? 
-                              <ChevronDown className="size-4" /> : 
-                              <ChevronRight className="size-4" />
-                          )}
-                          {row.levelName}
-                        </div>
-                      </td>
-                      <td className="p-3 sticky left-[80px] z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 500, width: '120px' }}>{row.username}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.balance)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.points)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.deposit)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.withdrawal)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminDeposit)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminWithdrawal)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointGiven)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointRecovered)}</td>
-                      <td className="p-3 text-right" style={{ color: row.depositWithdrawalDiff < 0 ? '#D32F2F' : '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.depositWithdrawalDiff)}</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoRollingRate}%</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoLosingRate}%</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotRollingRate}%</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotLosingRate}%</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalBet)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWin)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWinLoss)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.ggr)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.casinoIndividualRolling)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.slotIndividualRolling)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalRolling)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalLosing)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalIndividualRolling)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalIndividualLosing)}</td>
-                    </tr>
-                  );
-                })}
+                {visibleRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={25} className="p-8 text-center" style={{ color: '#757575', fontSize: '14px' }}>
+                      데이터가 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  visibleRows.map((row, idx) => {
+                    const bgColor = getRowBackgroundColor(row.level);
+                    return (
+                      <tr 
+                        key={row.id} 
+                        style={{
+                          backgroundColor: bgColor,
+                          borderBottom: '1px solid #E0E0E0',
+                          cursor: row.hasChildren ? 'pointer' : 'default'
+                        }}
+                        onClick={() => row.hasChildren && toggleRow(row.id)}
+                      >
+                        <td className="p-3 sticky left-0 z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 600, width: '80px', whiteSpace: 'nowrap' }}>
+                          <div className="flex items-center justify-center gap-1">
+                            {row.hasChildren && row.level > 0 && (
+                              expandedRows.has(row.id) ? 
+                                <ChevronDown className="size-4" /> : 
+                                <ChevronRight className="size-4" />
+                            )}
+                            {row.levelName}
+                          </div>
+                        </td>
+                        <td className="p-3 sticky left-[80px] z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 500, width: '120px' }}>{row.username}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.balance)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.points)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.deposit)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.withdrawal)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminDeposit)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminWithdrawal)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointGiven)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointRecovered)}</td>
+                        <td className="p-3 text-right" style={{ color: row.depositWithdrawalDiff < 0 ? '#D32F2F' : '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.depositWithdrawalDiff)}</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoRollingRate}%</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoLosingRate}%</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotRollingRate}%</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotLosingRate}%</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalBet)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWin)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWinLoss)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.ggr)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.casinoIndividualRolling)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.slotIndividualRolling)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalRolling)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalLosing)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalIndividualRolling)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalIndividualLosing)}</td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

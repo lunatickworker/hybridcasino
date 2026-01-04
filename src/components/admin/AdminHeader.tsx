@@ -1317,14 +1317,21 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       
       if (data && data.length > 0) {
         // 커미션 전환 기록 조회
-        const settlementIds = data.map(s => s.id);
-        const { data: conversionLogs, error: conversionError } = await supabase
-          .from('commission_conversion_logs')
-          .select('settlement_id, commission_type')
-          .in('settlement_id', settlementIds);
+        const settlementIds = data.map(s => s.id).filter(id => id != null); // null/undefined 제거
         
-        if (conversionError) {
-          console.error('❌ [커미션 조회] 전환 기록 조회 에러:', conversionError);
+        let conversionLogs: any[] = [];
+        
+        if (settlementIds.length > 0) {
+          const { data: logsData, error: conversionError } = await supabase
+            .from('commission_conversion_logs')
+            .select('settlement_id, commission_type')
+            .in('settlement_id', settlementIds);
+        
+          if (conversionError) {
+            console.error('❌ [커미션 조회] 전환 기록 조회 에러:', conversionError);
+          } else {
+            conversionLogs = logsData || [];
+          }
         }
         
         console.log('🔥🔥🔥 [CRITICAL-DEBUG] 전환 기록 조회 결과:', {

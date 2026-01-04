@@ -719,11 +719,19 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
           }
         }
       } else {
-        toast.error(result.error || '게임 실행에 실패했습니다.');
+        // 에러 메시지를 더 친절하게 표시
+        const errorMessage = result.error || '게임을 실행할 수 없습니다.';
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error('게임 실행 오류:', error);
-      toast.error('게임 실행에 실패했습니다.');
+      // catch 블록에서도 친절한 메시지 표시
+      const errorMessage = error instanceof Error ? error.message : '게임을 실행할 수 없습니다.';
+      if (errorMessage.includes('보유금')) {
+        toast.error(errorMessage);
+      } else {
+        toast.error('게임을 실행할 수 없습니다. 잠시 후 다시 시도해주세요.');
+      }
     } finally {
       setLaunchingGameId(null);
       setIsProcessing(false); // 🆕 프로세스 종료

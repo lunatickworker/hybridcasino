@@ -32,11 +32,23 @@ interface UserSettlementRow {
   casinoLosingRate: number;
   slotRollingRate: number;
   slotLosingRate: number;
-  // 베팅/당첨
+  // 베팅/당첨 - 카지노/슬롯 분리
+  casinoBet: number;
+  casinoWin: number;
+  casinoWinLoss: number;
+  slotBet: number;
+  slotWin: number;
+  slotWinLoss: number;
   totalBet: number;
   totalWin: number;
   totalWinLoss: number;
   ggr: number;
+  casinoIndividualRolling: number;
+  slotIndividualRolling: number;
+  totalRolling: number;
+  totalLosing: number;
+  rollingAmount: number;
+  losingAmount: number;
 }
 
 export default function UserSettlement({ user }: UserSettlementProps) {
@@ -58,9 +70,18 @@ export default function UserSettlement({ user }: UserSettlementProps) {
     
     setLoading(true);
     try {
+      console.log('🔍 [회원별정산] 데이터 조회 시작', {
+        dateRange: {
+          from: dateRange.from.toISOString(),
+          to: dateRange.to.toISOString()
+        },
+        user: { id: user.id, username: user.username, level: user.level }
+      });
+
       // 1. 본인의 하위 파트너 조회 (재귀적)
       const descendantPartnerIds = await getDescendantPartnerIds(user.id);
       const allPartnerIds = [user.id, ...descendantPartnerIds];
+      console.log('✅ 허용된 파트너:', allPartnerIds.length, '개');
 
       // 2. 하위 파트너들의 회원만 조회
       const { data: users, error: usersError } = await supabase
@@ -70,8 +91,10 @@ export default function UserSettlement({ user }: UserSettlementProps) {
         .order('username', { ascending: true });
 
       if (usersError) throw usersError;
+      console.log('✅ 회원 데이터:', users?.length || 0, '개');
 
       if (!users || users.length === 0) {
+        console.log('⚠️ 조회된 회원이 없습니다.');
         setData([]);
         return;
       }
@@ -124,13 +147,13 @@ export default function UserSettlement({ user }: UserSettlementProps) {
         const { data: gameRecords } = await supabase
           .from('game_records')
           .select('*')
-          .gte('created_at', dateRange.from.toISOString())
-          .lte('created_at', dateRange.to.toISOString())
+          .gte('played_at', dateRange.from.toISOString())
+          .lte('played_at', dateRange.to.toISOString())
           .eq('user_id', userItem.id);
 
         const casinoBet = gameRecords
           ?.filter(gr => gr.game_type === 'casino')
-          .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0) || 0;
+          .reduce((sum, gr) => sum + Math.abs(gr.bet_amount || 0), 0) || 0;
 
         const casinoWin = gameRecords
           ?.filter(gr => gr.game_type === 'casino')
@@ -138,15 +161,43 @@ export default function UserSettlement({ user }: UserSettlementProps) {
 
         const slotBet = gameRecords
           ?.filter(gr => gr.game_type === 'slot')
-          .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0) || 0;
+          .reduce((sum, gr) => sum + Math.abs(gr.bet_amount || 0), 0) || 0;
 
         const slotWin = gameRecords
           ?.filter(gr => gr.game_type === 'slot')
           .reduce((sum, gr) => sum + (gr.win_amount || 0), 0) || 0;
 
+        console.log(`📊 [${userItem.username}] 게임 데이터:`, {
+          gameRecordsCount: gameRecords?.length || 0,
+          casinoBet,
+          casinoWin,
+          slotBet,
+          slotWin
+        });
+
+        const casinoWinLoss = casinoBet - casinoWin;
+        const slotWinLoss = slotBet - slotWin;
         const totalBet = casinoBet + slotBet;
         const totalWin = casinoWin + slotWin;
         const totalWinLoss = totalBet - totalWin;
+
+        // 회원 개별 롤링/루징 계산
+        const casinoRollingRate = userItem.casino_rolling_commission || userItem.casino_rolling_rate || 0;
+        const casinoLosingRate = userItem.casino_losing_commission || userItem.casino_losing_rate || 0;
+        const slotRollingRate = userItem.slot_rolling_commission || userItem.slot_rolling_rate || 0;
+        const slotLosingRate = userItem.slot_losing_commission || userItem.slot_losing_rate || 0;
+
+        const casinoIndividualRolling = casinoBet * (casinoRollingRate / 100);
+        const slotIndividualRolling = slotBet * (slotRollingRate / 100);
+        const totalRolling = casinoIndividualRolling + slotIndividualRolling;
+
+        const casinoLosing = casinoWinLoss > 0 ? casinoWinLoss * (casinoLosingRate / 100) : 0;
+        const slotLosing = slotWinLoss > 0 ? slotWinLoss * (slotLosingRate / 100) : 0;
+        const totalLosing = casinoLosing + slotLosing;
+
+        // 회원은 하위가 없으므로 롤링금 = 총롤링금, 낙첨금 = 총루징
+        const rollingAmount = totalRolling;
+        const losingAmount = totalLosing;
 
         rows.push({
           id: userItem.id,
@@ -160,21 +211,34 @@ export default function UserSettlement({ user }: UserSettlementProps) {
           pointGiven,
           pointRecovered,
           depositWithdrawalDiff: deposit - withdrawal + adminDeposit - adminWithdrawal,
-          casinoRollingRate: userItem.casino_rolling_rate || 0,
-          casinoLosingRate: userItem.casino_losing_rate || 0,
-          slotRollingRate: userItem.slot_rolling_rate || 0,
-          slotLosingRate: userItem.slot_losing_rate || 0,
+          casinoRollingRate,
+          casinoLosingRate,
+          slotRollingRate,
+          slotLosingRate,
+          casinoBet,
+          casinoWin,
+          casinoWinLoss,
+          slotBet,
+          slotWin,
+          slotWinLoss,
           totalBet,
           totalWin,
           totalWinLoss,
-          ggr: totalWinLoss
+          ggr: totalWinLoss,
+          casinoIndividualRolling,
+          slotIndividualRolling,
+          totalRolling,
+          totalLosing,
+          rollingAmount,
+          losingAmount
         });
       }
 
+      console.log('✅ 회원별 정산 데이터 처리 완료:', rows.length, '개');
       setData(rows);
 
     } catch (error) {
-      console.error('정산 데이터 조회 실패:', error);
+      console.error('❌ 정산 데이터 조회 실패:', error);
       toast.error('정산 데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
@@ -203,8 +267,8 @@ export default function UserSettlement({ user }: UserSettlementProps) {
 
   const formatNumber = (num: number): string => {
     return new Intl.NumberFormat('ko-KR', {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(num);
   };
 
@@ -456,46 +520,55 @@ export default function UserSettlement({ user }: UserSettlementProps) {
                 </tr>
               </thead>
               <tbody>
-                {filteredData.map((row, idx) => {
-                  const bgColor = '#ffffff'; // 회원은 흰색
-                  return (
-                    <tr 
-                      key={row.id} 
-                      style={{
-                        backgroundColor: bgColor,
-                        borderBottom: '1px solid #E0E0E0'
-                      }}
-                    >
-                      <td className="p-3 sticky left-0 z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 600, width: '80px', whiteSpace: 'nowrap' }}>
-                        회원
-                      </td>
-                      <td className="p-3 sticky left-[80px] z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 500, width: '120px' }}>{row.username}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.balance)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.points)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.deposit)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.withdrawal)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminDeposit)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminWithdrawal)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointGiven)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointRecovered)}</td>
-                      <td className="p-3 text-right" style={{ color: row.depositWithdrawalDiff < 0 ? '#D32F2F' : '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.depositWithdrawalDiff)}</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoRollingRate}%</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoLosingRate}%</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotRollingRate}%</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotLosingRate}%</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalBet)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWin)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWinLoss)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.ggr)}</td>
-                      <td className="p-3 text-right" style={{ color: '#9E9E9E', fontSize: '13px' }}>-</td>
-                      <td className="p-3 text-right" style={{ color: '#9E9E9E', fontSize: '13px' }}>-</td>
-                      <td className="p-3 text-right" style={{ color: '#9E9E9E', fontSize: '13px' }}>-</td>
-                      <td className="p-3 text-right" style={{ color: '#9E9E9E', fontSize: '13px' }}>-</td>
-                      <td className="p-3 text-right" style={{ color: '#9E9E9E', fontSize: '13px' }}>-</td>
-                      <td className="p-3 text-right" style={{ color: '#9E9E9E', fontSize: '13px' }}>-</td>
-                    </tr>
-                  );
-                })}
+                {filteredData.length === 0 ? (
+                  <tr>
+                    <td colSpan={25} className="p-8 text-center" style={{ color: '#757575', fontSize: '14px' }}>
+                      데이터가 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredData.map((row, idx) => {
+                    const bgColor = '#ffffff'; // 회원은 흰색
+                    
+                    return (
+                      <tr 
+                        key={row.id} 
+                        style={{
+                          backgroundColor: bgColor,
+                          borderBottom: '1px solid #E0E0E0'
+                        }}
+                      >
+                        <td className="p-3 sticky left-0 z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 600, width: '80px', whiteSpace: 'nowrap' }}>
+                          회원
+                        </td>
+                        <td className="p-3 sticky left-[80px] z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 500, width: '120px' }}>{row.username}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.balance)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.points)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.deposit)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.withdrawal)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminDeposit)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminWithdrawal)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointGiven)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointRecovered)}</td>
+                        <td className="p-3 text-right" style={{ color: row.depositWithdrawalDiff < 0 ? '#D32F2F' : '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.depositWithdrawalDiff)}</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoRollingRate}%</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoLosingRate}%</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotRollingRate}%</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotLosingRate}%</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalBet)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWin)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWinLoss)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.ggr)}</td>
+                        <td className="p-3 text-right" style={{ color: '#2E7D32', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.casinoIndividualRolling)}</td>
+                        <td className="p-3 text-right" style={{ color: '#2E7D32', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.slotIndividualRolling)}</td>
+                        <td className="p-3 text-right" style={{ color: '#1976D2', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalRolling)}</td>
+                        <td className="p-3 text-right" style={{ color: '#1976D2', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalLosing)}</td>
+                        <td className="p-3 text-right" style={{ color: '#1976D2', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.rollingAmount)}</td>
+                        <td className="p-3 text-right" style={{ color: '#1976D2', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.losingAmount)}</td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

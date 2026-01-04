@@ -177,18 +177,6 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
   // ✅ columns를 최대한 안정화 - dependencies를 syncingBalance와 t만으로 제한
   const columns = useMemo(() => [
     {
-      key: 'checkbox',
-      header: '',  // 나중에 동적으로 추가
-      render: (_: any, row: OnlineSession) => (
-        <SessionCheckbox
-          rowId={row.id}
-          isSelected={selectedSessions.has(row.id)}
-          isDisabled={row.status !== 'active'}
-          onToggle={toggleSessionSelection}
-        />
-      ),
-    },
-    {
       key: 'status',
       header: '상태',
       render: (value: string) => {
@@ -316,26 +304,6 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       ),
     },
   ], [syncingBalance, t, toggleSessionSelection, selectedSessions]); // ✅ dependencies를 syncingBalance와 t만으로 최소화
-
-  // ✅ 전체 선택 체크박스 상태를 별도로 계산 (columns 재생성 방지)
-  const isAllSelected = selectedSessions.size === sessions.length && sessions.length > 0;
-
-  // ✅ checkbox column의 header를 동적으로 추가
-  const columnsWithCheckboxHeader = useMemo(() => {
-    const updatedColumns = [...columns];
-    updatedColumns[0] = {
-      ...updatedColumns[0],
-      header: (
-        <input
-          type="checkbox"
-          checked={isAllSelected}
-          onChange={toggleAllSessions}
-          className="w-6 h-6 rounded border-slate-600 bg-slate-700 text-purple-500 focus:ring-purple-500 focus:ring-offset-slate-900"
-        />
-      ),
-    };
-    return updatedColumns;
-  }, [columns, isAllSelected, toggleAllSessions]);
 
   // 온라인 세션 로드
   const loadSessions = async (isManualRefresh = false) => {
@@ -919,7 +887,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
 
       <DataTableLarge
         data={sessions}
-        columns={columnsWithCheckboxHeader}
+        columns={columns}
         loading={loading}
         emptyMessage={t.onlineUsers.noOnlineUsers}
       />

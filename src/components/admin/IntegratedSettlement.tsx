@@ -96,7 +96,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   });
   const [dateFilterType, setDateFilterType] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom'>('today');
   const [codeSearch, setCodeSearch] = useState("");
-  const [showCumulative, setShowCumulative] = useState(false);
+  const [showCumulative, setShowCumulative] = useState(false); // 기본값: 오늘 기준 정산
   const [data, setData] = useState<SettlementRow[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandAll, setExpandAll] = useState(false);
@@ -122,7 +122,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
   useEffect(() => {
     fetchSettlementData();
-  }, [dateRange]);
+  }, [dateRange, showCumulative]);
 
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows);
@@ -163,6 +163,18 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     
     setLoading(true);
     try {
+      console.log('🔍 [통합정산] 데이터 조회 시작', {
+        dateRange: {
+          from: dateRange.from.toISOString(),
+          to: dateRange.to.toISOString()
+        },
+        user: {
+          id: user.id,
+          username: user.username,
+          level: user.level
+        }
+      });
+
       // ✅ 계층 구조에 따른 허용된 파트너 ID 목록 생성
       let allowedPartnerIds: string[] = [];
       
@@ -173,6 +185,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
           .select('id')
           .gte('level', 2); // lv2(운영사) 이상만
         allowedPartnerIds = allPartners?.map(p => p.id) || [];
+        console.log('✅ [Lv1 관리자] 모든 파트너 조회:', allowedPartnerIds.length, '개');
       } else {
         // 레벨 2 이상: 자기 자신 + 모든 하위 파트너
         allowedPartnerIds = [user.id];
@@ -184,6 +197,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         if (hierarchicalPartners) {
           allowedPartnerIds.push(...hierarchicalPartners.map((p: any) => p.id));
         }
+        console.log('✅ [Lv' + user.level + ' 파트너] 하위 파트너 조회:', allowedPartnerIds.length, '개');
       }
 
       const { data: partners, error: partnersError } = await supabase
@@ -194,49 +208,116 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         .order('username', { ascending: true });
 
       if (partnersError) throw partnersError;
+      console.log('✅ 파트너 데이터:', partners?.length || 0, '개');
 
       // ✅ 현재 로그인 사용자만 제외
       const filteredPartners = (partners || []).filter(p => p.id !== user.id);
+      console.log('✅ 필터링 후 파트너:', filteredPartners.length, '개');
 
       const { data: users, error: usersError } = await supabase
         .from('users')
-        .select('id, username, balance, points, referrer_id, casino_rolling_commission, casino_losing_commission, slot_rolling_commission, slot_losing_commission')
+        .select('*')
         .in('referrer_id', allowedPartnerIds)
         .order('username', { ascending: true });
 
       if (usersError) throw usersError;
+      console.log('✅ 회원 데이터:', users?.length || 0, '개');
+      
+      // 첫 번째 회원의 롤링/루징 데이터 확인
+      if (users && users.length > 0) {
+        console.log('📋 첫 번째 회원 롤링/루징 데이터:', {
+          username: users[0].username,
+          casino_rolling_commission: users[0].casino_rolling_commission,
+          casino_losing_commission: users[0].casino_losing_commission,
+          slot_rolling_commission: users[0].slot_rolling_commission,
+          slot_losing_commission: users[0].slot_losing_commission
+        });
+      }
 
-      const { data: transactions, error: transError } = await supabase
-        .from('transactions')
-        .select('*')
-        .gte('created_at', dateRange.from.toISOString())
-        .lte('created_at', dateRange.to.toISOString());
+      // 거래 데이터 조회 (누적 정산 모드면 날짜 필터 제거)
+      const targetUserIds = users?.map(u => u.id) || [];
+      console.log('🎯 조직격리 적용 - 대상 회원 ID:', targetUserIds.length, '명');
+      
+      let transactionsQuery = supabase.from('transactions').select('*').in('user_id', targetUserIds);
+      if (!showCumulative) {
+        console.log('📅 날짜 필터 적용:', {
+          showCumulative,
+          from: dateRange.from.toISOString(),
+          to: dateRange.to.toISOString()
+        });
+        transactionsQuery = transactionsQuery
+          .gte('created_at', dateRange.from.toISOString())
+          .lte('created_at', dateRange.to.toISOString());
+      } else {
+        console.log('📅 누적 정산 모드: 날짜 필터 없음');
+      }
+      const { data: transactions, error: transError } = await transactionsQuery;
 
       if (transError) throw transError;
+      console.log('✅ 거래 데이터:', transactions?.length || 0, '개', showCumulative ? '(누적)' : '(기간)');
+      
+      // admin_deposit 타입의 거래만 필터링해서 확인
+      const adminDeposits = transactions?.filter(t => t.transaction_type === 'admin_deposit' && t.status === 'completed') || [];
+      console.log('💰 관리자 입금 거래:', {
+        count: adminDeposits.length,
+        total: adminDeposits.reduce((sum, t) => sum + (t.amount || 0), 0),
+        transactions: adminDeposits.map(t => ({
+          amount: t.amount,
+          created_at: t.created_at,
+          user_id: t.user_id
+        }))
+      });
 
-      const { data: pointTransactions, error: pointError } = await supabase
-        .from('point_transactions')
-        .select('*')
-        .gte('created_at', dateRange.from.toISOString())
-        .lte('created_at', dateRange.to.toISOString());
+      // 포인트 거래 데이터 조회
+      let pointTransactionsQuery = supabase.from('point_transactions').select('*').in('user_id', targetUserIds);
+      if (!showCumulative) {
+        pointTransactionsQuery = pointTransactionsQuery
+          .gte('created_at', dateRange.from.toISOString())
+          .lte('created_at', dateRange.to.toISOString());
+      }
+      const { data: pointTransactions, error: pointError } = await pointTransactionsQuery;
 
       if (pointError) throw pointError;
+      console.log('✅ 포인트 거래:', pointTransactions?.length || 0, '개', showCumulative ? '(누적)' : '(기간)');
 
-      const { data: gameRecords, error: gameError } = await supabase
-        .from('game_records')
-        .select('*')
-        .gte('created_at', dateRange.from.toISOString())
-        .lte('created_at', dateRange.to.toISOString());
+      // 게임 기록 조회 (game_records는 played_at 컬럼 사용!)
+      let gameRecordsQuery = supabase.from('game_records').select('*').in('user_id', targetUserIds);
+      if (!showCumulative) {
+        gameRecordsQuery = gameRecordsQuery
+          .gte('played_at', dateRange.from.toISOString())
+          .lte('played_at', dateRange.to.toISOString());
+      }
+      const { data: gameRecords, error: gameError } = await gameRecordsQuery;
 
       if (gameError) throw gameError;
+      console.log('✅ 게임 기록:', gameRecords?.length || 0, '개', showCumulative ? '(누적)' : '(기간)');
+      
+      // 게임 기록 샘플 확인
+      if (gameRecords && gameRecords.length > 0) {
+        const sampleRecord = gameRecords[0];
+        console.log('📋 게임 기록 샘플:', {
+          user_id: sampleRecord.user_id,
+          game_type: sampleRecord.game_type,
+          bet_amount: sampleRecord.bet_amount,
+          win_amount: sampleRecord.win_amount,
+          created_at: sampleRecord.created_at
+        });
+        
+        // game_type별 통계
+        const casinoCount = gameRecords.filter(gr => gr.game_type === 'casino').length;
+        const slotCount = gameRecords.filter(gr => gr.game_type === 'slot').length;
+        const nullCount = gameRecords.filter(gr => !gr.game_type).length;
+        console.log('📊 game_type 분포:', { casino: casinoCount, slot: slotCount, null: nullCount });
+      }
 
       const rows = await processSettlementData(filteredPartners || [], users || [], transactions || [], pointTransactions || [], gameRecords || []);
       
+      console.log('✅ 정산 데이터 처리 완료:', rows.length, '개');
       setData(rows);
       calculateSummary(rows);
 
     } catch (error) {
-      console.error('정산 데이터 조회 실패:', error);
+      console.error('❌ 정산 데이터 조회 실패:', error);
       toast.error('정산 데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
@@ -253,6 +334,20 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     const rows: SettlementRow[] = [];
 
     for (const partner of partners) {
+      // 첫 번째 파트너 데이터로 필드명 확인
+      if (partners.indexOf(partner) === 0) {
+        console.log('🔍 첫 번째 파트너 데이터 샘플:', {
+          username: partner.username,
+          level: partner.level,
+          rollingFields: {
+            casino_rolling_commission: partner.casino_rolling_commission,
+            casino_losing_commission: partner.casino_losing_commission,
+            slot_rolling_commission: partner.slot_rolling_commission,
+            slot_losing_commission: partner.slot_losing_commission
+          }
+        });
+      }
+
       const hasChildren = partners.some(p => p.parent_id === partner.id) || 
                          users.some(u => u.referrer_id === partner.id);
       
@@ -280,16 +375,29 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     }
 
     for (const user of users) {
+      // 첫 번째 사용자 데이터로 필드명 확인
+      if (users.indexOf(user) === 0) {
+        console.log('🔍 첫 번째 사용자 데이터 샘플:', {
+          fields: Object.keys(user),
+          rollingFields: {
+            casino_rolling_commission: user.casino_rolling_commission,
+            casino_rolling_rate: user.casino_rolling_rate,
+            slot_rolling_commission: user.slot_rolling_commission,
+            slot_rolling_rate: user.slot_rolling_rate
+          }
+        });
+      }
+
       const row = await calculateRowData(
         user.id,
         user.username,
         0,
         user.balance || 0,
         user.points || 0,
-        user.casino_rolling_commission || 0,
-        user.casino_losing_commission || 0,
-        user.slot_rolling_commission || 0,
-        user.slot_losing_commission || 0,
+        user.casino_rolling_commission || user.casino_rolling_rate || 0,
+        user.casino_losing_commission || user.casino_losing_rate || 0,
+        user.slot_rolling_commission || user.slot_rolling_rate || 0,
+        user.slot_losing_commission || user.slot_losing_rate || 0,
         transactions,
         pointTransactions,
         gameRecords,
@@ -340,29 +448,46 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   ): Promise<SettlementRow> => {
     const isPartner = level > 0;
 
-    const userTransactions = transactions.filter(t => 
-      isPartner ? t.partner_id === entityId : t.user_id === entityId
-    );
+    console.log(`📊 [${username}] 정산 계산 시작`, {
+      level,
+      isPartner,
+      rates: {
+        casinoRolling: casinoRollingRate,
+        casinoLosing: casinoLosingRate,
+        slotRolling: slotRollingRate,
+        slotLosing: slotLosingRate
+      }
+    });
+
+    // 거래 데이터 필터링 - 파트너/회원 모두 본인 거래만!
+    const userTransactions = transactions.filter(t => t.user_id === entityId);
 
     const deposit = userTransactions
-      .filter(t => t.transaction_type === 'deposit' && t.status === 'approved')
+      .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const withdrawal = userTransactions
-      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'approved')
+      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const adminDeposit = userTransactions
-      .filter(t => t.transaction_type === 'admin_deposit' && t.status === 'approved')
+      .filter(t => t.transaction_type === 'admin_deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const adminWithdrawal = userTransactions
-      .filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'approved')
+      .filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    const userPointTrans = pointTransactions.filter(pt =>
-      isPartner ? pt.partner_id === entityId : pt.user_id === entityId
-    );
+    console.log(`  💰 [${username}] 거래 집계:`, {
+      transactions: userTransactions.length,
+      deposit,
+      withdrawal,
+      adminDeposit,
+      adminWithdrawal
+    });
+
+    // 포인트 거래 데이터 필터링 - 본인 거래만!
+    const userPointTrans = pointTransactions.filter(pt => pt.user_id === entityId);
 
     const pointGiven = userPointTrans
       .filter(pt => pt.type === 'commission_earned')
@@ -372,21 +497,19 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       .filter(pt => pt.type === 'point_to_balance')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
-    let userGameRecords: any[];
-    
-    if (isPartner) {
-      const descendantUserIds = getDescendantUserIds(entityId, users);
-      const descendantPartnerIds = getDescendantPartnerIds(entityId, partners);
-      
-      userGameRecords = gameRecords.filter(gr => descendantUserIds.includes(gr.user_id));
-      
-      for (const childPartnerId of descendantPartnerIds) {
-        const childUserIds = getDescendantUserIds(childPartnerId, users);
-        const childRecords = gameRecords.filter(gr => childUserIds.includes(gr.user_id));
-        userGameRecords = userGameRecords.concat(childRecords);
-      }
-    } else {
-      userGameRecords = gameRecords.filter(gr => gr.user_id === entityId);
+    // 게임 기록 필터링 - 본인 기록만!
+    const userGameRecords = gameRecords.filter(gr => gr.user_id === entityId);
+
+    // 게임 기록 샘플 로그
+    if (userGameRecords.length > 0 && userGameRecords.length <= 5) {
+      console.log(`  🎮 [${username}] 게임 기록 샘플 (${userGameRecords.length}개):`, 
+        userGameRecords.map(gr => ({
+          game_type: gr.game_type,
+          bet_amount: gr.bet_amount,
+          win_amount: gr.win_amount,
+          created_at: gr.created_at
+        }))
+      );
     }
 
     const casinoBet = userGameRecords
@@ -412,6 +535,18 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     const casinoTotalRolling = casinoBet * (casinoRollingRate / 100);
     const slotTotalRolling = slotBet * (slotRollingRate / 100);
 
+    console.log(`  💰 [${username}] 게임 데이터`, {
+      gameRecordsCount: userGameRecords.length,
+      casino: { bet: casinoBet, win: casinoWin, winLoss: casinoWinLoss },
+      slot: { bet: slotBet, win: slotWin, winLoss: slotWinLoss },
+      totalWinLoss,
+      rolling: {
+        casinoTotal: casinoTotalRolling,
+        slotTotal: slotTotalRolling,
+        total: casinoTotalRolling + slotTotalRolling
+      }
+    });
+
     const childrenRolling = await getChildrenTotalRolling(entityId, level, gameRecords, partners, users);
 
     const casinoIndividualRolling = Math.max(0, casinoTotalRolling - childrenRolling.casino);
@@ -431,6 +566,19 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     const slotIndividualLosing = Math.max(0, slotTotalLosing - childrenLosing.slot);
     const totalIndividualLosing = casinoIndividualLosing + slotIndividualLosing;
     const totalLosing = casinoTotalLosing + slotTotalLosing;
+
+    console.log(`  🎯 [${username}] 롤링/루징 계산 완료`, {
+      individualRolling: {
+        casino: casinoIndividualRolling,
+        slot: slotIndividualRolling,
+        total: totalIndividualRolling
+      },
+      individualLosing: {
+        casino: casinoIndividualLosing,
+        slot: slotIndividualLosing,
+        total: totalIndividualLosing
+      }
+    });
 
     // 정산수익 = 윈로스 - 롤링금 (개별롤링 사용)
     const settlementProfit = totalWinLoss - totalIndividualRolling;
@@ -711,8 +859,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
   const formatNumber = (num: number): string => {
     return new Intl.NumberFormat('ko-KR', {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(num);
   };
 
@@ -727,7 +875,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
           <div style={{ color: '#E65100', fontSize: '13px', lineHeight: '1.7' }}>
             <p>• 통합 정산 실시간 양식은 자정 이후 입금 출금 내역에 대한 실시간 정산 데이터를 표기합니다.</p>
             <p>• 기간 검색 시 기간 검색 또는 코드 검색으로 나온 데이터의 총 합계 데이터를 표기합니다.</p>
-            <p>• 관리자 일자별 정산 내역은 영업 시작일부터 최대 두 달 일일 정산 데이터 값을 표기합니다.</p>
+            <p>• 사용자 입금/출금: 사용자가 직접 신청한 입출금 내역 (transaction_type: deposit/withdrawal)</p>
+            <p>• 관리자 입금/출금: 관리자가 직접 처리한 입출금 내역 (transaction_type: admin_deposit/admin_withdrawal)</p>
           </div>
         </div>
       </div>
@@ -737,22 +886,22 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         {/* 첫 번째 줄 */}
         <div className="flex" style={{ borderBottom: '1px solid #e0e0e0' }}>
           <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#FFF9E6', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>총입금</p>
+            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>사용자 입금</p>
             <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.totalDeposit)}</p>
           </div>
           
           <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#FFF9E6', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>총출금</p>
+            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>사용자 출금</p>
             <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.totalWithdrawal)}</p>
           </div>
 
           <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#FFF9E6', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>관리자 총입금</p>
+            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>관리자 입금</p>
             <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.adminTotalDeposit)}</p>
           </div>
 
           <div className="flex-1 p-4 transition-all hover:brightness-95" style={{ backgroundColor: '#FFF9E6', borderRight: '1px solid #e0e0e0' }}>
-            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>관리자 총출금</p>
+            <p style={{ fontSize: '12px', color: '#F57F17', fontWeight: 600, marginBottom: '8px' }}>관리자 출금</p>
             <p style={{ fontSize: '32px', fontWeight: 700, color: '#000000', lineHeight: 1 }}>{formatNumber(summary.adminTotalWithdrawal)}</p>
           </div>
 
@@ -1108,55 +1257,63 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                 </tr>
               </thead>
               <tbody>
-                {visibleRows.map((row, idx) => {
-                  const bgColor = getRowBackgroundColor(row.level);
-                  return (
-                    <tr 
-                      key={row.id} 
-                      style={{
-                        backgroundColor: bgColor,
-                        borderBottom: '1px solid #E0E0E0',
-                        cursor: row.hasChildren ? 'pointer' : 'default'
-                      }}
-                      onClick={() => row.hasChildren && toggleRow(row.id)}
-                    >
-                      <td className="p-3 sticky left-0 z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 600, width: '80px', whiteSpace: 'nowrap' }}>
-                        <div className="flex items-center justify-center gap-1">
-                          {row.hasChildren && row.level > 0 && (
-                            expandedRows.has(row.id) ? 
-                              <ChevronDown className="size-4" /> : 
-                              <ChevronRight className="size-4" />
-                          )}
-                          {row.levelName}
-                        </div>
-                      </td>
-                      <td className="p-3 sticky left-[80px] z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 500, width: '120px' }}>{row.username}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.balance)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.points)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.deposit)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.withdrawal)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminDeposit)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminWithdrawal)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointGiven)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointRecovered)}</td>
-                      <td className="p-3 text-right" style={{ color: row.depositWithdrawalDiff < 0 ? '#D32F2F' : '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.depositWithdrawalDiff)}</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoRollingRate}%</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoLosingRate}%</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotRollingRate}%</td>
-                      <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotLosingRate}%</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalBet)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWin)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWinLoss)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.ggr)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.casinoIndividualRolling)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.slotIndividualRolling)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalRolling)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalLosing)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalIndividualRolling)}</td>
-                      <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalIndividualLosing)}</td>
-                    </tr>
-                  );
-                })}
+                {visibleRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={25} className="p-8 text-center" style={{ color: '#757575', fontSize: '14px' }}>
+                      데이터가 없습니다.
+                    </td>
+                  </tr>
+                ) : (
+                  visibleRows.map((row, idx) => {
+                    const bgColor = getRowBackgroundColor(row.level);
+                    return (
+                      <tr 
+                        key={row.id} 
+                        style={{
+                          backgroundColor: bgColor,
+                          borderBottom: '1px solid #E0E0E0',
+                          cursor: row.hasChildren ? 'pointer' : 'default'
+                        }}
+                        onClick={() => row.hasChildren && toggleRow(row.id)}
+                      >
+                        <td className="p-3 sticky left-0 z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 600, width: '80px', whiteSpace: 'nowrap' }}>
+                          <div className="flex items-center justify-center gap-1">
+                            {row.hasChildren && row.level > 0 && (
+                              expandedRows.has(row.id) ? 
+                                <ChevronDown className="size-4" /> : 
+                                <ChevronRight className="size-4" />
+                            )}
+                            {row.levelName}
+                          </div>
+                        </td>
+                        <td className="p-3 sticky left-[80px] z-10" style={{ backgroundColor: bgColor, color: '#212121', fontSize: '13px', fontWeight: 500, width: '120px' }}>{row.username}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.balance)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.points)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.deposit)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.withdrawal)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminDeposit)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.adminWithdrawal)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointGiven)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.pointRecovered)}</td>
+                        <td className="p-3 text-right" style={{ color: row.depositWithdrawalDiff < 0 ? '#D32F2F' : '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.depositWithdrawalDiff)}</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoRollingRate}%</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.casinoLosingRate}%</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotRollingRate}%</td>
+                        <td className="p-3 text-center" style={{ color: '#424242', fontSize: '12px' }}>{row.slotLosingRate}%</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalBet)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWin)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalWinLoss)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.ggr)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.casinoIndividualRolling)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.slotIndividualRolling)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalRolling)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px' }}>{formatNumber(row.totalLosing)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalIndividualRolling)}</td>
+                        <td className="p-3 text-right" style={{ color: '#424242', fontSize: '13px', fontWeight: 600 }}>{formatNumber(row.totalIndividualLosing)}</td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
