@@ -560,6 +560,114 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
+    // ⭐ Asia Gaming 카드 클릭 시 로비 게임(id: 2290046) 바로 실행
+    if (providerName.includes('asia') || providerNameKo.includes('아시아')) {
+      console.log('🎰 [Asia Gaming] game_id=2290046 직접 실행');
+      setIsProcessing(true);
+      
+      try {
+        const asiaLobbyGame: Game = {
+          id: '2290046',
+          name: 'lobby',
+          name_ko: 'lobby',
+          game_code: 'lobby',
+          provider_id: 0,
+          api_type: 'honor',
+          vendor_code: 'casino-ag'
+        };
+        
+        await handleGameClick(asiaLobbyGame);
+      } catch (error) {
+        console.error('Asia Gaming 로비 실행 오류:', error);
+        toast.error('Asia Gaming 게임 실행에 실패했습니다.');
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // ⭐ Ezugi 카드 클릭 시 로비 게임(id: 5185843) 바로 실행
+    if (providerName.includes('ezugi') || providerNameKo.includes('이주기')) {
+      console.log('🎰 [Ezugi] game_id=5185843 직접 실행');
+      setIsProcessing(true);
+      
+      try {
+        const ezugiLobbyGame: Game = {
+          id: '5185843',
+          name: 'Ezugi',
+          name_ko: 'Ezugi',
+          game_code: 'Ezugi',
+          provider_id: 0,
+          api_type: 'honor',
+          vendor_code: 'ezugi'
+        };
+        
+        await handleGameClick(ezugiLobbyGame);
+      } catch (error) {
+        console.error('Ezugi 로비 실행 오류:', error);
+        toast.error('Ezugi 게임 실행에 실패했습니다.');
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // ⭐ Skywind Live 카드 클릭 시 로비 게임 바로 실행
+    if (providerName.includes('skywind') || providerNameKo.includes('스카이윈드')) {
+      console.log('🎰 [Skywind Live] 로비 게임 직접 실행');
+      setIsProcessing(true);
+      
+      try {
+        // 🔍 DB에서 Skywind Live 카지노 게임 조회
+        const { data: skywindGames, error: skywindError } = await supabase
+          .from('honor_games')
+          .select('id, name, name_ko, game_code, vendor_code, api_type')
+          .ilike('vendor_code', '%skywind%')
+          .eq('type', 'casino')
+          .eq('is_visible', true)
+          .limit(10);
+
+        if (skywindError || !skywindGames || skywindGames.length === 0) {
+          console.error('❌ [Skywind Live] DB에서 게임을 찾을 수 없습니다:', skywindError);
+          toast.error('Skywind Live 게임을 찾을 수 없습니다.');
+          setIsProcessing(false);
+          return;
+        }
+
+        console.log('✅ [Skywind Live] 조회된 게임:', skywindGames);
+
+        // 로비 게임 찾기 (이름에 'lobby' 포함)
+        let skywindGame = skywindGames.find(g => 
+          g.name?.toLowerCase().includes('lobby') || 
+          g.name_ko?.toLowerCase().includes('로비')
+        );
+
+        // 로비가 없으면 첫 번째 게임 사용
+        if (!skywindGame) {
+          skywindGame = skywindGames[0];
+          console.log('⚠️ [Skywind Live] 로비 게임이 없어 첫 번째 게임 사용:', skywindGame.name);
+        }
+
+        const skywindLiveGame: Game = {
+          id: skywindGame.id,
+          name: skywindGame.name,
+          name_ko: skywindGame.name_ko || skywindGame.name,
+          game_code: skywindGame.game_code,
+          provider_id: 0,
+          api_type: skywindGame.api_type || 'honor',
+          vendor_code: skywindGame.vendor_code
+        };
+        
+        await handleGameClick(skywindLiveGame);
+      } catch (error) {
+        console.error('Skywind Live 로비 실행 오류:', error);
+        toast.error('Skywind Live 게임 실행에 실패했습니다.');
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
     // ⭐ 다른 모든 게임사는 게임 목록으로 이동하지 않고 토스트 메시지만 표시
     console.log(`⚠️ [${provider.name_ko || provider.name}] 로비 게임이 등록되지 않았습니다.`);
     toast.error('해당 게임사는 준비 중입니다.');

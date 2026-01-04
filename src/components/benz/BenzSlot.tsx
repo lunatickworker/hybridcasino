@@ -364,6 +364,35 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       return;
     }
 
+    // ⭐ Skywind 슬롯 카드 클릭 시 로비 게임 바로 실행
+    const providerName = (provider.name || '').toLowerCase();
+    const providerNameKo = (provider.name_ko || '').toLowerCase();
+    
+    if (providerName.includes('skywind') || providerNameKo.includes('스카이윈드')) {
+      console.log('🎰 [Skywind] 로비 게임 직접 실행');
+      setIsProcessing(true);
+      
+      try {
+        const skywindLobbyGame: Game = {
+          id: '9999999', // ⚠️ 실제 DB에서 확인 필요
+          name: 'lobby',
+          name_ko: 'lobby',
+          game_code: 'lobby',
+          provider_id: 0,
+          api_type: 'honor',
+          vendor_code: 'slot-skywind'
+        };
+        
+        await handleGameClick(skywindLobbyGame);
+      } catch (error) {
+        console.error('Skywind 로비 실행 오류:', error);
+        toast.error('Skywind 게임 실행에 실패했습니다.');
+      } finally {
+        setIsProcessing(false);
+      }
+      return;
+    }
+
     setSelectedProvider(provider);
     await loadGames(provider);
   };
