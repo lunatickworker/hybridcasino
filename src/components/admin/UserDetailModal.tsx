@@ -43,6 +43,13 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
   const [pointConversionPassword, setPointConversionPassword] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'security'>('info');
+  
+  // ✅ 커미션 요율 state
+  const [casinoRollingRate, setCasinoRollingRate] = useState('');
+  const [casinoLosingRate, setCasinoLosingRate] = useState('');
+  const [slotRollingRate, setSlotRollingRate] = useState('');
+  const [slotLosingRate, setSlotLosingRate] = useState('');
+  const [isUpdatingCommission, setIsUpdatingCommission] = useState(false);
 
   // 모달이 닫힐 때 상태 초기화
   useEffect(() => {
@@ -50,8 +57,18 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
       setWithdrawalPassword('');
       setPointConversionPassword('');
       setActiveTab('info');
+      setCasinoRollingRate('');
+      setCasinoLosingRate('');
+      setSlotRollingRate('');
+      setSlotLosingRate('');
+    } else if (user) {
+      // 모달이 열릴 때 현재 요율 값 로드
+      setCasinoRollingRate(String(user.casino_rolling_commission || 0));
+      setCasinoLosingRate(String(user.casino_losing_commission || 0));
+      setSlotRollingRate(String(user.slot_rolling_commission || 0));
+      setSlotLosingRate(String(user.slot_losing_commission || 0));
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   if (!user) return null;
 
@@ -130,6 +147,41 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
       toast.error(error.message || '포인트전환 비밀번호 설정에 실패했습니다.');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  // 커미션 요율 업데이트
+  const handleUpdateCommissionRates = async () => {
+    if (!casinoRollingRate.trim() || !casinoLosingRate.trim() || !slotRollingRate.trim() || !slotLosingRate.trim()) {
+      toast.error('모든 커미션 요율을 입력해주세요.');
+      return;
+    }
+
+    if (!/^\d+(\.\d+)?$/.test(casinoRollingRate.trim()) || !/^\d+(\.\d+)?$/.test(casinoLosingRate.trim()) || !/^\d+(\.\d+)?$/.test(slotRollingRate.trim()) || !/^\d+(\.\d+)?$/.test(slotLosingRate.trim())) {
+      toast.error('커미션 요율은 숫자로 입력해주세요.');
+      return;
+    }
+
+    setIsUpdatingCommission(true);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          casino_rolling_commission: parseFloat(casinoRollingRate.trim()),
+          casino_losing_commission: parseFloat(casinoLosingRate.trim()),
+          slot_rolling_commission: parseFloat(slotRollingRate.trim()),
+          slot_losing_commission: parseFloat(slotLosingRate.trim())
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      toast.success('커미션 요율이 성공적으로 설정되었습니다.');
+    } catch (error: any) {
+      console.error('커미션 요율 설정 오류:', error);
+      toast.error(error.message || '커미션 요율 설정에 실패했습니다.');
+    } finally {
+      setIsUpdatingCommission(false);
     }
   };
 
@@ -592,6 +644,131 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                       )}
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* 커미션 요율 설정 */}
+              <div className="p-6 rounded-lg space-y-4" style={{
+                background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                border: '2px solid rgba(193, 154, 107, 0.3)',
+                boxShadow: '0 8px 32px rgba(193, 154, 107, 0.1)'
+              }}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-3 rounded-lg" style={{
+                    background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                  }}>
+                    <Shield className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold" style={{ color: '#E6C9A8' }}>
+                      커미션 요율 설정
+                    </h4>
+                    <p className="text-sm text-gray-400">
+                      각 게임의 커미션 요율을 설정합니다
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  <Label className="text-gray-300 flex items-center gap-2">
+                    <Key className="w-4 h-4" />
+                    카지노 롤링 커미션 요율 (%)
+                  </Label>
+                  <div className="flex gap-3">
+                    <Input
+                      type="text"
+                      placeholder="예: 1.5"
+                      value={casinoRollingRate}
+                      onChange={(e) => setCasinoRollingRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                      className="flex-1 h-12 text-lg text-white"
+                      style={{
+                        background: 'rgba(20, 20, 35, 0.8)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-gray-300 flex items-center gap-2">
+                    <Key className="w-4 h-4" />
+                    카지노 패배 커미션 요율 (%)
+                  </Label>
+                  <div className="flex gap-3">
+                    <Input
+                      type="text"
+                      placeholder="예: 1.5"
+                      value={casinoLosingRate}
+                      onChange={(e) => setCasinoLosingRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                      className="flex-1 h-12 text-lg text-white"
+                      style={{
+                        background: 'rgba(20, 20, 35, 0.8)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-gray-300 flex items-center gap-2">
+                    <Key className="w-4 h-4" />
+                    슬롯 롤링 커미션 요율 (%)
+                  </Label>
+                  <div className="flex gap-3">
+                    <Input
+                      type="text"
+                      placeholder="예: 1.5"
+                      value={slotRollingRate}
+                      onChange={(e) => setSlotRollingRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                      className="flex-1 h-12 text-lg text-white"
+                      style={{
+                        background: 'rgba(20, 20, 35, 0.8)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <Label className="text-gray-300 flex items-center gap-2">
+                    <Key className="w-4 h-4" />
+                    슬롯 패배 커미션 요율 (%)
+                  </Label>
+                  <div className="flex gap-3">
+                    <Input
+                      type="text"
+                      placeholder="예: 1.5"
+                      value={slotLosingRate}
+                      onChange={(e) => setSlotLosingRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                      className="flex-1 h-12 text-lg text-white"
+                      style={{
+                        background: 'rgba(20, 20, 35, 0.8)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <Button
+                    onClick={handleUpdateCommissionRates}
+                    disabled={isUpdatingCommission}
+                    className="h-12 px-6 font-semibold"
+                    style={{
+                      background: isUpdatingCommission 
+                        ? 'rgba(100, 100, 100, 0.5)' 
+                        : 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                      border: '1px solid rgba(193, 154, 107, 0.3)'
+                    }}
+                  >
+                    {isUpdatingCommission ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        설정 중...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        설정
+                      </>
+                    )}
+                  </Button>
                 </div>
               </div>
             </>

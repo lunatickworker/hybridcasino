@@ -409,7 +409,8 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
           amount: points,
           points_before: currentPoints,
           points_after: currentPoints - points,
-          memo: '포인트를 잔고로 전환'
+          memo: '포인트를 잔고로 전환',
+          created_at: new Date().toISOString()
         }]);
 
       // 잔고 거래 기록

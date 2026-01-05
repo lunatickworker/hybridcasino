@@ -89,6 +89,24 @@ export function PartnerTransactions() {
         .order('created_at', { ascending: sortOrder === 'oldest' })
         .limit(1000);
 
+      console.log('🔍 [PartnerTransactions] 조회 결과:', {
+        count: logsData?.length || 0,
+        currentPartnerId: authState.user.level !== 1 ? authState.user.id : 'ALL',
+        userLevel: authState.user.level,
+        startDate,
+        endDate,
+        sample: logsData?.slice(0, 2).map(d => ({
+          id: d.id,
+          partner_id: d.partner_id,
+          from_partner_id: d.from_partner_id,
+          to_partner_id: d.to_partner_id,
+          transaction_type: d.transaction_type,
+          amount: d.amount,
+          created_at: d.created_at
+        })),
+        error
+      });
+
       if (error) {
         console.error('partner_balance_logs 조회 오류:', error);
         throw error;

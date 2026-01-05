@@ -182,11 +182,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       }
       
       // 포인트 거래 조회
+      // ⚠️ created_at이 null인 데이터가 있을 수 있어서 날짜 필터는 클라이언트에서 처리
       let pointTransactionQuery = supabase
         .from('point_transactions')
         .select('*')
-        .gte('created_at', dateRange.start)
-        .lte('created_at', dateRange.end)
         .order('created_at', { ascending: false });
         
       if (user.level > 1 && targetUserIds.length > 0) {
@@ -203,16 +202,28 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         userListQuery = userListQuery.in('referrer_id', partnerIds);
       }
       
-      // 파트너 거래 조회 (partner_balance_logs)
+      // 파트너 거래 조회 (partner_balance_logs) - deposit/withdrawal만
+      // ⚠️ created_at이 null인 데이터가 있어서 날짜 필터는 클라이언트에서 처리
       let partnerTransactionQuery = supabase
         .from('partner_balance_logs')
         .select('*')
-        .gte('created_at', dateRange.start)
-        .lte('created_at', dateRange.end)
+        .in('transaction_type', ['deposit', 'withdrawal'])
         .order('created_at', { ascending: false });
         
       if (user.level > 1) {
-        partnerTransactionQuery = partnerTransactionQuery.in('partner_id', partnerIds);
+        // ✅ partner_id, from_partner_id, to_partner_id 중 하나라도 매칭되면 조회
+        const currentPartnerId = user.id;
+        console.log('🔍 파트너 거래 쿼리 조건:', {
+          currentPartnerId,
+          userLevel: user.level,
+          dateRange
+        });
+        partnerTransactionQuery = partnerTransactionQuery.or(`partner_id.eq.${currentPartnerId},from_partner_id.eq.${currentPartnerId},to_partner_id.eq.${currentPartnerId}`);
+      } else {
+        console.log('🔍 파트너 거래 쿼리 ���건 (시스템관리자):', {
+          userLevel: user.level,
+          dateRange
+        });
       }
       
       const [transactionsResult, pointTransactionsResult, partnerTransactionsResult, usersResult] = await Promise.all([
@@ -226,6 +237,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       const pointTransactionsData = pointTransactionsResult.data || [];
       const partnerTransactionsData = partnerTransactionsResult.data || [];
       setUsers(usersResult.data || []);
+      
+      console.log('🔍 파트너 거래 조회 결과:', {
+        count: partnerTransactionsData.length,
+        sample: partnerTransactionsData.slice(0, 2),
+        error: partnerTransactionsResult.error
+      });
       
       // 포인트 거래 데이터 처리
       const pointUserIds = [...new Set(pointTransactionsData.map(t => t.user_id).filter(Boolean))];
@@ -392,8 +409,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     
     switch (filter) {
       case 'all':
-        // 전체: 2020년 1월 1일부터 현재까지
-        return { start: '2020-01-01T00:00:00.000Z', end: now.toISOString() };
+        // 전체: 1970년 1월 1일부터 현재까지
+        return { start: '1970-01-01T00:00:00.000Z', end: now.toISOString() };
       case 'today':
         return { start: today.toISOString(), end: now.toISOString() };
       case 'week':
@@ -720,7 +737,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             amount: -amount,
             transaction_type: 'deposit_to_user',
             processed_by: user.id,
-            memo: `회원 ${currentUserData?.username} 입금 승인 (처리자: ${user.username})`
+            memo: `회원 ${currentUserData?.username} 입금 승인 (처리자: ${user.username})`,
+            created_at: new Date().toISOString()
           });
 
         } else if (transaction.transaction_type === 'withdrawal') {
@@ -756,7 +774,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             amount: amount,
             transaction_type: 'withdrawal_from_user',
             processed_by: user.id,
-            memo: `회원 ${currentUserData?.username} 출금 승인 (처리자: ${user.username})`
+            memo: `회원 ${currentUserData?.username} 출금 승인 (처리자: ${user.username})`,
+            created_at: new Date().toISOString()
           });
         }
       }
@@ -1146,6 +1165,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
   // 전체입출금내역: 사용자 + 관리자 입출금 + 파트너 거래 + 포인트 거래 통합
   const completedTransactions = (() => {
+    const dateRange = getDateRange(periodFilter);
+    
     // 입출금 거래 필터링
     const filteredTransactions = transactions.filter(t => {
       const typeMatch = (() => {
@@ -1167,12 +1188,27 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       typeMatch;
     });
     
-    // 파트너 거래 필터링 (관리자 입금/출금에 포함)
+    // 파트너 거래 필터링
+    console.log('🔍 파트너 거래 필터링 시작:', {
+      transactionTypeFilter,
+      partnerTransactionsLength: partnerTransactions.length,
+      searchTerm,
+      sample: partnerTransactions.slice(0, 2)
+    });
+    
     const mappedPartnerTransactions = (transactionTypeFilter === 'all' || 
                                        transactionTypeFilter === 'admin_deposit' || 
-                                       transactionTypeFilter === 'admin_withdrawal')
+                                       transactionTypeFilter === 'admin_withdrawal' ||
+                                       transactionTypeFilter === 'partner_deposit' ||
+                                       transactionTypeFilter === 'partner_withdrawal')
       ? partnerTransactions
         .filter(pt => {
+          // 날짜 필터 (created_at이 null인 경우 포함)
+          const dateMatch = !pt.created_at || (
+            new Date(pt.created_at) >= new Date(dateRange.start) && 
+            new Date(pt.created_at) <= new Date(dateRange.end)
+          );
+          
           const searchMatch = searchTerm === '' || 
             pt.partner_nickname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             pt.from_partner_nickname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1187,10 +1223,16 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             if (transactionTypeFilter === 'admin_withdrawal') {
               return pt.transaction_type === 'withdrawal' || pt.amount < 0;
             }
+            if (transactionTypeFilter === 'partner_deposit') {
+              return pt.transaction_type === 'deposit' || pt.amount > 0;
+            }
+            if (transactionTypeFilter === 'partner_withdrawal') {
+              return pt.transaction_type === 'withdrawal' || pt.amount < 0;
+            }
             return false;
           })();
           
-          return searchMatch && typeMatch;
+          return dateMatch && searchMatch && typeMatch;
         })
         .map(pt => ({
           ...pt,
@@ -1209,6 +1251,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                                        transactionTypeFilter === 'point_recover')
       ? pointTransactions
         .filter(pt => {
+          // 날짜 필터 (created_at이 null인 경우 포함)
+          const dateMatch = !pt.created_at || (
+            new Date(pt.created_at) >= new Date(dateRange.start) && 
+            new Date(pt.created_at) <= new Date(dateRange.end)
+          );
+          
           const searchMatch = searchTerm === '' || 
             pt.user_nickname?.toLowerCase().includes(searchTerm.toLowerCase());
           
@@ -1227,7 +1275,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             return false;
           })();
           
-          return searchMatch && typeMatch;
+          return dateMatch && searchMatch && typeMatch;
         })
         .map(pt => ({
           ...pt,
@@ -1261,7 +1309,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       header: t.transactionManagement.transactionDate,
       cell: (row: any) => (
         <span className="text-base text-slate-300">
-          {new Date(row.created_at).toLocaleString('ko-KR')}
+          {row.created_at ? new Date(row.created_at).toLocaleString('ko-KR') : '날짜 없음'}
         </span>
       )
     },
@@ -1397,7 +1445,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             {formatCurrency(parseFloat(row.amount.toString()))}
           </span>
         );
-      }
+      },
+      className: "text-right"
     },
     {
       header: t.transactionManagement.balanceAfter,
@@ -1426,7 +1475,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             {formatCurrency(parseFloat(row.balance_after?.toString() || '0'))}
           </span>
         );
-      }
+      },
+      className: "text-right"
     },
     {
       header: t.transactionManagement.status,
@@ -1448,7 +1498,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             {row.memo || '-'}
           </span>
         </div>
-      )
+      ),
+      className: "text-left pl-8"
     },
     {
       header: t.transactionManagement.processor,

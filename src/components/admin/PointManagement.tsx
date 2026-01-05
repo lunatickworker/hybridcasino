@@ -291,7 +291,8 @@ export function PointManagement() {
             amount: amount,
             points_before: currentPoints,
             points_after: newPoints,
-            memo: memo || '관리자 포인트 지급 (Lv2)'
+            memo: memo || '관리자 포인트 지급 (Lv2)',
+            created_at: new Date().toISOString()
           }])
           .select()
           .single();
@@ -357,7 +358,8 @@ export function PointManagement() {
             amount: amount,
             points_before: currentPoints,
             points_after: newPoints,
-            memo: memo || '관리자 포인트 지급 (Lv3)'
+            memo: memo || '관리자 포인트 지급 (Lv3)',
+            created_at: new Date().toISOString()
           }])
           .select()
           .single();
@@ -434,7 +436,8 @@ export function PointManagement() {
             amount: amount,
             points_before: currentPoints,
             points_after: newPoints,
-            memo: memo || '관리자 포인트 지급'
+            memo: memo || '관리자 포인트 지급',
+            created_at: new Date().toISOString()
           }])
           .select()
           .single();
@@ -478,7 +481,8 @@ export function PointManagement() {
           amount: amount,
           points_before: currentPoints,
           points_after: newPoints,
-          memo: memo || '관리자 포인트 지급'
+          memo: memo || '관리자 포인트 지급',
+          created_at: new Date().toISOString()
         }])
         .select()
         .single();
@@ -599,7 +603,8 @@ export function PointManagement() {
             amount: -amount,
             points_before: currentPoints,
             points_after: newPoints,
-            memo: memo || '관리자 포인트 회수 (Lv2)'
+            memo: memo || '관리자 포인트 회수 (Lv2)',
+            created_at: new Date().toISOString()
           }])
           .select()
           .single();
@@ -661,7 +666,8 @@ export function PointManagement() {
             amount: -amount,
             points_before: currentPoints,
             points_after: newPoints,
-            memo: memo || '관리자 포인트 회수 (Lv3)'
+            memo: memo || '관리자 포인트 회수 (Lv3)',
+            created_at: new Date().toISOString()
           }])
           .select()
           .single();
@@ -732,7 +738,8 @@ export function PointManagement() {
             amount: -amount,
             points_before: currentPoints,
             points_after: newPoints,
-            memo: memo || '관리자 포인트 회수'
+            memo: memo || '관리자 포인트 회수',
+            created_at: new Date().toISOString()
           }])
           .select()
           .single();
@@ -974,7 +981,8 @@ export function PointManagement() {
           amount: amount,
           points_before: currentPoints,
           points_after: newPoints,
-          memo: memo || '관리자 포인트 회수'
+          memo: memo || '관리자 포인트 회수',
+          created_at: new Date().toISOString()
         }])
         .select()
         .single();
@@ -1068,7 +1076,8 @@ export function PointManagement() {
           amount: amount,
           points_before: currentPoints,
           points_after: newPoints,
-          memo: memo || '포인트 -> 보유금 전환'
+          memo: memo || '포인트 -> 보유금 전환',
+          created_at: new Date().toISOString()
         }])
         .select()
         .single();

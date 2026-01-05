@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, RefreshCw, Search, Info, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, AlertCircle } from "lucide-react";
+import { Calendar as CalendarIcon, RefreshCw, Search, Info, ChevronDown, ChevronRight, TrendingUp, TrendingDown, DollarSign, Wallet } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -50,23 +50,23 @@ interface SettlementRow {
   slotLosingRate: number;
   casinoTotalRolling: number;
   slotTotalRolling: number;
+  totalRolling: number;
   casinoChildrenRolling: number;
   slotChildrenRolling: number;
   casinoIndividualRolling: number;
   slotIndividualRolling: number;
   totalIndividualRolling: number;
-  totalRolling: number;
   casinoTotalLosing: number;
   slotTotalLosing: number;
+  totalLosing: number;
   casinoChildrenLosing: number;
   slotChildrenLosing: number;
   casinoIndividualLosing: number;
   slotIndividualLosing: number;
   totalIndividualLosing: number;
-  totalLosing: number;
   totalSettlement: number;
-  settlementProfit: number; // 정산수익 추가
-  actualSettlementProfit: number; // 실정산수익 추가
+  settlementProfit: number;
+  actualSettlementProfit: number;
   parentId?: string;
   referrerId?: string;
   hasChildren?: boolean;
@@ -86,7 +86,6 @@ interface SummaryStats {
   slotWin: number;
   totalBet: number;
   totalWin: number;
-  totalWinLoss: number;
   totalRolling: number;
   totalSettlementProfit: number;
   totalActualSettlementProfit: number; // 실정산수익 추가
@@ -121,7 +120,6 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     slotWin: 0,
     totalBet: 0,
     totalWin: 0,
-    totalWinLoss: 0,
     totalRolling: 0,
     totalSettlementProfit: 0,
     totalActualSettlementProfit: 0, // 실정산수익 추가
@@ -511,8 +509,18 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       }
     });
 
-    // 거래 데이터 필터링 - 파트너/회원 모두 본인 거래만!
-    const userTransactions = transactions.filter(t => t.user_id === entityId);
+    // ✅ 거래 데이터 필터링 - 파트너는 소속 회원, 회원은 본인!
+    let relevantUserIdsForTransactions: string[];
+    if (isPartner) {
+      // 파트너: 전체 하위 조직의 회원 ID (파트너 본인 제외)
+      relevantUserIdsForTransactions = getAllDescendantUserIds(entityId, partners, users);
+      console.log(`  🎯 [${username}] 파트너 - 소속 회원 ${relevantUserIdsForTransactions.length}명의 거래 집계`);
+    } else {
+      // 회원: 본인만
+      relevantUserIdsForTransactions = [entityId];
+    }
+
+    const userTransactions = transactions.filter(t => relevantUserIdsForTransactions.includes(t.user_id));
 
     const deposit = userTransactions
       .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
@@ -531,6 +539,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     console.log(`  💰 [${username}] 거래 집계:`, {
+      relevantUsers: relevantUserIdsForTransactions.length,
       transactions: userTransactions.length,
       deposit,
       withdrawal,
@@ -538,8 +547,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       adminWithdrawal
     });
 
-    // 포인트 거래 데이터 필터링 - 본인 거래만!
-    const userPointTrans = pointTransactions.filter(pt => pt.user_id === entityId);
+    // ✅ 포인트 거래 데이터 필터링 - 파트너는 소속 회원, 회원은 본인!
+    const userPointTrans = pointTransactions.filter(pt => relevantUserIdsForTransactions.includes(pt.user_id));
 
     const pointGiven = userPointTrans
       .filter(pt => pt.type === 'commission_earned')
@@ -548,6 +557,12 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     const pointRecovered = userPointTrans
       .filter(pt => pt.type === 'point_to_balance')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
+
+    console.log(`  🎁 [${username}] 포인트 집계:`, {
+      pointTransactions: userPointTrans.length,
+      pointGiven,
+      pointRecovered
+    });
 
     // ✅ 게임 기록 필터링 - 파트너는 전체 하위 조직, 회원은 본인만!
     let relevantUserIds: string[];
@@ -843,7 +858,6 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       slotWin: filteredRows.reduce((sum, r) => sum + r.slotWin, 0),
       totalBet: filteredRows.reduce((sum, r) => sum + r.totalBet, 0),
       totalWin: filteredRows.reduce((sum, r) => sum + r.totalWin, 0),
-      totalWinLoss: filteredRows.reduce((sum, r) => sum + r.totalWinLoss, 0),
       totalRolling: filteredRows.reduce((sum, r) => sum + r.totalIndividualRolling, 0),
       totalSettlementProfit: filteredRows.reduce((sum, r) => sum + r.totalSettlement, 0),
       totalActualSettlementProfit: filteredRows.reduce((sum, r) => sum + r.actualSettlementProfit, 0), // 실정산수익 추가
@@ -954,73 +968,54 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         </Button>
       </div>
 
-      {/* 통계 카드 */}
-      <div className="grid gap-5 md:grid-cols-4">
+      {/* 통계 카드 - 입출금/포인트 (6개) */}
+      <div className="grid gap-5 md:grid-cols-6">
         <MetricCard
-          title="총 베팅액"
-          value={`${formatNumber(summary.totalBet)}원`}
-          subtitle="카지노 + 슬롯"
+          title="총 입금"
+          value={`${formatNumber(summary.totalDeposit)}원`}
+          subtitle="승인된 입금 합계"
           icon={TrendingUp}
+          color="emerald"
+        />
+
+        <MetricCard
+          title="총 출금"
+          value={`${formatNumber(summary.totalWithdrawal)}원`}
+          subtitle="승인된 출금 합계"
+          icon={TrendingDown}
+          color="rose"
+        />
+
+        <MetricCard
+          title="관리자 입금"
+          value={`${formatNumber(summary.adminTotalDeposit)}원`}
+          subtitle="관리자 입금 합계"
+          icon={Wallet}
           color="blue"
         />
 
         <MetricCard
-          title="총 당첨액"
-          value={`${formatNumber(summary.totalWin)}원`}
-          subtitle="총 베팅 대비 당첨"
-          icon={TrendingDown}
+          title="관리자 출금"
+          value={`${formatNumber(summary.adminTotalWithdrawal)}원`}
+          subtitle="관리자 출금 합계"
+          icon={Wallet}
           color="purple"
         />
 
         <MetricCard
-          title="총 롤링금"
-          value={`${formatNumber(summary.totalRolling)}원`}
-          subtitle="정산 롤링 합계"
-          icon={DollarSign}
+          title="포인트 지급"
+          value={`${formatNumber(summary.pointGiven)}원`}
+          subtitle="관리자 포인트 지급"
+          icon={TrendingUp}
           color="green"
         />
 
         <MetricCard
-          title="정산 수익"
-          value={`${formatNumber(summary.totalSettlementProfit)}원`}
-          subtitle="롤링 + 루징 정산"
-          icon={DollarSign}
-          color="cyan"
-        />
-      </div>
-
-      {/* 세부 통계 카드 */}
-      <div className="grid gap-5 md:grid-cols-4">
-        <MetricCard
-          title="입출 차액"
-          value={`${formatNumber(summary.depositWithdrawalDiff)}원`}
-          subtitle="입금 - 출금"
-          icon={TrendingUp}
-          color={summary.depositWithdrawalDiff >= 0 ? "green" : "red"}
-        />
-
-        <MetricCard
-          title="카지노 베팅"
-          value={`${formatNumber(summary.casinoBet)}원`}
-          subtitle="카지노 게임 베팅"
-          icon={TrendingUp}
-          color="blue"
-        />
-
-        <MetricCard
-          title="슬롯 베팅"
-          value={`${formatNumber(summary.slotBet)}원`}
-          subtitle="슬롯 게임 베팅"
-          icon={TrendingUp}
-          color="purple"
-        />
-
-        <MetricCard
-          title="베팅정보오류"
-          value={`${formatNumber(summary.errorBetAmount)}원`}
-          subtitle={`오류 ${summary.errorBetCount}건`}
-          icon={AlertCircle}
-          color="red"
+          title="포인트 회수"
+          value={`${formatNumber(summary.pointRecovered)}원`}
+          subtitle="관리자 포인트 회수"
+          icon={TrendingDown}
+          color="orange"
         />
       </div>
 
@@ -1219,11 +1214,27 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                   {/* 입출차액 - 청록색 */}
                   <th className="px-4 py-3 text-right text-white font-normal bg-cyan-950/60 whitespace-nowrap">입출차액</th>
                   
-                  {/* 요율 정보 - 회색 계열 */}
-                  <th className="px-4 py-3 text-center text-white font-normal bg-slate-800/70 whitespace-nowrap">카지노롤링%</th>
-                  <th className="px-4 py-3 text-center text-white font-normal bg-slate-800/70 whitespace-nowrap">카지노루징%</th>
-                  <th className="px-4 py-3 text-center text-white font-normal bg-slate-800/70 whitespace-nowrap">슬롯롤링%</th>
-                  <th className="px-4 py-3 text-center text-white font-normal bg-slate-800/70 whitespace-nowrap">슬롯루징%</th>
+                  {/* 카지노 요율 정보 - 회색 계열 (2단) */}
+                  <th className="px-3 py-0 text-center text-white font-normal bg-slate-800/70 border-r border-slate-700/50" rowSpan={1}>
+                    <div className="flex flex-col">
+                      <div className="py-1.5 text-xs border-b border-slate-700/50">카지노</div>
+                      <div className="flex">
+                        <div className="flex-1 py-1.5 text-xs border-r border-slate-700/50">롤링%</div>
+                        <div className="flex-1 py-1.5 text-xs">루징%</div>
+                      </div>
+                    </div>
+                  </th>
+                  
+                  {/* 슬롯 요율 정보 - 회색 계열 (2단) */}
+                  <th className="px-3 py-0 text-center text-white font-normal bg-slate-800/70" rowSpan={1}>
+                    <div className="flex flex-col">
+                      <div className="py-1.5 text-xs border-b border-slate-700/50">슬롯</div>
+                      <div className="flex">
+                        <div className="flex-1 py-1.5 text-xs border-r border-slate-700/50">롤링%</div>
+                        <div className="flex-1 py-1.5 text-xs">루징%</div>
+                      </div>
+                    </div>
+                  </th>
                   
                   {/* 베팅/당첨 - 파란색/보라색 계열 */}
                   <th className="px-4 py-3 text-right text-white font-normal bg-blue-950/60 whitespace-nowrap">총베팅</th>
@@ -1285,10 +1296,23 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                         <td className={cn("px-4 py-3 text-right font-mono whitespace-nowrap", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>
                           {formatNumber(row.depositWithdrawalDiff)}
                         </td>
-                        <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.casinoRollingRate}%</td>
-                        <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.casinoLosingRate}%</td>
-                        <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.slotRollingRate}%</td>
-                        <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.slotLosingRate}%</td>
+                        
+                        {/* 카지노 롤링%/루징% (2단) */}
+                        <td className="px-3 py-1 text-center whitespace-nowrap">
+                          <div className="flex divide-x divide-slate-700/50">
+                            <div className="flex-1 text-slate-300 text-sm">{row.casinoRollingRate}%</div>
+                            <div className="flex-1 text-slate-300 text-sm">{row.casinoLosingRate}%</div>
+                          </div>
+                        </td>
+                        
+                        {/* 슬롯 롤링%/루징% (2단) */}
+                        <td className="px-3 py-1 text-center whitespace-nowrap">
+                          <div className="flex divide-x divide-slate-700/50">
+                            <div className="flex-1 text-slate-300 text-sm">{row.slotRollingRate}%</div>
+                            <div className="flex-1 text-slate-300 text-sm">{row.slotLosingRate}%</div>
+                          </div>
+                        </td>
+                        
                         <td className="px-4 py-3 text-right text-cyan-400 font-mono whitespace-nowrap">{formatNumber(row.totalBet)}</td>
                         <td className="px-4 py-3 text-right text-purple-400 font-mono whitespace-nowrap">{formatNumber(row.totalWin)}</td>
                         <td className="px-4 py-3 text-right text-amber-400 font-mono whitespace-nowrap">{formatNumber(row.ggr)}</td>

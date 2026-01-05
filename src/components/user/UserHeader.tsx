@@ -252,7 +252,8 @@ export function UserHeader({ user, onRouteChange, onLogout }: UserHeaderProps) {
           amount: pointsToConvert,
           points_before: balance.points,
           points_after: 0,
-          memo: '포인트를 보유금으로 전환'
+          memo: '포인트를 보유금으로 전환',
+          created_at: new Date().toISOString()
         }]);
 
       await supabase

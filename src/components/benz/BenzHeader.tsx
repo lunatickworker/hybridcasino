@@ -147,7 +147,8 @@ export function BenzHeader({ user, onRouteChange, onLogout, onOpenLoginModal, on
           amount: pointsToConvert,
           points_before: balance.points,
           points_after: 0,
-          memo: '포인트를 GMS 머니로 전환'
+          memo: '포인트를 GMS 머니로 전환',
+          created_at: new Date().toISOString()
         }]);
 
       // 잔고 거래 기록

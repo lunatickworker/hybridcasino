@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { SidebarProvider } from "../ui/sidebar";
 import { AdminSidebar } from "./AdminSidebar";
 import { AdminHeader } from "./AdminHeader";
 import { BettingHistorySync } from "./BettingHistorySync";
@@ -23,10 +22,12 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
   const { connected } = useWebSocketContext();
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     const saved = localStorage.getItem('admin-sidebar-open');
+    console.log('🔍 사이드바 초기 상태:', saved);
     return saved !== null ? JSON.parse(saved) : true;
   });
 
   useEffect(() => {
+    console.log('💾 사이드바 상태 저장:', sidebarOpen);
     localStorage.setItem('admin-sidebar-open', JSON.stringify(sidebarOpen));
   }, [sidebarOpen]);
 
@@ -44,7 +45,7 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
   const user = authState.user as Partner;
 
   return (
-    <SidebarProvider>
+    <>
       {/* ✅ 새 정책: Lv1만 balance 동기화, Lv2만 베팅내역 동기화 */}
       {user.level === 1 && (
         <BalanceSyncManager user={user} />
@@ -98,7 +99,7 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
           </main>
         </div>
       </div>
-    </SidebarProvider>
+    </>
   );
 }
 

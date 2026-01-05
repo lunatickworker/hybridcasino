@@ -1,4 +1,4 @@
-// v2.5.2 - Table header design update
+// v2.5.3 - Commission rate management added
 import React from 'react';
 import { useState, useEffect } from 'react';
 import { Toaster } from './components/ui/sonner';

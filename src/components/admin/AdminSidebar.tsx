@@ -125,7 +125,14 @@ interface AdminSidebarProps {
 export function AdminSidebar({ user, className, onNavigate, currentRoute }: AdminSidebarProps) {
   const { t, language } = useLanguage();
   
-  const [expandedItems, setExpandedItems] = useState<string | null>(null);
+  const [expandedItems, setExpandedItems] = useState<string[]>(() => {
+    const saved = localStorage.getItem('admin-sidebar-expanded');
+    try {
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loadingMenus, setLoadingMenus] = useState(true);
 
@@ -347,14 +354,16 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
   };
 
   const toggleExpanded = (id: string) => {
-    setExpandedItems(prev =>
-      prev === id ? null : id
-    );
+    setExpandedItems(prev => {
+      const newValue = prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id];
+      localStorage.setItem('admin-sidebar-expanded', JSON.stringify(newValue));
+      return newValue;
+    });
   };
 
   const renderMenuItem = (item: MenuItem, depth: number = 0) => {
     const hasChildren = item.children && item.children.length > 0;
-    const isExpanded = expandedItems === item.id;
+    const isExpanded = expandedItems.includes(item.id);
     const isActive = currentRoute === item.path;
     const Icon = item.icon;
 

@@ -214,20 +214,20 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
           .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
         const casinoBet = gameRecords
-          .filter(gr => gr.game_type === 'casino')
-          .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+          ?.filter(gr => gr.game_type === 'casino')
+          .reduce((sum, gr) => sum + Math.abs(gr.bet_amount || 0), 0) || 0;
 
         const casinoWin = gameRecords
-          .filter(gr => gr.game_type === 'casino')
-          .reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+          ?.filter(gr => gr.game_type === 'casino')
+          .reduce((sum, gr) => sum + (gr.win_amount || 0), 0) || 0;
 
         const slotBet = gameRecords
-          .filter(gr => gr.game_type === 'slot')
-          .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+          ?.filter(gr => gr.game_type === 'slot')
+          .reduce((sum, gr) => sum + Math.abs(gr.bet_amount || 0), 0) || 0;
 
         const slotWin = gameRecords
-          .filter(gr => gr.game_type === 'slot')
-          .reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+          ?.filter(gr => gr.game_type === 'slot')
+          .reduce((sum, gr) => sum + (gr.win_amount || 0), 0) || 0;
 
         const totalBet = casinoBet + slotBet;
         const totalWin = casinoWin + slotWin;
@@ -801,7 +801,6 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
                   {/* 베팅/당첨 - 파란색/보라색 계열 */}
                   <th className="px-4 py-3 text-right text-white font-normal bg-blue-950/60 whitespace-nowrap">총베팅</th>
                   <th className="px-4 py-3 text-right text-white font-normal bg-blue-950/60 whitespace-nowrap">총당첨</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-purple-950/60 whitespace-nowrap">윈로스</th>
                   <th className="px-4 py-3 text-right text-white font-normal bg-purple-950/60 whitespace-nowrap">GGR</th>
                   
                   {/* 개별 롤링 - 에메랄드 계열 */}
@@ -855,7 +854,6 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
                     <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.slotLosingRate}%</td>
                     <td className="px-4 py-3 text-right text-blue-400 font-mono whitespace-nowrap">{formatNumber(row.totalBet)}</td>
                     <td className="px-4 py-3 text-right text-purple-400 font-mono whitespace-nowrap">{formatNumber(row.totalWin)}</td>
-                    <td className="px-4 py-3 text-right text-amber-400 font-mono whitespace-nowrap">{formatNumber(row.totalWinLoss)}</td>
                     <td className="px-4 py-3 text-right text-purple-400 font-mono whitespace-nowrap">{formatNumber(row.ggr)}</td>
                     <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.casinoIndividualRolling)}</td>
                     <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.slotIndividualRolling)}</td>

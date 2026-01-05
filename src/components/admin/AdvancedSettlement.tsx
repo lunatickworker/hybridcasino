@@ -39,7 +39,6 @@ interface DailySettlementRow {
   slotRolling: number;
   totalRolling: number;
   settlementProfit: number;
-  actualSettlementProfit: number;
 }
 
 interface SummaryStats {
@@ -59,7 +58,6 @@ interface SummaryStats {
   totalWinLoss: number;
   totalRolling: number;
   totalSettlementProfit: number;
-  totalActualSettlementProfit: number;
 }
 
 export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
@@ -86,8 +84,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
     totalWin: 0,
     totalWinLoss: 0,
     totalRolling: 0,
-    totalSettlementProfit: 0,
-    totalActualSettlementProfit: 0
+    totalSettlementProfit: 0
   });
 
   useEffect(() => {
@@ -273,22 +270,22 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         .filter(pt => pt.type === 'admin_deduct')
         .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
-      // 베팅 데이터 계산
-      const casinoBet = dayGameRecords
+      // 베팅 데이터 계산 - 절대값 사용
+      const casinoBet = Math.abs(dayGameRecords
         .filter(gr => gr.game_type === 'casino')
-        .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+        .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
 
-      const casinoWin = dayGameRecords
+      const casinoWin = Math.abs(dayGameRecords
         .filter(gr => gr.game_type === 'casino')
-        .reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+        .reduce((sum, gr) => sum + (gr.win_amount || 0), 0));
 
-      const slotBet = dayGameRecords
+      const slotBet = Math.abs(dayGameRecords
         .filter(gr => gr.game_type === 'slot')
-        .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+        .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
 
-      const slotWin = dayGameRecords
+      const slotWin = Math.abs(dayGameRecords
         .filter(gr => gr.game_type === 'slot')
-        .reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+        .reduce((sum, gr) => sum + (gr.win_amount || 0), 0));
 
       const casinoWinLoss = casinoBet - casinoWin;
       const slotWinLoss = slotBet - slotWin;
@@ -300,6 +297,41 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
       const casinoRolling = casinoBet * (commission.casinoRolling / 100);
       const slotRolling = slotBet * (commission.slotRolling / 100);
       const totalRolling = casinoRolling + slotRolling;
+
+      // 정산수익 계산
+      const settlementProfit = totalWinLoss - totalRolling;
+
+      // 디버그 로그 (데이터가 있는 날만)
+      if (totalBet > 0 || deposit > 0 || withdrawal > 0) {
+        console.log(`📊 [${format(day, 'yyyy-MM-dd')}] 일일정산 계산:`, {
+          베팅: {
+            casinoBet,
+            casinoWin,
+            casinoWinLoss,
+            slotBet,
+            slotWin,
+            slotWinLoss,
+            totalBet,
+            totalWin,
+            totalWinLoss
+          },
+          롤링: {
+            commission: {
+              casinoRolling: commission.casinoRolling,
+              slotRolling: commission.slotRolling
+            },
+            계산: {
+              casinoRolling,
+              slotRolling,
+              totalRolling
+            }
+          },
+          정산수익: {
+            계산식: `${totalWinLoss} - ${totalRolling}`,
+            결과: settlementProfit
+          }
+        });
+      }
 
       // 루징 계산
       const casinoLosable = Math.max(0, casinoWinLoss - casinoRolling);
@@ -329,8 +361,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         casinoRolling,
         slotRolling,
         totalRolling,
-        settlementProfit: totalWinLoss - totalRolling,
-        actualSettlementProfit: totalWinLoss - totalRolling - totalLosing
+        settlementProfit
       });
     }
 
@@ -354,8 +385,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
       totalWin: rows.reduce((sum, r) => sum + r.totalWin, 0),
       totalWinLoss: rows.reduce((sum, r) => sum + r.totalWinLoss, 0),
       totalRolling: rows.reduce((sum, r) => sum + r.totalRolling, 0),
-      totalSettlementProfit: rows.reduce((sum, r) => sum + r.settlementProfit, 0),
-      totalActualSettlementProfit: rows.reduce((sum, r) => sum + r.actualSettlementProfit, 0)
+      totalSettlementProfit: rows.reduce((sum, r) => sum + r.settlementProfit, 0)
     };
 
     setSummary(summary);
@@ -427,57 +457,6 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
       </div>
 
       {/* 통계 카드 - 첫 번째 줄 (6개) */}
-      <div className="grid gap-5 md:grid-cols-6">
-        <MetricCard
-          title="총 입금"
-          value={`${formatNumber(summary.totalDeposit)}원`}
-          subtitle="승인된 입금 합계"
-          icon={TrendingUp}
-          color="emerald"
-        />
-
-        <MetricCard
-          title="총 출금"
-          value={`${formatNumber(summary.totalWithdrawal)}원`}
-          subtitle="승인된 출금 합계"
-          icon={TrendingDown}
-          color="rose"
-        />
-
-        <MetricCard
-          title="관리자 입금"
-          value={`${formatNumber(summary.adminTotalDeposit)}원`}
-          subtitle="관리자 입금 합계"
-          icon={Wallet}
-          color="blue"
-        />
-
-        <MetricCard
-          title="관리자 출금"
-          value={`${formatNumber(summary.adminTotalWithdrawal)}원`}
-          subtitle="관리자 출금 합계"
-          icon={Wallet}
-          color="purple"
-        />
-
-        <MetricCard
-          title="포인트 지급"
-          value={`${formatNumber(summary.pointGiven)}원`}
-          subtitle="관리자 포인트 지급"
-          icon={TrendingUp}
-          color="green"
-        />
-
-        <MetricCard
-          title="포인트 회수"
-          value={`${formatNumber(summary.pointRecovered)}원`}
-          subtitle="관리자 포인트 회수"
-          icon={TrendingDown}
-          color="orange"
-        />
-      </div>
-
-      {/* 통계 카드 - 두 번째 줄 (6개) */}
       <div className="grid gap-5 md:grid-cols-6">
         <MetricCard
           title="카지노 베팅"
@@ -715,7 +694,6 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
                   
                   {/* 정산 수익 - 초록 계열 */}
                   <th className="px-4 py-3 text-right text-white font-normal bg-green-950/70 whitespace-nowrap">정산수익</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/70 whitespace-nowrap">실정산수익</th>
                 </tr>
               </thead>
               <tbody>
@@ -742,7 +720,6 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
                     <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.slotRolling)}</td>
                     <td className="px-4 py-3 text-right text-teal-400 font-mono whitespace-nowrap">{formatNumber(row.totalRolling)}</td>
                     <td className="px-4 py-3 text-right text-green-400 font-mono font-semibold whitespace-nowrap">{formatNumber(row.settlementProfit)}</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-mono font-semibold whitespace-nowrap">{formatNumber(row.actualSettlementProfit)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -785,10 +762,6 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
               <div className="flex items-start gap-2">
                 <span className="text-emerald-400 font-semibold min-w-[120px]">정산수익:</span>
                 <span>윈로스 - 롤링금</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-emerald-400 font-semibold min-w-[120px]">실정산수익:</span>
-                <span>윈로스 - 롤링금 - 루징금</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="text-emerald-400 font-semibold min-w-[120px]">날짜별 집계:</span>
