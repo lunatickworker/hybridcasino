@@ -117,7 +117,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
     return () => {
       isMountedRef.current = false;
     };
-  }, []);
+  }, [user?.id]); // ⚡ user.id가 변경되면 다시 로드
   
   // ✅ Realtime 구독: partner_game_access 변경 감지
   useEffect(() => {

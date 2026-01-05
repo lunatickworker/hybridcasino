@@ -74,6 +74,8 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
     console.log('🎲 [BenzMinigame] useEffect 시작 - Realtime 구독 설정 중...');
     loadProviders();
     
+    if (!user?.id) return; // ⚡ user.id가 없으면 구독하지 않음
+    
     // ⚡ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
     const gamesChannel = supabase
       .channel('benz_minigame_games_changes')
@@ -148,7 +150,7 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
       isMountedRef.current = false;
       supabase.removeChannel(gamesChannel);
     };
-  }, []);
+  }, [user?.id]); // ⚡ user.id가 변경되면 재구독
 
   const loadProviders = async () => {
     if (!user) return;
