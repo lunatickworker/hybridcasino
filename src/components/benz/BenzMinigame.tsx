@@ -537,13 +537,15 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
             </div>
           ) : (
             games.map((game, index) => {
+              const isMaintenance = (game as any).status === 'maintenance';
+              
               return (
               <motion.div
                 key={game.id}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="cursor-pointer"
-                onClick={() => handleGameClick(game)}
+                whileHover={{ scale: isMaintenance ? 1 : 1.05 }}
+                whileTap={{ scale: isMaintenance ? 1 : 0.95 }}
+                className={isMaintenance ? 'cursor-not-allowed' : 'cursor-pointer'}
+                onClick={() => !isMaintenance && handleGameClick(game)}
               >
                 <div className="relative aspect-[3/4] rounded-xl overflow-hidden group shadow-lg hover:shadow-blue-500/30 transition-all duration-300">
                   {/* 게임 이미지 - DB의 image_url 사용 */}
@@ -551,12 +553,22 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
                     <ImageWithFallback
                       src={game.image_url}
                       alt={game.name}
-                      className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
+                      className={`w-full h-full object-cover transition-all duration-500 ${isMaintenance ? 'filter grayscale brightness-50' : 'group-hover:scale-110'}`}
                       style={{ objectPosition: 'center 30%' }}
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-blue-900/30 to-cyan-900/30 flex items-center justify-center">
                       <Play className="w-12 h-12 text-blue-500/50" />
+                    </div>
+                  )}
+                  
+                  {/* 🚧 점검중 오버레이 */}
+                  {isMaintenance && (
+                    <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10">
+                      <div className="bg-orange-500/20 border-2 border-orange-500 rounded-lg px-6 py-3 backdrop-blur-sm">
+                        <p className="text-orange-400 font-black text-lg tracking-wide">점검중</p>
+                      </div>
+                      <p className="text-gray-400 text-xs mt-3">잠시 후 다시 시도해주세요</p>
                     </div>
                   )}
                   

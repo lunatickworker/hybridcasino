@@ -885,44 +885,53 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                 }}></div>
               ))
             ) : games.length === 0 ? (
-              <div className="col-span-full text-center py-20">
-                <p className="text-white/40 text-lg">게임이 없습니다.</p>
+              <div className="col-span-full text-center py-12">
+                <p className="text-gray-400">게임이 없습니다.</p>
               </div>
             ) : (
-              games.map((game) => (
+              games.map((game, index) => {
+                const isMaintenance = (game as any).status === 'maintenance';
+                
+                return (
                 <motion.div
                   key={game.id}
-                  whileHover={game.status === 'maintenance' ? {} : { scale: 1.05, y: -8 }}
-                  whileTap={game.status === 'maintenance' ? {} : { scale: 0.98 }}
-                  className={`relative ${game.status === 'maintenance' ? 'cursor-not-allowed' : 'cursor-pointer group'}`}
-                  onClick={() => handleGameClick(game)}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.02 }}
+                  whileHover={{ scale: isMaintenance ? 1 : 1.05 }}
+                  whileTap={{ scale: isMaintenance ? 1 : 0.95 }}
+                  className={isMaintenance ? 'cursor-not-allowed' : 'cursor-pointer'}
+                  onClick={() => !isMaintenance && handleGameClick(game)}
                 >
-                  <div className="relative aspect-square overflow-hidden rounded-2xl transition-all duration-500" style={{
-                    background: '#16161f',
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.4)'
-                  }}>
+                  <div className="relative aspect-square rounded-2xl overflow-hidden group shadow-lg hover:shadow-blue-500/30 transition-all duration-300">
                     {/* 게임 이미지 */}
                     {game.image_url ? (
                       <ImageWithFallback
                         src={game.image_url}
-                        alt={game.name_ko || game.name}
-                        className={`w-full h-full object-cover transition-all duration-700 ${
-                          game.status === 'maintenance' ? '' : 'group-hover:scale-110'
-                        }`}
+                        alt={game.name}
+                        className={`w-full h-full object-cover transition-all duration-700 ${isMaintenance ? 'filter grayscale brightness-50' : 'group-hover:scale-110'}`}
                         style={{ objectPosition: 'center 30%' }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center" style={{
-                        background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)'
+                        background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%)'
                       }}>
-                        <Play className="w-16 h-16 text-white/20" />
+                        <Play className="w-16 h-16 text-blue-500/30" />
+                      </div>
+                    )}
+                    
+                    {/* 🚧 점검중 오버레이 */}
+                    {isMaintenance && (
+                      <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10">
+                        <div className="bg-orange-500/20 border-2 border-orange-500 rounded-lg px-6 py-3 backdrop-blur-sm">
+                          <p className="text-orange-400 font-black text-lg tracking-wide">점검중</p>
+                        </div>
+                        <p className="text-gray-400 text-xs mt-3">잠시 후 다시 시도해주세요</p>
                       </div>
                     )}
                     
                     {/* 그라디언트 오버레이 */}
-                    <div className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent transition-opacity duration-500 ${
-                      game.status === 'maintenance' ? 'opacity-70' : 'opacity-70 group-hover:opacity-80'
-                    }`}></div>
+                    <div className={`absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent ${isMaintenance ? 'opacity-50' : 'opacity-70 group-hover:opacity-80'} transition-opacity duration-500`}></div>
                     
                     {/* 한글 게임명 - 하단 고정 */}
                     <div className="absolute bottom-0 left-0 right-0 p-4 bg-black/50 z-10">
@@ -967,22 +976,9 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                       </div>
                     )}
                   </div>
-                  
-                  {/* 🚫 점검중 오버레이 - motion.div 직접 자식 */}
-                  {game.status === 'maintenance' && (
-                    <div className="absolute inset-0 rounded-2xl flex items-center justify-center pointer-events-none" style={{
-                      background: 'rgba(0, 0, 0, 0.5)',
-                      zIndex: 50
-                    }}>
-                      <img
-                        src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Stop.png"
-                        alt="점검중"
-                        className="w-1/2 h-1/2 object-contain"
-                      />
-                    </div>
-                  )}
                 </motion.div>
-              ))
+                );
+              })
             )}
           </div>
         )}
