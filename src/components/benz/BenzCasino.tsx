@@ -117,7 +117,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
     return () => {
       isMountedRef.current = false;
     };
-  }, [user?.id]); // ⚡ user.id가 변경되면 다시 로드
+  }, []);
   
   // ✅ Realtime 구독: partner_game_access 변경 감지
   useEffect(() => {
@@ -553,7 +553,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
-    // ⭐ Ezugi (이주기) 카드 클릭 시 로비 게임(id: 5185843) 바로 행
+    // ⭐ Ezugi (이주기) 카드 클릭 시 로비 게임(id: 5185843) 바로 ���행
     if (providerName.includes('ezugi') || providerName.includes('ezu') || providerNameKo.includes('이주기') || providerNameKo.includes('주기')) {
       console.log('🎰 [Ezugi] game_id=5185843 직접 실행');
       setIsProcessing(true);
@@ -1120,7 +1120,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
             ) : providers.length === 0 ? (
               <div className="col-span-full text-center py-20">
                 <p className="text-white/60 text-2xl">이용 가능한 게임사가 없습니다.</p>
-                <p className="text-white/40 text-lg mt-2">관리자에게 ��의하세요.</p>
+                <p className="text-white/40 text-lg mt-2">관리자에게 문의하세요.</p>
               </div>
             ) : (
               providers.map((provider, index) => (
