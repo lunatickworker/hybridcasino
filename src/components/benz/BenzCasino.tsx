@@ -7,6 +7,7 @@ import { motion } from 'motion/react';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { toast } from 'sonner@2.0.3';
 import { createAdminNotification } from '../../lib/notificationHelper';
+import { filterVisibleProviders, filterVisibleGames } from '../../lib/benzGameVisibility';
 
 interface BenzCasinoProps {
   user: any;
@@ -130,6 +131,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
   }, []);
 
   useEffect(() => {
+    console.log('🎰 [BenzCasino] useEffect 시작 - Realtime 구독 설정 중...');
     loadProviders();
     
     // ⚡ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
@@ -181,8 +183,9 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'partner_game_access' },
         (payload) => {
-          console.log('🔄 [BenzCasino] partner_game_access 테이블 변경 감지:', payload);
-          // ⚡ 현재 사용자의 접근 권한이 변경된 경우만 새로고침
+          console.log('🔄🔄🔄 [BenzCasino] partner_game_access 테이블 변경 감지!!!', payload);
+          // ⚡ 게임 스위칭 설정이 변경되면 즉시 게임사 목록과 게임 목록 새로고침
+          console.log('🎮 [BenzCasino] 게임 스위칭 설정 변경 감지! 즉시 새로고침...');
           loadProviders();
           if (selectedProviderRef.current) {
             console.log('🔄 [BenzCasino] 게임 목록 새로고침 시작...');
@@ -190,12 +193,15 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
           }
         }
       )
-      .subscribe((status) => {
-        console.log('📡 [BenzCasino] Realtime 구독 상태:', status);
+      .subscribe((status, err) => {
+        console.log('📡📡📡 [BenzCasino] Realtime 구독 상태:', status);
+        if (err) {
+          console.error('❌❌❌ [BenzCasino] Realtime 구독 에러:', err);
+        }
         if (status === 'SUBSCRIBED') {
-          console.log('✅ [BenzCasino] Realtime 구독 성공!');
+          console.log('✅✅✅ [BenzCasino] Realtime 구독 성공! partner_game_access 테이블 감지 중...');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('❌ [BenzCasino] Realtime 구독 실패:', status);
+          console.error('❌❌❌ [BenzCasino] Realtime 구독 실패:', status);
         }
       });
     
@@ -248,7 +254,6 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       setLoading(true);
       
       // ⭐⭐⭐ 새로운 노출 로직 사용
-      const { filterVisibleProviders } = await import('../../lib/benzGameVisibility');
       const allProviders = await gameApi.getProviders({ type: 'casino' });
       const providersData = await filterVisibleProviders(allProviders, user.id);
       
@@ -408,7 +413,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
           name_ko: 'Evolution Top Games',
           game_code: 'evolution_top_games',
           provider_id: 6717,
-          api_type: 'honor'
+          api_type: 'honorapi'  // ✅ 수정: 'honor' → 'honorapi'
         };
         
         await handleGameClick(evolutionGame);
@@ -421,26 +426,29 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
-    // ⭐ 프라그마틱 라이브 카드 클릭 시 로비 게임(id: 2283279) 바로 실행
-    if ((providerName.includes('pragmatic') || providerNameKo.includes('프라그마틱')) && 
-        (providerName.includes('live') || providerNameKo.includes('라이브'))) {
-      
-      console.log('🎰 [Pragmatic Live] game_id=2283279 직접 실행');
+    // ⭐ Pragmatic Live 카드 클릭 시 로비 게임(id: 2283279) 바로 실행
+    if (providerName.includes('pragmatic') || providerNameKo.includes('프라그마틱')) {
+      console.log('🎰 [Pragmatic Live] DB에서 로비 게임 조회');
       setIsProcessing(true);
       
       try {
-        // Pragmatic Live 로비 게임 객체 생성
-        const pragmaticLobbyGame: Game = {
-          id: '2283279',
-          name: 'lobby',
-          name_ko: 'lobby',
-          game_code: 'lobby',
-          provider_id: 0,
-          api_type: 'honor',
-          vendor_code: 'casino-pragmatic'
-        };
-        
-        await handleGameClick(pragmaticLobbyGame);
+        // DB에서 Pragmatic Live 로비 게임 조회
+        const { data: games, error } = await supabase
+          .from('games')
+          .select('id, name, name_ko, game_code, vendor_code, api_type, provider_id')
+          .eq('vendor_code', 'casino-pragmatic')
+          .eq('name', 'lobby')
+          .limit(1)
+          .maybeSingle();
+
+        if (error || !games) {
+          console.error('❌ [Pragmatic Live] DB에서 게임을 찾을 수 없습니다:', error);
+          toast.error('Pragmatic Live 게임을 찾을 수 없습니다.');
+          setIsProcessing(false);
+          return;
+        }
+
+        await handleGameClick(games);
       } catch (error) {
         console.error('Pragmatic Live 로비 실행 오류:', error);
         toast.error('Pragmatic Live 게임 실행에 실패했습니다.');
@@ -450,25 +458,28 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
-    // ⭐ SA Gaming 카드 클릭 시 로비 게임(id: 2534627) 바로 실행
+    // ⭐ SA Gaming 카드 클릭 시 로비 게임 조회
     if (providerName.includes('sa') || providerNameKo.includes('sa') || providerNameKo.includes('게이밍')) {
-      
-      console.log('🎰 [SA Gaming] game_id=2534627 직접 실행');
+      console.log('🎰 [SA Gaming] DB에서 로비 게임 조회');
       setIsProcessing(true);
       
       try {
-        // SA Gaming 로비 게임 객체 생성
-        const saLobbyGame: Game = {
-          id: '2534627',
-          name: 'lobby',
-          name_ko: 'lobby',
-          game_code: 'lobby',
-          provider_id: 0,
-          api_type: 'honor',
-          vendor_code: 'casino-sa'
-        };
-        
-        await handleGameClick(saLobbyGame);
+        const { data: games, error } = await supabase
+          .from('games')
+          .select('id, name, name_ko, game_code, vendor_code, api_type, provider_id')
+          .eq('vendor_code', 'casino-sa')
+          .eq('name', 'lobby')
+          .limit(1)
+          .maybeSingle();
+
+        if (error || !games) {
+          console.error('❌ [SA Gaming] DB에서 게임을 찾을 수 없습니다:', error);
+          toast.error('SA Gaming 게임을 찾을 수 없습니다.');
+          setIsProcessing(false);
+          return;
+        }
+
+        await handleGameClick(games);
       } catch (error) {
         console.error('SA Gaming 로비 실행 오류:', error);
         toast.error('SA Gaming 게임 실행에 실패했습니다.');
@@ -478,27 +489,32 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
-    // ⭐ Microgaming 카드 클릭 시 로비 게임(id: 2159875) 바로 실행
+    // ⭐ Microgaming 카드 클릭 시 로비 게임 조회
     const isMicrogaming = providerName.includes('micro') || 
                           providerNameKo.includes('마이크로') || 
                           vendorCode.includes('micro');
     
     if (isMicrogaming) {
-      console.log('🎰 [Microgaming] game_id=2159875 직접 실행');
+      console.log('🎰 [Microgaming] DB에서 로비 게임 조회');
       setIsProcessing(true);
       
       try {
-        const microLobbyGame: Game = {
-          id: '2159875',
-          name: 'lobby',
-          name_ko: 'lobby',
-          game_code: 'lobby',
-          provider_id: 0,
-          api_type: 'honor',
-          vendor_code: 'casino-micro'
-        };
-        
-        await handleGameClick(microLobbyGame);
+        const { data: games, error } = await supabase
+          .from('games')
+          .select('id, name, name_ko, game_code, vendor_code, api_type, provider_id')
+          .eq('vendor_code', 'casino-micro')
+          .eq('name', 'lobby')
+          .limit(1)
+          .maybeSingle();
+
+        if (error || !games) {
+          console.error('❌ [Microgaming] DB에서 게임을 찾을 수 없습니다:', error);
+          toast.error('Microgaming 게임을 찾을 수 없습니다.');
+          setIsProcessing(false);
+          return;
+        }
+
+        await handleGameClick(games);
       } catch (error) {
         console.error('Microgaming 로비 실행 오류:', error);
         toast.error('Microgaming 게임 실행에 실패했습니다.');
@@ -508,23 +524,28 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
-    // ⭐ Play Ace 카드 클릭 시 로비 게임(id: 2026066) 바로 실행
-    if (providerName.includes('playace') || providerNameKo.includes('플레이') || providerNameKo.includes('에이스')) {
-      console.log('🎰 [Play Ace] game_id=2026066 직접 실행');
+    // ⭐ Play Ace 카드 클릭 시 로비 게임 조회
+    if (providerName.includes('playace') || providerName.includes('play') || providerNameKo.includes('플레이') || providerNameKo.includes('에이스')) {
+      console.log('🎰 [Play Ace] DB에서 로비 게임 조회');
       setIsProcessing(true);
       
       try {
-        const playaceLobbyGame: Game = {
-          id: '2026066',
-          name: 'lobby',
-          name_ko: 'lobby',
-          game_code: 'lobby',
-          provider_id: 0,
-          api_type: 'honor',
-          vendor_code: 'casino-playace'
-        };
-        
-        await handleGameClick(playaceLobbyGame);
+        const { data: games, error } = await supabase
+          .from('games')
+          .select('id, name, name_ko, game_code, vendor_code, api_type, provider_id')
+          .eq('vendor_code', 'casino-playace')
+          .eq('name', 'lobby')
+          .limit(1)
+          .maybeSingle();
+
+        if (error || !games) {
+          console.error('❌ [Play Ace] DB에서 게임을 찾을 수 없습니다:', error);
+          toast.error('Play Ace 게임을 찾을 수 없습니다.');
+          setIsProcessing(false);
+          return;
+        }
+
+        await handleGameClick(games);
       } catch (error) {
         console.error('Play Ace 로비 실행 오류:', error);
         toast.error('Play Ace 게임 실행에 실패했습니다.');
@@ -534,23 +555,28 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
-    // ⭐ Dream Gaming 카드 클릭 시 로비 게임(id: 2222238) 바로 실행
+    // ⭐ Dream Gaming 카드 클릭 시 로비 게임 조회
     if (providerName.includes('dream') || providerNameKo.includes('드림')) {
-      console.log('🎰 [Dream Gaming] game_id=2222238 직접 실행');
+      console.log('🎰 [Dream Gaming] DB에서 로비 게임 조회');
       setIsProcessing(true);
       
       try {
-        const dreamLobbyGame: Game = {
-          id: '2222238',
-          name: 'lobby',
-          name_ko: 'lobby',
-          game_code: 'lobby',
-          provider_id: 0,
-          api_type: 'honor',
-          vendor_code: 'casino-dream'
-        };
-        
-        await handleGameClick(dreamLobbyGame);
+        const { data: games, error } = await supabase
+          .from('games')
+          .select('id, name, name_ko, game_code, vendor_code, api_type, provider_id')
+          .eq('vendor_code', 'casino-dream')
+          .eq('name', 'lobby')
+          .limit(1)
+          .maybeSingle();
+
+        if (error || !games) {
+          console.error('❌ [Dream Gaming] DB에서 게임을 찾을 수 없습니다:', error);
+          toast.error('Dream Gaming 게임을 찾을 수 없습니다.');
+          setIsProcessing(false);
+          return;
+        }
+
+        await handleGameClick(games);
       } catch (error) {
         console.error('Dream Gaming 로비 실행 오류:', error);
         toast.error('Dream Gaming 게임 실행에 실패했습니다.');
@@ -560,23 +586,28 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
-    // ⭐ Asia Gaming 카드 클릭 시 로비 게임(id: 2290046) 바로 실행
+    // ⭐ Asia Gaming 카드 클릭 시 로비 게임 조회
     if (providerName.includes('asia') || providerNameKo.includes('아시아')) {
-      console.log('🎰 [Asia Gaming] game_id=2290046 직접 실행');
+      console.log('🎰 [Asia Gaming] DB에서 로비 게임 조회');
       setIsProcessing(true);
       
       try {
-        const asiaLobbyGame: Game = {
-          id: '2290046',
-          name: 'lobby',
-          name_ko: 'lobby',
-          game_code: 'lobby',
-          provider_id: 0,
-          api_type: 'honor',
-          vendor_code: 'casino-ag'
-        };
-        
-        await handleGameClick(asiaLobbyGame);
+        const { data: games, error } = await supabase
+          .from('games')
+          .select('id, name, name_ko, game_code, vendor_code, api_type, provider_id')
+          .eq('vendor_code', 'casino-ag')
+          .eq('name', 'lobby')
+          .limit(1)
+          .maybeSingle();
+
+        if (error || !games) {
+          console.error('❌ [Asia Gaming] DB에서 게임을 찾을 수 없습니다:', error);
+          toast.error('Asia Gaming 게임을 찾을 수 없습니다.');
+          setIsProcessing(false);
+          return;
+        }
+
+        await handleGameClick(games);
       } catch (error) {
         console.error('Asia Gaming 로비 실행 오류:', error);
         toast.error('Asia Gaming 게임 실행에 실패했습니다.');
@@ -586,8 +617,8 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       return;
     }
 
-    // ⭐ Ezugi 카드 클릭 시 로비 게임(id: 5185843) 바로 실행
-    if (providerName.includes('ezugi') || providerNameKo.includes('이주기')) {
+    // ⭐ Ezugi (이주기) 카드 클릭 시 로비 게임(id: 5185843) 바로 실행
+    if (providerName.includes('ezugi') || providerName.includes('ezu') || providerNameKo.includes('이주기') || providerNameKo.includes('주기')) {
       console.log('🎰 [Ezugi] game_id=5185843 직접 실행');
       setIsProcessing(true);
       
@@ -598,7 +629,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
           name_ko: 'Ezugi',
           game_code: 'Ezugi',
           provider_id: 0,
-          api_type: 'honor',
+          api_type: 'honorapi',  // ✅ 수정: 'honor' → 'honorapi'
           vendor_code: 'ezugi'
         };
         
@@ -613,7 +644,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
     }
 
     // ⭐ Skywind Live 카드 클릭 시 로비 게임 바로 실행
-    if (providerName.includes('skywind') || providerNameKo.includes('스카이윈드')) {
+    if (providerName.includes('skywind') || providerName.includes('sky') || providerNameKo.includes('스카이윈드') || providerNameKo.includes('스카이')) {
       console.log('🎰 [Skywind Live] 로비 게임 직접 실행');
       setIsProcessing(true);
       
@@ -695,7 +726,6 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       }
 
       // ⭐ 점검중 상태 추가 (benzGameVisibility 사용)
-      const { filterVisibleGames } = await import('../../lib/benzGameVisibility');
       const gamesWithStatus = await filterVisibleGames(allGames, user.id);
       
       setGames(gamesWithStatus);
@@ -759,8 +789,17 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
     try {
       const activeSession = await gameApi.checkActiveSession(user.id);
       
+      // ⭐ 0. 세션 종료 중(ending)인지 체크 - 게임 실행 차단
+      if (activeSession?.isActive && activeSession.status === 'ending') {
+        console.log('⏳ [게임 실행 차단] 이전 세션 종료 중...');
+        toast.warning('이전 게임 종료 중입니다. 잠시 후 다시 시도해주세요.', { duration: 3000 });
+        setLaunchingGameId(null);
+        setIsProcessing(false);
+        return;
+      }
+      
       // ⭐ 1. 다른 API 게임이 실행 중인지 체크
-      if (activeSession?.isActive && activeSession.api_type !== game.api_type) {
+      if (activeSession?.isActive && activeSession.status === 'active' && activeSession.api_type !== game.api_type) {
         toast.error('잠시 후 다시 시도해주세요.');
         
         // ⭐ 관리자 알림 생성
@@ -871,7 +910,36 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
               }
               
               (window as any).gameWindows?.delete(sessionId);
-              await (window as any).syncBalanceAfterGame?.(sessionId);
+              
+              console.log('🔄 [게임 종료] syncBalanceAfterGame 호출 전 - sessionId:', sessionId);
+              console.log('🔄 [게임 종료] syncBalanceAfterGame 함수 존재 여부:', typeof (window as any).syncBalanceAfterGame);
+              
+              if ((window as any).syncBalanceAfterGame) {
+                await (window as any).syncBalanceAfterGame(sessionId);
+              } else {
+                // ⭐ syncBalanceAfterGame 함수가 없으면 직접 처리
+                try {
+                  const { data: session, error: sessionError } = await supabase
+                    .from('game_launch_sessions')
+                    .select('user_id, api_type, status')
+                    .eq('id', sessionId)
+                    .single();
+
+                  if (sessionError || !session) {
+                    console.error('❌ [게임 종료] 세션 조회 실패:', sessionError);
+                    return;
+                  }
+
+                  if (session.status !== 'active') {
+                    return;
+                  }
+
+                  const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
+                  await syncBalanceOnSessionEnd(session.user_id, session.api_type);
+                } catch (directError) {
+                  console.error('❌ [게임 종료] 직접 출금 처리 오류:', directError);
+                }
+              }
               
               // ✅ 게임 종료 5초 후 베팅 내역 새로고침 이벤트 발생
               setTimeout(() => {
@@ -983,8 +1051,35 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                 
                 (window as any).gameWindows?.delete(sessionId);
                 
-                // withdrawal API 호출 (syncBalanceAfterGame 내부에서 처리)
-                await (window as any).syncBalanceAfterGame?.(sessionId);
+                console.log('🔄 [게임 종료] syncBalanceAfterGame 호출 전 - sessionId:', sessionId);
+                console.log('🔄 [게임 종료] syncBalanceAfterGame 함수 존재 여부:', typeof (window as any).syncBalanceAfterGame);
+                
+                if ((window as any).syncBalanceAfterGame) {
+                  await (window as any).syncBalanceAfterGame(sessionId);
+                } else {
+                  // ⭐ syncBalanceAfterGame 함수가 없으면 직접 처리
+                  try {
+                    const { data: session, error: sessionError } = await supabase
+                      .from('game_launch_sessions')
+                      .select('user_id, api_type, status')
+                      .eq('id', sessionId)
+                      .single();
+
+                    if (sessionError || !session) {
+                      console.error('❌ [게임 종료] 세션 조회 실패:', sessionError);
+                      return;
+                    }
+
+                    if (session.status !== 'active') {
+                      return;
+                    }
+
+                    const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
+                    await syncBalanceOnSessionEnd(session.user_id, session.api_type);
+                  } catch (directError) {
+                    console.error('❌ [게임 종료] 직접 출금 처리 오류:', directError);
+                  }
+                }
                 
                 // ✅ 게임 종료 5초 후 베팅 내역 새로고침 이벤트 발생
                 setTimeout(() => {
@@ -992,7 +1087,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
                   window.dispatchEvent(new CustomEvent('refresh-betting-history'));
                 }, 5000);
                 
-                console.log('✅ [게임 종료] 처리 완료:', sessionId);
+                console.log('✅ [게임 종��] 처리 완료:', sessionId);
               } catch (error) {
                 console.error('❌ [게임 종료] 에러:', error);
               } finally {
@@ -1023,7 +1118,13 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       console.error('게임 실행 오류:', error);
       // catch 블록에서도 친절한 메시지 표시
       const errorMessage = error instanceof Error ? error.message : '게임을 실행할 수 없습니다.';
-      if (errorMessage.includes('보유금')) {
+      
+      // ⭐ 특정 에러 메시지는 그대로 표시, 나머지는 절한 메시지로 변환
+      if (errorMessage.includes('보유금') || 
+          errorMessage.includes('실행 중') || 
+          errorMessage.includes('종료') ||
+          errorMessage.includes('게임') ||
+          errorMessage.includes('시도')) {
         toast.error(errorMessage);
       } else {
         toast.error('게임을 실행할 수 없습니다. 잠시 후 다시 시도해주세요.');

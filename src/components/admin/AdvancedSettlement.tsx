@@ -35,16 +35,9 @@ interface DailySettlementRow {
   totalBet: number;
   totalWin: number;
   totalWinLoss: number;
-  casinoRollingRate: number;
-  casinoLosingRate: number;
-  slotRollingRate: number;
-  slotLosingRate: number;
   casinoRolling: number;
   slotRolling: number;
   totalRolling: number;
-  casinoLosing: number;
-  slotLosing: number;
-  totalLosing: number;
   settlementProfit: number;
   actualSettlementProfit: number;
 }
@@ -333,16 +326,9 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         totalBet,
         totalWin,
         totalWinLoss,
-        casinoRollingRate: commission.casinoRolling,
-        casinoLosingRate: commission.casinoLosing,
-        slotRollingRate: commission.slotRolling,
-        slotLosingRate: commission.slotLosing,
         casinoRolling,
         slotRolling,
         totalRolling,
-        casinoLosing,
-        slotLosing,
-        totalLosing,
         settlementProfit: totalWinLoss - totalRolling,
         actualSettlementProfit: totalWinLoss - totalRolling - totalLosing
       });
@@ -440,8 +426,8 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         </div>
       </div>
 
-      {/* 통계 카드 - 첫 번째 줄 */}
-      <div className="grid gap-5 md:grid-cols-4">
+      {/* 통계 카드 - 첫 번째 줄 (6개) */}
+      <div className="grid gap-5 md:grid-cols-6">
         <MetricCard
           title="총 입금"
           value={`${formatNumber(summary.totalDeposit)}원`}
@@ -473,10 +459,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
           icon={Wallet}
           color="purple"
         />
-      </div>
 
-      {/* 통계 카드 - 두 번째 줄 */}
-      <div className="grid gap-5 md:grid-cols-4">
         <MetricCard
           title="포인트 지급"
           value={`${formatNumber(summary.pointGiven)}원`}
@@ -492,26 +475,10 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
           icon={TrendingDown}
           color="orange"
         />
-
-        <MetricCard
-          title="입출 차액"
-          value={`${formatNumber(summary.depositWithdrawalDiff)}원`}
-          subtitle="입금 - 출금"
-          icon={DollarSign}
-          color={summary.depositWithdrawalDiff >= 0 ? "cyan" : "red"}
-        />
-
-        <MetricCard
-          title="총 베팅"
-          value={`${formatNumber(summary.totalBet)}원`}
-          subtitle="카지노 + 슬롯"
-          icon={TrendingUp}
-          color="blue"
-        />
       </div>
 
-      {/* 통계 카드 - 세 번째 줄 */}
-      <div className="grid gap-5 md:grid-cols-4">
+      {/* 통계 카드 - 두 번째 줄 (6개) */}
+      <div className="grid gap-5 md:grid-cols-6">
         <MetricCard
           title="카지노 베팅"
           value={`${formatNumber(summary.casinoBet)}원`}
@@ -543,10 +510,15 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
           icon={TrendingDown}
           color="violet"
         />
-      </div>
 
-      {/* 통계 카드 - 네 번째 줄 */}
-      <div className="grid gap-5 md:grid-cols-4">
+        <MetricCard
+          title="총 베팅"
+          value={`${formatNumber(summary.totalBet)}원`}
+          subtitle="카지노 + 슬롯"
+          icon={TrendingUp}
+          color="blue"
+        />
+
         <MetricCard
           title="총 당첨"
           value={`${formatNumber(summary.totalWin)}원`}
@@ -554,9 +526,20 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
           icon={DollarSign}
           color="purple"
         />
+      </div>
+
+      {/* 통계 카드 - 세 번째 줄 (4개) */}
+      <div className="grid gap-5 md:grid-cols-6">
+        <MetricCard
+          title="입출 차액"
+          value={`${formatNumber(summary.depositWithdrawalDiff)}원`}
+          subtitle="입금 - 출금"
+          icon={DollarSign}
+          color={summary.depositWithdrawalDiff >= 0 ? "cyan" : "red"}
+        />
 
         <MetricCard
-          title="윈로스"
+          title="GGR"
           value={`${formatNumber(summary.totalWinLoss)}원`}
           subtitle="베팅 - 당첨"
           icon={TrendingUp}
@@ -574,7 +557,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         <MetricCard
           title="정산 수익"
           value={`${formatNumber(summary.totalSettlementProfit)}원`}
-          subtitle="윈로스 - 롤링금"
+          subtitle="GGR - 롤링금"
           icon={DollarSign}
           color="green"
         />
@@ -699,49 +682,40 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
               <thead>
                 <tr className="border-b border-slate-700">
                   {/* 날짜 */}
-                  <th className="px-4 py-3 text-left text-white sticky left-0 bg-slate-900 z-10 whitespace-nowrap">날짜</th>
+                  <th className="px-4 py-3 text-left text-white font-normal sticky left-0 bg-slate-900 z-10 whitespace-nowrap">날짜</th>
                   
                   {/* 입출금 관련 - 주황색 계열 */}
-                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">입금</th>
-                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">출금</th>
-                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">관리자입금</th>
-                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">관리자출금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">입금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">출금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">관리자입금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">관리자출금</th>
                   
                   {/* 포인트 관련 - 초록색 계열 */}
-                  <th className="px-4 py-3 text-right text-white bg-green-950/60 whitespace-nowrap">포인트지급</th>
-                  <th className="px-4 py-3 text-right text-white bg-green-950/60 whitespace-nowrap">포인트회수</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/60 whitespace-nowrap">포인트지급</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/60 whitespace-nowrap">포인트회수</th>
                   
                   {/* 입출차액 - 청록색 */}
-                  <th className="px-4 py-3 text-right text-white bg-cyan-950/60 whitespace-nowrap">입출차액</th>
-                  
-                  {/* 요율 정보 - 회색 계열 */}
-                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">카지노롤링%</th>
-                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">카지노루징%</th>
-                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">슬롯롤링%</th>
-                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">슬롯루징%</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-cyan-950/60 whitespace-nowrap">입출차액</th>
                   
                   {/* 베팅/당첨 - 파란색/보라색 계열 */}
-                  <th className="px-4 py-3 text-right text-white bg-blue-950/60 whitespace-nowrap">카지노베팅</th>
-                  <th className="px-4 py-3 text-right text-white bg-blue-950/60 whitespace-nowrap">카지노당첨</th>
-                  <th className="px-4 py-3 text-right text-white bg-purple-950/60 whitespace-nowrap">슬롯베팅</th>
-                  <th className="px-4 py-3 text-right text-white bg-purple-950/60 whitespace-nowrap">슬롯당첨</th>
-                  <th className="px-4 py-3 text-right text-white bg-indigo-950/60 whitespace-nowrap">총베팅</th>
-                  <th className="px-4 py-3 text-right text-white bg-indigo-950/60 whitespace-nowrap">총당첨</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-blue-950/60 whitespace-nowrap">카지노베팅</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-blue-950/60 whitespace-nowrap">카지노당첨</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-purple-950/60 whitespace-nowrap">슬롯베팅</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-purple-950/60 whitespace-nowrap">슬롯당첨</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-indigo-950/60 whitespace-nowrap">총베팅</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-indigo-950/60 whitespace-nowrap">총당첨</th>
                   
-                  {/* 윈로스 - 앰버 */}
-                  <th className="px-4 py-3 text-right text-white bg-amber-950/60 whitespace-nowrap">윈로스</th>
+                  {/* GGR - 앰버 */}
+                  <th className="px-4 py-3 text-right text-white font-normal bg-amber-950/60 whitespace-nowrap">GGR</th>
                   
-                  {/* 롤링/루징 - 에메랄드/틸 계열 */}
-                  <th className="px-4 py-3 text-right text-white bg-emerald-950/60 whitespace-nowrap">카지노롤링</th>
-                  <th className="px-4 py-3 text-right text-white bg-emerald-950/60 whitespace-nowrap">슬롯롤링</th>
-                  <th className="px-4 py-3 text-right text-white bg-teal-950/60 whitespace-nowrap">총롤링</th>
-                  <th className="px-4 py-3 text-right text-white bg-rose-950/60 whitespace-nowrap">카지노루징</th>
-                  <th className="px-4 py-3 text-right text-white bg-rose-950/60 whitespace-nowrap">슬롯루징</th>
-                  <th className="px-4 py-3 text-right text-white bg-rose-950/60 whitespace-nowrap">총루징</th>
+                  {/* 롤링 - 에메랄드/틸 계열 */}
+                  <th className="px-4 py-3 text-right text-white font-normal bg-emerald-950/60 whitespace-nowrap">카지노롤링</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-emerald-950/60 whitespace-nowrap">슬롯롤링</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-teal-950/60 whitespace-nowrap">총롤링</th>
                   
                   {/* 정산 수익 - 초록 계열 */}
-                  <th className="px-4 py-3 text-right text-white bg-green-950/70 whitespace-nowrap">정산수익</th>
-                  <th className="px-4 py-3 text-right text-white bg-green-950/70 whitespace-nowrap">실정산수익</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/70 whitespace-nowrap">정산수익</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/70 whitespace-nowrap">실정산수익</th>
                 </tr>
               </thead>
               <tbody>
@@ -757,10 +731,6 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
                     <td className={cn("px-4 py-3 text-right font-mono whitespace-nowrap", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>
                       {formatNumber(row.depositWithdrawalDiff)}
                     </td>
-                    <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.casinoRollingRate}%</td>
-                    <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.casinoLosingRate}%</td>
-                    <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.slotRollingRate}%</td>
-                    <td className="px-4 py-3 text-center text-slate-300 whitespace-nowrap">{row.slotLosingRate}%</td>
                     <td className="px-4 py-3 text-right text-blue-400 font-mono whitespace-nowrap">{formatNumber(row.casinoBet)}</td>
                     <td className="px-4 py-3 text-right text-purple-400 font-mono whitespace-nowrap">{formatNumber(row.casinoWin)}</td>
                     <td className="px-4 py-3 text-right text-blue-400 font-mono whitespace-nowrap">{formatNumber(row.slotBet)}</td>
@@ -771,9 +741,6 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
                     <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.casinoRolling)}</td>
                     <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.slotRolling)}</td>
                     <td className="px-4 py-3 text-right text-teal-400 font-mono whitespace-nowrap">{formatNumber(row.totalRolling)}</td>
-                    <td className="px-4 py-3 text-right text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.casinoLosing)}</td>
-                    <td className="px-4 py-3 text-right text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.slotLosing)}</td>
-                    <td className="px-4 py-3 text-right text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.totalLosing)}</td>
                     <td className="px-4 py-3 text-right text-green-400 font-mono font-semibold whitespace-nowrap">{formatNumber(row.settlementProfit)}</td>
                     <td className="px-4 py-3 text-right text-green-400 font-mono font-semibold whitespace-nowrap">{formatNumber(row.actualSettlementProfit)}</td>
                   </tr>

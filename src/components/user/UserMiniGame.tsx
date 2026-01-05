@@ -224,8 +224,17 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     try {
       const activeSession = await gameApi.checkActiveSession(user.id);
       
+      // ⭐ 0. 세션 종료 중(ending)인지 체크 - 게임 실행 차단
+      if (activeSession?.isActive && activeSession.status === 'ending') {
+        console.log('⏳ [게임 실행 차단] 이전 세션 종료 중...');
+        toast.warning('이전 게임 종료 중입니다. 잠시 후 다시 시도해주세요.', { duration: 3000 });
+        setLaunchingGameId(null);
+        setIsProcessing(false);
+        return;
+      }
+      
       // ⭐ 1. 다른 API 게임이 실행 중인지 체크
-      if (activeSession?.isActive && activeSession.api_type !== game.api_type) {
+      if (activeSession?.isActive && activeSession.status === 'active' && activeSession.api_type !== game.api_type) {
         toast.error('잠시 후 다시 시도해주세요.');
         
         setLaunchingGameId(null);

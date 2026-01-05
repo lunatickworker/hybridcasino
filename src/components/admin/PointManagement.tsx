@@ -1075,6 +1075,26 @@ export function PointManagement() {
 
       if (transactionError) throw transactionError;
 
+      // 3. ✅ activity_logs에 기록 (머니 변경 추적용)
+      await supabase
+        .from('activity_logs')
+        .insert({
+          actor_id: authState.user?.id,
+          actor_type: 'partner',
+          action: 'user_balance_change',
+          target_type: 'user',
+          target_id: selectedUserId,
+          details: {
+            description: `포인트 전환: ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`,
+            old_balance: currentBalance,
+            new_balance: newBalance,
+            difference: amount,
+            convert_type: 'point_to_balance',
+            points_used: amount,
+            memo: memo || '포인트 -> 보유금 전환'
+          }
+        });
+
       toast.success(`${amount.toLocaleString()}P가 보유금으로 전환되었습니다.`);
       setShowConvertDialog(false);
       setSelectedUserId("");

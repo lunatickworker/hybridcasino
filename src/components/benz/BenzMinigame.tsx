@@ -71,6 +71,7 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
   }, [selectedProvider]);
 
   useEffect(() => {
+    console.log('🎲 [BenzMinigame] useEffect 시작 - Realtime 구독 설정 중...');
     loadProviders();
     
     // ⚡ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
@@ -122,7 +123,8 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'partner_game_access' },
         (payload) => {
-          console.log('🔄 [BenzMinigame] partner_game_access 테이블 변경 감지:', payload);
+          console.log('🔄🔄🔄 [BenzMinigame] partner_game_access 테이블 변경 감지!!!', payload);
+          console.log('🎮 [BenzMinigame] 게임 스위칭 설정 변경 감지! 즉시 새로고침...');
           loadProviders();
           if (selectedProviderRef.current) {
             console.log('🔄 [BenzMinigame] 게임 목록 새로고침 시작...');
@@ -130,12 +132,15 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
           }
         }
       )
-      .subscribe((status) => {
-        console.log('📡 [BenzMinigame] Realtime 구독 상태:', status);
+      .subscribe((status, err) => {
+        console.log('📡📡📡 [BenzMinigame] Realtime 구독 상태:', status);
+        if (err) {
+          console.error('❌❌❌ [BenzMinigame] Realtime 구독 에러:', err);
+        }
         if (status === 'SUBSCRIBED') {
-          console.log('✅ [BenzMinigame] Realtime 구독 성공!');
+          console.log('✅✅✅ [BenzMinigame] Realtime 구독 성공! partner_game_access 테이블 감지 중...');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('❌ [BenzMinigame] Realtime 구독 실패:', status);
+          console.error('❌❌❌ [BenzMinigame] Realtime 구독 실패:', status);
         }
       });
     

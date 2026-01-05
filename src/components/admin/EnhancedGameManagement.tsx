@@ -513,6 +513,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
   const [selectedStore, setSelectedStore] = useState<Partner | null>(null);
   const [storeBlockedGames, setStoreBlockedGames] = useState<number[]>([]); // 차단된 게임 목록 (레코드 있음 = 차단)
   const [storeBlockedProviders, setStoreBlockedProviders] = useState<number[]>([]); // 차단된 제공사 목록
+  const [storeGameStatus, setStoreGameStatus] = useState<any[]>([]); // 매장별 게임 상태 (partner_game_access raw data)
   const [loadingStores, setLoadingStores] = useState(false);
   const [storeSelectedApis, setStoreSelectedApis] = useState<ApiType[]>([]); // Lv2의 selected_apis
 
@@ -1358,7 +1359,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       // ✅ is_allowed=false인 레코드만 차단 (블랙리스트 방식)
       const { data, error } = await supabase
         .from("partner_game_access")
-        .select("game_id, game_provider_id, access_type, is_allowed, api_provider")
+        .select("game_id, game_provider_id, access_type, is_allowed, api_provider, game_status")
         .eq("partner_id", storeId)
         .is("user_id", null) // 매장 전체 설정 (사용자별 아님)
         .eq("is_allowed", false); // ✅ 차단된 항목만 조회
@@ -1367,6 +1368,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
 
       console.log('🔍 [loadStoreGameAccess] DB 조회 결과:', data?.length || 0, '개');
       console.log('📋 [loadStoreGameAccess] 샘플 데이터:', data?.slice(0, 5));
+
+      // 게임 상태 저장 (raw data)
+      setStoreGameStatus(data || []);
 
       // 1. 제공사 차단 확인 (access_type: 'provider', is_allowed: false)
       const blockedProviderIds = (data || [])
@@ -1562,6 +1566,64 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       
       // ✅ Rollback: 에러 발생 시 이전 상태로 복원
       setStoreBlockedGames(previousBlockedGames);
+    }
+  };
+
+  // ✅ 매장관리: 개별 게임 상태 변경 (visible/maintenance/hidden)
+  const handleChangeStoreGameStatus = async (gameId: number, status: 'visible' | 'maintenance' | 'hidden') => {
+    if (!selectedStore) return;
+
+    console.log('🎮 매장 게임 상태 변경:', { gameId, status, storeId: selectedStore.id });
+    
+    const game = allGames.find(g => g.id === gameId);
+    if (!game) {
+      console.error(`❌ 게임 ID ${gameId}를 찾을 수 없습니다.`);
+      return;
+    }
+
+    try {
+      if (status === 'visible') {
+        // visible: 레코드 삭제 (기본값)
+        const { error } = await supabase
+          .from("partner_game_access")
+          .delete()
+          .eq("partner_id", selectedStore.id)
+          .is("user_id", null)
+          .eq("api_provider", game.api_type)
+          .eq("game_id", gameId)
+          .eq("access_type", "game");
+
+        if (error) throw error;
+        
+        toast.success("게임이 노출되었습니다.");
+      } else {
+        // maintenance 또는 hidden: 레코드 생성/업데이트
+        const { error } = await supabase
+          .from("partner_game_access")
+          .upsert({
+            partner_id: selectedStore.id,
+            user_id: null,
+            api_provider: game.api_type,
+            game_provider_id: null,
+            game_id: gameId,
+            access_type: "game",
+            is_allowed: false,
+            game_status: status,
+          }, {
+            onConflict: 'partner_id,user_id,api_provider,game_provider_id,game_id,access_type',
+            ignoreDuplicates: false
+          });
+
+        if (error) throw error;
+        
+        const statusText = status === 'maintenance' ? '점검중' : '숨김';
+        toast.success(`게임이 ${statusText} 상태로 변경되었습니다.`);
+      }
+
+      await loadStoreGameAccess(selectedStore.id);
+    } catch (error) {
+      console.error("❌ 매장 게임 상태 변경 실패:", error);
+      toast.error("게임 상태 변경에 실패했습니다.");
     }
   };
 
@@ -3156,8 +3218,8 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                                     </div>
                                                   )}
                                                   
-                                                  {/* 호버 시 토글 버튼 */}
-                                                  <div className="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                  {/* 호버 시 토글 버튼 + 상태 드롭다운 */}
+                                                  <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <Button
                                                       size="sm"
                                                       variant="outline"
@@ -3179,6 +3241,44 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                                         </>
                                                       )}
                                                     </Button>
+                                                    
+                                                    {/* 상태 변경 드롭다운 */}
+                                                    <Select
+                                                      value={(() => {
+                                                        // storeGameStatus에서 이 게임의 상태 조회
+                                                        const accessData = storeGameStatus?.find(
+                                                          (access: any) => access.game_id === game.id
+                                                        );
+                                                        return accessData?.game_status || 'visible';
+                                                      })()}
+                                                      onValueChange={(value: "visible" | "maintenance" | "hidden") => {
+                                                        handleChangeStoreGameStatus(game.id, value);
+                                                      }}
+                                                    >
+                                                      <SelectTrigger className="h-7 w-24 text-xs bg-slate-800 border-slate-600 text-white">
+                                                        <SelectValue />
+                                                      </SelectTrigger>
+                                                      <SelectContent>
+                                                        <SelectItem value="visible">
+                                                          <div className="flex items-center gap-1.5 text-xs">
+                                                            <Eye className="w-3 h-3" />
+                                                            노출
+                                                          </div>
+                                                        </SelectItem>
+                                                        <SelectItem value="maintenance">
+                                                          <div className="flex items-center gap-1.5 text-xs">
+                                                            <AlertTriangle className="w-3 h-3" />
+                                                            점검중
+                                                          </div>
+                                                        </SelectItem>
+                                                        <SelectItem value="hidden">
+                                                          <div className="flex items-center gap-1.5 text-xs">
+                                                            <EyeOff className="w-3 h-3" />
+                                                            숨김
+                                                          </div>
+                                                        </SelectItem>
+                                                      </SelectContent>
+                                                    </Select>
                                                   </div>
                                                 </div>
 

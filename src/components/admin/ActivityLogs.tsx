@@ -188,6 +188,14 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
       game_launch: '게임 실행',
       game_end: '게임 종료',
       game_force_end: '게임 강제종료',
+      // 🆕 게임 관련 추가 액션
+      game_started: '게임 시작 성공',
+      game_start_failed: '게임 시작 실패',
+      game_session_ended: '게임 세션 종료',
+      game_session_end_failed: '게임 세션 종료 실패',
+      game_withdraw_failed: 'API 출금 실패',
+      negative_balance_detected: '음수 잔고 감지',
+      negative_final_balance_detected: '음수 최종 잔고 감지',
       settlement_execute: '정산 실행',
       commission_settle: '수수료 정산',
       system_setting_update: '시스템 설정 변경',
@@ -493,6 +501,13 @@ export function ActivityLogs({ user }: ActivityLogsProps) {
               <SelectItem value="game_launch">게임 실행</SelectItem>
               <SelectItem value="game_end">게임 종료</SelectItem>
               <SelectItem value="game_force_end">게임 강제종료</SelectItem>
+              <SelectItem value="game_started">게임 시작 성공</SelectItem>
+              <SelectItem value="game_start_failed">게임 시작 실패</SelectItem>
+              <SelectItem value="game_session_ended">게임 세션 종료</SelectItem>
+              <SelectItem value="game_session_end_failed">게임 세션 종료 실패</SelectItem>
+              <SelectItem value="game_withdraw_failed">API 출금 실패</SelectItem>
+              <SelectItem value="negative_balance_detected">음수 잔고 감지</SelectItem>
+              <SelectItem value="negative_final_balance_detected">음수 최종 잔고 감지</SelectItem>
               <SelectItem value="settlement_execute">정산 실행</SelectItem>
               <SelectItem value="commission_settle">수수료 정산</SelectItem>
               <SelectItem value="system_setting_update">시스템 설정 변경</SelectItem>

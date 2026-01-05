@@ -20,64 +20,82 @@ interface ProxyConfig {
   body?: any;
 }
 
-async function proxyCall<T = any>(config: ProxyConfig): Promise<T> {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
-    
-    const response = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(config),
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      if (response.status === 401) {
-        throw new Error(`인증 실패 (401): API Key가 유효하지 않습니다.`);
+async function proxyCall<T = any>(config: ProxyConfig, retries: number = 0): Promise<T> {
+  const startTime = Date.now();
+  console.log(`⏱️ [Family Proxy] API 호출 시작:`, {
+    url: config.url,
+    method: config.method,
+    timestamp: new Date().toISOString()
+  });
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.error(`⏰ [Family Proxy] 타임아웃 발생 (120초 경과):`, config.url);
+        controller.abort();
+      }, 120000);
+      
+      const response = await fetch(PROXY_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(config),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ [Family Proxy] 응답 수신 (${elapsed}ms):`, {
+        status: response.status,
+        ok: response.ok
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Proxy call failed (${response.status})`);
       }
-      throw new Error(`Proxy call failed (${response.status})`);
-    }
-    
-    const data = await response.json();
-    
-    // FamilyAPI 응답 검증: resultCode가 "0"이 아니면 에러
-    if (data && typeof data === 'object') {
-      if (data.resultCode !== undefined && data.resultCode !== "0") {
-        const errorMessage = data.resultMessage || '알 수 없는 오류가 발생했습니다.';
-        const errorDetail = `FamilyAPI 오류 (resultCode: ${data.resultCode}): ${errorMessage}`;
-        console.error('❌ ❌ FamilyAPI Proxy 응답 오류:', {
-          resultCode: data.resultCode,
-          resultMessage: errorMessage,
+      
+      const data = await response.json();
+      
+      console.log(`📦 [Family Proxy] 데이터 파싱 완료 (총 ${Date.now() - startTime}ms)`);
+      
+      return data;
+      
+    } catch (error: any) {
+      const elapsed = Date.now() - startTime;
+      
+      if (error.name === 'AbortError') {
+        console.error(`❌ [Family Proxy] 타임아웃 (${elapsed}ms):`, {
           url: config.url,
           method: config.method
         });
-        
-        // resultCode 9999는 일반적으로 토큰 오류 또는 제공사 사용 불가
-        if (data.resultCode === "9999" || data.resultCode === 9999) {
-          throw new Error('제공사를 사용할 수 없습니다. (토큰 오류 또는 권한 없음)');
-        }
-        
-        throw new Error(errorDetail);
+        throw new Error('API 호출 시간 초과 (120초). 프록시 서버가 응답하지 않습니다.');
       }
+      
+      // "Failed to fetch" 오류 처리 (네트워크 오류)
+      if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
+        console.error(`❌ [Family Proxy] 네트워크 오류 (${elapsed}ms):`, {
+          url: config.url,
+          method: config.method,
+          error: error.message
+        });
+        throw new Error(`프록시 서버 연결 실패: ${config.url}. 네트워크를 확인하거나 잠시 후 다시 시도해주세요.`);
+      }
+      
+      // 기타 오류
+      console.error(`❌ [Family Proxy] 오류 (${elapsed}ms):`, {
+        url: config.url,
+        error: error.message
+      });
+      
+      throw error;
     }
-    
-    if (data.error) {
-      throw new Error(`Proxy error: ${JSON.stringify(data.error)}`);
-    }
-    
-    return data;
-    
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
-      throw new Error('API 호출 시간 초과 (60초)');
-    }
-    throw error;
   }
+  
+  // 모든 재시도 실패 (retries=0이면 여기 도달 안함)
+  throw new Error(`API 호출 실패: ${config.url}`);
 }
 
 // ============================================

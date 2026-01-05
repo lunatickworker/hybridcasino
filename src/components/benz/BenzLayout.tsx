@@ -153,12 +153,12 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           console.log('💰💰💰 [Benz] ========================================');
           
           if (isMountedRef.current) {
-            // ⭐⭐⭐ 게임 실행 중인지 확인
+            // ⭐⭐⭐ 게임 실행 중인지 확인 (active 또는 ending 상태만 체크)
             const { data: activeSessions } = await supabase
               .from('game_launch_sessions')
-              .select('balance_before')
+              .select('balance_before, status')
               .eq('user_id', user.id)
-              .eq('status', 'active')
+              .in('status', ['active', 'ending']) // error 상태는 제외
               .limit(1);
             
             const newData = payload.new as any;
@@ -166,7 +166,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
             // 게임 실행 중이면 세션의 balance_before 사용
             if (activeSessions && activeSessions.length > 0) {
               const sessionBalance = parseFloat(activeSessions[0].balance_before) || 0;
-              console.log(`🎮 [Benz Realtime] 게임 실행 중 - 세션 잔고 사용: ${sessionBalance}원`);
+              console.log(`🎮 [Benz Realtime] 게임 실행 중 (status: ${activeSessions[0].status}) - 세션 잔고 사용: ${sessionBalance}원`);
               
               const newBalance = {
                 balance: sessionBalance,
@@ -366,9 +366,6 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
 
     (window as any).syncBalanceAfterGame = async (sessionId: number) => {
       try {
-        console.log('🔄 [Benz 게임창 닫힘] 세션 종료:', sessionId);
-        
-        // ⭐ 1. 세션 정보 조회 (user_id, api_type, status 확인)
         const { data: session, error: sessionError } = await supabase
           .from('game_launch_sessions')
           .select('user_id, api_type, status')
@@ -376,73 +373,28 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           .single();
 
         if (sessionError || !session) {
-          console.error('❌ [Benz 게임창 닫힘] 세션 조회 실패:', sessionError);
+          console.error('❌ [게임 종료] 세션 조회 실패:', sessionError);
           return;
         }
 
-        // ⭐ active 상태만 처리 (ending/ended 세션은 무시)
         if (session.status !== 'active') {
-          console.log(`⏭️ [Benz 게임창 닫힘] 이미 종료 중이거나 종료된 세션: status=${session.status}`);
           return;
         }
 
-        // ⭐ 중복 실행 방지
         if (syncingSessionsRef.current.has(sessionId)) {
-          console.log(`⏭️ [Benz 게임창 닫힘] 이미 처리 중인 세션: ${sessionId}`);
           return;
         }
 
         syncingSessionsRef.current.add(sessionId);
 
         try {
-          // ⭐ 2. lib/gameApi.ts의 syncBalanceOnSessionEnd 호출 (완전한 출금 로직)
           const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
           await syncBalanceOnSessionEnd(session.user_id, session.api_type);
-          
-          // ⭐ 3. 베팅 기록 동기화 호출 (게임 종료 직후)
-          console.log('📊 [Benz 게임창 닫힘] 베팅 기록 동기화 시작...');
-          try {
-            const edgeFunctionUrl = 'https://hduofjzsitoaujyjvuix.supabase.co/functions/v1/server';
-            const authToken = publicAnonKey;
-            
-            // API 타입별로 적절한 엔드포인트 호출
-            let syncEndpoint = '';
-            if (session.api_type === 'invest') {
-              syncEndpoint = '/sync/invest-bets';
-            } else if (session.api_type === 'oroplay') {
-              syncEndpoint = '/sync/oroplay-bets';
-            } else if (session.api_type === 'familyapi') {
-              syncEndpoint = '/sync/familyapi-bets';
-            } else if (session.api_type === 'honorapi') {
-              syncEndpoint = '/sync/honorapi-bets';
-            }
-            
-            if (syncEndpoint) {
-              const bettingResponse = await fetch(`${edgeFunctionUrl}${syncEndpoint}`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${authToken}`
-                }
-              });
-              
-              if (bettingResponse.ok) {
-                console.log(`✅ [Benz 게임창 닫힘] ${session.api_type} 베팅 기록 동기화 완료`);
-              } else {
-                console.warn(`⚠️ [Benz 게임창 닫힘] 베팅 동기화 응답 오류: ${bettingResponse.status}`);
-              }
-            }
-          } catch (bettingError) {
-            console.error('❌ [Benz 게임창 닫힘] 베팅 동기화 오류 (무시):', bettingError);
-            // 베팅 동기화 실패해도 게임 종료는 계속 진행
-          }
-          
-          console.log('✅ [Benz 게임창 닫힘] 처리 완료');
         } finally {
           syncingSessionsRef.current.delete(sessionId);
         }
       } catch (error) {
-        console.error('❌ [Benz 게임창 닫힘 오류]:', error);
+        console.error('❌ [게임 종료 오류]:', error);
         syncingSessionsRef.current.delete(sessionId);
         
         // 에러 발생 시에도 세션은 종료
@@ -455,7 +407,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
             })
             .eq('id', sessionId);
         } catch (e) {
-          console.error('❌ [Benz 세션 종료 실패]:', e);
+          console.error('❌ [세션 종료 실패]:', e);
         }
       }
     };

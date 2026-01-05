@@ -107,6 +107,7 @@ export interface SubBalanceAllResponse {
   transaction_id?: number;
   cached: boolean;
   message?: string;
+  error?: string;
 }
 
 export interface Transaction {
@@ -551,13 +552,32 @@ export async function subUserBalanceAll(
     params.append('uuid', uuid);
   }
 
-  const result = await proxyCall<SubBalanceAllResponse>({
-    url: `${HONORAPI_BASE_URL}/user/sub-balance-all?${params.toString()}`,
-    method: 'POST'
-  }, apiKey);
+  try {
+    const result = await proxyCall<SubBalanceAllResponse>({
+      url: `${HONORAPI_BASE_URL}/user/sub-balance-all?${params.toString()}`,
+      method: 'POST'
+    }, apiKey);
 
-  console.log(`✅ [HonorAPI] 유저 머니 전체 회수 성공: ${username}, 회수금액: ${result.amount}, cached: ${result.cached}`);
-  return result;
+    console.log(`✅ [HonorAPI] 유저 머니 전체 회수 성공: ${username}, 회수금액: ${result.amount}, cached: ${result.cached}`);
+    
+    // ✅ success 필드 추가
+    return {
+      ...result,
+      success: true
+    };
+  } catch (error) {
+    console.error(`❌ [HonorAPI] 유저 머니 전체 회수 실패: ${username}`, error);
+    
+    // ✅ 에러 발생 시 명확한 응답 반환
+    return {
+      success: false,
+      username,
+      balance: 0,
+      amount: 0,
+      cached: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    };
+  }
 }
 
 /**

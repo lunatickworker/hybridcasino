@@ -181,14 +181,14 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       header: '상태',
       render: (value: string) => {
         const statusConfig: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
-          active: { label: '접속중', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/30' },
-          ready: { label: '대기중', color: 'text-amber-400', bgColor: 'bg-amber-500/10', borderColor: 'border-amber-500/30' },
+          active: { label: '게임중', color: 'text-emerald-400', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/30' },
+          online: { label: '접속중', color: 'text-blue-400', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/30' },
           ended: { label: '종료', color: 'text-slate-400', bgColor: 'bg-slate-500/10', borderColor: 'border-slate-500/30' },
           force_ended: { label: '강제종료', color: 'text-red-400', bgColor: 'bg-red-500/10', borderColor: 'border-red-500/30' },
         };
         const config = statusConfig[value] || statusConfig.ended;
         return (
-          <Badge variant="outline" className={cn(config.bgColor, config.color, config.borderColor)}>
+          <Badge variant="outline" className={cn(config.bgColor, config.color, config.borderColor, "text-base")}>
             {config.label}
           </Badge>
         );
@@ -199,7 +199,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       header: '소속명',
       sortable: true,
       render: (value: string, row: OnlineSession) => (
-        <span className={cn("text-slate-300 text-sm", row.status !== 'active' && "opacity-40")}>
+        <span className={cn("text-slate-300 text-base", row.status !== 'active' && row.status !== 'online' && "opacity-40")}>
           {value}
         </span>
       ),
@@ -209,7 +209,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       header: t.common.username,
       sortable: true,
       render: (value: string, row: OnlineSession) => (
-        <span className={cn("text-slate-200", row.status !== 'active' && "opacity-40")}>
+        <span className={cn("text-slate-200 text-base", row.status !== 'active' && row.status !== 'online' && "opacity-40")}>
           {value}
         </span>
       ),
@@ -219,9 +219,9 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       header: '게임명 / 제공사',
       sortable: false,
       render: (_: any, row: OnlineSession) => (
-        <div className={cn("flex flex-col gap-1", row.status !== 'active' && "opacity-40")}>
-          <span className="text-slate-200 text-sm">{row.game_name}</span>
-          <span className="text-slate-400 text-xs">{row.provider_name}</span>
+        <div className={cn("flex flex-col gap-1", row.status !== 'active' && row.status !== 'online' && "opacity-40")}>
+          <span className="text-slate-200 text-base">{row.game_name || '-'}</span>
+          <span className="text-slate-400 text-sm">{row.provider_name || '-'}</span>
         </div>
       ),
     },
@@ -233,16 +233,17 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
         <div className="flex items-center gap-3">
           <AnimatedBalance 
             value={value} 
-            inactive={row.status !== 'active'}
+            inactive={row.status !== 'active' && row.status !== 'online'}
+            className="text-base"
           />
           <Button
             variant="ghost"
             size="sm"
             onClick={() => syncBalance(row)}
-            disabled={syncingBalance === row.user_id || row.status !== 'active'}
+            disabled={syncingBalance === row.user_id || (row.status !== 'active' && row.status !== 'online')}
             className={cn(
               "text-slate-400 hover:text-slate-200 h-8 w-8 p-0",
-              row.status !== 'active' && "opacity-40 cursor-not-allowed"
+              (row.status !== 'active' && row.status !== 'online') && "opacity-40 cursor-not-allowed"
             )}
           >
             <RefreshCw className={`w-5 h-5 ${syncingBalance === row.user_id ? 'animate-spin' : ''}`} />
@@ -255,7 +256,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       header: 'IP 주소',
       sortable: true,
       render: (value: string, row: OnlineSession) => (
-        <span className={cn("text-slate-300 font-mono text-sm", row.status !== 'active' && "opacity-40")}>
+        <span className={cn("text-slate-300 font-mono text-base", row.status !== 'active' && row.status !== 'online' && "opacity-40")}>
           {value}
         </span>
       ),
@@ -266,9 +267,9 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       render: (value: string, row: OnlineSession) => (
         <Badge 
           variant={value === 'Mobile' ? 'default' : 'secondary'} 
-          className={cn("gap-1", row.status !== 'active' && "opacity-40")}
+          className={cn("gap-1 text-base", row.status !== 'active' && row.status !== 'online' && "opacity-40")}
         >
-          {value === 'Mobile' ? <Smartphone className="w-6 h-6" /> : <Monitor className="w-6 h-6" />}
+          {value === 'Mobile' ? <Smartphone className="w-5 h-5" /> : <Monitor className="w-5 h-5" />}
           {value}
         </Badge>
       ),
@@ -277,7 +278,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       key: 'launched_at',
       header: '접속 시간',
       render: (value: string, row: OnlineSession) => (
-        <span className={cn("text-slate-300", row.status !== 'active' && "opacity-40")}>
+        <span className={cn("text-slate-300 text-base", row.status !== 'active' && row.status !== 'online' && "opacity-40")}>
           {getSessionTime(value)}
         </span>
       ),
@@ -293,13 +294,13 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
             setSelectedSession(row);
             setShowKickDialog(true);
           }}
-          disabled={row.status !== 'active'}
+          disabled={row.status !== 'active' && row.status !== 'online'}
           className={cn(
-            "bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 h-10 w-10 p-0",
-            row.status !== 'active' && "opacity-40 cursor-not-allowed"
+            "bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 h-auto px-4 py-2 text-base",
+            (row.status !== 'active' && row.status !== 'online') && "opacity-40 cursor-not-allowed"
           )}
         >
-          <Power className="w-6 h-6" />
+          강제 종료
         </Button>
       ),
     },
@@ -318,8 +319,34 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       }
       // ✅ 자동 갱신(30초 타이머)은 백그라운드에서 조용히 처리 (깜박임 없음)
 
-      // ⭐ game_launch_sessions에서 game_id가 있는 세션 조회 (active만 - ended/force_ended 제외)
-      let query = supabase
+      // 권한별 허용된 사용자 ID 목록 먼저 조회
+      let allowedUserIds: string[] = [];
+      
+      if (user.level !== 1) {
+        const { data: childPartners } = await supabase
+          .rpc('get_hierarchical_partners', { p_partner_id: user.id });
+
+        const allowedPartnerIds = [user.id, ...(childPartners?.map((p: any) => p.id) || [])];
+        
+        // users 테이블에서 허용된 파트너의 회원 ID 조회
+        const { data: allowedUsers } = await supabase
+          .from('users')
+          .select('id')
+          .in('referrer_id', allowedPartnerIds);
+        
+        allowedUserIds = allowedUsers?.map((u: any) => u.id) || [];
+        
+        if (allowedUserIds.length === 0) {
+          // 허용된 사용자가 없으면 빈 배열 반환
+          setSessions([]);
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        }
+      }
+
+      // 1️⃣ 게임 세션 조회 (game_launch_sessions)
+      let gameSessionQuery = supabase
         .from('game_launch_sessions')
         .select(`
           id,
@@ -334,55 +361,54 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           balance_before
         `)
         .not('game_id', 'is', null)
-        .eq('status', 'active')  // ⭐ ready 상태 제거, active만 조회
+        .eq('status', 'active')
         .order('last_activity_at', { ascending: false });
 
-      // 권한별 필터링
-      if (user.level !== 1) {
-        const { data: childPartners } = await supabase
-          .rpc('get_hierarchical_partners', { p_partner_id: user.id });
-
-        const allowedPartnerIds = [user.id, ...(childPartners?.map((p: any) => p.id) || [])];
-        
-        // users 테이블에서 허용된 파트너의 회원 ID 조회
-        const { data: allowedUsers } = await supabase
-          .from('users')
-          .select('id')
-          .in('referrer_id', allowedPartnerIds);
-        
-        const allowedUserIds = allowedUsers?.map((u: any) => u.id) || [];
-        if (allowedUserIds.length > 0) {
-          query = query.in('user_id', allowedUserIds);
-        } else {
-          // 허용된 사용자가 없으면 빈 배열 반환
-          setSessions([]);
-          setLoading(false);
-          setRefreshing(false);
-          return;
-        }
+      if (user.level !== 1 && allowedUserIds.length > 0) {
+        gameSessionQuery = gameSessionQuery.in('user_id', allowedUserIds);
       }
 
-      const { data, error } = await query;
+      const { data: gameSessionsData, error: gameSessionError } = await gameSessionQuery;
+      if (gameSessionError) throw gameSessionError;
 
-      if (error) throw error;
+      // 2️⃣ 온라인 사용자 조회 (is_online = true)
+      let onlineUsersQuery = supabase
+        .from('users')
+        .select('id, username, nickname, balance, ip_address, device_info, referrer_id, last_login_at')
+        .eq('is_online', true);
 
-      // users 정보를 별도로 조회
-      const userIds = [...new Set((data || []).map((s: any) => s.user_id).filter(Boolean))];
+      if (user.level !== 1 && allowedUserIds.length > 0) {
+        onlineUsersQuery = onlineUsersQuery.in('id', allowedUserIds);
+      }
+
+      const { data: onlineUsersData, error: onlineUsersError } = await onlineUsersQuery;
+      if (onlineUsersError) throw onlineUsersError;
+
+      // 3️⃣ 게임 중인 사용자 ID 목록
+      const gamingUserIds = new Set((gameSessionsData || []).map((s: any) => s.user_id));
+
+      // 4️⃣ 모든 관련 users 정보 조회
+      const allUserIds = [
+        ...gamingUserIds,
+        ...(onlineUsersData || []).map(u => u.id)
+      ];
+      const uniqueUserIds = [...new Set(allUserIds)];
+
       const { data: usersData } = await supabase
         .from('users')
-        .select('id, username, nickname, balance, ip_address, device_info, referrer_id')
-        .in('id', userIds);
+        .select('id, username, nickname, balance, ip_address, device_info, referrer_id, last_login_at')
+        .in('id', uniqueUserIds);
       
       const usersMap = new Map(usersData?.map(u => [u.id, u]) || []);
 
-      // referrer_id로 파트너 정보 조회
+      // 5️⃣ referrer_id로 파트너 정보 조회
       const referrerIds = [...new Set(usersData?.map((u: any) => u.referrer_id).filter(Boolean) || [])];
       let partnersMap: Record<string, any> = {};
       
       if (referrerIds.length > 0) {
         const { data: partnersData } = await supabase
           .from('partners')
-          .select('id, username')  // ⭐ username 조회 (아이디 표시용)
+          .select('id, username')
           .in('id', referrerIds);
         
         if (partnersData) {
@@ -390,8 +416,8 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
         }
       }
 
-      // game_id로 게임 정보 조회
-      const gameIds = [...new Set((data || []).map((s: any) => s.game_id).filter(Boolean))];
+      // 6️⃣ game_id로 게임 정보 조회
+      const gameIds = [...new Set((gameSessionsData || []).map((s: any) => s.game_id).filter(Boolean))];
       let gamesMap: Record<number, any> = {};
       
       if (gameIds.length > 0) {
@@ -405,14 +431,13 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
         }
       }
 
-      const formattedSessions: OnlineSession[] = (data || []).map((session: any) => {
+      // 7️⃣ 게임 세션 포맷팅 (상태: '게임중')
+      const formattedGameSessions: OnlineSession[] = (gameSessionsData || []).map((session: any) => {
         const userInfo = usersMap.get(session.user_id);
         if (!userInfo) return null;
         
-        // IP 주소 처리 - users 테이블의 ip_address 사용
         const ipAddress = userInfo.ip_address || '-';
         
-        // device_info에서 디바이스 타입 추출
         let deviceType = 'PC';
         if (userInfo.device_info) {
           const deviceInfo = userInfo.device_info;
@@ -431,14 +456,10 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           }
         }
 
-        // 게임 정보 가져오기 - 한글명 우선 사용
         const providerId = Math.floor(session.game_id / 1000);
         const providerName = PROVIDER_NAMES[providerId] || `Provider ${providerId}`;
         
-        // 카지노 로비인 경우 한글명 매핑
         let gameName = CASINO_LOBBY_NAMES[session.game_id];
-        
-        // 로비가 아닌 경우 games 테이블에서 조회
         if (!gameName) {
           const gameInfo = gamesMap[session.game_id];
           gameName = gameInfo?.name || `Game ${session.game_id}`;
@@ -450,7 +471,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           user_id: userInfo.id,
           username: userInfo.username,
           nickname: userInfo.nickname || userInfo.username,
-          partner_username: userInfo.referrer_id ? partnersMap[userInfo.referrer_id]?.username || `Partner ${userInfo.referrer_id}` : 'Self', // 소속명 추가
+          partner_username: userInfo.referrer_id ? partnersMap[userInfo.referrer_id]?.username || `Partner ${userInfo.referrer_id}` : 'Self',
           game_name: gameName,
           provider_name: providerName,
           balance_before: Number(session.balance_before) || 0,
@@ -459,10 +480,57 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           ip_address: ipAddress,
           launched_at: session.launched_at,
           last_activity_at: session.last_activity_at,
-          status: session.status,
-          api_type: session.api_type, // ⭐ API 타입 추가
+          status: 'active', // 게임 중
+          api_type: session.api_type,
         };
       }).filter(Boolean) as OnlineSession[];
+
+      // 8️⃣ 온라인 사용자 포맷팅 (상태: '접속중', 게임 중이 아닌 경우만)
+      const formattedOnlineUsers: OnlineSession[] = (onlineUsersData || [])
+        .filter(u => !gamingUserIds.has(u.id)) // 게임 중인 사용자 제외
+        .map((userInfo: any, index: number) => {
+          const ipAddress = userInfo.ip_address || '-';
+          
+          let deviceType = 'PC';
+          if (userInfo.device_info) {
+            const deviceInfo = userInfo.device_info;
+            if (deviceInfo.device === 'Mobile' || deviceInfo.device === 'mobile') {
+              deviceType = 'Mobile';
+            } else if (deviceInfo.platform) {
+              const platform = String(deviceInfo.platform).toLowerCase();
+              if (platform.includes('android') || platform.includes('iphone') || platform.includes('ipad') || platform.includes('mobile')) {
+                deviceType = 'Mobile';
+              }
+            } else if (deviceInfo.userAgent) {
+              const ua = String(deviceInfo.userAgent).toLowerCase();
+              if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone') || ua.includes('ipad')) {
+                deviceType = 'Mobile';
+              }
+            }
+          }
+
+          return {
+            id: -1 - index, // 음수 ID로 구분 (게임 세션과 겹치지 않도록)
+            session_id: `online-${userInfo.id}`,
+            user_id: userInfo.id,
+            username: userInfo.username,
+            nickname: userInfo.nickname || userInfo.username,
+            partner_username: userInfo.referrer_id ? partnersMap[userInfo.referrer_id]?.username || `Partner ${userInfo.referrer_id}` : 'Self',
+            game_name: '-',
+            provider_name: '-',
+            balance_before: Number(userInfo.balance) || 0,
+            current_balance: Number(userInfo.balance) || 0,
+            device_type: deviceType,
+            ip_address: ipAddress,
+            launched_at: userInfo.last_login_at || new Date().toISOString(),
+            last_activity_at: userInfo.last_login_at || new Date().toISOString(),
+            status: 'online', // 접속 중
+            api_type: undefined,
+          };
+        });
+
+      // 9️⃣ 두 배열 합치기
+      const formattedSessions = [...formattedGameSessions, ...formattedOnlineUsers];
 
       // ✅ 기존 데이터와 비교하여 실제로 변경된 경우에만 업데이트 (깜박임 방지)
       setSessions(prevSessions => {
@@ -727,28 +795,46 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
     if (!selectedSession) return;
 
     try {
-      // 1️⃣ 세션 강제 종료
-      const { error } = await supabase
-        .from('game_launch_sessions')
-        .update({ 
-          status: 'force_ended',
-          ended_at: new Date().toISOString()
-        })
-        .eq('id', selectedSession.id);
+      // 접속중(online) vs 게임중(active) 구분
+      if (selectedSession.status === 'online') {
+        // 접속중 사용자는 is_online을 false로 변경
+        const { error } = await supabase
+          .from('users')
+          .update({ is_online: false })
+          .eq('id', selectedSession.user_id);
 
-      if (error) {
-        console.error('세션 종료 오류:', error);
-        toast.error(`세션 종료 실패: ${error.message}`);
-        return;
+        if (error) {
+          console.error('접속 강제 종료 오류:', error);
+          toast.error(`접속 강제 종료 실패: ${error.message}`);
+          return;
+        }
+
+        toast.success('접속 강제 종료 완료');
+      } else {
+        // 게임중 사용자는 세션 강제 종료
+        const { error } = await supabase
+          .from('game_launch_sessions')
+          .update({ 
+            status: 'force_ended',
+            ended_at: new Date().toISOString()
+          })
+          .eq('id', selectedSession.id);
+
+        if (error) {
+          console.error('세션 종료 오류:', error);
+          toast.error(`세션 종료 실패: ${error.message}`);
+          return;
+        }
+
+        // 사용자 보유금 동기화 (백그라운드)
+        console.log('💰 [강제 종료] 보유금 동기화 시작:', selectedSession.user_id);
+        syncBalanceOnSessionEnd(selectedSession.user_id).catch(err => {
+          console.error('❌ [강제 종료] 보유금 동기화 실패:', err);
+        });
+
+        toast.success('세션 강제 종료 완료');
       }
 
-      // 2️⃣ 사용자 보유금 동기화 (백그라운드)
-      console.log('💰 [강제 종료] 보유금 동기화 시작:', selectedSession.user_id);
-      syncBalanceOnSessionEnd(selectedSession.user_id).catch(err => {
-        console.error('❌ [강제 종료] 보유금 동기화 실패:', err);
-      });
-
-      toast.success('세션 강제 종료 완료');
       setShowKickDialog(false);
       setSelectedSession(null);
       
@@ -766,35 +852,68 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
     try {
       const sessionIds = Array.from(selectedSessions);
       
-      // 1️⃣ 세션 목록 조회 (user_id 확보)
-      const { data: sessionList } = await supabase
-        .from('game_launch_sessions')
-        .select('id, user_id')
-        .in('id', sessionIds);
+      // sessionIds가 음수인 경우(접속중) vs 양수인 경우(게임중) 구분
+      const onlineSessionIds = sessionIds.filter(id => id < 0);
+      const gameSessionIds = sessionIds.filter(id => id >= 0);
       
-      // 2️⃣ 세션 일괄 강제 종료
-      const { error } = await supabase
-        .from('game_launch_sessions')
-        .update({ 
-          status: 'force_ended',
-          ended_at: new Date().toISOString()
-        })
-        .in('id', sessionIds);
+      let onlineUserIds: string[] = [];
+      let gameUserIds: string[] = [];
 
-      if (error) {
-        console.error('일괄 종료 오류:', error);
-        toast.error(`일괄 종료 실패: ${error.message}`);
-        return;
+      // 접속중 사용자 처리
+      if (onlineSessionIds.length > 0) {
+        // 실제 user_id 추출 (온라인 사용자는 세션의 user_id 사용)
+        onlineUserIds = sessions
+          .filter(s => onlineSessionIds.includes(s.id))
+          .map(s => s.user_id);
+
+        if (onlineUserIds.length > 0) {
+          const { error: onlineError } = await supabase
+            .from('users')
+            .update({ is_online: false })
+            .in('id', onlineUserIds);
+
+          if (onlineError) {
+            console.error('접속 일괄 종료 오류:', onlineError);
+            toast.error(`접속 일괄 종료 실패: ${onlineError.message}`);
+            return;
+          }
+        }
       }
 
-      // 3️⃣ 각 사용자 보유금 동기화 (백그라운드)
-      if (sessionList && sessionList.length > 0) {
-        console.log(`💰 [일괄 강제 종료] ${sessionList.length}명 보유금 동기화 시작`);
+      // 게임중 사용자 처리
+      if (gameSessionIds.length > 0) {
+        // 1️⃣ 세션 목록 조회 (user_id 확보)
+        const { data: sessionList } = await supabase
+          .from('game_launch_sessions')
+          .select('id, user_id')
+          .in('id', gameSessionIds);
         
-        for (const session of sessionList) {
-          syncBalanceOnSessionEnd(session.user_id).catch(err => {
-            console.error(`❌ [일괄 강제 종료] 보유금 동기화 실패 (${session.user_id}):`, err);
-          });
+        gameUserIds = sessionList?.map(s => s.user_id) || [];
+
+        // 2️⃣ 세션 일괄 강제 종료
+        const { error: gameError } = await supabase
+          .from('game_launch_sessions')
+          .update({ 
+            status: 'force_ended',
+            ended_at: new Date().toISOString()
+          })
+          .in('id', gameSessionIds);
+
+        if (gameError) {
+          console.error('게임 일괄 종료 오류:', gameError);
+          toast.error(`게임 일괄 종료 실패: ${gameError.message}`);
+          return;
+        }
+
+        // 3️⃣ 각 사용자 보유금 동기화 (백그라운드)
+        if (gameUserIds.length > 0) {
+          console.log(`💰 [일괄 강제 종료] ${gameUserIds.length}명 보유금 동기화 시작`);
+          
+          for (const userId of gameUserIds) {
+            syncBalanceOnSessionEnd(userId).catch(err => {
+              console.error(`❌ [일괄 강제 종료] 보유금 동기화 실패 (${userId}):`, err);
+            });
+          }
         }
       }
 

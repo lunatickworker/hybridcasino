@@ -174,12 +174,13 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
             // ✅ DB에서 현재 호출 카운터 조회
             const { data: userData } = await supabase
               .from('users')
-              .select('balance_sync_call_count')
+              .select('balance, balance_sync_call_count, id')
               .eq('username', username)
               .single();
 
             const currentCount = userData?.balance_sync_call_count || 0;
             const newCount = currentCount + 1;
+            const oldBalance = userData?.balance || 0;
 
             // 설정된 카운트 도달 시 강제 로그아웃
             if (newCount >= LOGOUT_COUNT_LIMIT) {
@@ -194,6 +195,28 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
                 })
                 .eq('username', username);
 
+              // ✅ activity_logs 기록 (잔고 변경된 경우에만)
+              if (oldBalance !== newBalance) {
+                await supabase
+                  .from('activity_logs')
+                  .insert({
+                    actor_id: user.id,
+                    actor_type: 'partner',
+                    action: 'user_balance_change',
+                    target_type: 'user',
+                    target_id: userData?.id,
+                    details: {
+                      description: `Invest API 자동 동기화 (GET): ${oldBalance.toLocaleString()} → ${newBalance.toLocaleString()}`,
+                      old_balance: oldBalance,
+                      new_balance: newBalance,
+                      difference: newBalance - oldBalance,
+                      api_provider: 'invest',
+                      sync_type: 'auto_get',
+                      auto_logout: true
+                    }
+                  });
+              }
+
               logoutCount++;
             } else {
               // ✅ 설정된 카운트 미만이면 보유금 업데이트 + 카운터 증가
@@ -205,6 +228,28 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
                   updated_at: new Date().toISOString()
                 })
                 .eq('username', username);
+
+              // ✅ activity_logs 기록 (잔고 변경된 경우에만)
+              if (oldBalance !== newBalance) {
+                await supabase
+                  .from('activity_logs')
+                  .insert({
+                    actor_id: user.id,
+                    actor_type: 'partner',
+                    action: 'user_balance_change',
+                    target_type: 'user',
+                    target_id: userData?.id,
+                    details: {
+                      description: `Invest API 자동 동기화 (GET): ${oldBalance.toLocaleString()} → ${newBalance.toLocaleString()}`,
+                      old_balance: oldBalance,
+                      new_balance: newBalance,
+                      difference: newBalance - oldBalance,
+                      api_provider: 'invest',
+                      sync_type: 'auto_get',
+                      call_count: newCount
+                    }
+                  });
+              }
             }
 
             successCount++;
@@ -433,12 +478,22 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
           // ✅ 온라인 사용자만 DB 업데이트
           for (const username of targetUsernames) {
             try {
-              const balance = parseFloat(balanceMap[username] || 0);
+              const newBalance = parseFloat(balanceMap[username] || 0);
 
+              // ✅ 기존 잔고 조회 (변경 감지용)
+              const { data: existingUser } = await supabase
+                .from('users')
+                .select('balance, id')
+                .eq('username', username)
+                .single();
+
+              const oldBalance = existingUser?.balance || 0;
+
+              // 잔고 업데이트
               const { error } = await supabase
                 .from('users')
                 .update({
-                  balance: balance,
+                  balance: newBalance,
                   updated_at: new Date().toISOString()
                 })
                 .eq('username', username);
@@ -447,6 +502,26 @@ export function BalanceSyncManager({ user }: BalanceSyncManagerProps) {
                 console.error(`❌ [BalanceSync] ${username} 업데이트 실패:`, error);
                 failCount++;
               } else {
+                // ✅ activity_logs 기록 (잔고 변경된 경우에만)
+                if (oldBalance !== newBalance) {
+                  await supabase
+                    .from('activity_logs')
+                    .insert({
+                      actor_id: user.id,
+                      actor_type: 'partner',
+                      action: 'user_balance_change',
+                      target_type: 'user',
+                      target_id: existingUser?.id,
+                      details: {
+                        description: `Invest API 자동 동기화 (PATCH): ${oldBalance.toLocaleString()} → ${newBalance.toLocaleString()}`,
+                        old_balance: oldBalance,
+                        new_balance: newBalance,
+                        difference: newBalance - oldBalance,
+                        api_provider: 'invest',
+                        sync_type: 'auto_patch'
+                      }
+                    });
+                }
                 successCount++;
               }
             } catch (err) {

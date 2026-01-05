@@ -282,13 +282,48 @@ const processSingleOpcode = async (
             const balanceResult = await getUserBalanceWithConfig(opcode, username, token, secretKey);
 
             if (balanceResult.success && balanceResult.balance !== undefined) {
-              await supabase
+              // ⚠️ 기존 잔고 조회 (변경 감지용)
+              const { data: existingUser } = await supabase
                 .from('users')
-                .update({
-                  balance: balanceResult.balance,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('username', username);
+                .select('balance, id')
+                .eq('username', username)
+                .single();
+
+              const oldBalance = existingUser?.balance || 0;
+              const newBalance = balanceResult.balance;
+
+              // 잔고가 실제로 변경된 경우에만 업데이트
+              if (oldBalance !== newBalance) {
+                await supabase
+                  .from('users')
+                  .update({
+                    balance: newBalance,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('username', username);
+
+                // ✅ activity_logs에 기록 추가
+                await supabase
+                  .from('activity_logs')
+                  .insert({
+                    actor_id: partnerId,
+                    actor_type: 'partner',
+                    action: 'user_balance_change',
+                    target_type: 'user',
+                    target_id: existingUser?.id,
+                    details: {
+                      description: `외부 API 자동 동기화: ${oldBalance.toLocaleString()} → ${newBalance.toLocaleString()}`,
+                      old_balance: oldBalance,
+                      new_balance: newBalance,
+                      difference: newBalance - oldBalance,
+                      api_provider: 'invest',
+                      opcode: opcode,
+                      sync_type: 'auto'
+                    }
+                  });
+
+                console.log(`   💰 [BALANCE-SYNC] ${username}: ${oldBalance} → ${newBalance}`);
+              }
 
               balanceSyncSuccess++;
             } else {

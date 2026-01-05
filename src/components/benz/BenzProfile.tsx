@@ -112,6 +112,13 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
   // 포인트 내역 조회
   const fetchPointTransactions = async () => {
     try {
+      if (!user?.id) {
+        console.error('❌ [BenzProfile] user.id가 없습니다.');
+        return;
+      }
+
+      console.log('🔍 [BenzProfile] 포인트 내역 조회 시작 - userId:', user.id, 'username:', user.username);
+
       const { data, error } = await supabase
         .from('point_transactions')
         .select('*')
@@ -119,7 +126,12 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [BenzProfile] 포인트 내역 조회 오류:', error);
+        throw error;
+      }
+
+      console.log(`✅ [BenzProfile] 포인트 내역 ${data?.length || 0}건 조회 완료`);
       setPointTransactions(data || []);
     } catch (error) {
       console.error('포인트 내역 조회 오류:', error);
@@ -129,6 +141,13 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
   // 베팅 내역 조회
   const fetchGameRecords = async () => {
     try {
+      if (!user?.id) {
+        console.error('❌ [BenzProfile] user.id가 없습니다.');
+        return;
+      }
+
+      console.log('🔍 [BenzProfile] 베팅 내역 조회 시작 - userId:', user.id, 'username:', user.username);
+
       const { data, error } = await supabase
         .from('game_records')
         .select(`
@@ -151,7 +170,12 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
         .order('played_at', { ascending: false })
         .limit(50);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [BenzProfile] 베팅 내역 조회 오류:', error);
+        throw error;
+      }
+
+      console.log(`✅ [BenzProfile] 베팅 내역 ${data?.length || 0}건 조회 완료`);
       
       // 데이터 매핑 (베팅 내역 페이지와 동일한 로직)
       const records: GameRecord[] = (data || []).map((record: any) => ({
@@ -435,273 +459,280 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
             </CardContent>
           </Card>
 
-          {/* 보유머니 & 포인트 / 비밀번호 수정 - Lv3 이상만 표시 */}
-          {user.level > 2 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* 보유머니 & 포인트 */}
-              <Card className="border-0" style={{
-                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
-                border: '1px solid rgba(193, 154, 107, 0.2)',
-                borderRadius: '12px'
-              }}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2" style={{ color: '#E6C9A8' }}>
-                    <Wallet className="w-5 h-5" />
-                    자산 현황
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* 보유머니 */}
-                  <div className="p-4 rounded-lg" style={{
-                    background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(22, 163, 74, 0.1) 100%)',
-                    border: '1px solid rgba(34, 197, 94, 0.3)'
-                  }}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-gray-300">보유머니</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowBalance(!showBalance)}
-                        className="w-8 h-8 p-0 hover:bg-green-500/10"
-                      >
-                        {showBalance ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
-                      </Button>
-                    </div>
-                    <div className="text-2xl font-bold text-green-400">
-                      {showBalance ? (
-                        <>
-                          <AnimatedCurrency value={currentBalance} duration={800} /> 원
-                        </>
-                      ) : (
-                        '••••••••'
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 포인트 */}
-                  <div 
-                    className="p-4 rounded-lg cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg" 
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(202, 138, 4, 0.1) 100%)',
-                      border: '1px solid rgba(234, 179, 8, 0.3)'
-                    }}
-                    onClick={() => onOpenPointModal && onOpenPointModal()}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-gray-300">포인트</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation(); // 포인트 카드 클릭 이벤트 방지
-                          setShowPoints(!showPoints);
-                        }}
-                        className="w-8 h-8 p-0 hover:bg-yellow-500/10"
-                      >
-                        {showPoints ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
-                      </Button>
-                    </div>
-                    <div className="text-2xl font-bold text-yellow-400">
-                      {showPoints ? (
-                        <AnimatedPoints value={currentPoints} duration={800} />
-                      ) : (
-                        '••••••••'
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 비밀번호 수정 */}
-              <Card className="border-0" style={{
-                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
-                border: '1px solid rgba(193, 154, 107, 0.2)',
-                borderRadius: '12px'
-              }}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2" style={{ color: '#E6C9A8' }}>
-                    <Lock className="w-5 h-5" />
-                    비밀번호 수정
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-gray-300 mb-2 block">현재 비밀번호</Label>
-                    <Input
-                      type="password"
-                      value={passwordChange.currentPassword}
-                      onChange={(e) => setPasswordChange({ ...passwordChange, currentPassword: e.target.value })}
-                      className="bg-black/30 border-gray-600 text-white"
-                      placeholder="현재 비밀번호 입력"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300 mb-2 block">새 비밀번호</Label>
-                    <Input
-                      type="password"
-                      value={passwordChange.newPassword}
-                      onChange={(e) => setPasswordChange({ ...passwordChange, newPassword: e.target.value })}
-                      className="bg-black/30 border-gray-600 text-white"
-                      placeholder="새 비밀번호 입력 (6자 이상)"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300 mb-2 block">새 비밀번호 확인</Label>
-                    <Input
-                      type="password"
-                      value={passwordChange.confirmPassword}
-                      onChange={(e) => setPasswordChange({ ...passwordChange, confirmPassword: e.target.value })}
-                      className="bg-black/30 border-gray-600 text-white"
-                      placeholder="새 비밀번호 다시 입력"
-                    />
-                  </div>
-                  <Button
-                    onClick={handlePasswordChange}
-                    className="w-full"
-                    style={{
-                      background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
-                      border: '1px solid rgba(230, 201, 168, 0.3)'
-                    }}
-                    disabled={!passwordChange.currentPassword || !passwordChange.newPassword || !passwordChange.confirmPassword}
-                  >
-                    비밀번호 변경
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Lv1, Lv2용 비밀번호 변경 */}
-          {user.level <= 2 && (
-            <div className="mb-6">
-              <Card className="border-0" style={{
-                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
-                border: '1px solid rgba(193, 154, 107, 0.2)',
-                borderRadius: '12px'
-              }}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2" style={{ color: '#E6C9A8' }}>
-                    <Lock className="w-5 h-5" />
-                    비밀번호 변경
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label className="text-gray-300 mb-2 block">현재 비밀번호</Label>
-                    <Input
-                      type="password"
-                      value={passwordChange.currentPassword}
-                      onChange={(e) => setPasswordChange({ ...passwordChange, currentPassword: e.target.value })}
-                      className="bg-black/30 border-gray-600 text-white"
-                      placeholder="현재 비밀번호 입력"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300 mb-2 block">새 비밀번호</Label>
-                    <Input
-                      type="password"
-                      value={passwordChange.newPassword}
-                      onChange={(e) => setPasswordChange({ ...passwordChange, newPassword: e.target.value })}
-                      className="bg-black/30 border-gray-600 text-white"
-                      placeholder="새 비밀번호 입력 (6자 이상)"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-gray-300 mb-2 block">새 비밀번호 확인</Label>
-                    <Input
-                      type="password"
-                      value={passwordChange.confirmPassword}
-                      onChange={(e) => setPasswordChange({ ...passwordChange, confirmPassword: e.target.value })}
-                      className="bg-black/30 border-gray-600 text-white"
-                      placeholder="새 비밀번호 다시 입력"
-                    />
-                  </div>
-                  <Button
-                    onClick={handlePasswordChange}
-                    className="w-full"
-                    style={{
-                      background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
-                      border: '1px solid rgba(230, 201, 168, 0.3)'
-                    }}
-                    disabled={!passwordChange.currentPassword || !passwordChange.newPassword || !passwordChange.confirmPassword}
-                  >
-                    비밀번호 변경
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* 베팅내역 / 포인트 내역 탭 - Lv3 이상만 표시 */}
-          {user.level > 2 && (
-            <Tabs defaultValue="betting" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-2 border-0 p-1" style={{
-                background: 'rgba(0, 0, 0, 0.5)',
-                border: '1px solid rgba(193, 154, 107, 0.2)',
-                borderRadius: '12px'
-              }}>
-                <TabsTrigger 
-                  value="betting" 
-                  className="flex items-center justify-center gap-2 text-gray-400 data-[state=active]:text-white transition-all"
-                  style={{
-                    borderRadius: '10px',
-                    border: 'none'
-                  }}
-                  data-active-style="linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)"
-                >
-                  <History className="w-4 h-4" />
-                  베팅내역
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="points" 
-                  className="flex items-center justify-center gap-2 text-gray-400 data-[state=active]:text-white transition-all"
-                  style={{
-                    borderRadius: '10px',
-                    border: 'none'
-                  }}
-                  data-active-style="linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)"
-                >
-                  <Coins className="w-4 h-4" />
-                  포인트 내역
-                </TabsTrigger>
-              </TabsList>
-
-              {/* 베팅내역 탭 */}
-              <TabsContent value="betting">
-                <Card className="border-0" style={{
-                  background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
-                  border: '1px solid rgba(193, 154, 107, 0.2)',
-                  borderRadius: '12px'
+          {/* 보유머니 & 포인트 / 비밀번호 수정 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* 보유머니 & 포인트 */}
+            <Card className="border-0" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+              border: '1px solid rgba(193, 154, 107, 0.2)',
+              borderRadius: '12px'
+            }}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2" style={{ color: '#E6C9A8' }}>
+                  <Wallet className="w-5 h-5" />
+                  자산 현황
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* 보유머니 */}
+                <div className="p-4 rounded-lg" style={{
+                  background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(22, 163, 74, 0.1) 100%)',
+                  border: '1px solid rgba(34, 197, 94, 0.3)'
                 }}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle style={{ color: '#E6C9A8' }}>베팅 내역</CardTitle>
-                      <Button
-                        onClick={fetchGameRecords}
-                        variant="outline"
-                        size="sm"
-                        className="border-0 text-white"
-                        style={{
-                          background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.1) 100%)',
-                          border: '1px solid rgba(193, 154, 107, 0.3)',
-                          borderRadius: '6px'
-                        }}
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        새로고침
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {gameRecords.length === 0 ? (
-                      <div className="text-center py-12 text-gray-400">
-                        베팅 내역이 없습니다.
-                      </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-300">보유머니</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowBalance(!showBalance)}
+                      className="w-8 h-8 p-0 hover:bg-green-500/10"
+                    >
+                      {showBalance ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                    </Button>
+                  </div>
+                  <div className="text-2xl font-bold text-green-400">
+                    {showBalance ? (
+                      <>
+                        <AnimatedCurrency value={currentBalance} duration={800} /> 원
+                      </>
                     ) : (
-                      <div className="space-y-3">
-                        {gameRecords.map((record) => (
+                      '••••••••'
+                    )}
+                  </div>
+                </div>
+
+                {/* 포인트 */}
+                <div 
+                  className="p-4 rounded-lg cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg" 
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(202, 138, 4, 0.1) 100%)',
+                    border: '1px solid rgba(234, 179, 8, 0.3)'
+                  }}
+                  onClick={() => onOpenPointModal && onOpenPointModal()}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-gray-300">포인트</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation(); // 포인트 카드 클릭 이벤트 방지
+                        setShowPoints(!showPoints);
+                      }}
+                      className="w-8 h-8 p-0 hover:bg-yellow-500/10"
+                    >
+                      {showPoints ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                    </Button>
+                  </div>
+                  <div className="text-2xl font-bold text-yellow-400">
+                    {showPoints ? (
+                      <AnimatedPoints value={currentPoints} duration={800} />
+                    ) : (
+                      '••••••••'
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 비밀번호 수정 */}
+            <Card className="border-0" style={{
+              background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+              border: '1px solid rgba(193, 154, 107, 0.2)',
+              borderRadius: '12px'
+            }}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2" style={{ color: '#E6C9A8' }}>
+                  <Lock className="w-5 h-5" />
+                  비밀번호 수정
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label className="text-gray-300 mb-2 block">현재 비밀번호</Label>
+                  <Input
+                    type="password"
+                    value={passwordChange.currentPassword}
+                    onChange={(e) => setPasswordChange({ ...passwordChange, currentPassword: e.target.value })}
+                    className="bg-black/30 border-gray-600 text-white"
+                    placeholder="현재 비밀번호 입력"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300 mb-2 block">새 비밀번호</Label>
+                  <Input
+                    type="password"
+                    value={passwordChange.newPassword}
+                    onChange={(e) => setPasswordChange({ ...passwordChange, newPassword: e.target.value })}
+                    className="bg-black/30 border-gray-600 text-white"
+                    placeholder="새 비밀번호 입력 (6자 이상)"
+                  />
+                </div>
+                <div>
+                  <Label className="text-gray-300 mb-2 block">새 비밀번호 확인</Label>
+                  <Input
+                    type="password"
+                    value={passwordChange.confirmPassword}
+                    onChange={(e) => setPasswordChange({ ...passwordChange, confirmPassword: e.target.value })}
+                    className="bg-black/30 border-gray-600 text-white"
+                    placeholder="새 비밀번호 다시 입력"
+                  />
+                </div>
+                <Button
+                  onClick={handlePasswordChange}
+                  className="w-full"
+                  style={{
+                    background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                    border: '1px solid rgba(230, 201, 168, 0.3)'
+                  }}
+                  disabled={!passwordChange.currentPassword || !passwordChange.newPassword || !passwordChange.confirmPassword}
+                >
+                  비밀번호 변경
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 베팅내역 / 포인트 내역 탭 */}
+          <Tabs defaultValue="betting" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-2 border-0 p-1" style={{
+              background: 'rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(193, 154, 107, 0.2)',
+              borderRadius: '12px'
+            }}>
+              <TabsTrigger 
+                value="betting" 
+                className="flex items-center justify-center gap-2 text-gray-400 data-[state=active]:text-white transition-all"
+                style={{
+                  borderRadius: '10px',
+                  border: 'none'
+                }}
+                data-active-style="linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)"
+              >
+                <History className="w-4 h-4" />
+                베팅내역
+              </TabsTrigger>
+              <TabsTrigger 
+                value="points" 
+                className="flex items-center justify-center gap-2 text-gray-400 data-[state=active]:text-white transition-all"
+                style={{
+                  borderRadius: '10px',
+                  border: 'none'
+                }}
+                data-active-style="linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)"
+              >
+                <Coins className="w-4 h-4" />
+                포인트 내역
+              </TabsTrigger>
+            </TabsList>
+
+            {/* 베팅내역 탭 */}
+            <TabsContent value="betting">
+              <Card className="border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '12px'
+              }}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle style={{ color: '#E6C9A8' }}>베팅 내역</CardTitle>
+                    <Button
+                      onClick={fetchGameRecords}
+                      variant="outline"
+                      size="sm"
+                      className="border-0 text-white"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.15) 0%, rgba(166, 124, 82, 0.1) 100%)',
+                        border: '1px solid rgba(193, 154, 107, 0.3)',
+                        borderRadius: '6px'
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      새로고침
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {gameRecords.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      베팅 내역이 없습니다.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {gameRecords.map((record) => (
+                        <div
+                          key={record.id}
+                          className="p-4 rounded-lg border transition-all hover:scale-[1.01]"
+                          style={{
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            borderColor: 'rgba(193, 154, 107, 0.2)'
+                          }}
+                        >
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold" style={{ color: '#E6C9A8' }}>
+                                  {record.game_title || '게임'}
+                                </span>
+                                <span className="text-sm text-gray-400">
+                                  {record.provider_name || '제공사'}
+                                </span>
+                              </div>
+                              <div className="text-sm text-gray-400">
+                                {formatDateTime(record.played_at)}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-6">
+                              <div className="text-center">
+                                <div className="text-xs text-gray-400 mb-1">베팅</div>
+                                <div className="font-semibold text-red-400">
+                                  {formatCurrency(record.bet_amount)}원
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-400 mb-1">적중</div>
+                                <div className="font-semibold text-green-400">
+                                  {formatCurrency(record.win_amount)}원
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs text-gray-400 mb-1">수익</div>
+                                <div className={`font-bold ${record.win_amount > record.bet_amount ? 'text-green-400' : 'text-red-400'}`}>
+                                  {record.win_amount > record.bet_amount ? '+' : ''}{formatCurrency(record.win_amount - record.bet_amount)}원
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 포인트 내역 탭 */}
+            <TabsContent value="points">
+              <Card className="border-0" style={{
+                background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
+                borderRadius: '12px'
+              }}>
+                <CardHeader>
+                  <CardTitle style={{ color: '#E6C9A8' }}>포인트 내역</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {pointTransactions.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      포인트 내역이 없습니다.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {pointTransactions.map((transaction) => {
+                        const isPositive = transaction.points_after > transaction.points_before;
+                        return (
                           <div
-                            key={record.id}
+                            key={transaction.id}
                             className="p-4 rounded-lg border transition-all hover:scale-[1.01]"
                             style={{
                               background: 'rgba(0, 0, 0, 0.3)',
@@ -711,120 +742,48 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-1">
-                                  <span className="font-semibold" style={{ color: '#E6C9A8' }}>
-                                    {record.game_title || '게임'}
+                                  <span className={`font-semibold ${getPointTransactionColor(transaction.transaction_type)}`}>
+                                    {getPointTransactionLabel(transaction.transaction_type)}
                                   </span>
-                                  <span className="text-sm text-gray-400">
-                                    {record.provider_name || '제공사'}
-                                  </span>
+                                  {isPositive ? (
+                                    <TrendingUp className="w-4 h-4 text-green-400" />
+                                  ) : (
+                                    <TrendingDown className="w-4 h-4 text-red-400" />
+                                  )}
                                 </div>
                                 <div className="text-sm text-gray-400">
-                                  {formatDateTime(record.played_at)}
+                                  {formatDateTime(transaction.created_at)}
                                 </div>
+                                {transaction.memo && (
+                                  <div className="text-sm text-gray-500 mt-1">
+                                    {transaction.memo}
+                                  </div>
+                                )}
                               </div>
                               <div className="flex items-center gap-6">
                                 <div className="text-center">
-                                  <div className="text-xs text-gray-400 mb-1">베팅</div>
-                                  <div className="font-semibold text-red-400">
-                                    {formatCurrency(record.bet_amount)}원
+                                  <div className="text-xs text-gray-400 mb-1">변동</div>
+                                  <div className={`font-bold text-lg ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                                    {isPositive ? '+' : ''}{formatCurrency(transaction.amount)}P
                                   </div>
                                 </div>
                                 <div className="text-center">
-                                  <div className="text-xs text-gray-400 mb-1">적중</div>
-                                  <div className="font-semibold text-green-400">
-                                    {formatCurrency(record.win_amount)}원
-                                  </div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-xs text-gray-400 mb-1">수익</div>
-                                  <div className={`font-bold ${record.win_amount > record.bet_amount ? 'text-green-400' : 'text-red-400'}`}>
-                                    {record.win_amount > record.bet_amount ? '+' : ''}{formatCurrency(record.win_amount - record.bet_amount)}원
+                                  <div className="text-xs text-gray-400 mb-1">잔액</div>
+                                  <div className="font-semibold text-yellow-400">
+                                    {formatCurrency(transaction.points_after)}P
                                   </div>
                                 </div>
                               </div>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* 포인트 내역 탭 */}
-              <TabsContent value="points">
-                <Card className="border-0" style={{
-                  background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
-                  border: '1px solid rgba(193, 154, 107, 0.2)',
-                  borderRadius: '12px'
-                }}>
-                  <CardHeader>
-                    <CardTitle style={{ color: '#E6C9A8' }}>포인트 내역</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {pointTransactions.length === 0 ? (
-                      <div className="text-center py-12 text-gray-400">
-                        포인트 내역이 없습니다.
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {pointTransactions.map((transaction) => {
-                          const isPositive = transaction.points_after > transaction.points_before;
-                          return (
-                            <div
-                              key={transaction.id}
-                              className="p-4 rounded-lg border transition-all hover:scale-[1.01]"
-                              style={{
-                                background: 'rgba(0, 0, 0, 0.3)',
-                                borderColor: 'rgba(193, 154, 107, 0.2)'
-                              }}
-                            >
-                              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className={`font-semibold ${getPointTransactionColor(transaction.transaction_type)}`}>
-                                      {getPointTransactionLabel(transaction.transaction_type)}
-                                    </span>
-                                    {isPositive ? (
-                                      <TrendingUp className="w-4 h-4 text-green-400" />
-                                    ) : (
-                                      <TrendingDown className="w-4 h-4 text-red-400" />
-                                    )}
-                                  </div>
-                                  <div className="text-sm text-gray-400">
-                                    {formatDateTime(transaction.created_at)}
-                                  </div>
-                                  {transaction.memo && (
-                                    <div className="text-sm text-gray-500 mt-1">
-                                      {transaction.memo}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-6">
-                                  <div className="text-center">
-                                    <div className="text-xs text-gray-400 mb-1">변동</div>
-                                    <div className={`font-bold text-lg ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-                                      {isPositive ? '+' : ''}{formatCurrency(transaction.amount)}P
-                                    </div>
-                                  </div>
-                                  <div className="text-center">
-                                    <div className="text-xs text-gray-400 mb-1">잔액</div>
-                                    <div className="font-semibold text-yellow-400">
-                                      {formatCurrency(transaction.points_after)}P
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

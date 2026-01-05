@@ -120,8 +120,14 @@ export function Sample1Slot({ user }: Sample1SlotProps) {
       // 활성 세션 체크
       const activeSession = await gameApi.checkActiveSession(user.id);
       
+      // ⭐ 0. 세션 종료 중(ending)인지 체크 (자동 대기 처리)
+      if (activeSession?.isActive && activeSession.status === 'ending') {
+        console.log('⏳ [게임 실행] 이전 세션 종료 중... (자동 대기 처리)');
+        toast.info('이전 게임 종료 중입니다. 잠시만 기다려주세요...', { duration: 3000 });
+      }
+      
       // ⭐ 1. 다른 API 게임이 실행 중인지 체크
-      if (activeSession?.isActive && activeSession.api_type !== game.api_type) {
+      if (activeSession?.isActive && activeSession.status === 'active' && activeSession.api_type !== game.api_type) {
         toast.error('잠시 후 다시 시도해주세요.');
         
         setLaunchingGameId(null);

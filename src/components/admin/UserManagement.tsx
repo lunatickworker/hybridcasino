@@ -182,6 +182,15 @@ export function UserManagement() {
           referrer: u.referrer_id ? partnersMap.get(u.referrer_id) : null
         })) || [];
 
+        // 🔍 DEBUG: last_login_at 데이터 확인 (Lv1)
+        console.log('🔍 [UserManagement Lv1] 조회된 사용자 샘플 (최초 3명):', 
+          usersWithReferrer.slice(0, 3).map(u => ({
+            username: u.username,
+            last_login_at: u.last_login_at,
+            created_at: u.created_at
+          }))
+        );
+
         setUsers(usersWithReferrer);
         return;
       }
@@ -241,6 +250,15 @@ export function UserManagement() {
         ...u,
         referrer: u.referrer_id ? partnersMap.get(u.referrer_id) : null
       })) || [];
+
+      // 🔍 DEBUG: last_login_at 데이터 확인
+      console.log('🔍 [UserManagement] 조회된 사용자 샘플 (최초 3명):', 
+        usersWithReferrer.slice(0, 3).map(u => ({
+          username: u.username,
+          last_login_at: u.last_login_at,
+          created_at: u.created_at
+        }))
+      );
 
       setUsers(usersWithReferrer);
     } catch (error) {

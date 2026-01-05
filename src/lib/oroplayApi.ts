@@ -11,42 +11,52 @@ const OROPLAY_BASE_URL = 'https://bs.sxvwlkohlv.com/api/v2';
 const PROXY_URL = 'https://vi8282.com/proxy';
 
 // ============================================
-// Proxy 서버를 통한 API 호출
+// Proxy를 통한 API 호출
 // ============================================
 
-interface ProxyConfig {
+interface ApiConfig {
   url: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   headers?: Record<string, string>;
   body?: any;
 }
 
-async function proxyCall<T = any>(config: ProxyConfig): Promise<T> {
+async function apiCall<T = any>(config: ApiConfig, retries = 1): Promise<T> {
+  const startTime = Date.now();
+  
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 2000); // ⚡ 2초 타임아웃 (게임창 빠른 실행)
     
+    // ⭐ Proxy 서버를 통해 호출
     const response = await fetch(PROXY_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
       signal: controller.signal
     });
     
     clearTimeout(timeoutId);
     
+    const elapsed = Date.now() - startTime;
+    console.log(`✅ [OroPlay] 응답 수신 (${elapsed}ms):`, {
+      status: response.status,
+      ok: response.ok
+    });
+    
     if (!response.ok) {
       if (response.status === 401) {
         throw new Error(`인증 실패 (401): 토큰이 유효하지 않습니다.`);
       }
-      throw new Error(`Proxy call failed (${response.status})`);
+      
+      throw new Error(`API call failed (${response.status})`);
     }
     
     const data = await response.json();
     
-    // ⭐ Proxy 응답 검증: RESULT가 false이면 에러
+    console.log(`📦 [OroPlay] 데이터 파싱 완료 (총 ${Date.now() - startTime}ms)`);
+    
+    // ⭐ API 응답 검증: RESULT가 false이면 에러
     if (data && typeof data === 'object') {
       if (data.RESULT === false || data.result === false) {
         const errorMessage = data.message || data.DATA?.message || '알 수 없는 오류가 발생했습니다.';
@@ -57,21 +67,52 @@ async function proxyCall<T = any>(config: ProxyConfig): Promise<T> {
           return data; // 원본 데이터 그대로 반환
         }
         
-        console.error('❌ OroPlay Proxy 응답 오류 (RESULT: false):', errorMessage);
+        console.error('❌ OroPlay API 응답 오류 (RESULT: false):', errorMessage);
         throw new Error(errorMessage);
       }
     }
     
     if (data.error) {
-      throw new Error(`Proxy error: ${JSON.stringify(data.error)}`);
+      throw new Error(`API error: ${JSON.stringify(data.error)}`);
     }
     
     return data;
     
   } catch (error: any) {
+    const elapsed = Date.now() - startTime;
+    
     if (error.name === 'AbortError') {
-      throw new Error('API 호출 시간 초과 (60초)');
+      console.error(`❌ [OroPlay] 타임아웃 (${elapsed}ms):`, {
+        url: config.url,
+        method: config.method
+      });
+      
+      // ⚡ 재시도 로직 추가
+      if (retries > 0) {
+        console.log(`🔄 [OroPlay] 재시도 (남은 횟수: ${retries})...`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
+        return apiCall(config, retries - 1);
+      }
+      
+      throw new Error('API 호출 시간 초과 (2초). 서버가 응답하지 않습니다.');
     }
+    
+    // "Failed to fetch" 오류 처리 (네트워크 오류)
+    if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
+      console.error(`❌ [OroPlay] 네트워크 오류 (${elapsed}ms):`, {
+        url: config.url,
+        method: config.method,
+        error: error.message
+      });
+      throw new Error(`서버 연결 실패: ${config.url}. 네트워크를 확인하거나 잠시 후 다시 시도해주세요.`);
+    }
+    
+    // 기타 오류
+    console.error(`❌ [OroPlay] 오류 (${elapsed}ms):`, {
+      url: config.url,
+      error: error.message
+    });
+    
     throw error;
   }
 }
@@ -89,7 +130,7 @@ export async function createOroPlayToken(
   clientId: string,
   clientSecret: string
 ): Promise<CreateTokenResponse> {
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/auth/createtoken`,
     method: 'POST',
     headers: {
@@ -211,7 +252,7 @@ export interface Vendor {
 export async function getVendorsList(token: string): Promise<Vendor[]> {
   console.log('📡 [OroPlay] Vendor 목록 API 호출 시작');
   
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/vendors/list`,
     method: 'GET',
     headers: {
@@ -269,7 +310,7 @@ export async function getGamesList(
 ): Promise<Game[]> {
   console.log(`📡 [OroPlay] 게임 목록 API 호출:`, { vendorCode, language });
   
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/games/list`,
     method: 'POST',
     headers: {
@@ -326,7 +367,7 @@ export async function getLaunchUrl(
     language
   });
 
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/game/launch-url`,
     method: 'POST',
     headers: {
@@ -341,17 +382,17 @@ export async function getLaunchUrl(
       lobbyUrl,
       theme
     }
-  });
+  }); // ⭐ 재시도 없이 1회만 시도 (기본값 retries=0)
   
   console.log('📊 [OroPlay] getLaunchUrl 응답:', {
     errorCode: response.errorCode,
     hasMessage: !!response.message,
-    response
+    messageLength: response.message?.length
   });
 
   if (response.errorCode !== undefined && response.errorCode !== 0) {
     const errorMessage = getErrorMessage(response.errorCode);
-    console.error('❌ [OroPlay] getLaunchUrl 실패:', {
+    console.error('❌ ❌ [OroPlay] getLaunchUrl 실패:', {
       vendorCode,
       gameCode,
       userCode,
@@ -369,7 +410,7 @@ export async function getLaunchUrl(
 // ============================================
 
 export async function createUser(token: string, userCode: string): Promise<void> {
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/user/create`,
     method: 'POST',
     headers: {
@@ -390,7 +431,7 @@ export async function createUser(token: string, userCode: string): Promise<void>
 }
 
 export async function getUserBalance(token: string, userCode: string): Promise<number> {
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/user/balance`,
     method: 'POST',
     headers: {
@@ -418,7 +459,7 @@ export async function depositToUser(
   orderNo?: string,
   vendorCode?: string
 ): Promise<number> {
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/user/deposit`,
     method: 'POST',
     headers: {
@@ -445,7 +486,7 @@ export async function withdrawFromUser(
   userCode: string,
   vendorCode?: string
 ): Promise<number> {
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/user/withdraw-all`,
     method: 'POST',
     headers: {
@@ -462,7 +503,14 @@ export async function withdrawFromUser(
     throw new Error(`Failed to withdraw: errorCode ${response.errorCode}`);
   }
   
-  return response.message || response;
+  // ⭐ response.message가 숫자면 그대로 반환, 객체면 .message 추출
+  if (typeof response.message === 'number') {
+    return response.message;
+  } else if (typeof response.message === 'object' && response.message !== null) {
+    return response.message.message || 0;
+  }
+  
+  return response || 0;
 }
 
 // ============================================
@@ -498,7 +546,7 @@ export async function getBettingHistory(
   vendorCode?: string
 ): Promise<BettingHistoryResponse> {
   try {
-    const response = await proxyCall<any>({
+    const response = await apiCall<any>({
       url: `${OROPLAY_BASE_URL}/betting/history/by-date-v2`,
       method: 'POST',
       headers: {
@@ -512,7 +560,7 @@ export async function getBettingHistory(
       }
     });
     
-    // ✅ "게임기록이 존재하지 않습니다" 메시지는 정상 처리 (빈 배열 반환)
+    // ✅ "게임기���이 존재하지 않습니다" 메시지는 정상 처리 (빈 배열 반환)
     if (response.RESULT === false || response.result === false) {
       const errorMessage = response.message || response.DATA?.message || '';
       if (errorMessage.includes('게임기록이 존재하지 않습니다')) {
@@ -537,7 +585,7 @@ export async function getBettingHistory(
       throw new Error(`Failed to get betting history: errorCode ${response.errorCode}`);
     }
     
-    // ✅ response.message 또는 response를 직접 반환
+    // ✅ response.message 또는 response 직접 반환
     const result = response.message || response;
     
     return result;
@@ -562,7 +610,7 @@ export async function getBettingHistory(
 export async function getAgentBalance(token: string): Promise<number> {
   console.log('📊 [OroPlay] Agent 잔고 조회 API 호출');
   
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/agent/balance`,
     method: 'GET',
     headers: {
@@ -606,7 +654,7 @@ export async function setUserRTP(
     throw new Error('RTP 값은 30~99 범위여야 합니다');
   }
   
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/game/user/set-rtp`,
     method: 'POST',
     headers: {
@@ -634,7 +682,7 @@ export async function resetAllUsersRTP(
     throw new Error('RTP 값은 30~99 범위여야 합니다');
   }
   
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/game/users/reset-rtp`,
     method: 'POST',
     headers: {
@@ -667,7 +715,7 @@ export async function batchSetRTP(
   }
   
   const executeCall = async () => {
-    return await proxyCall<any>({
+    return await apiCall<any>({
       url: `${OROPLAY_BASE_URL}/game/users/batch-rtp`,
       method: 'POST',
       headers: {
@@ -693,7 +741,7 @@ export async function getUserRTP(
   vendorCode: string,
   userCode: string
 ): Promise<number> {
-  const response = await proxyCall<any>({
+  const response = await apiCall<any>({
     url: `${OROPLAY_BASE_URL}/game/user/rtp`,
     method: 'POST',
     headers: {

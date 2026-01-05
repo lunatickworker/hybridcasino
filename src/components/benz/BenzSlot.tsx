@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from "react";
-import { Card, CardContent } from "../ui/card";
-import { Button } from "../ui/button";
-import { ImageWithFallback } from "../figma/ImageWithFallback";
-import { ChevronLeft, Sparkles, Play } from "lucide-react";
-import { supabase } from "../../lib/supabase";
-import { gameApi } from "../../lib/gameApi";
-import { motion } from "motion/react";
-import { toast } from "sonner@2.0.3";
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, Play } from 'lucide-react';
+import { Button } from '../ui/button';
+import { gameApi } from '../../lib/gameApi';
+import { supabase } from '../../lib/supabase';
+import { motion } from 'motion/react';
+import { ImageWithFallback } from '../figma/ImageWithFallback';
+import { toast } from 'sonner@2.0.3';
 import { createAdminNotification } from '../../lib/notificationHelper';
+import { filterVisibleProviders, filterVisibleGames } from '../../lib/benzGameVisibility';
 
 interface BenzSlotProps {
   user: any;
@@ -112,6 +112,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   }, [selectedProvider]);
 
   useEffect(() => {
+    console.log('🎰 [BenzSlot] useEffect 시작 - Realtime 구독 설정 중...');
     loadProviders();
     
     // ✅ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
@@ -163,7 +164,9 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'partner_game_access' },
         (payload) => {
-          console.log('🔄 [BenzSlot] partner_game_access 테이블 변경 감지:', payload);
+          console.log('🔄🔄🔄 [BenzSlot] partner_game_access 테이블 변경 감지!!!', payload);
+          // ⚡ 게임 스위칭 설정이 변경되면 즉시 게임사 목록과 게임 목록 새로고침
+          console.log('🎮 [BenzSlot] 게임 스위칭 설정 변경 감지! 즉시 새로고침...');
           loadProviders();
           if (selectedProviderRef.current) {
             console.log('🔄 [BenzSlot] 게임 목록 새로고침 시작...');
@@ -171,12 +174,15 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
           }
         }
       )
-      .subscribe((status) => {
-        console.log('📡 [BenzSlot] Realtime 구독 상태:', status);
+      .subscribe((status, err) => {
+        console.log('📡📡📡 [BenzSlot] Realtime 구독 상태:', status);
+        if (err) {
+          console.error('❌❌❌ [BenzSlot] Realtime 구독 에러:', err);
+        }
         if (status === 'SUBSCRIBED') {
-          console.log('✅ [BenzSlot] Realtime 구독 성공!');
+          console.log('✅✅✅ [BenzSlot] Realtime 구독 성공! partner_game_access 테이블 감지 중...');
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('❌ [BenzSlot] Realtime 구독 실패:', status);
+          console.error('❌❌❌ [BenzSlot] Realtime 구독 실패:', status);
         }
       });
     
@@ -229,7 +235,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       setLoading(true);
       
       // ⭐⭐⭐ 새로운 노출 로직 사용
-      const { filterVisibleProviders } = await import('../../lib/benzGameVisibility');
       const allProviders = await gameApi.getProviders({ type: 'slot' });
       const providersData = await filterVisibleProviders(allProviders, user.id);
       
@@ -374,12 +379,12 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       
       try {
         const skywindLobbyGame: Game = {
-          id: '9999999', // ⚠️ 실제 DB에서 확인 필요
+          id: '0',
           name: 'lobby',
           name_ko: 'lobby',
           game_code: 'lobby',
           provider_id: 0,
-          api_type: 'honor',
+          api_type: 'honorapi',  // ✅ 수정: 'honor' → 'honorapi'
           vendor_code: 'slot-skywind'
         };
         
@@ -419,7 +424,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       }
 
       // ⭐ 점검중 상태 추가 (benzGameVisibility 사용)
-      const { filterVisibleGames } = await import('../../lib/benzGameVisibility');
       const gamesWithStatus = await filterVisibleGames(allGames, user.id);
       
       setGames(gamesWithStatus);
@@ -494,8 +498,14 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       // 🆕 디버깅 로그: 활성 세션 정보 출력
       console.log('🔍 [활성 세션 체크]', activeSession);
       
+      // ⭐ 0. 세션 종료 중(ending)인지 체크 (자동 대기 처리)
+      if (activeSession?.isActive && activeSession.status === 'ending') {
+        console.log('⏳ [게임 실행] 이전 세션 종료 중... (자동 대기 처리)');
+        toast.info('이전 게임 종료 중입니다. 잠시만 기다려주세요...', { duration: 3000 });
+      }
+      
       // ⭐ 1. 다른 API 게임이 실행 중인지 체크
-      if (activeSession?.isActive && activeSession.api_type !== game.api_type) {
+      if (activeSession?.isActive && activeSession.status === 'active' && activeSession.api_type !== game.api_type) {
         console.error('❌ [다른 API 게임 실행 중]', {
           current_api: activeSession.api_type,
           trying_api: game.api_type,
@@ -597,11 +607,9 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
           const handleGameWindowClose = async () => {
             // 🔥 중복 실행 방지 - ref 체크
             if (closeProcessingRef.current.get(sessionId)) {
-              console.log('⚠️ [중복 방지] 이미 처리 중인 세션:', sessionId);
               return;
             }
             
-            console.log('🔄 [게임 종료] 처리 시작:', sessionId);
             closeProcessingRef.current.set(sessionId, true);
             
             try {
@@ -612,7 +620,33 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
               }
               
               (window as any).gameWindows?.delete(sessionId);
-              await (window as any).syncBalanceAfterGame?.(sessionId);
+              
+              if ((window as any).syncBalanceAfterGame) {
+                await (window as any).syncBalanceAfterGame(sessionId);
+              } else {
+                // ⭐ syncBalanceAfterGame 함수가 없으면 직접 처리
+                try {
+                  const { data: session, error: sessionError } = await supabase
+                    .from('game_launch_sessions')
+                    .select('user_id, api_type, status')
+                    .eq('id', sessionId)
+                    .single();
+
+                  if (sessionError || !session) {
+                    console.error('❌ [게임 종료] 세션 조회 실패:', sessionError);
+                    return;
+                  }
+
+                  if (session.status !== 'active') {
+                    return;
+                  }
+
+                  const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
+                  await syncBalanceOnSessionEnd(session.user_id, session.api_type);
+                } catch (directError) {
+                  console.error('❌ [게임 종료] 직접 출금 처리 오류:', directError);
+                }
+              }
               
               // ✅ 게임 종료 5초 후 베팅 내역 새로고침 이벤트 발생
               setTimeout(() => {
@@ -708,11 +742,9 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
             const handleGameWindowClose = async () => {
               // 🔥 중복 실행 방지 - ref 체크
               if (closeProcessingRef.current.get(sessionId)) {
-                console.log('⚠️ [중복 방지] 이미 처리 중인 세션:', sessionId);
                 return;
               }
               
-              console.log('🔄 [게임 종료] 처리 시작:', sessionId);
               closeProcessingRef.current.set(sessionId, true);
               
               try {
@@ -724,8 +756,32 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                 
                 (window as any).gameWindows?.delete(sessionId);
                 
-                // withdrawal API 호출 (syncBalanceAfterGame 내부에서 처리)
-                await (window as any).syncBalanceAfterGame?.(sessionId);
+                if ((window as any).syncBalanceAfterGame) {
+                  await (window as any).syncBalanceAfterGame(sessionId);
+                } else {
+                  // ⭐ syncBalanceAfterGame 함수가 없으면 직접 처리
+                  try {
+                    const { data: session, error: sessionError } = await supabase
+                      .from('game_launch_sessions')
+                      .select('user_id, api_type, status')
+                      .eq('id', sessionId)
+                      .single();
+
+                    if (sessionError || !session) {
+                      console.error('❌ [게임 종료] 세션 조회 실패:', sessionError);
+                      return;
+                    }
+
+                    if (session.status !== 'active') {
+                      return;
+                    }
+
+                    const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
+                    await syncBalanceOnSessionEnd(session.user_id, session.api_type);
+                  } catch (directError) {
+                    console.error('❌ [게임 종료] 직접 출금 처리 오류:', directError);
+                  }
+                }
                 
                 // ✅ 게임 종료 5초 후 베팅 내역 새로고침 이벤트 발생
                 setTimeout(() => {

@@ -1172,46 +1172,46 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
               <thead>
                 <tr className="border-b border-slate-700">
                   {/* 기본 정보 */}
-                  <th className="px-4 py-3 text-left text-white sticky left-0 bg-slate-900 z-10 whitespace-nowrap">등급</th>
-                  <th className="px-4 py-3 text-left text-white bg-slate-900 whitespace-nowrap">아이디</th>
-                  <th className="px-4 py-3 text-right text-white bg-slate-900 whitespace-nowrap">보유머니</th>
-                  <th className="px-4 py-3 text-right text-white bg-slate-900 whitespace-nowrap">롤링포인트</th>
+                  <th className="px-4 py-3 text-left text-white font-normal sticky left-0 bg-slate-900 z-10 whitespace-nowrap">등급</th>
+                  <th className="px-4 py-3 text-left text-white font-normal bg-slate-900 whitespace-nowrap">아이디</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-slate-900 whitespace-nowrap">보유머니</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-slate-900 whitespace-nowrap">롤링포인트</th>
                   
                   {/* 입출금 관련 - 주황색 계열 */}
-                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">입금</th>
-                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">출금</th>
-                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">관리자입금</th>
-                  <th className="px-4 py-3 text-right text-white bg-orange-950/60 whitespace-nowrap">관리자출금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">입금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">출금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">관리자입금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">관리자출금</th>
                   
                   {/* 포인트 관련 - 초록색 계열 */}
-                  <th className="px-4 py-3 text-right text-white bg-green-950/60 whitespace-nowrap">포인트지급</th>
-                  <th className="px-4 py-3 text-right text-white bg-green-950/60 whitespace-nowrap">포인트회수</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/60 whitespace-nowrap">포인트지급</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/60 whitespace-nowrap">포인트회수</th>
                   
                   {/* 입출차액 - 청록색 */}
-                  <th className="px-4 py-3 text-right text-white bg-cyan-950/60 whitespace-nowrap">입출차액</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-cyan-950/60 whitespace-nowrap">입출차액</th>
                   
                   {/* 요율 정보 - 회색 계열 */}
-                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">카지노롤링%</th>
-                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">카지노루징%</th>
-                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">슬롯롤링%</th>
-                  <th className="px-4 py-3 text-center text-white bg-slate-800/70 whitespace-nowrap">슬롯루징%</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-slate-800/70 whitespace-nowrap">카지노롤링%</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-slate-800/70 whitespace-nowrap">카지노루징%</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-slate-800/70 whitespace-nowrap">슬롯롤링%</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-slate-800/70 whitespace-nowrap">슬롯루징%</th>
                   
                   {/* 베팅/당첨 - 파란색/보라색 계열 */}
-                  <th className="px-4 py-3 text-right text-white bg-blue-950/60 whitespace-nowrap">총베팅</th>
-                  <th className="px-4 py-3 text-right text-white bg-blue-950/60 whitespace-nowrap">총당첨</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-blue-950/60 whitespace-nowrap">총베팅</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-blue-950/60 whitespace-nowrap">총당첨</th>
                   
                   {/* 윈로스/GGR - 앰버 계열 */}
-                  <th className="px-4 py-3 text-right text-white bg-amber-950/60 whitespace-nowrap">GGR</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-amber-950/60 whitespace-nowrap">GGR</th>
                   
                   {/* 롤링 정보 - 에메랄드 계열 */}
-                  <th className="px-4 py-3 text-right text-white bg-emerald-950/60 whitespace-nowrap">카지노개별롤링</th>
-                  <th className="px-4 py-3 text-right text-white bg-emerald-950/60 whitespace-nowrap">슬롯개별롤링</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-emerald-950/60 whitespace-nowrap">카지노개별롤링</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-emerald-950/60 whitespace-nowrap">슬롯개별롤링</th>
                   
                   {/* 정산 결과 - 틸/초록 계열 */}
-                  <th className="px-4 py-3 text-right text-white bg-teal-950/60 whitespace-nowrap">총롤링금</th>
-                  <th className="px-4 py-3 text-right text-white bg-teal-950/60 whitespace-nowrap">총루징</th>
-                  <th className="px-4 py-3 text-right text-white bg-green-950/70 whitespace-nowrap">롤링금</th>
-                  <th className="px-4 py-3 text-right text-white bg-green-950/70 whitespace-nowrap">낙첨금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-teal-950/60 whitespace-nowrap">총롤링금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-teal-950/60 whitespace-nowrap">총루징</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/70 whitespace-nowrap">롤링금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/70 whitespace-nowrap">낙첨금</th>
                 </tr>
               </thead>
               <tbody>
