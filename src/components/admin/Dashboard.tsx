@@ -10,7 +10,7 @@ import { getAgentBalance, getOroPlayToken } from "../../lib/oroplayApi";
 import { 
   Users, Wallet, TrendingUp, TrendingDown,
   Activity, DollarSign, AlertCircle, Clock, Shield,
-  Target, Zap, BarChart3, MessageSquare
+  Target, Zap, BarChart3, MessageSquare, FlaskConical
 } from "lucide-react";
 import { formatCurrency as formatCurrencyUtil, formatNumber, getPartnerLevelText } from "../../lib/utils";
 import { DashboardStats, Partner } from "../../types";

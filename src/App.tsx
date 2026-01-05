@@ -1,6 +1,3 @@
-// CRITICAL: 콘솔 필터를 가장 먼저 로드 (GoTrueClient 경고 억제)
-import './lib/consoleFilter';
-
 // v2.5.2 - Table header design update
 import React from 'react';
 import { useState, useEffect } from 'react';

@@ -112,85 +112,40 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   }, [selectedProvider]);
 
   useEffect(() => {
-    console.log('🎰 [BenzSlot] useEffect 시작 - Realtime 구독 설정 중...');
     loadProviders();
-    
-    // ✅ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
-    const gamesChannel = supabase
-      .channel('benz_slot_games_changes')
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'games' },
-        (payload) => {
-          console.log('🔄 [BenzSlot] games 테이블 UPDATE 감지:', payload);
-          loadProviders();
-          // ⚡ ref로 최신 selectedProvider 참조
-          if (selectedProviderRef.current) {
-            console.log('🔄 [BenzSlot] 게임 목록 새로고침 시작...');
-            loadGames(selectedProviderRef.current);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'game_providers' },
-        (payload) => {
-          console.log('🔄 [BenzSlot] game_providers 테이블 UPDATE 감지:', payload);
-          loadProviders();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'honor_games' },
-        (payload) => {
-          console.log('🔄 [BenzSlot] honor_games 테이블 UPDATE 감지:', payload);
-          loadProviders();
-          // ⚡ ref로 최신 selectedProvider 참조
-          if (selectedProviderRef.current) {
-            console.log('🔄 [BenzSlot] 게임 목록 새로고침 시작...');
-            loadGames(selectedProviderRef.current);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'honor_games_provider' },
-        (payload) => {
-          console.log('🔄 [BenzSlot] honor_games_provider 테이블 UPDATE 감지:', payload);
-          loadProviders();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'partner_game_access' },
-        (payload) => {
-          console.log('🔄🔄🔄 [BenzSlot] partner_game_access 테이블 변경 감지!!!', payload);
-          // ⚡ 게임 스위칭 설정이 변경되면 즉시 게임사 목록과 게임 목록 새로고침
-          console.log('🎮 [BenzSlot] 게임 스위칭 설정 변경 감지! 즉시 새로고침...');
-          loadProviders();
-          if (selectedProviderRef.current) {
-            console.log('🔄 [BenzSlot] 게임 목록 새로고침 시작...');
-            loadGames(selectedProviderRef.current);
-          }
-        }
-      )
-      .subscribe((status, err) => {
-        console.log('📡📡📡 [BenzSlot] Realtime 구독 상태:', status);
-        if (err) {
-          console.error('❌❌❌ [BenzSlot] Realtime 구독 에러:', err);
-        }
-        if (status === 'SUBSCRIBED') {
-          console.log('✅✅✅ [BenzSlot] Realtime 구독 성공! partner_game_access 테이블 감지 중...');
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('❌❌❌ [BenzSlot] Realtime 구독 실패:', status);
-        }
-      });
     
     return () => {
       isMountedRef.current = false;
-      supabase.removeChannel(gamesChannel);
     };
   }, []);
+  
+  // ✅ Realtime 구독: partner_game_access 변경 감지
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('🔔 [BenzSlot] Realtime 구독 시작');
+    
+    const channel = supabase
+      .channel('benz_slot_game_access')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE 모두 감지
+          schema: 'public',
+          table: 'partner_game_access'
+        },
+        (payload) => {
+          console.log('🎮 [BenzSlot] 게임 노출 설정 변경 감지:', payload.eventType);
+          loadProviders(); // 즉시 갱신
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('🔕 [BenzSlot] Realtime 구독 해제');
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
   
   // 🆕 providers 로드 완료 후 localStorage에서 선택한 provider 자동 로드
   useEffect(() => {
@@ -877,6 +832,11 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                   background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)'
                 }}></div>
               ))
+            ) : providers.length === 0 ? (
+              <div className="col-span-full text-center py-20">
+                <p className="text-white/60 text-2xl">이용 가능한 게임사가 없습니다.</p>
+                <p className="text-white/40 text-lg mt-2">관리자에게 문의하세요.</p>
+              </div>
             ) : (
               providers.map((provider, index) => (
                 <motion.div

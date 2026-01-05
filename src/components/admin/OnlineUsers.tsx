@@ -368,8 +368,33 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
         gameSessionQuery = gameSessionQuery.in('user_id', allowedUserIds);
       }
 
-      const { data: gameSessionsData, error: gameSessionError } = await gameSessionQuery;
+      let { data: gameSessionsData, error: gameSessionError } = await gameSessionQuery;
       if (gameSessionError) throw gameSessionError;
+      
+      // ✅ 세션 자동 만료 처리: last_activity_at이 30분 이상 지난 세션은 자동 종료
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      const expiredSessions = (gameSessionsData || []).filter((s: any) => {
+        return s.last_activity_at && s.last_activity_at < thirtyMinutesAgo;
+      });
+      
+      if (expiredSessions.length > 0) {
+        console.log(`⏰ [세션 자동 만료] ${expiredSessions.length}개 세션 만료 처리`);
+        
+        // 만료된 세션 일괄 종료
+        const expiredIds = expiredSessions.map((s: any) => s.id);
+        await supabase
+          .from('game_launch_sessions')
+          .update({
+            status: 'ended',
+            ended_at: new Date().toISOString()
+          })
+          .in('id', expiredIds);
+        
+        // 만료된 세션은 제외
+        gameSessionsData = (gameSessionsData || []).filter((s: any) => {
+          return !expiredIds.includes(s.id);
+        });
+      }
 
       // 2️⃣ 온라인 사용자 조회 (is_online = true)
       let onlineUsersQuery = supabase
@@ -435,6 +460,14 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       const formattedGameSessions: OnlineSession[] = (gameSessionsData || []).map((session: any) => {
         const userInfo = usersMap.get(session.user_id);
         if (!userInfo) return null;
+        
+        // ✅ 디버깅: IP 주소와 device_info 실제 값 확인
+        console.log('🔍 [OnlineUsers] userInfo:', {
+          user_id: userInfo.id,
+          username: userInfo.username,
+          ip_address: userInfo.ip_address,
+          device_info: userInfo.device_info
+        });
         
         const ipAddress = userInfo.ip_address || '-';
         
