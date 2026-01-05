@@ -140,13 +140,9 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
 
       // 병렬 처리를 위한 Promise 배열
       const partnerPromises = (partners || []).map(async (partner) => {
-        // 하위 회원 ID 조회
-        const { data: users } = await supabase
-          .from('users')
-          .select('id')
-          .eq('referrer_id', partner.id);
-
-        const userIds = users?.map(u => u.id) || [];
+        // ✅ 전체 하위 회원 ID 조회 (재귀)
+        const userIds = await getAllDescendantUserIds(partner.id);
+        console.log(`  🎯 [${partner.username}] 전체 하위 회원: ${userIds.length}명`);
 
         // 병렬로 데이터 조회
         const [transactionsResult, pointTransactionsResult, gameRecordsResult, childrenResult, childrenRolling, childrenLosing] = await Promise.all([
@@ -342,6 +338,33 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
     }
     
     return allDescendants;
+  };
+
+  // ✅ NEW: 파트너의 전체 하위 회원 ID 조회 (재귀)
+  const getAllDescendantUserIds = async (partnerId: string): Promise<string[]> => {
+    // 1. 직속 회원
+    const { data: directUsers } = await supabase
+      .from('users')
+      .select('id')
+      .eq('referrer_id', partnerId);
+    
+    let allUserIds = directUsers?.map(u => u.id) || [];
+    
+    // 2. 하위 파트너들
+    const { data: childPartners } = await supabase
+      .from('partners')
+      .select('id')
+      .eq('parent_id', partnerId);
+    
+    // 3. 하위 파트너들의 회원까지 재귀적으로 조회
+    if (childPartners && childPartners.length > 0) {
+      for (const childPartner of childPartners) {
+        const childUserIds = await getAllDescendantUserIds(childPartner.id);
+        allUserIds.push(...childUserIds);
+      }
+    }
+    
+    return allUserIds;
   };
 
   const getChildrenRolling = async (

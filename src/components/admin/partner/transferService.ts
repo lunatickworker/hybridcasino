@@ -98,7 +98,7 @@ export const transferBalanceToPartner = async ({
         if (deductError) throw deductError;
 
         // 송신자 로그 기록
-        await supabase
+        const { error: logError1 } = await supabase
           .from('partner_balance_logs')
           .insert({
             partner_id: currentUserId,
@@ -112,6 +112,11 @@ export const transferBalanceToPartner = async ({
             api_type: 'oroplay',
             memo: `[OroPlay 보유금 지급] ${transferTargetPartner.nickname}에게 ${amount.toLocaleString()}원 지급 (oroplay_balance: ${newBalance.toLocaleString()})${transferMemo ? `: ${transferMemo}` : ''}`
           });
+        
+        if (logError1) {
+          console.error('❌ [Lv2 송신자 로그 기록 실패]:', logError1);
+          throw logError1;
+        }
       }
       // ✅ Lv3~7: GMS 머니(balance) 차감
       else if (currentPartnerData.level >= 3) {
@@ -135,7 +140,7 @@ export const transferBalanceToPartner = async ({
         if (deductError) throw deductError;
 
         // 송신자 로그 기록
-        await supabase
+        const { error: logError2 } = await supabase
           .from('partner_balance_logs')
           .insert({
             partner_id: currentUserId,
@@ -146,8 +151,13 @@ export const transferBalanceToPartner = async ({
             from_partner_id: currentUserId,
             to_partner_id: transferTargetPartner.id,
             processed_by: currentUserId,
-            memo: `[보유금 지급] ${transferTargetPartner.nickname}에게 ${amount.toLocaleString()}원 지급${transferMemo ? `: ${transferMemo}` : ''}`
+            memo: `[보유금 지급] ${transferTargetPartner.nickname} (ID: ${transferTargetPartner.id})에게 ${amount.toLocaleString()}원 지급${transferMemo ? `: ${transferMemo}` : ''}`
           });
+        
+        if (logError2) {
+          console.error('❌ [Lv3+ 송신자 로그 기록 실패]:', logError2);
+          throw logError2;
+        }
       }
     }
 
@@ -172,7 +182,7 @@ export const transferBalanceToPartner = async ({
     if (increaseError) throw increaseError;
 
     // 수신자 로그 기록
-    await supabase
+    const { error: logError3 } = await supabase
       .from('partner_balance_logs')
       .insert({
         partner_id: transferTargetPartner.id,
@@ -185,6 +195,11 @@ export const transferBalanceToPartner = async ({
         processed_by: currentUserId,
         memo: `[보유금 수신] ${currentPartnerData.nickname}으로부터 ${amount.toLocaleString()}원 수신${transferMemo ? `: ${transferMemo}` : ''}`
       });
+    
+    if (logError3) {
+      console.error('❌ [수신자 로그 기록 실패]:', logError3);
+      throw logError3;
+    }
 
   } else {
     // ===== 회수: 수신자 차감, 송금자 증가 =====
@@ -210,7 +225,7 @@ export const transferBalanceToPartner = async ({
     if (decreaseError) throw decreaseError;
 
     // 대상 파트너 로그 기록
-    await supabase
+    const { error: logError4 } = await supabase
       .from('partner_balance_logs')
       .insert({
         partner_id: transferTargetPartner.id,
@@ -223,6 +238,11 @@ export const transferBalanceToPartner = async ({
         processed_by: currentUserId,
         memo: `[보유금 회수] ${currentPartnerData.nickname}이(가) ${amount.toLocaleString()}원 회수${transferMemo ? `: ${transferMemo}` : ''}`
       });
+    
+    if (logError4) {
+      console.error('❌ [회수 대상 로그 기록 실패]:', logError4);
+      throw logError4;
+    }
 
     // 송금자 보유금 증가 (시스템관리자가 아닌 경우)
     if (!isSystemAdmin) {
@@ -248,7 +268,7 @@ export const transferBalanceToPartner = async ({
         if (increaseError) throw increaseError;
 
         // 송신자 로그 기록
-        await supabase
+        const { error: logError5 } = await supabase
           .from('partner_balance_logs')
           .insert({
             partner_id: currentUserId,
@@ -262,6 +282,11 @@ export const transferBalanceToPartner = async ({
             api_type: 'oroplay',
             memo: `[OroPlay 보유금 회수] ${transferTargetPartner.nickname}으로부터 ${amount.toLocaleString()}원 회수 (oroplay_balance: ${newBalance.toLocaleString()})${transferMemo ? `: ${transferMemo}` : ''}`
           });
+        
+        if (logError5) {
+          console.error('❌ [Lv2 회수자 로그 기록 실패]:', logError5);
+          throw logError5;
+        }
       }
       // ✅ Lv3~7: GMS 머니(balance) 증가
       else if (currentPartnerData.level >= 3) {
@@ -285,7 +310,7 @@ export const transferBalanceToPartner = async ({
         if (increaseError) throw increaseError;
 
         // 송신자 로그 기록
-        await supabase
+        const { error: logError6 } = await supabase
           .from('partner_balance_logs')
           .insert({
             partner_id: currentUserId,
@@ -298,6 +323,11 @@ export const transferBalanceToPartner = async ({
             processed_by: currentUserId,
             memo: `[보유금 회수] ${transferTargetPartner.nickname}으로부터 ${amount.toLocaleString()}원 회수${transferMemo ? `: ${transferMemo}` : ''}`
           });
+        
+        if (logError6) {
+          console.error('❌ [Lv3+ 회수자 로그 기록 실패]:', logError6);
+          throw logError6;
+        }
       }
     }
   }

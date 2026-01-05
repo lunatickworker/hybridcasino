@@ -448,11 +448,6 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     return rows;
   };
 
-  const getDescendantUserIds = (partnerId: string, allUsers: any[]): string[] => {
-    const directUsers = allUsers.filter(u => u.referrer_id === partnerId);
-    return directUsers.map(u => u.id);
-  };
-
   const getDescendantPartnerIds = (partnerId: string, allPartners: any[]): string[] => {
     const directChildren = allPartners.filter(p => p.parent_id === partnerId);
     let allDescendants = directChildren.map(p => p.id);
@@ -462,6 +457,29 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     }
     
     return allDescendants;
+  };
+
+  // ✅ 특정 파트너의 직속 회원 ID 조회
+  const getDescendantUserIds = (partnerId: string, allUsers: any[]): string[] => {
+    const directUsers = allUsers.filter(u => u.referrer_id === partnerId);
+    return directUsers.map(u => u.id);
+  };
+
+  // ✅ NEW: 파트너의 전체 하위 회원 ID 조회 (재귀)
+  const getAllDescendantUserIds = (partnerId: string, allPartners: any[], allUsers: any[]): string[] => {
+    // 1. 직속 회원
+    const directUsers = allUsers.filter(u => u.referrer_id === partnerId).map(u => u.id);
+    
+    // 2. 하위 파트너들
+    const childPartners = allPartners.filter(p => p.parent_id === partnerId);
+    
+    // 3. 하위 파트너들의 회원까지 재귀적으로 조회
+    let allUsers_ids = [...directUsers];
+    for (const childPartner of childPartners) {
+      allUsers_ids = allUsers_ids.concat(getAllDescendantUserIds(childPartner.id, allPartners, allUsers));
+    }
+    
+    return allUsers_ids;
   };
 
   const calculateRowData = async (
@@ -531,13 +549,23 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       .filter(pt => pt.type === 'point_to_balance')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
-    // 게임 기록 필터링 - 본인 기록만!
-    const userGameRecords = gameRecords.filter(gr => gr.user_id === entityId);
+    // ✅ 게임 기록 필터링 - 파트너는 전체 하위 조직, 회원은 본인만!
+    let relevantUserIds: string[];
+    if (isPartner) {
+      // 파트너: 전체 하위 조직의 회원 ID
+      relevantUserIds = getAllDescendantUserIds(entityId, partners, users);
+      console.log(`  🎯 [${username}] 파트너 - 하위 회원 ${relevantUserIds.length}명 포함`);
+    } else {
+      // 회원: 본인만
+      relevantUserIds = [entityId];
+    }
+
+    const relevantGameRecords = gameRecords.filter(gr => relevantUserIds.includes(gr.user_id));
 
     // 게임 기록 샘플 로그
-    if (userGameRecords.length > 0 && userGameRecords.length <= 5) {
-      console.log(`  🎮 [${username}] 게임 기록 샘플 (${userGameRecords.length}개):`, 
-        userGameRecords.map(gr => ({
+    if (relevantGameRecords.length > 0 && relevantGameRecords.length <= 5) {
+      console.log(`  🎮 [${username}] 게임 기록 샘플 (${relevantGameRecords.length}개):`, 
+        relevantGameRecords.map(gr => ({
           game_type: gr.game_type,
           bet_amount: gr.bet_amount,
           win_amount: gr.win_amount,
@@ -546,19 +574,20 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       );
     }
 
-    const casinoBet = userGameRecords
+    // ✅ 베팅액 계산 - 전체 하위 조직 포함
+    const casinoBet = Math.abs(relevantGameRecords
       .filter(gr => gr.game_type === 'casino')
-      .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+      .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
 
-    const casinoWin = userGameRecords
+    const casinoWin = relevantGameRecords
       .filter(gr => gr.game_type === 'casino')
       .reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
 
-    const slotBet = userGameRecords
+    const slotBet = Math.abs(relevantGameRecords
       .filter(gr => gr.game_type === 'slot')
-      .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0);
+      .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
 
-    const slotWin = userGameRecords
+    const slotWin = relevantGameRecords
       .filter(gr => gr.game_type === 'slot')
       .reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
 
@@ -570,7 +599,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     const slotTotalRolling = slotBet * (slotRollingRate / 100);
 
     console.log(`  💰 [${username}] 게임 데이터`, {
-      gameRecordsCount: userGameRecords.length,
+      gameRecordsCount: relevantGameRecords.length,
       casino: { bet: casinoBet, win: casinoWin, winLoss: casinoWinLoss },
       slot: { bet: slotBet, win: slotWin, winLoss: slotWinLoss },
       totalWinLoss,

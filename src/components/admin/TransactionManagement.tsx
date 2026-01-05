@@ -50,12 +50,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   // 데이터 상태
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [pointTransactions, setPointTransactions] = useState<any[]>([]);
+  const [partnerTransactions, setPartnerTransactions] = useState<any[]>([]); // 파트너 거래 추가
   const [users, setUsers] = useState<User[]>([]);
   
   // 필터 상태
   const [periodFilter, setPeriodFilter] = useState("today");
   const [searchTerm, setSearchTerm] = useState("");
-  const [transactionTypeFilter, setTransactionTypeFilter] = useState("all");
+  const [transactionTypeFilter, setTransactionTypeFilter] = useState("all"); // all, user, admin, point
   
   // 데이터 리로드 트리거 (Realtime 이벤트용)
   const [reloadTrigger, setReloadTrigger] = useState(0);
@@ -202,14 +203,28 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         userListQuery = userListQuery.in('referrer_id', partnerIds);
       }
       
-      const [transactionsResult, pointTransactionsResult, usersResult] = await Promise.all([
+      // 파트너 거래 조회 (partner_balance_logs)
+      let partnerTransactionQuery = supabase
+        .from('partner_balance_logs')
+        .select('*')
+        .gte('created_at', dateRange.start)
+        .lte('created_at', dateRange.end)
+        .order('created_at', { ascending: false });
+        
+      if (user.level > 1) {
+        partnerTransactionQuery = partnerTransactionQuery.in('partner_id', partnerIds);
+      }
+      
+      const [transactionsResult, pointTransactionsResult, partnerTransactionsResult, usersResult] = await Promise.all([
         transactionQuery,
         pointTransactionQuery,
+        partnerTransactionQuery,
         userListQuery
       ]);
       
       const transactionsData = transactionsResult.data || [];
       const pointTransactionsData = pointTransactionsResult.data || [];
+      const partnerTransactionsData = partnerTransactionsResult.data || [];
       setUsers(usersResult.data || []);
       
       // 포인트 거래 데이터 처리
@@ -236,6 +251,33 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       }));
       
       setPointTransactions(processedPointTransactions);
+      
+      // 파트너 거래 데이터 처리
+      const partnerFromIds = [...new Set(partnerTransactionsData.map(t => t.from_partner_id).filter(Boolean))];
+      const partnerToIds = [...new Set(partnerTransactionsData.map(t => t.to_partner_id).filter(Boolean))];
+      const partnerProcessedByIds = [...new Set(partnerTransactionsData.map(t => t.processed_by).filter(Boolean))];
+      const partnerMainIds = [...new Set(partnerTransactionsData.map(t => t.partner_id).filter(Boolean))];
+      
+      const allPartnerIds = [...new Set([...partnerFromIds, ...partnerToIds, ...partnerProcessedByIds, ...partnerMainIds])];
+      
+      const [partnerInfoResult] = await Promise.all([
+        allPartnerIds.length > 0 
+          ? supabase.from('partners').select('id, nickname, username, level').in('id', allPartnerIds)
+          : Promise.resolve({ data: [], error: null })
+      ]);
+      
+      const partnerInfoMap = new Map((partnerInfoResult.data || []).map(p => [p.id, p]));
+      
+      const processedPartnerTransactions = partnerTransactionsData.map(pt => ({
+        ...pt,
+        partner_nickname: partnerInfoMap.get(pt.partner_id)?.nickname || '',
+        partner_username: partnerInfoMap.get(pt.partner_id)?.username || '',
+        from_partner_nickname: partnerInfoMap.get(pt.from_partner_id)?.nickname || '',
+        to_partner_nickname: partnerInfoMap.get(pt.to_partner_id)?.nickname || '',
+        processed_by_nickname: partnerInfoMap.get(pt.processed_by)?.nickname || ''
+      }));
+      
+      setPartnerTransactions(processedPartnerTransactions);
       
       // ⚡ 4단계: 관련 데이터 배치 조회 (병렬)
       const userIds = [...new Set(transactionsData.map(t => t.user_id).filter(Boolean))];
@@ -349,6 +391,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
     switch (filter) {
+      case 'all':
+        // 전체: 2020년 1월 1일부터 현재까지
+        return { start: '2020-01-01T00:00:00.000Z', end: now.toISOString() };
       case 'today':
         return { start: today.toISOString(), end: now.toISOString() };
       case 'week':
@@ -1018,10 +1063,52 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         console.log('👤 users 채널 구독 상태:', status);
       });
 
+    // partner_balance_logs 테이블 변경 감지 (파트너 거래 감지)
+    const partnerBalanceLogsChannel = supabase
+      .channel('partner-balance-logs-realtime-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'partner_balance_logs'
+        },
+        (payload) => {
+          console.log('💼 partner_balance_logs 테이블 변경 감지:', payload.eventType, payload.new);
+          // reloadTrigger 증가로 데이터 리로드 트리거
+          setReloadTrigger(prev => prev + 1);
+        }
+      )
+      .subscribe((status) => {
+        console.log('💼 partner_balance_logs 채널 구독 상태:', status);
+      });
+
+    // point_transactions 테이블 변경 감지
+    const pointTransactionsChannel = supabase
+      .channel('point-transactions-realtime-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'point_transactions'
+        },
+        (payload) => {
+          console.log('🎁 point_transactions 테이블 변경 감지:', payload.eventType, payload.new);
+          // reloadTrigger 증가로 데이터 리로드 트리거
+          setReloadTrigger(prev => prev + 1);
+        }
+      )
+      .subscribe((status) => {
+        console.log('🎁 point_transactions 채널 구독 상태:', status);
+      });
+
     return () => {
       console.log('🔌 Realtime subscription 정리 중...');
       supabase.removeChannel(transactionsChannel);
       supabase.removeChannel(usersChannel);
+      supabase.removeChannel(partnerBalanceLogsChannel);
+      supabase.removeChannel(pointTransactionsChannel);
     };
   }, []);
 
@@ -1057,7 +1144,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     filterBySearch(t)
   );
 
-  // 전체입출금내역: 사용자 + 관리자 입출금 + 포인트 거래 통합
+  // 전체입출금내역: 사용자 + 관리자 입출금 + 파트너 거래 + 포인트 거래 통합
   const completedTransactions = (() => {
     // 입출금 거래 필터링
     const filteredTransactions = transactions.filter(t => {
@@ -1080,44 +1167,93 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       typeMatch;
     });
     
-    // 포인트 거래 필터링 및 변환
-    const filteredPointTransactions = pointTransactions
-      .filter(pt => {
-        const searchMatch = searchTerm === '' || 
-          pt.user_nickname?.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        const typeMatch = (() => {
-          if (transactionTypeFilter === 'all') return true;
-          if (transactionTypeFilter === 'point_give') {
-            // 포인트 지급: earn 타입 또는 admin_adjustment에서 양수
-            return pt.transaction_type === 'earn' || 
-                   (pt.transaction_type === 'admin_adjustment' && pt.amount > 0);
-          }
-          if (transactionTypeFilter === 'point_recover') {
-            // 포인트 회수: use 타입 또는 admin_adjustment에서 음수
-            return pt.transaction_type === 'use' || 
-                   (pt.transaction_type === 'admin_adjustment' && pt.amount < 0);
-          }
-          return false;
-        })();
-        
-        return searchMatch && typeMatch;
-      })
-      .map(pt => ({
-        ...pt,
-        // 포인트 거래를 transactions 형식으로 변환
-        status: 'completed',
-        user: {
-          nickname: pt.user_nickname,
-          username: pt.user_username
-        }
-      }));
+    // 파트너 거래 필터링 (관리자 입금/출금에 포함)
+    const mappedPartnerTransactions = (transactionTypeFilter === 'all' || 
+                                       transactionTypeFilter === 'admin_deposit' || 
+                                       transactionTypeFilter === 'admin_withdrawal')
+      ? partnerTransactions
+        .filter(pt => {
+          const searchMatch = searchTerm === '' || 
+            pt.partner_nickname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            pt.from_partner_nickname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            pt.to_partner_nickname?.toLowerCase().includes(searchTerm.toLowerCase());
+          
+          // 필터별 파트너 거래 타입 매칭
+          const typeMatch = (() => {
+            if (transactionTypeFilter === 'all') return true;
+            if (transactionTypeFilter === 'admin_deposit') {
+              return pt.transaction_type === 'deposit' || pt.amount > 0;
+            }
+            if (transactionTypeFilter === 'admin_withdrawal') {
+              return pt.transaction_type === 'withdrawal' || pt.amount < 0;
+            }
+            return false;
+          })();
+          
+          return searchMatch && typeMatch;
+        })
+        .map(pt => ({
+          ...pt,
+          status: 'completed',
+          user: {
+            nickname: pt.partner_nickname,
+            username: pt.partner_username
+          },
+          is_partner_transaction: true
+        }))
+      : [];
     
-    // 입출금 거래와 포인트 거래 병합 후 시간순 정렬
-    return [...filteredTransactions, ...filteredPointTransactions].sort((a, b) => 
+    // 포인트 거래 필터링 및 변환
+    const filteredPointTransactions = (transactionTypeFilter === 'all' || 
+                                       transactionTypeFilter === 'point_give' || 
+                                       transactionTypeFilter === 'point_recover')
+      ? pointTransactions
+        .filter(pt => {
+          const searchMatch = searchTerm === '' || 
+            pt.user_nickname?.toLowerCase().includes(searchTerm.toLowerCase());
+          
+          const typeMatch = (() => {
+            if (transactionTypeFilter === 'all') return true;
+            if (transactionTypeFilter === 'point_give') {
+              // 포인트 지급: earn 타입 또는 admin_adjustment에서 양수
+              return pt.transaction_type === 'earn' || 
+                     (pt.transaction_type === 'admin_adjustment' && pt.amount > 0);
+            }
+            if (transactionTypeFilter === 'point_recover') {
+              // 포인트 회수: use 타입 또는 admin_adjustment에서 음수
+              return pt.transaction_type === 'use' || 
+                     (pt.transaction_type === 'admin_adjustment' && pt.amount < 0);
+            }
+            return false;
+          })();
+          
+          return searchMatch && typeMatch;
+        })
+        .map(pt => ({
+          ...pt,
+          status: 'completed',
+          user: {
+            nickname: pt.user_nickname,
+            username: pt.user_username
+          },
+          is_point_transaction: true
+        }))
+      : [];
+    
+    // 입출금 거래와 파트너 거래와 포인트 거래 병합 후 시간순 정렬
+    return [...filteredTransactions, ...mappedPartnerTransactions, ...filteredPointTransactions].sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
   })();
+  
+  // 🔍 디버깅: 데이터 확인
+  console.log('🔍 전체입출금내역 데이터:', {
+    filteredTransactionsCount: completedTransactions.filter((t: any) => !t.is_partner_transaction && !t.is_point_transaction).length,
+    partnerTransactionsCount: completedTransactions.filter((t: any) => t.is_partner_transaction).length,
+    pointTransactionsCount: completedTransactions.filter((t: any) => t.is_point_transaction).length,
+    totalCount: completedTransactions.length,
+    partnerTransactionsSample: completedTransactions.filter((t: any) => t.is_partner_transaction).slice(0, 2)
+  });
 
   // 거래 테이블 컬럼
   const getColumns = (showActions = false) => [
@@ -1131,21 +1267,65 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     },
     {
       header: t.transactionManagement.member,
-      cell: (row: any) => (
-        <div>
-          <p className="font-medium text-slate-200 text-base">{row.user?.nickname || row.user_nickname}</p>
-          <p className="text-sm text-slate-500">{row.user?.username || row.user_username}</p>
-          {row.user?.referrer && (
-            <p className="text-sm text-blue-400 mt-0.5">
-              소속: {row.user.referrer.nickname}
-            </p>
-          )}
-        </div>
-      )
+      cell: (row: any) => {
+        // 파트너 거래인 경우
+        if (row.is_partner_transaction) {
+          return (
+            <div>
+              <p className="font-medium text-purple-300 text-base">
+                [{row.partner_nickname || row.partner_username}]
+              </p>
+              {row.from_partner_nickname && (
+                <p className="text-sm text-blue-400 mt-0.5">
+                  From: {row.from_partner_nickname}
+                </p>
+              )}
+              {row.to_partner_nickname && (
+                <p className="text-sm text-pink-400 mt-0.5">
+                  To: {row.to_partner_nickname}
+                </p>
+              )}
+              {row.processed_by_nickname && (
+                <p className="text-xs text-slate-500 mt-0.5">
+                  처리: {row.processed_by_nickname}
+                </p>
+              )}
+            </div>
+          );
+        }
+        
+        // 일반 회원 거래
+        return (
+          <div>
+            <p className="font-medium text-slate-200 text-base">{row.user?.nickname || row.user_nickname}</p>
+            <p className="text-sm text-slate-500">{row.user?.username || row.user_username}</p>
+            {row.user?.referrer && (
+              <p className="text-sm text-blue-400 mt-0.5">
+                소속: {row.user.referrer.nickname}
+              </p>
+            )}
+          </div>
+        );
+      }
     },
     {
       header: t.transactionManagement.transactionType,
       cell: (row: any) => {
+        // 파트너 거래인 경우
+        if (row.is_partner_transaction) {
+          const partnerTypeMap: any = {
+            deposit: { text: '파트너입금', color: 'bg-cyan-600' },
+            withdrawal: { text: '파트너출금', color: 'bg-pink-600' },
+            admin_adjustment: { text: '파트너조정', color: 'bg-indigo-600' },
+            commission: { text: '파트너수수료', color: 'bg-violet-600' },
+            refund: { text: '파트너환급', color: 'bg-sky-600' },
+            deposit_to_user: { text: '→회원입금', color: 'bg-teal-600' },
+            withdrawal_from_user: { text: '←회원출금', color: 'bg-rose-600' }
+          };
+          const type = partnerTypeMap[row.transaction_type] || { text: row.transaction_type, color: 'bg-slate-600' };
+          return <Badge className={`${type.color} text-white text-sm px-3 py-1`}>{type.text}</Badge>;
+        }
+        
         const typeMap: any = {
           deposit: { text: t.transactionManagement.deposit, color: 'bg-emerald-600' },
           withdrawal: { text: t.transactionManagement.withdrawal, color: 'bg-orange-600' },
@@ -1176,6 +1356,20 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     {
       header: t.transactionManagement.amount,
       cell: (row: any) => {
+        // 파트너 거래인 경우
+        if (row.is_partner_transaction) {
+          const isNegative = row.transaction_type === 'withdrawal' || row.amount < 0;
+          return (
+            <span className={cn(
+              "font-mono font-semibold text-2xl",
+              isNegative ? 'text-red-400' : 'text-green-400'
+            )}>
+              {isNegative ? '-' : '+'}
+              {formatCurrency(Math.abs(parseFloat(row.amount?.toString() || '0')))}
+            </span>
+          );
+        }
+        
         // 포인트 거래인 경우
         if (row.points_before !== undefined) {
           const isNegative = row.amount < 0;
@@ -1208,6 +1402,15 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     {
       header: t.transactionManagement.balanceAfter,
       cell: (row: any) => {
+        // 파트너 거래인 경우
+        if (row.is_partner_transaction) {
+          return (
+            <span className="font-mono text-purple-400 text-2xl">
+              {formatCurrency(parseFloat(row.balance_after?.toString() || '0'))}
+            </span>
+          );
+        }
+        
         // 포인트 거래인 경우
         if (row.points_after !== undefined) {
           return (
@@ -1378,6 +1581,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                 <SelectValue placeholder={t.transactionManagement.period} />
               </SelectTrigger>
               <SelectContent className="bg-slate-800 border-slate-700">
+                <SelectItem value="all">전체</SelectItem>
                 <SelectItem value="today">{t.transactionManagement.today}</SelectItem>
                 <SelectItem value="week">{t.transactionManagement.lastWeek}</SelectItem>
                 <SelectItem value="month">{t.transactionManagement.lastMonth}</SelectItem>

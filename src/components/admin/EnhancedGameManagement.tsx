@@ -1818,6 +1818,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
         toast.success(`${apiLabel} ${typeLabel} 제공사 ${filteredProviders.length}개를 전체 노출했습니다.`);
       } else {
         // ✅ 새로운 방식: 제공사 레코드만 생성!
+        console.log('🔍 [제공사 차단] 선택된 API:', selectedApi);
+        console.log('🔍 [제공사 차단] 필터링된 제공사:', filteredProviders.map(p => ({ id: p.id, name: p.name, api_type: p.api_type })));
+        
         const providerRecords = filteredProviders.map(provider => ({
           partner_id: selectedStore.id,
           api_provider: provider.api_type,
@@ -1827,6 +1830,8 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
           is_allowed: false,
           game_status: "hidden" as const,
         }));
+        
+        console.log('✅ [제공사 차단] 생성할 레코드:', providerRecords.map(r => ({ api_provider: r.api_provider, game_provider_id: r.game_provider_id })));
 
         // 1단계: 기존 제공사 레코드 삭제
         const providerIdsToRemove = filteredProviders.map(p => p.id);
@@ -3657,6 +3662,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                 // ✅ 매장에서 차단된 게임은 리스트에서 제외
                                 if (storeBlockedForUser.games.includes(g.id)) return false;
                                 
+                                // ✅ 사용자가 차단한 게임은 리스트에서 제외 (화면에서 숨김)
+                                if (userBlockedGames.includes(g.id)) return false;
+                                
                                 // 제공사명이 매칭되면 모든 게임 표시
                                 if (isProviderMatch) return true;
                                 
@@ -3670,7 +3678,13 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                               }
 
                               const isExpanded = expandedProviderIds.has(provider.id);
-                              const blockedCount = providerGames.filter(g => userBlockedGames.includes(g.id)).length;
+                              // ✅ blockedCount는 전체 게임 중 차단된 게임 수 계산 (필터링 전 기준)
+                              const allProviderGames = games.filter(g => 
+                                g.provider_id === provider.id && 
+                                g.status === "visible" &&
+                                !storeBlockedForUser.games.includes(g.id)
+                              );
+                              const blockedCount = allProviderGames.filter(g => userBlockedGames.includes(g.id)).length;
 
                               return (
                                 <div key={provider.id} className="border-2 border-slate-700 rounded-lg overflow-hidden bg-slate-900/40 hover:border-slate-600 transition-all">

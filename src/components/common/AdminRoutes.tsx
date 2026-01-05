@@ -16,7 +16,7 @@ const IntegratedSettlement = lazy(() => import("../admin/IntegratedSettlement").
 const SettlementHistory = lazy(() => import("../admin/SettlementHistory").then(m => ({ default: m.SettlementHistory })));
 const UserSettlement = lazy(() => import("../admin/UserSettlement"));
 const AdvancedSettlement = lazy(() => import("../admin/AdvancedSettlement"));
-const TransactionManagement = lazy(() => import("../admin/TransactionManagement").then(m => ({ default: m.TransactionManagement })));
+const TransactionManagement = lazy(() => import("../admin/TransactionManagement"));
 const TransactionApprovalManager = lazy(() => import("../admin/TransactionApprovalManager").then(m => ({ default: m.TransactionApprovalManager })));
 const EnhancedGameManagement = lazy(() => import("../admin/EnhancedGameManagement").then(m => ({ default: m.EnhancedGameManagement })));
 const BettingManagement = lazy(() => import("../admin/BettingManagement").then(m => ({ default: m.BettingManagement })));

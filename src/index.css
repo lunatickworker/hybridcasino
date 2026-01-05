@@ -3738,6 +3738,10 @@
     background-color: var(--color-indigo-100);
   }
 
+  .bg-indigo-600 {
+    background-color: var(--color-indigo-600);
+  }
+
   .bg-indigo-950\/60 {
     background-color: color-mix(in srgb, oklch(.257 .09 281.288) 60%, transparent);
   }
@@ -3840,6 +3844,10 @@
     .bg-orange-950\/60 {
       background-color: color-mix(in oklab, var(--color-orange-950) 60%, transparent);
     }
+  }
+
+  .bg-pink-600 {
+    background-color: var(--color-pink-600);
   }
 
   .bg-popover {
@@ -4078,6 +4086,10 @@
 
   .bg-sidebar-border {
     background-color: var(--sidebar-border);
+  }
+
+  .bg-sky-600 {
+    background-color: var(--color-sky-600);
   }
 
   .bg-slate-400 {
@@ -4330,6 +4342,10 @@
 
   .bg-transparent {
     background-color: #0000;
+  }
+
+  .bg-violet-600 {
+    background-color: var(--color-violet-600);
   }
 
   .bg-white {

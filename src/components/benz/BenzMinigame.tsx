@@ -194,7 +194,11 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
         userId: user.id // 🆕 userId 추가
       });
 
-      setGames(gamesData || []);
+      // ⭐⭐⭐ benzGameVisibility로 점검중/차단 상태 추가 필터링
+      const { filterVisibleGames } = await import('../../lib/benzGameVisibility');
+      const gamesWithStatus = await filterVisibleGames(gamesData || [], user.id);
+
+      setGames(gamesWithStatus);
     } catch (error) {
       console.error('게임 로드 오류:', error);
       setGames([]);
@@ -215,6 +219,12 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
   };
 
   const handleGameClick = async (game: Game) => {
+    // 🚫 점검중인 게임은 클릭 불가
+    if ((game as any).status === 'maintenance') {
+      toast.warning('현재 점검 중인 게임입니다.');
+      return;
+    }
+
     // 🆕 백그라운드 프로세스 중 또는 게임 실행 중 클릭 방지
     if (isProcessing || launchingGameId) {
       toast.error('잠시 후 다시 시도해주세요.');

@@ -68,10 +68,36 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
   useEffect(() => {
     initializeData();
     
+    // ✅ partner_game_access 테이블 변경 감지 (실시간 게임 차단/허용 반영)
+    const channel = supabase
+      .channel('partner_game_access_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE 모두 감지
+          schema: 'public',
+          table: 'partner_game_access'
+        },
+        (payload) => {
+          console.log('🔄 [UserCasino] partner_game_access 변경 감지:', payload);
+          
+          // 현재 선택된 제공사 게임을 다시 로드
+          if (selectedProvider && selectedProvider !== "all") {
+            console.log('🔄 [UserCasino] 게임 목록 자동 갱신 (provider:', selectedProvider, ')');
+            loadCasinoGames(parseInt(selectedProvider));
+          } else if (selectedProvider === "all") {
+            console.log('🔄 [UserCasino] 전체 게임 목록 자동 갱신');
+            loadAllCasinoGames();
+          }
+        }
+      )
+      .subscribe();
+    
     return () => {
       isMountedRef.current = false;
+      supabase.removeChannel(channel);
     };
-  }, []);
+  }, [selectedProvider]); // selectedProvider도 의존성에 추가
 
   useEffect(() => {
     // ✅ selectedProvider 변경 시 해당 제공사 게임 로드
