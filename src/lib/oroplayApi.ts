@@ -26,7 +26,7 @@ async function apiCall<T = any>(config: ApiConfig, retries = 1): Promise<T> {
   
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000); // ⚡ 2초 타임아웃 (게임창 빠른 실행)
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // ✅ 30초 타임아웃 (게임 목록 조회는 시간이 걸릴 수 있음)
     
     // ⭐ Proxy 서버를 통해 호출
     const response = await fetch(PROXY_URL, {
@@ -94,7 +94,7 @@ async function apiCall<T = any>(config: ApiConfig, retries = 1): Promise<T> {
         return apiCall(config, retries - 1);
       }
       
-      throw new Error('API 호출 시간 초과 (2초). 서버가 응답하지 않습니다.');
+      throw new Error('API 호출 시간 초과 (30초). 서버가 응답하지 않습니다.');
     }
     
     // "Failed to fetch" 오류 처리 (네트워크 오류)
@@ -560,7 +560,7 @@ export async function getBettingHistory(
       }
     });
     
-    // ✅ "게임기���이 존재하지 않습니다" 메시지는 정상 처리 (빈 배열 반환)
+    // ✅ "게임기록이 존재하지 않습니다" 메시지는 정상 처리 (빈 배열 반환)
     if (response.RESULT === false || response.result === false) {
       const errorMessage = response.message || response.DATA?.message || '';
       if (errorMessage.includes('게임기록이 존재하지 않습니다')) {

@@ -798,36 +798,22 @@ export async function syncHonorApiBettingHistory(): Promise<{
           .from('honor_games')
           .select('id, provider_id, name, type')
           .eq('game_code', tx.details.game.id)
-          .single();
+          .maybeSingle();
 
-        // 제공사 정보 조회 (HonorAPI 전용)
-        let providerName = '';
+        // ⭐ game_id가 null인 경우 경고 출력
+        if (!game) {
+          console.warn(`⚠️ [HonorAPI] honor_games 테이블에 게임 없음: game_code=${tx.details.game.id}, vendor=${tx.details.game.vendor}, type=${tx.details.game.type}, title=${tx.details.game.title}`);
+        }
 
-        if (game?.provider_id) {
-          const { data: provider } = await supabase
-            .from('honor_game_providers')
-            .select('name')
-            .eq('id', game.provider_id)
-            .single();
-          
-          // ⭐ DB에 제공사 이름이 있으면 사용, 없으면 API 응답값 (vendor) 사용
-          providerName = provider?.name || tx.details?.game?.vendor || 'Unknown Provider';
-        } else {
-          // ⭐ game이 없을 경우, API 응답값 (vendor) 사용
-          providerName = tx.details?.game?.vendor || 'Unknown Provider';
-        }
-        
-        // ✅ NULL 방지: providerName이 여전히 비어있거나 'null' 문자열이면 기본값 설정
-        if (!providerName || providerName === 'null' || providerName.trim() === '') {
-          providerName = 'Unknown Provider';
-          console.warn(`⚠️ [HonorAPI] 제공사 이름 누락: txid=${tx.id}, game_code=${tx.details?.game?.id}`);
-        }
-        
-        // ✅ NULL 방지: game_title 정교한 fallback
-        let gameTitle = game?.name || tx.details?.game?.title || tx.details?.game?.name || tx.details?.game?.id || 'Unknown Game';
-        if (!gameTitle || gameTitle === 'null' || gameTitle.trim() === '') {
-          gameTitle = 'Unknown Game';
-          console.warn(`⚠️ [HonorAPI] 게임 이름 누락: txid=${tx.id}, game_code=${tx.details?.game?.id}`);
+        // ⭐ DB에 저장된 게임 타입 우선 사용, 없으면 API 값 사용
+        const gameType = game?.type || tx.details.game.type;
+        const providerName = tx.details.game.vendor;
+        const gameTitle = game?.name || tx.details.game.title;
+
+        // 필수 필드 검증
+        if (!providerName || !gameType || !gameTitle) {
+          console.warn(`⚠️ [HonorAPI] 필수 필드 누락 - 건너뜀: txid=${tx.id}, provider=${providerName}, type=${gameType}, title=${gameTitle}`);
+          continue;
         }
 
         // 같은 라운드의 win 트랜잭션 찾기
@@ -861,9 +847,9 @@ export async function syncHonorApiBettingHistory(): Promise<{
             username: tx.user.username,
             game_id: game?.id || null,
             provider_id: null,  // ⚠️ HonorAPI는 별도 provider 테이블 사용 (game_providers FK 제약 회피)
-            provider_name: providerName,  // ⭐ 항상 유효한 값 보장
-            game_title: gameTitle,  // ⭐ fallback 추가
-            game_type: game?.type || tx.details.game.type || 'slot',
+            provider_name: providerName,
+            game_title: gameTitle,
+            game_type: gameType,
             bet_amount: betAmount,
             win_amount: winAmount,
             balance_before: tx.before,
@@ -1002,12 +988,22 @@ export async function syncHonorApiGames(): Promise<{
           // ✅ 벤더 이름으로도 카지노 타입 판별 (Evolution, Asia Gaming, Ezugi, SA Gaming 등)
           const casinoVendorNames = ['evolution', 'asiagaming', 'ezugi', 'sa gaming', 'sagaming', 'pragmatic play live', 'pragmaticplay live', 'dream gaming', 'dreamgaming', 'sexy', 'wm', 'allbet', 'og', 'microgaming'];
           const vendorNameLower = vendorData.name.toLowerCase();
-          const isCasinoVendor = casinoVendorNames.some(name => vendorNameLower.includes(name));
+          const vendorCodeLower = vendorName.toLowerCase(); // ✅ vendor code도 체크
+          const isCasinoVendor = casinoVendorNames.some(name => 
+            vendorNameLower.includes(name) || vendorCodeLower.includes(name)
+          );
           
           const hasCasinoGames = games.some(g => casinoGameTypes.includes(g.type.toLowerCase()));
           const vendorType: 'slot' | 'casino' = (hasCasinoGames || isCasinoVendor) ? 'casino' : 'slot';
 
-          console.log(`🎮 [HonorAPI] ${vendorData.name} 타입: ${vendorType} (isCasinoVendor: ${isCasinoVendor}, hasCasinoGames: ${hasCasinoGames})`);
+          console.log(`🎮 [HonorAPI] ${vendorData.name} 타입 판별:`, {
+            vendorName: vendorData.name,
+            vendorCode: vendorName,
+            vendorType,
+            isCasinoVendor,
+            hasCasinoGames,
+            gameTypes: [...new Set(games.map(g => g.type))].slice(0, 5) // 처음 5개 게임 타입 샘플
+          });
 
           // honor_game_providers에 벤더 저장/업데이트
           const { data: existingProvider } = await supabase
@@ -1292,7 +1288,7 @@ export async function syncHonorApiGames(): Promise<{
             await supabase
               .from('honor_games')
               .update({
-                provider_id: providerId, // ✅ 제공사 정보도 업데이트
+                provider_id: providerId, //  제공사 정보도 업데이트
                 name: lobby.title, // ✅ HonorAPI Lobby: title 필드
                 name_en: lobby.title,
                 name_ko: lobby.langs?.ko || lobby.title, // ✅ HonorAPI Lobby: langs.ko 필드

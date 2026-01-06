@@ -102,7 +102,12 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
   useEffect(() => {
     // ✅ selectedProvider 변경 시 해당 제공사 게임 로드
     if (selectedProvider && selectedProvider !== "all") {
-      loadCasinoGames(parseInt(selectedProvider));
+      const provider = providers.find(p => p.id.toString() === selectedProvider);
+      if (provider && provider.provider_ids) {
+        loadCasinoGamesByProviderName(provider);
+      } else {
+        loadCasinoGames(parseInt(selectedProvider));
+      }
     } else if (selectedProvider === "all") {
       loadAllCasinoGames();
     }
@@ -120,14 +125,32 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
         userId: user.id // 🆕 사용자 ID 전달
       });
       
+      // ✅ 2. 제공사명 기준으로 그룹핑 (같은 이름은 하나로 합침)
+      const providerMap = new Map<string, any>();
+      providersData.forEach(provider => {
+        const existing = providerMap.get(provider.name);
+        if (!existing) {
+          // 첫 번째 제공사 저장 (대표 ID 사용)
+          providerMap.set(provider.name, {
+            ...provider,
+            provider_ids: [provider.id] // 여러 API의 제공사 ID를 배열로 저장
+          });
+        } else {
+          // 같은 이름의 제공사는 ID만 추가
+          existing.provider_ids.push(provider.id);
+        }
+      });
+      
+      const groupedProviders = Array.from(providerMap.values());
+      
       if (isMountedRef.current) {
-        setProviders(providersData);
+        setProviders(groupedProviders);
         
-        // ✅ 2. 첫 번째 제공사를 기본 선택
-        if (providersData.length > 0) {
-          setSelectedProvider(providersData[0].id.toString());
-          // ✅ 3. 첫 번째 제공사의 게임만 로드
-          await loadCasinoGames(providersData[0].id);
+        // ✅ 3. 첫 번째 제공사를 기본 선택
+        if (groupedProviders.length > 0) {
+          setSelectedProvider(groupedProviders[0].id.toString());
+          // ✅ 4. 첫 번째 제공사의 게임만 로드 (모든 provider_ids 사용)
+          await loadCasinoGamesByProviderName(groupedProviders[0]);
         }
       }
       
@@ -207,6 +230,62 @@ export function UserCasino({ user, onRouteChange }: UserCasinoProps) {
       });
 
       console.log(`🎰 [카지노 게임 전체 로드] 총 ${gamesData?.length || 0}개 게임`);
+
+      const formattedGames = gamesData?.map(game => ({
+        game_id: game.id,
+        provider_id: game.provider_id,
+        provider_name: game.provider_name || 'Unknown',
+        provider_logo: (game as any).game_providers?.logo_url,
+        game_name: game.name,
+        game_type: game.type,
+        image_url: game.image_url,
+        is_featured: game.is_featured || false,
+        status: game.status,
+        priority: game.priority || 0,
+        api_type: game.api_type
+      })) || [];
+
+      const sortedGames = formattedGames.sort((a, b) => {
+        if (a.is_featured && !b.is_featured) return -1;
+        if (!a.is_featured && b.is_featured) return 1;
+        return b.priority - a.priority;
+      });
+
+      if (isMountedRef.current) {
+        setGames(sortedGames);
+      }
+      
+    } catch (error) {
+      if (isMountedRef.current) {
+        console.error('게임 로드 실패:', error);
+        toast.error('카지노 게임을 불러오는데 실패했습니다.');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const loadCasinoGamesByProviderName = async (provider: any) => {
+    if (!isMountedRef.current) return;
+    
+    try {
+      setLoading(true);
+
+      // ✅ 여러 provider_ids의 게임을 모두 가져오기
+      const allGamesPromises = provider.provider_ids.map((providerId: number) =>
+        gameApi.getUserVisibleGames({
+          type: 'casino',
+          provider_id: providerId,
+          userId: user.id
+        })
+      );
+      
+      const gamesDataArrays = await Promise.all(allGamesPromises);
+      const gamesData = gamesDataArrays.flat(); // 배열 합치기
+
+      console.log(`🎰 [카지노 게임 로드] Provider Name ${provider.name}: ${gamesData?.length || 0}개 게임 (${provider.provider_ids.length}개 API)`);
 
       const formattedGames = gamesData?.map(game => ({
         game_id: game.id,
