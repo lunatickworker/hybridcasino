@@ -1115,21 +1115,44 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
             </PopoverContent>
           </Popover>
 
-          {/* 레벨 필터 */}
-          <Select value={levelFilter} onValueChange={(value: any) => setLevelFilter(value)}>
-            <SelectTrigger className="w-[160px] input-premium">
-              <SelectValue placeholder="레벨" />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-800 border-slate-700">
-              <SelectItem value="all">전체</SelectItem>
-              <SelectItem value="2">운영사(대본)</SelectItem>
-              <SelectItem value="3">본사</SelectItem>
-              <SelectItem value="4">부본사</SelectItem>
-              <SelectItem value="5">총판</SelectItem>
-              <SelectItem value="6">매장</SelectItem>
-              <SelectItem value="user">회원</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* 단축 레벨 필터 버튼 */}
+          <div className="flex items-center gap-2 border-l border-slate-700 pl-3">
+            <Button
+              onClick={() => setLevelFilter('3')}
+              variant={levelFilter === '3' ? 'default' : 'outline'}
+              className="h-10"
+            >
+              본사
+            </Button>
+            <Button
+              onClick={() => setLevelFilter('4')}
+              variant={levelFilter === '4' ? 'default' : 'outline'}
+              className="h-10"
+            >
+              부본사
+            </Button>
+            <Button
+              onClick={() => setLevelFilter('5')}
+              variant={levelFilter === '5' ? 'default' : 'outline'}
+              className="h-10"
+            >
+              총판
+            </Button>
+            <Button
+              onClick={() => setLevelFilter('6')}
+              variant={levelFilter === '6' ? 'default' : 'outline'}
+              className="h-10"
+            >
+              매장
+            </Button>
+            <Button
+              onClick={() => setLevelFilter('user')}
+              variant={levelFilter === 'user' ? 'default' : 'outline'}
+              className="h-10"
+            >
+              회원
+            </Button>
+          </div>
 
           {/* 검색 */}
           <div className="flex-1 relative">

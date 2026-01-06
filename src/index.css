@@ -6572,6 +6572,10 @@
     padding-left: calc(var(--spacing) * 2);
   }
 
+  .pl-3 {
+    padding-left: calc(var(--spacing) * 3);
+  }
+
   .pl-7 {
     padding-left: calc(var(--spacing) * 7);
   }
