@@ -106,6 +106,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   const [data, setData] = useState<SettlementRow[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandAll, setExpandAll] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   const [summary, setSummary] = useState<SummaryStats>({
     totalDeposit: 0,
     totalWithdrawal: 0,
@@ -944,6 +946,13 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   };
 
   const visibleRows = getVisibleRows();
+  const totalPages = Math.ceil(visibleRows.length / itemsPerPage);
+  const paginatedRows = visibleRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // 페이지 변경 시 currentPage 초기화
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [levelFilter, codeSearch, itemsPerPage]);
 
   return (
     <div className="space-y-6">
@@ -1016,6 +1025,100 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
           subtitle="관리자 포인트 회수"
           icon={TrendingDown}
           color="orange"
+        />
+      </div>
+
+      {/* 통계 카드 - 베팅 (6개) */}
+      <div className="grid gap-5 md:grid-cols-6">
+        <MetricCard
+          title="카지노 베팅"
+          value={`${formatNumber(summary.casinoBet)}원`}
+          subtitle="카지노 베팅 합계"
+          icon={TrendingUp}
+          color="blue"
+        />
+
+        <MetricCard
+          title="카지노 당첨"
+          value={`${formatNumber(summary.casinoWin)}원`}
+          subtitle="카지노 당첨 합계"
+          icon={TrendingDown}
+          color="purple"
+        />
+
+        <MetricCard
+          title="슬롯 베팅"
+          value={`${formatNumber(summary.slotBet)}원`}
+          subtitle="슬롯 베팅 합계"
+          icon={TrendingUp}
+          color="indigo"
+        />
+
+        <MetricCard
+          title="슬롯 당첨"
+          value={`${formatNumber(summary.slotWin)}원`}
+          subtitle="슬롯 당첨 합계"
+          icon={TrendingDown}
+          color="violet"
+        />
+
+        <MetricCard
+          title="총 베팅"
+          value={`${formatNumber(summary.totalBet)}원`}
+          subtitle="카지노 + 슬롯"
+          icon={TrendingUp}
+          color="blue"
+        />
+
+        <MetricCard
+          title="총 당첨"
+          value={`${formatNumber(summary.totalWin)}원`}
+          subtitle="카지노 + 슬롯"
+          icon={DollarSign}
+          color="purple"
+        />
+      </div>
+
+      {/* 통계 카드 - 정산 (5개) */}
+      <div className="grid gap-5 md:grid-cols-6">
+        <MetricCard
+          title="입출 차액"
+          value={`${formatNumber(summary.depositWithdrawalDiff)}원`}
+          subtitle="입금 - 출금"
+          icon={DollarSign}
+          color={summary.depositWithdrawalDiff >= 0 ? "cyan" : "red"}
+        />
+
+        <MetricCard
+          title="GGR"
+          value={`${formatNumber(summary.totalBet - summary.totalWin)}원`}
+          subtitle="베팅 - 당첨"
+          icon={TrendingUp}
+          color="amber"
+        />
+
+        <MetricCard
+          title="총 롤링금"
+          value={`${formatNumber(summary.totalRolling)}원`}
+          subtitle="롤링 합계"
+          icon={DollarSign}
+          color="emerald"
+        />
+
+        <MetricCard
+          title="정산 수익"
+          value={`${formatNumber(summary.totalSettlementProfit)}원`}
+          subtitle="GGR - 롤링금"
+          icon={DollarSign}
+          color="green"
+        />
+
+        <MetricCard
+          title="실정산수익"
+          value={`${formatNumber(summary.totalActualSettlementProfit)}원`}
+          subtitle="GGR - 롤링 - 루징"
+          icon={Wallet}
+          color="cyan"
         />
       </div>
 
@@ -1194,10 +1297,11 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
             정산 데이터가 없습니다.
           </div>
         ) : (
-          <div className="overflow-x-auto" style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: '#9FA8DA #E8EAF6'
-          }}>
+          <>
+            <div className="overflow-x-auto" style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#9FA8DA #E8EAF6'
+            }}>
             <style dangerouslySetInnerHTML={{
               __html: `
                 .overflow-x-auto::-webkit-scrollbar {
@@ -1324,7 +1428,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                     </td>
                   </tr>
                 ) : (
-                  visibleRows.map((row, idx) => {
+                  paginatedRows.map((row, idx) => {
                     const bgColor = getRowBackgroundColor(row.level);
                     return (
                       <tr 
@@ -1346,73 +1450,73 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                             {row.levelName}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-center text-slate-200 font-mono whitespace-nowrap">{row.username}</td>
+                        <td className="px-4 py-3 text-center text-slate-200 font-asiahead whitespace-nowrap">{row.username}</td>
                         
                         {/* 롤링률 (카지노/슬롯) - 2단2열 */}
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-slate-300 font-mono">{row.casinoRollingRate}%</div>
-                            <div className="flex-1 text-slate-300 font-mono">{row.slotRollingRate}%</div>
+                            <div className="flex-1 text-slate-300 font-asiahead">{row.casinoRollingRate}%</div>
+                            <div className="flex-1 text-slate-300 font-asiahead">{row.slotRollingRate}%</div>
                           </div>
                         </td>
                         
                         {/* 루징 (카지노/슬롯) - 2단2열 */}
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-slate-300 font-mono">{row.casinoLosingRate}%</div>
-                            <div className="flex-1 text-slate-300 font-mono">{row.slotLosingRate}%</div>
+                            <div className="flex-1 text-slate-300 font-asiahead">{row.casinoLosingRate}%</div>
+                            <div className="flex-1 text-slate-300 font-asiahead">{row.slotLosingRate}%</div>
                           </div>
                         </td>
                         
                         {/* 보유머니 및 포인트 - 2단2열 */}
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-slate-300 font-mono">{formatNumber(row.balance)}</div>
-                            <div className="flex-1 text-cyan-400 font-mono">{formatNumber(row.points)}</div>
+                            <div className="flex-1 text-slate-300 font-asiahead">{formatNumber(row.balance)}</div>
+                            <div className="flex-1 text-cyan-400 font-asiahead">{formatNumber(row.points)}</div>
                           </div>
                         </td>
                         
-                        <td className="px-4 py-3 text-center text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.deposit)}</td>
-                        <td className="px-4 py-3 text-center text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.withdrawal)}</td>
-                        <td className="px-4 py-3 text-center text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.adminDeposit)}</td>
-                        <td className="px-4 py-3 text-center text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.adminWithdrawal)}</td>
-                        <td className="px-4 py-3 text-center text-blue-400 font-mono whitespace-nowrap">{formatNumber(row.pointGiven)}</td>
-                        <td className="px-4 py-3 text-center text-orange-400 font-mono whitespace-nowrap">{formatNumber(row.pointRecovered)}</td>
-                        <td className={cn("px-4 py-3 text-center font-mono whitespace-nowrap", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                        <td className="px-4 py-3 text-center text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.deposit)}</td>
+                        <td className="px-4 py-3 text-center text-rose-400 font-asiahead whitespace-nowrap">{formatNumber(row.withdrawal)}</td>
+                        <td className="px-4 py-3 text-center text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.adminDeposit)}</td>
+                        <td className="px-4 py-3 text-center text-rose-400 font-asiahead whitespace-nowrap">{formatNumber(row.adminWithdrawal)}</td>
+                        <td className="px-4 py-3 text-center text-blue-400 font-asiahead whitespace-nowrap">{formatNumber(row.pointGiven)}</td>
+                        <td className="px-4 py-3 text-center text-orange-400 font-asiahead whitespace-nowrap">{formatNumber(row.pointRecovered)}</td>
+                        <td className={cn("px-4 py-3 text-center font-asiahead whitespace-nowrap", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>
                           {formatNumber(row.depositWithdrawalDiff)}
                         </td>
                         
                         {/* 카지노 (베팅/당첨) - 2단2열 */}
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-cyan-400 font-mono">{formatNumber(row.casinoBet)}</div>
-                            <div className="flex-1 text-purple-400 font-mono">{formatNumber(row.casinoWin)}</div>
+                            <div className="flex-1 text-cyan-400 font-asiahead">{formatNumber(row.casinoBet)}</div>
+                            <div className="flex-1 text-purple-400 font-asiahead">{formatNumber(row.casinoWin)}</div>
                           </div>
                         </td>
                         
                         {/* 슬롯 (베팅/당첨) - 2단2열 */}
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-cyan-400 font-mono">{formatNumber(row.slotBet)}</div>
-                            <div className="flex-1 text-purple-400 font-mono">{formatNumber(row.slotWin)}</div>
+                            <div className="flex-1 text-cyan-400 font-asiahead">{formatNumber(row.slotBet)}</div>
+                            <div className="flex-1 text-purple-400 font-asiahead">{formatNumber(row.slotWin)}</div>
                           </div>
                         </td>
                         
-                        <td className="px-4 py-3 text-center text-amber-400 font-mono whitespace-nowrap">{formatNumber(row.ggr)}</td>
+                        <td className="px-4 py-3 text-center text-amber-400 font-asiahead whitespace-nowrap">{formatNumber(row.ggr)}</td>
                         
                         {/* 총정산 (총 롤링금/총루징) - 2단2열 */}
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-teal-400 font-mono">{formatNumber(row.totalRolling)}</div>
-                            <div className="flex-1 text-teal-400 font-mono">{formatNumber(row.totalLosing)}</div>
+                            <div className="flex-1 text-teal-400 font-asiahead">{formatNumber(row.totalRolling)}</div>
+                            <div className="flex-1 text-teal-400 font-asiahead">{formatNumber(row.totalLosing)}</div>
                           </div>
                         </td>
                         
                         {/* 코드별 실정산 (롤링금/루징) - 2단2열 */}
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-green-400 font-mono font-semibold">{formatNumber(row.totalIndividualRolling)}</div>
-                            <div className="flex-1 text-green-400 font-mono font-semibold">{formatNumber(row.totalIndividualLosing)}</div>
+                            <div className="flex-1 text-green-400 font-asiahead font-semibold">{formatNumber(row.totalIndividualRolling)}</div>
+                            <div className="flex-1 text-green-400 font-asiahead font-semibold">{formatNumber(row.totalIndividualLosing)}</div>
                           </div>
                         </td>
                       </tr>
@@ -1422,6 +1526,72 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
               </tbody>
             </table>
           </div>
+
+          {/* 페이지네이션 */}
+          <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-700/50">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-slate-400">
+                총 {visibleRows.length}개 중 {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, visibleRows.length)}개 표시
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-400">페이지당:</span>
+                <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(Number(value))}>
+                  <SelectTrigger className="w-[80px] h-9 input-premium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-800 border-slate-700">
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="h-9"
+              >
+                처음
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="h-9"
+              >
+                이전
+              </Button>
+              <span className="text-sm text-slate-300 px-4">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="h-9"
+              >
+                다음
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="h-9"
+              >
+                마지막
+              </Button>
+            </div>
+          </div>
+          </>
         )}
       </div>
     </div>

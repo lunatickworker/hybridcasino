@@ -981,6 +981,11 @@ html {
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* 아시아헤드 숫자 폰트 */
+.font-asiahead {
+  font-family: 'AsiHead', sans-serif;
+}
+
 /* ===== 관리자 페이지 커스텀 스크롤바 ===== */
 
 /* 수평 및 수직 스크롤바 전체 트랙 */

@@ -271,7 +271,22 @@ export function PartnerTransactions() {
       key: 'created_at',
       header: '날짜일시',
       cell: (row: PartnerTransaction) => {
+        if (!row.created_at) {
+          return (
+            <div className="text-slate-400 text-xl whitespace-nowrap">
+              날짜 없음
+            </div>
+          );
+        }
         const date = new Date(row.created_at);
+        // 유효한 날짜인지 확인
+        if (isNaN(date.getTime())) {
+          return (
+            <div className="text-slate-400 text-xl whitespace-nowrap">
+              날짜 없음
+            </div>
+          );
+        }
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
         const day = date.getDate();

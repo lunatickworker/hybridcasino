@@ -308,10 +308,7 @@ export function PointManagement() {
 
         // 실시간 업데이트
         if (connected && sendMessage) {
-          sendMessage({
-            type: 'points_given',
-            data: { transaction: transactionData }
-          });
+          sendMessage('points_given', { transaction: transactionData });
         }
 
       } else if (adminLevel === 3) {
@@ -376,7 +373,8 @@ export function PointManagement() {
           amount: -amount,
           transaction_type: 'admin_adjustment',
           processed_by: authState.user?.id,
-          memo: `포인트 지급: ${userData.username} (${userData.nickname})`
+          memo: `포인트 지급: ${userData.username} (${userData.nickname})`,
+          created_at: new Date().toISOString()
         });
 
         toast.success(`${amount.toLocaleString()}P가 지급되었습니다. (보유금: ${newAdminBalance.toLocaleString()}원)`, {
@@ -386,10 +384,7 @@ export function PointManagement() {
 
         // 실시간 업데이트
         if (connected && sendMessage) {
-          sendMessage({
-            type: 'points_given',
-            data: { transaction: transactionData }
-          });
+          sendMessage('points_given', { transaction: transactionData });
         }
 
       } else {
@@ -454,7 +449,8 @@ export function PointManagement() {
           amount: -amount,
           transaction_type: 'admin_adjustment',
           processed_by: authState.user?.id,
-          memo: `포인트 지급: ${userData.username} (${userData.nickname})`
+          memo: `포인트 지급: ${userData.username} (${userData.nickname})`,
+          created_at: new Date().toISOString()
         });
 
         toast.success(`${amount.toLocaleString()}P가 지급되었습니다. (보유금: ${newAdminBalance.toLocaleString()}원)`, {
@@ -464,54 +460,14 @@ export function PointManagement() {
 
         // 실시간 업데이트
         if (connected && sendMessage) {
-          sendMessage({
-            type: 'points_given',
-            data: { transaction: transactionData }
-          });
+          sendMessage('points_given', { transaction: transactionData });
         }
       }
 
-      // 2-3. 포인트 거래 내역 생성
-      const { data: transactionData, error: transactionError } = await supabase
-        .from('point_transactions')
-        .insert([{
-          user_id: selectedUserId,
-          partner_id: authState.user?.id,
-          transaction_type: 'admin_adjustment',
-          amount: amount,
-          points_before: currentPoints,
-          points_after: newPoints,
-          memo: memo || '관리자 포인트 지급',
-          created_at: new Date().toISOString()
-        }])
-        .select()
-        .single();
-
-      if (transactionError) {
-        console.error('❌ [포인트 지급] 거래내역 생성 실패:', transactionError);
-      }
-
-      toast.success(`${amount.toLocaleString()}P가 지급되었습니다. (보유금: ${newAdminBalance.toLocaleString()}원)`, {
-        duration: 3000,
-        icon: '🎁'
-      });
-      
       setShowGiveDialog(false);
       setSelectedUserId("");
       setPointAmount("");
       setMemo("");
-
-      // ✅ 실시간 보유금 업데이트 (BalanceContext - Realtime 자동 감지)
-      // partners 테이블 변경으로 인해 BalanceContext가 자동으로 업데이트됨
-      console.log('✅ [포인트 지급] 보유금 실시간 업데이트 대기 중...');
-
-      // 실시간 업데이트 (WebSocket)
-      if (connected && sendMessage) {
-        sendMessage({
-          type: 'points_given',
-          data: { transaction: transactionData }
-        });
-      }
 
       fetchPointTransactions();
       fetchUsers();
@@ -620,10 +576,7 @@ export function PointManagement() {
 
         // 실시간 업데이트
         if (connected && sendMessage) {
-          sendMessage({
-            type: 'points_recovered',
-            data: { transaction: transactionData }
-          });
+          sendMessage('points_recovered', { transaction: transactionData });
         }
 
       } else if (adminLevel === 3) {
@@ -684,7 +637,8 @@ export function PointManagement() {
           amount: amount,
           transaction_type: 'admin_adjustment',
           processed_by: authState.user?.id,
-          memo: `포인트 회수: ${userData.username} (${userData.nickname})`
+          memo: `포인트 회수: ${userData.username} (${userData.nickname})`,
+          created_at: new Date().toISOString()
         });
 
         toast.success(`${amount.toLocaleString()}P가 회수되었습니다. (Lv3 balance 증가)`, {
@@ -694,10 +648,7 @@ export function PointManagement() {
 
         // 실시간 업데이트
         if (connected && sendMessage) {
-          sendMessage({
-            type: 'points_recovered',
-            data: { transaction: transactionData }
-          });
+          sendMessage('points_recovered', { transaction: transactionData });
         }
 
       } else {
@@ -756,7 +707,8 @@ export function PointManagement() {
           amount: amount,
           transaction_type: 'admin_adjustment',
           processed_by: authState.user?.id,
-          memo: `포인트 회수: ${userData.username} (${userData.nickname})`
+          memo: `포인트 회수: ${userData.username} (${userData.nickname})`,
+          created_at: new Date().toISOString()
         });
 
         toast.success(`${amount.toLocaleString()}P가 회수되었습니다. (보유금: ${newAdminBalance.toLocaleString()}원)`, {
@@ -766,10 +718,7 @@ export function PointManagement() {
 
         // 실시간 업데이트
         if (connected && sendMessage) {
-          sendMessage({
-            type: 'points_recovered',
-            data: { transaction: transactionData }
-          });
+          sendMessage('points_recovered', { transaction: transactionData });
         }
       }
 
@@ -968,7 +917,8 @@ export function PointManagement() {
         amount: amount,
         transaction_type: 'admin_adjustment',
         processed_by: authState.user?.id,
-        memo: `포인트 회수: ${userData.username} (${userData.nickname})`
+        memo: `포인트 회수: ${userData.username} (${userData.nickname})`,
+        created_at: new Date().toISOString()
       });
 
       // 2-3. 포인트 거래 내역 생성
@@ -1007,10 +957,7 @@ export function PointManagement() {
 
       // 실시간 업데이트 (WebSocket)
       if (connected && sendMessage) {
-        sendMessage({
-          type: 'points_recovered',
-          data: { transaction: transactionData }
-        });
+        sendMessage('points_recovered', { transaction: transactionData });
       }
 
       fetchPointTransactions();

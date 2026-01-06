@@ -540,26 +540,38 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
       try {
         // ✅ familyApi는 dynamic import
         const familyApiModule = await import('../lib/familyApi');
-        const rawFamilyBalance = await familyApiModule.getAgentBalance(
-          // API Key와 Token은 getFamilyApiConfig로 조회
-          (await familyApiModule.getFamilyApiConfig()).apiKey,
-          await familyApiModule.getFamilyApiToken(user.id)
-        );
         
-        newFamilyBalance = rawFamilyBalance?.credit || 0;
-        
-        // api_configs 테이블 업데이트
-        await supabase
-          .from('api_configs')
-          .update({ 
-            balance: newFamilyBalance,
-            updated_at: new Date().toISOString()
-          })
-          .eq('partner_id', user.id)
-          .eq('api_provider', 'familyapi');
+        // FamilyAPI 설정 확인
+        const familyConfig = await familyApiModule.getFamilyApiConfig();
+        if (!familyConfig?.apiKey) {
+          console.warn('⚠️ [Balance] FamilyAPI 설정이 없습니다.');
+        } else {
+          const familyToken = await familyApiModule.getFamilyApiToken(user.id);
+          if (!familyToken) {
+            console.warn('⚠️ [Balance] FamilyAPI 토큰이 없습니다.');
+          } else {
+            const rawFamilyBalance = await familyApiModule.getAgentBalance(
+              familyConfig.apiKey,
+              familyToken
+            );
+            
+            newFamilyBalance = rawFamilyBalance?.credit || 0;
+            
+            // api_configs 테이블 업데이트
+            await supabase
+              .from('api_configs')
+              .update({ 
+                balance: newFamilyBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('partner_id', user.id)
+              .eq('api_provider', 'familyapi');
+          }
+        }
           
       } catch (familyErr: any) {
-        console.error('❌ [Balance] FamilyAPI 잔고 조회 실패:', familyErr);
+        console.error('❌ [Balance] FamilyAPI 잔고 조회 실패:', familyErr.message || familyErr);
+        // FamilyAPI 실패해도 다른 API는 계속 진행
       }
 
       // HonorAPI 잔고 동기화 시도

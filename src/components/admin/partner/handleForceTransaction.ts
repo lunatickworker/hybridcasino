@@ -199,7 +199,8 @@ export async function handleForceTransaction(
           to_partner_id: data.targetId,
           processed_by: authUserId,
           api_type: data.apiType,
-          memo: `[${apiName} API 할당] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 할당${data.memo ? `: ${data.memo}` : ''}`
+          memo: `[${apiName} API 할당] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 할당${data.memo ? `: ${data.memo}` : ''}`,
+          created_at: new Date().toISOString()
         });
 
       toast.success(t.partnerManagement.apiAllocationSuccess
@@ -291,7 +292,8 @@ export async function handleForceTransaction(
           to_partner_id: authUserId,
           processed_by: authUserId,
           api_type: data.apiType,
-          memo: `[${apiName} API 회수] ${adminPartner.nickname}이(가) ${data.amount.toLocaleString()}원 회수${data.memo ? `: ${data.memo}` : ''}`
+          memo: `[${apiName} API 회수] ${adminPartner.nickname}이(가) ${data.amount.toLocaleString()}원 회수${data.memo ? `: ${data.memo}` : ''}`,
+          created_at: new Date().toISOString()
         });
 
       toast.success(t.partnerManagement.apiRecoveryCompletedFromPartner
@@ -338,7 +340,8 @@ export async function handleForceTransaction(
             from_partner_id: authUserId,
             to_partner_id: data.targetId,
             processed_by: authUserId,
-            memo: `[Lv3 수신] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 입금${data.memo ? `: ${data.memo}` : ''}`
+            memo: `[Lv3 수신] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 입금${data.memo ? `: ${data.memo}` : ''}`,
+            created_at: new Date().toISOString()
           });
 
         toast.success(t.partnerManagement.depositCompleted
@@ -370,7 +373,8 @@ export async function handleForceTransaction(
             from_partner_id: authUserId,
             to_partner_id: data.targetId,
             processed_by: authUserId,
-            memo: `[강제입금] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 입금 (Lv2는 API 동기화로 관리)${data.memo ? `: ${data.memo}` : ''}`
+            memo: `[강제입금] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 입금 (Lv2는 API 동기화로 관리)${data.memo ? `: ${data.memo}` : ''}`,
+            created_at: new Date().toISOString()
           });
 
         toast.success(t.partnerManagement.depositCompleted
@@ -405,7 +409,8 @@ export async function handleForceTransaction(
             from_partner_id: authUserId,
             to_partner_id: data.targetId,
             processed_by: authUserId,
-            memo: `[강제입금] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 입금${data.memo ? `: ${data.memo}` : ''}`
+            memo: `[강제입금] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 입금${data.memo ? `: ${data.memo}` : ''}`,
+            created_at: new Date().toISOString()
           });
       }
 
@@ -439,7 +444,8 @@ export async function handleForceTransaction(
             from_partner_id: data.targetId,
             to_partner_id: authUserId,
             processed_by: authUserId,
-            memo: `[Lv3 회수] ${adminPartner.nickname}에게 ${data.amount.toLocaleString()}원 출금${data.memo ? `: ${data.memo}` : ''}`
+            memo: `[Lv3 회수] ${adminPartner.nickname}에게 ${data.amount.toLocaleString()}원 출금${data.memo ? `: ${data.memo}` : ''}`,
+            created_at: new Date().toISOString()
           });
 
         toast.success(t.partnerManagement.withdrawalCompleted
@@ -471,7 +477,8 @@ export async function handleForceTransaction(
             from_partner_id: data.targetId,
             to_partner_id: authUserId,
             processed_by: authUserId,
-            memo: `[강제출금] ${adminPartner.nickname}에게 ${data.amount.toLocaleString()}원 출금 (Lv2는 API 동기화로 관리)${data.memo ? `: ${data.memo}` : ''}`
+            memo: `[강제출금] ${adminPartner.nickname}에게 ${data.amount.toLocaleString()}원 출금 (Lv2는 API 동기화로 관리)${data.memo ? `: ${data.memo}` : ''}`,
+            created_at: new Date().toISOString()
           });
 
         toast.success(t.partnerManagement.withdrawalCompleted
@@ -506,7 +513,8 @@ export async function handleForceTransaction(
             from_partner_id: data.targetId,
             to_partner_id: authUserId,
             processed_by: authUserId,
-            memo: `[강제출금] ${adminPartner.nickname}에게 ${data.amount.toLocaleString()}원 출금${data.memo ? `: ${data.memo}` : ''}`
+            memo: `[강제출금] ${adminPartner.nickname}에게 ${data.amount.toLocaleString()}원 출금${data.memo ? `: ${data.memo}` : ''}`,
+            created_at: new Date().toISOString()
           });
       }
     }

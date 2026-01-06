@@ -631,7 +631,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             amount: -amount,
             transaction_type: 'deposit_to_user',
             processed_by: user.id,
-            memo: `회원 ${currentUserData?.username} 입금 승인 (처리자: ${user.username})`
+            memo: `회원 ${currentUserData?.username} 입금 승인 (처리자: ${user.username})`,
+            created_at: new Date().toISOString()
           });
 
         } else if (transaction.transaction_type === 'withdrawal') {
@@ -667,7 +668,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             amount: amount,
             transaction_type: 'withdrawal_from_user',
             processed_by: user.id,
-            memo: `회원 ${currentUserData?.username} 출금 승인 (처리자: ${user.username})`
+            memo: `회원 ${currentUserData?.username} 출금 승인 (처리자: ${user.username})`,
+            created_at: new Date().toISOString()
           });
         }
       }

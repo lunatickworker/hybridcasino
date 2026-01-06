@@ -1646,6 +1646,10 @@
     width: 70%;
   }
 
+  .w-\[80px\] {
+    width: 80px;
+  }
+
   .w-\[90vw\] {
     width: 90vw;
   }
@@ -12121,6 +12125,10 @@ html {
 
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.font-asiahead {
+  font-family: AsiHead, sans-serif;
 }
 
 .admin-scrollbar::-webkit-scrollbar {

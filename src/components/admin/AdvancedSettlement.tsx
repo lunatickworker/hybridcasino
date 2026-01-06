@@ -12,6 +12,7 @@ import { supabase } from "../../lib/supabase";
 import { cn } from "../../lib/utils";
 import { format, subDays, startOfDay, endOfDay, eachDayOfInterval } from "date-fns";
 import { ko } from "date-fns/locale";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../ui/select";
 
 interface AdvancedSettlementProps {
   user: Partner;
@@ -58,6 +59,7 @@ interface SummaryStats {
   totalWinLoss: number;
   totalRolling: number;
   totalSettlementProfit: number;
+  totalActualSettlementProfit: number;
 }
 
 export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
@@ -68,6 +70,8 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
   });
   const [dateFilterType, setDateFilterType] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom'>('today');
   const [data, setData] = useState<DailySettlementRow[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
   const [summary, setSummary] = useState<SummaryStats>({
     totalDeposit: 0,
     totalWithdrawal: 0,
@@ -84,12 +88,18 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
     totalWin: 0,
     totalWinLoss: 0,
     totalRolling: 0,
-    totalSettlementProfit: 0
+    totalSettlementProfit: 0,
+    totalActualSettlementProfit: 0
   });
 
   useEffect(() => {
     fetchSettlementData();
   }, [dateRange]);
+
+  // 페이지 변경 시 currentPage 초기화
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage]);
 
   const fetchSettlementData = async () => {
     if (!dateRange?.from || !dateRange?.to) return;
@@ -369,11 +379,18 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
   };
 
   const calculateSummary = (rows: DailySettlementRow[]) => {
+    const totalDeposit = rows.reduce((sum, r) => sum + r.deposit, 0);
+    const totalWithdrawal = rows.reduce((sum, r) => sum + r.withdrawal, 0);
+    const adminTotalDeposit = rows.reduce((sum, r) => sum + r.adminDeposit, 0);
+    const adminTotalWithdrawal = rows.reduce((sum, r) => sum + r.adminWithdrawal, 0);
+    const totalWinLoss = rows.reduce((sum, r) => sum + r.totalWinLoss, 0);
+    const totalRolling = rows.reduce((sum, r) => sum + r.totalRolling, 0);
+    
     const summary: SummaryStats = {
-      totalDeposit: rows.reduce((sum, r) => sum + r.deposit, 0),
-      totalWithdrawal: rows.reduce((sum, r) => sum + r.withdrawal, 0),
-      adminTotalDeposit: rows.reduce((sum, r) => sum + r.adminDeposit, 0),
-      adminTotalWithdrawal: rows.reduce((sum, r) => sum + r.adminWithdrawal, 0),
+      totalDeposit,
+      totalWithdrawal,
+      adminTotalDeposit,
+      adminTotalWithdrawal,
       pointGiven: rows.reduce((sum, r) => sum + r.pointGiven, 0),
       pointRecovered: rows.reduce((sum, r) => sum + r.pointRecovered, 0),
       depositWithdrawalDiff: rows.reduce((sum, r) => sum + r.depositWithdrawalDiff, 0),
@@ -383,9 +400,10 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
       slotWin: rows.reduce((sum, r) => sum + r.slotWin, 0),
       totalBet: rows.reduce((sum, r) => sum + r.totalBet, 0),
       totalWin: rows.reduce((sum, r) => sum + r.totalWin, 0),
-      totalWinLoss: rows.reduce((sum, r) => sum + r.totalWinLoss, 0),
-      totalRolling: rows.reduce((sum, r) => sum + r.totalRolling, 0),
-      totalSettlementProfit: rows.reduce((sum, r) => sum + r.settlementProfit, 0)
+      totalWinLoss,
+      totalRolling,
+      totalSettlementProfit: rows.reduce((sum, r) => sum + r.settlementProfit, 0),
+      totalActualSettlementProfit: totalWinLoss - totalRolling // 실정산수익: GGR - 롤링 (루징은 일일정산에서 집계 안 함)
     };
 
     setSummary(summary);
@@ -456,7 +474,58 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         </div>
       </div>
 
-      {/* 통계 카드 - 첫 번째 줄 (6개) */}
+      {/* 통계 카드 - 입출금/포인트 (6개) */}
+      <div className="grid gap-5 md:grid-cols-6">
+        <MetricCard
+          title="총 입금"
+          value={`${formatNumber(summary.totalDeposit)}원`}
+          subtitle="승인된 입금 합계"
+          icon={TrendingUp}
+          color="emerald"
+        />
+
+        <MetricCard
+          title="총 출금"
+          value={`${formatNumber(summary.totalWithdrawal)}원`}
+          subtitle="승인된 출금 합계"
+          icon={TrendingDown}
+          color="rose"
+        />
+
+        <MetricCard
+          title="관리자 입금"
+          value={`${formatNumber(summary.adminTotalDeposit)}원`}
+          subtitle="관리자 입금 합계"
+          icon={Wallet}
+          color="blue"
+        />
+
+        <MetricCard
+          title="관리자 출금"
+          value={`${formatNumber(summary.adminTotalWithdrawal)}원`}
+          subtitle="관리자 출금 합계"
+          icon={Wallet}
+          color="purple"
+        />
+
+        <MetricCard
+          title="포인트 지급"
+          value={`${formatNumber(summary.pointGiven)}원`}
+          subtitle="관리자 포인트 지급"
+          icon={TrendingUp}
+          color="green"
+        />
+
+        <MetricCard
+          title="포인트 회수"
+          value={`${formatNumber(summary.pointRecovered)}원`}
+          subtitle="관리자 포인트 회수"
+          icon={TrendingDown}
+          color="orange"
+        />
+      </div>
+
+      {/* 통계 카드 - 베팅 (6개) */}
       <div className="grid gap-5 md:grid-cols-6">
         <MetricCard
           title="카지노 베팅"
@@ -507,7 +576,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         />
       </div>
 
-      {/* 통계 카드 - 세 번째 줄 (4개) */}
+      {/* 통계 카드 - 정산 (5개) */}
       <div className="grid gap-5 md:grid-cols-6">
         <MetricCard
           title="입출 차액"
@@ -539,6 +608,14 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
           subtitle="GGR - 롤링금"
           icon={DollarSign}
           color="green"
+        />
+
+        <MetricCard
+          title="실정산수익"
+          value={`${formatNumber(summary.totalActualSettlementProfit)}원`}
+          subtitle="GGR - 롤링 - 루징"
+          icon={Wallet}
+          color="cyan"
         />
       </div>
 
@@ -697,33 +774,100 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
                 </tr>
               </thead>
               <tbody>
-                {data.map((row, idx) => (
+                {data.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((row, idx) => (
                   <tr key={idx} className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors">
-                    <td className="px-4 py-3 text-slate-200 font-mono sticky left-0 bg-slate-900/95 z-10 whitespace-nowrap">{row.date}</td>
-                    <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.deposit)}</td>
-                    <td className="px-4 py-3 text-right text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.withdrawal)}</td>
-                    <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.adminDeposit)}</td>
-                    <td className="px-4 py-3 text-right text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.adminWithdrawal)}</td>
-                    <td className="px-4 py-3 text-right text-blue-400 font-mono whitespace-nowrap">{formatNumber(row.pointGiven)}</td>
-                    <td className="px-4 py-3 text-right text-orange-400 font-mono whitespace-nowrap">{formatNumber(row.pointRecovered)}</td>
-                    <td className={cn("px-4 py-3 text-right font-mono whitespace-nowrap", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                    <td className="px-4 py-3 text-slate-200 font-asiahead sticky left-0 bg-slate-900/95 z-10 whitespace-nowrap">{row.date}</td>
+                    <td className="px-4 py-3 text-right text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.deposit)}</td>
+                    <td className="px-4 py-3 text-right text-rose-400 font-asiahead whitespace-nowrap">{formatNumber(row.withdrawal)}</td>
+                    <td className="px-4 py-3 text-right text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.adminDeposit)}</td>
+                    <td className="px-4 py-3 text-right text-rose-400 font-asiahead whitespace-nowrap">{formatNumber(row.adminWithdrawal)}</td>
+                    <td className="px-4 py-3 text-right text-blue-400 font-asiahead whitespace-nowrap">{formatNumber(row.pointGiven)}</td>
+                    <td className="px-4 py-3 text-right text-orange-400 font-asiahead whitespace-nowrap">{formatNumber(row.pointRecovered)}</td>
+                    <td className={cn("px-4 py-3 text-right font-asiahead whitespace-nowrap", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>
                       {formatNumber(row.depositWithdrawalDiff)}
                     </td>
-                    <td className="px-4 py-3 text-right text-blue-400 font-mono whitespace-nowrap">{formatNumber(row.casinoBet)}</td>
-                    <td className="px-4 py-3 text-right text-purple-400 font-mono whitespace-nowrap">{formatNumber(row.casinoWin)}</td>
-                    <td className="px-4 py-3 text-right text-blue-400 font-mono whitespace-nowrap">{formatNumber(row.slotBet)}</td>
-                    <td className="px-4 py-3 text-right text-purple-400 font-mono whitespace-nowrap">{formatNumber(row.slotWin)}</td>
-                    <td className="px-4 py-3 text-right text-cyan-400 font-mono whitespace-nowrap">{formatNumber(row.totalBet)}</td>
-                    <td className="px-4 py-3 text-right text-purple-400 font-mono whitespace-nowrap">{formatNumber(row.totalWin)}</td>
-                    <td className="px-4 py-3 text-right text-amber-400 font-mono whitespace-nowrap">{formatNumber(row.totalWinLoss)}</td>
-                    <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.casinoRolling)}</td>
-                    <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.slotRolling)}</td>
-                    <td className="px-4 py-3 text-right text-teal-400 font-mono whitespace-nowrap">{formatNumber(row.totalRolling)}</td>
-                    <td className="px-4 py-3 text-right text-green-400 font-mono font-semibold whitespace-nowrap">{formatNumber(row.settlementProfit)}</td>
+                    <td className="px-4 py-3 text-right text-blue-400 font-asiahead whitespace-nowrap">{formatNumber(row.casinoBet)}</td>
+                    <td className="px-4 py-3 text-right text-purple-400 font-asiahead whitespace-nowrap">{formatNumber(row.casinoWin)}</td>
+                    <td className="px-4 py-3 text-right text-blue-400 font-asiahead whitespace-nowrap">{formatNumber(row.slotBet)}</td>
+                    <td className="px-4 py-3 text-right text-purple-400 font-asiahead whitespace-nowrap">{formatNumber(row.slotWin)}</td>
+                    <td className="px-4 py-3 text-right text-cyan-400 font-asiahead whitespace-nowrap">{formatNumber(row.totalBet)}</td>
+                    <td className="px-4 py-3 text-right text-purple-400 font-asiahead whitespace-nowrap">{formatNumber(row.totalWin)}</td>
+                    <td className="px-4 py-3 text-right text-amber-400 font-asiahead whitespace-nowrap">{formatNumber(row.totalWinLoss)}</td>
+                    <td className="px-4 py-3 text-right text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.casinoRolling)}</td>
+                    <td className="px-4 py-3 text-right text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.slotRolling)}</td>
+                    <td className="px-4 py-3 text-right text-teal-400 font-asiahead whitespace-nowrap">{formatNumber(row.totalRolling)}</td>
+                    <td className="px-4 py-3 text-right text-green-400 font-asiahead font-semibold whitespace-nowrap">{formatNumber(row.settlementProfit)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+
+            {/* 페이지네이션 */}
+            {data.length > 0 && (
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-700/50">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-slate-400">
+                    총 {data.length}개 중 {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, data.length)}개 표시
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-400">페이지당:</span>
+                    <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(Number(value))}>
+                      <SelectTrigger className="w-[80px] h-9 input-premium">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700">
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    className="h-9"
+                  >
+                    처음
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="h-9"
+                  >
+                    이전
+                  </Button>
+                  <span className="text-sm text-slate-300 px-4">
+                    {currentPage} / {Math.ceil(data.length / itemsPerPage)}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(Math.ceil(data.length / itemsPerPage), prev + 1))}
+                    disabled={currentPage === Math.ceil(data.length / itemsPerPage)}
+                    className="h-9"
+                  >
+                    다음
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(Math.ceil(data.length / itemsPerPage))}
+                    disabled={currentPage === Math.ceil(data.length / itemsPerPage)}
+                    className="h-9"
+                  >
+                    마지막
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
