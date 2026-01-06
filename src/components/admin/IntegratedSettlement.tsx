@@ -1196,68 +1196,107 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
               <thead>
                 <tr className="border-b border-slate-700">
                   {/* 기본 정보 */}
-                  <th className="px-4 py-3 text-left text-white font-normal sticky left-0 bg-slate-900 z-10 whitespace-nowrap">등급</th>
-                  <th className="px-4 py-3 text-left text-white font-normal bg-slate-900 whitespace-nowrap">아이디</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-slate-900 whitespace-nowrap">보유머니</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-slate-900 whitespace-nowrap">롤링포인트</th>
+                  <th className="px-4 py-3 text-center text-white font-normal sticky left-0 bg-slate-900 z-10 whitespace-nowrap">등급</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-slate-900 whitespace-nowrap">아이디</th>
+                  
+                  {/* 롤링률 (카지노/슬롯) - 2단2열 */}
+                  <th className="px-4 py-0 text-center text-white font-normal bg-slate-800/70 border-r border-slate-700/50" rowSpan={1}>
+                    <div className="flex flex-col">
+                      <div className="py-2 border-b border-slate-700/50">롤링률</div>
+                      <div className="flex">
+                        <div className="flex-1 py-2 border-r border-slate-700/50">카지노</div>
+                        <div className="flex-1 py-2">슬롯</div>
+                      </div>
+                    </div>
+                  </th>
+                  
+                  {/* 루징 (카지노/슬롯) - 2단2열 */}
+                  <th className="px-4 py-0 text-center text-white font-normal bg-slate-800/70" rowSpan={1}>
+                    <div className="flex flex-col">
+                      <div className="py-2 border-b border-slate-700/50">루징</div>
+                      <div className="flex">
+                        <div className="flex-1 py-2 border-r border-slate-700/50">카지노</div>
+                        <div className="flex-1 py-2">슬롯</div>
+                      </div>
+                    </div>
+                  </th>
+                  
+                  {/* 보유머니 및 포인트 - 2단2열 */}
+                  <th className="px-4 py-0 text-center text-white font-normal bg-indigo-950/60" rowSpan={1}>
+                    <div className="flex flex-col">
+                      <div className="py-2 border-b border-slate-700/50">보유머니 및 포인트</div>
+                      <div className="flex">
+                        <div className="flex-1 py-2 border-r border-slate-700/50">보유머니</div>
+                        <div className="flex-1 py-2">포인트</div>
+                      </div>
+                    </div>
+                  </th>
                   
                   {/* 입출금 관련 - 주황색 계열 */}
-                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">입금</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">출금</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">관리자입금</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">관리자출금</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-orange-950/60 whitespace-nowrap">입금</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-orange-950/60 whitespace-nowrap">출금</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-orange-950/60 whitespace-nowrap">관리자입금</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-orange-950/60 whitespace-nowrap">관리자출금</th>
                   
                   {/* 포인트 관련 - 초록색 계열 */}
-                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/60 whitespace-nowrap">포인트지급</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/60 whitespace-nowrap">포인트회수</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-green-950/60 whitespace-nowrap">포인트지급</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-green-950/60 whitespace-nowrap">포인트회수</th>
                   
                   {/* 입출차액 - 청록색 */}
-                  <th className="px-4 py-3 text-right text-white font-normal bg-cyan-950/60 whitespace-nowrap">입출차액</th>
+                  <th className="px-4 py-3 text-center text-white font-normal bg-cyan-950/60 whitespace-nowrap">입출차액</th>
                   
-                  {/* 카지노 요율 정보 - 회색 계열 (2단) */}
-                  <th className="px-3 py-0 text-center text-white font-normal bg-slate-800/70 border-r border-slate-700/50" rowSpan={1}>
+                  {/* 카지노 (베팅/당첨) - 2단2열 */}
+                  <th className="px-4 py-0 text-center text-white font-normal bg-blue-950/60" rowSpan={1}>
                     <div className="flex flex-col">
-                      <div className="py-1.5 text-xs border-b border-slate-700/50">카지노</div>
+                      <div className="py-2 border-b border-slate-700/50">카지노</div>
                       <div className="flex">
-                        <div className="flex-1 py-1.5 text-xs border-r border-slate-700/50">롤링%</div>
-                        <div className="flex-1 py-1.5 text-xs">루징%</div>
+                        <div className="flex-1 py-2 border-r border-slate-700/50">베팅</div>
+                        <div className="flex-1 py-2">당첨</div>
                       </div>
                     </div>
                   </th>
                   
-                  {/* 슬롯 요율 정보 - 회색 계열 (2단) */}
-                  <th className="px-3 py-0 text-center text-white font-normal bg-slate-800/70" rowSpan={1}>
+                  {/* 슬롯 (베팅/당첨) - 2단2열 */}
+                  <th className="px-4 py-0 text-center text-white font-normal bg-purple-950/60" rowSpan={1}>
                     <div className="flex flex-col">
-                      <div className="py-1.5 text-xs border-b border-slate-700/50">슬롯</div>
+                      <div className="py-2 border-b border-slate-700/50">슬롯</div>
                       <div className="flex">
-                        <div className="flex-1 py-1.5 text-xs border-r border-slate-700/50">롤링%</div>
-                        <div className="flex-1 py-1.5 text-xs">루징%</div>
+                        <div className="flex-1 py-2 border-r border-slate-700/50">베팅</div>
+                        <div className="flex-1 py-2">당첨</div>
                       </div>
                     </div>
                   </th>
                   
-                  {/* 베팅/당첨 - 파란색/보라색 계열 */}
-                  <th className="px-4 py-3 text-right text-white font-normal bg-blue-950/60 whitespace-nowrap">총베팅</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-blue-950/60 whitespace-nowrap">총당첨</th>
+                  {/* GGR합산 - 앰버 계열 */}
+                  <th className="px-4 py-3 text-center text-white font-normal bg-amber-950/60 whitespace-nowrap">GGR합산</th>
                   
-                  {/* 윈로스/GGR - 앰버 계열 */}
-                  <th className="px-4 py-3 text-right text-white font-normal bg-amber-950/60 whitespace-nowrap">GGR</th>
+                  {/* 총정산 (총 롤링금/총루징) - 2단2열 */}
+                  <th className="px-4 py-0 text-center text-white font-normal bg-teal-950/60" rowSpan={1}>
+                    <div className="flex flex-col">
+                      <div className="py-2 border-b border-slate-700/50">총정산</div>
+                      <div className="flex">
+                        <div className="flex-1 py-2 border-r border-slate-700/50">총 롤링금</div>
+                        <div className="flex-1 py-2">총루징</div>
+                      </div>
+                    </div>
+                  </th>
                   
-                  {/* 롤링 정보 - 에메랄드 계열 */}
-                  <th className="px-4 py-3 text-right text-white font-normal bg-emerald-950/60 whitespace-nowrap">카지노개별롤링</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-emerald-950/60 whitespace-nowrap">슬롯개별롤링</th>
-                  
-                  {/* 정산 결과 - 틸/초록 계열 */}
-                  <th className="px-4 py-3 text-right text-white font-normal bg-teal-950/60 whitespace-nowrap">총롤링금</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-teal-950/60 whitespace-nowrap">총루징</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/70 whitespace-nowrap">롤링금</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-green-950/70 whitespace-nowrap">낙첨금</th>
+                  {/* 코드별 실정산 (롤링금/루징) - 2단2열 */}
+                  <th className="px-4 py-0 text-center text-white font-normal bg-green-950/70" rowSpan={1}>
+                    <div className="flex flex-col">
+                      <div className="py-2 border-b border-slate-700/50">코드별 실정산</div>
+                      <div className="flex">
+                        <div className="flex-1 py-2 border-r border-slate-700/50">롤링금</div>
+                        <div className="flex-1 py-2">루징</div>
+                      </div>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan={24} className="p-8 text-center text-slate-400">
+                    <td colSpan={17} className="p-8 text-center text-slate-400">
                       데이터가 없습니다.
                     </td>
                   </tr>
@@ -1284,44 +1323,75 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                             {row.levelName}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-slate-200 font-mono whitespace-nowrap">{row.username}</td>
-                        <td className="px-4 py-3 text-right text-slate-300 font-mono whitespace-nowrap">{formatNumber(row.balance)}</td>
-                        <td className="px-4 py-3 text-right text-cyan-400 font-mono whitespace-nowrap">{formatNumber(row.points)}</td>
-                        <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.deposit)}</td>
-                        <td className="px-4 py-3 text-right text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.withdrawal)}</td>
-                        <td className="px-4 py-3 text-right text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.adminDeposit)}</td>
-                        <td className="px-4 py-3 text-right text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.adminWithdrawal)}</td>
-                        <td className="px-4 py-3 text-right text-blue-400 font-mono whitespace-nowrap">{formatNumber(row.pointGiven)}</td>
-                        <td className="px-4 py-3 text-right text-orange-400 font-mono whitespace-nowrap">{formatNumber(row.pointRecovered)}</td>
-                        <td className={cn("px-4 py-3 text-right font-mono whitespace-nowrap", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                        <td className="px-4 py-3 text-center text-slate-200 font-mono whitespace-nowrap">{row.username}</td>
+                        
+                        {/* 롤링률 (카지노/슬롯) - 2단2열 */}
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <div className="flex divide-x divide-slate-700/50">
+                            <div className="flex-1 text-slate-300 font-mono">{row.casinoRollingRate}%</div>
+                            <div className="flex-1 text-slate-300 font-mono">{row.slotRollingRate}%</div>
+                          </div>
+                        </td>
+                        
+                        {/* 루징 (카지노/슬롯) - 2단2열 */}
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <div className="flex divide-x divide-slate-700/50">
+                            <div className="flex-1 text-slate-300 font-mono">{row.casinoLosingRate}%</div>
+                            <div className="flex-1 text-slate-300 font-mono">{row.slotLosingRate}%</div>
+                          </div>
+                        </td>
+                        
+                        {/* 보유머니 및 포인트 - 2단2열 */}
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <div className="flex divide-x divide-slate-700/50">
+                            <div className="flex-1 text-slate-300 font-mono">{formatNumber(row.balance)}</div>
+                            <div className="flex-1 text-cyan-400 font-mono">{formatNumber(row.points)}</div>
+                          </div>
+                        </td>
+                        
+                        <td className="px-4 py-3 text-center text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.deposit)}</td>
+                        <td className="px-4 py-3 text-center text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.withdrawal)}</td>
+                        <td className="px-4 py-3 text-center text-emerald-400 font-mono whitespace-nowrap">{formatNumber(row.adminDeposit)}</td>
+                        <td className="px-4 py-3 text-center text-rose-400 font-mono whitespace-nowrap">{formatNumber(row.adminWithdrawal)}</td>
+                        <td className="px-4 py-3 text-center text-blue-400 font-mono whitespace-nowrap">{formatNumber(row.pointGiven)}</td>
+                        <td className="px-4 py-3 text-center text-orange-400 font-mono whitespace-nowrap">{formatNumber(row.pointRecovered)}</td>
+                        <td className={cn("px-4 py-3 text-center font-mono whitespace-nowrap", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>
                           {formatNumber(row.depositWithdrawalDiff)}
                         </td>
                         
-                        {/* 카지노 롤링%/루징% (2단) */}
-                        <td className="px-3 py-1 text-center whitespace-nowrap">
+                        {/* 카지노 (베팅/당첨) - 2단2열 */}
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-slate-300 text-sm">{row.casinoRollingRate}%</div>
-                            <div className="flex-1 text-slate-300 text-sm">{row.casinoLosingRate}%</div>
+                            <div className="flex-1 text-cyan-400 font-mono">{formatNumber(row.casinoBet)}</div>
+                            <div className="flex-1 text-purple-400 font-mono">{formatNumber(row.casinoWin)}</div>
                           </div>
                         </td>
                         
-                        {/* 슬롯 롤링%/루징% (2단) */}
-                        <td className="px-3 py-1 text-center whitespace-nowrap">
+                        {/* 슬롯 (베팅/당첨) - 2단2열 */}
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-slate-300 text-sm">{row.slotRollingRate}%</div>
-                            <div className="flex-1 text-slate-300 text-sm">{row.slotLosingRate}%</div>
+                            <div className="flex-1 text-cyan-400 font-mono">{formatNumber(row.slotBet)}</div>
+                            <div className="flex-1 text-purple-400 font-mono">{formatNumber(row.slotWin)}</div>
                           </div>
                         </td>
                         
-                        <td className="px-4 py-3 text-right text-cyan-400 font-mono whitespace-nowrap">{formatNumber(row.totalBet)}</td>
-                        <td className="px-4 py-3 text-right text-purple-400 font-mono whitespace-nowrap">{formatNumber(row.totalWin)}</td>
-                        <td className="px-4 py-3 text-right text-amber-400 font-mono whitespace-nowrap">{formatNumber(row.ggr)}</td>
-                        <td className="px-4 py-3 text-right text-green-400 font-mono whitespace-nowrap">{formatNumber(row.casinoIndividualRolling)}</td>
-                        <td className="px-4 py-3 text-right text-green-400 font-mono whitespace-nowrap">{formatNumber(row.slotIndividualRolling)}</td>
-                        <td className="px-4 py-3 text-right text-teal-400 font-mono whitespace-nowrap">{formatNumber(row.totalRolling)}</td>
-                        <td className="px-4 py-3 text-right text-teal-400 font-mono whitespace-nowrap">{formatNumber(row.totalLosing)}</td>
-                        <td className="px-4 py-3 text-right text-green-400 font-mono font-semibold whitespace-nowrap">{formatNumber(row.totalIndividualRolling)}</td>
-                        <td className="px-4 py-3 text-right text-green-400 font-mono font-semibold whitespace-nowrap">{formatNumber(row.totalIndividualLosing)}</td>
+                        <td className="px-4 py-3 text-center text-amber-400 font-mono whitespace-nowrap">{formatNumber(row.ggr)}</td>
+                        
+                        {/* 총정산 (총 롤링금/총루징) - 2단2열 */}
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <div className="flex divide-x divide-slate-700/50">
+                            <div className="flex-1 text-teal-400 font-mono">{formatNumber(row.totalRolling)}</div>
+                            <div className="flex-1 text-teal-400 font-mono">{formatNumber(row.totalLosing)}</div>
+                          </div>
+                        </td>
+                        
+                        {/* 코드별 실정산 (롤링금/루징) - 2단2열 */}
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <div className="flex divide-x divide-slate-700/50">
+                            <div className="flex-1 text-green-400 font-mono font-semibold">{formatNumber(row.totalIndividualRolling)}</div>
+                            <div className="flex-1 text-green-400 font-mono font-semibold">{formatNumber(row.totalIndividualLosing)}</div>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })

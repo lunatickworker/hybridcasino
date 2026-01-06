@@ -1045,7 +1045,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       />
 
       <Dialog open={showKickDialog} onOpenChange={setShowKickDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-3xl">세션 강제 종료</DialogTitle>
             <DialogDescription className="text-lg">
@@ -1064,7 +1064,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       </Dialog>
 
       <Dialog open={showBulkKickDialog} onOpenChange={setShowBulkKickDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-3xl">선택한 게임 일괄 종료</DialogTitle>
             <DialogDescription className="text-lg">
