@@ -172,7 +172,7 @@ function GameCard({
             letterSpacing: '-0.01em',
             lineHeight: '1.3'
           }}>
-            {game.name}
+            {game.name_ko || game.name}
           </p>
           
           {/* RTP 표시 */}
@@ -368,7 +368,7 @@ function ProviderSection({
           <Building2 className="w-6 h-6 text-slate-300" />
           
           <div className="flex items-center gap-2">
-            <span className="text-lg font-bold text-white">{provider.name}</span>
+            <span className="text-lg font-bold text-white">{provider.name_ko || provider.name}</span>
             {getProviderStatusIcon()}
             <Badge variant="outline" className="text-sm font-semibold border-slate-600">
               {provider.api_type.toUpperCase()}
@@ -672,10 +672,12 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
         
         // ✅ 띄어쓰기 무시하고 제공사명 또는 게임명에서 검색 (한 글자만 매핑되어도 검색)
         const gameNameNormalized = game.name.replace(/\s/g, '').toLowerCase();
+        const gameNameKoNormalized = (game.name_ko || '').replace(/\s/g, '').toLowerCase();
         const matchesProviderName = providerNameNormalized.includes(searchNormalized);
         const matchesGameName = gameNameNormalized.includes(searchNormalized);
+        const matchesGameNameKo = gameNameKoNormalized.includes(searchNormalized);
         
-        return matchesProviderName || matchesGameName;
+        return matchesProviderName || matchesGameName || matchesGameNameKo;
       });
       
       // 게임이 있는 제공사만 맵에 추가
@@ -2405,14 +2407,12 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
     }
   };
 
-  // ✅ 제공사별 점검중
-  const handleProviderMaintenance = async (providerId: number) => {
+  const handleProviderGames = async (providerId: number, action: 'allow' | 'block' | 'maintenance') => {
     if (!selectedUser || !selectedStore || !selectedApi) return;
 
     const provider = providers.find(p => p.id === providerId);
     if (!provider) return;
 
-    // 해당 제공사의 게임 목록
     const providerGames = games.filter(g => 
       g.provider_id === providerId && 
       g.api_type === selectedApi &&
@@ -2425,40 +2425,56 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
       return;
     }
 
+    const previousBlockedGames = userBlockedGames;
+
     try {
-      // game_status='maintenance' 레코드 생성
-      const accessRecords = providerGames.map(game => ({
-        user_id: selectedUser.id,
-        api_provider: game.api_type,
-        game_provider_id: null,
-        game_id: game.id,
-        access_type: "game" as const,
-        is_allowed: false,
-        game_status: "maintenance" as const,
-      }));
+      if (action === 'allow') {
+        const gameIdsToAllow = providerGames.filter(g => previousBlockedGames.includes(g.id)).map(g => g.id);
+        
+        if (gameIdsToAllow.length > 0) {
+          setUserBlockedGames(prev => prev.filter(id => !gameIdsToAllow.includes(id)));
+          
+          await supabase
+            .from("partner_game_access")
+            .delete()
+            .is("partner_id", null)
+            .eq("user_id", selectedUser.id)
+            .eq("api_provider", selectedApi)
+            .eq("access_type", "game")
+            .in("game_id", gameIdsToAllow);
+        }
+        
+        toast.success(`${provider.name}의 ${providerGames.length}개 게임을 허용했습니다.`);
+      } else {
+        const gameStatus = action === 'maintenance' ? 'maintenance' : 'hidden';
+        const accessRecords = providerGames.map(game => ({
+          user_id: selectedUser.id,
+          api_provider: game.api_type,
+          game_id: game.id,
+          access_type: "game" as const,
+          is_allowed: false,
+          game_status: gameStatus as const,
+        }));
 
-      const { error } = await supabase
-        .from("partner_game_access")
-        .upsert(accessRecords, {
-          onConflict: 'partner_id,user_id,api_provider,game_provider_id,game_id,access_type',
-          ignoreDuplicates: false
-        });
+        await supabase
+          .from("partner_game_access")
+          .upsert(accessRecords, {
+            onConflict: 'partner_id,user_id,api_provider,game_provider_id,game_id,access_type',
+          });
 
-      if (error) throw error;
-      
-      // ✅ games/game_providers 테이블 동기화
-      const tableName = selectedApi === 'honorapi' ? 'honor_games' : 'games';
-      const gameIds = providerGames.map(g => g.id);
-      await supabase
-        .from(tableName)
-        .update({ game_visible: 'maintenance' })
-        .in('id', gameIds);
+        if (action === 'block') {
+          setUserBlockedGames(prev => [...new Set([...prev, ...providerGames.map(g => g.id)])]);
+        }
+
+        const actionText = action === 'maintenance' ? '점검' : '차단';
+        toast.success(`${provider.name}의 ${providerGames.length}개 게임을 ${actionText} 처리했습니다.`);
+      }
 
       await loadUserGameAccess(selectedUser.id);
-      toast.success(`${provider.name}의 ${providerGames.length}개 게임이 점검 상태로 변경되었습니다.`);
     } catch (error) {
-      console.error("❌ 제공사 점검중 실패:", error);
-      toast.error("점검 상태 변경에 실패했습니다.");
+      console.error("❌ 게임 일괄 처리 실패:", error);
+      toast.error("게임 일괄 처리에 실패했습니다.");
+      setUserBlockedGames(previousBlockedGames);
     }
   };
 
@@ -2549,42 +2565,23 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
 
     console.log(`📦 사용자별 전체 ${showAll ? '노출' : '숨김'}: ${filteredGames.length}개 게임`);
 
-    // ✅ Optimistic Update: UI에 즉시 반영
+    // ✅ Optimistic Update: UI에 즉시 반영 (게임만)
     const previousBlockedGames = userBlockedGames;
-    const previousBlockedProviders = userBlockedProviders;
     
     if (showAll) {
       setUserBlockedGames(prev => prev.filter(id => !filteredGames.some(g => g.id === id)));
-      // 제공사 차단 상태도 해제
-      const affectedProviderIds = [...new Set(filteredGames.map(g => g.provider_id))];
-      setUserBlockedProviders(prev => prev.filter(id => !affectedProviderIds.includes(id)));
     } else {
       const newBlockedGameIds = filteredGames.map(g => g.id);
       setUserBlockedGames(prev => [...new Set([...prev, ...newBlockedGameIds])]);
-      // 제공사 차단 상태도 추가
-      const affectedProviderIds = [...new Set(filteredGames.map(g => g.provider_id))];
-      setUserBlockedProviders(prev => [...new Set([...prev, ...affectedProviderIds])]);
     }
 
     try {
       if (showAll) {
-        // 전체 노출: 게임 레코드 삭제 (game_status 제거)
+        // 전체 노출: 게임 레코드만 삭제
         const gameIdsToAllow = filteredGames
           .filter(g => previousBlockedGames.includes(g.id))
           .map(g => g.id);
 
-        // 제공사 레코드 삭제
-        const affectedProviderIds = [...new Set(filteredGames.map(g => g.provider_id))];
-        await supabase
-          .from("partner_game_access")
-          .delete()
-          .is("partner_id", null)
-          .eq("user_id", selectedUser.id)
-          .eq("api_provider", selectedApi)
-          .eq("access_type", "provider")
-          .in("game_provider_id", affectedProviderIds);
-
-        // 게임 레코드 삭제
         if (gameIdsToAllow.length > 0) {
           const { error } = await supabase
             .from("partner_game_access")
@@ -2607,25 +2604,10 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
 
         toast.success(`${filteredGames.length}개 게임이 노출되었습니다.`);
       } else {
-        // 전체 숨김: game_status='hidden'으로 레코드 생성
+        // 전체 숨김: game_status='hidden'으로 게임 레코드만 생성
         const gamesToBlock = filteredGames.filter(g => !previousBlockedGames.includes(g.id));
         
-        // 제공사 레코드
-        const affectedProviders = [...new Set(gamesToBlock.map(g => g.provider_id))];
-        const providerRecords = affectedProviders.map(providerId => {
-          const game = games.find(g => g.provider_id === providerId);
-          return {
-            user_id: selectedUser.id,
-            api_provider: game!.api_type,
-            game_provider_id: providerId,
-            game_id: null,
-            access_type: "provider" as const,
-            is_allowed: false,
-            game_status: "hidden" as const,
-          };
-        });
-
-        // 게임 레코드
+        // 게임 레코드만 생성
         const gameRecords = gamesToBlock.map(g => ({
           user_id: selectedUser.id,
           api_provider: g.api_type,
@@ -2637,10 +2619,10 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
         }));
 
         // ✅ UPSERT로 변경 (중복 방지)
-        if (providerRecords.length > 0 || gameRecords.length > 0) {
+        if (gameRecords.length > 0) {
           const { error } = await supabase
             .from("partner_game_access")
-            .upsert([...providerRecords, ...gameRecords], {
+            .upsert(gameRecords, {
               onConflict: 'partner_id,user_id,api_provider,game_provider_id,game_id,access_type',
               ignoreDuplicates: false
             });
@@ -2656,15 +2638,17 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
             .in('id', gameIds);
         }
 
-        toast.success(`${filteredGames.length}개 게임이 숨겨졌습니다.`);
+        toast.success(`${filteredGames.length}개 게임이 숨김 처리되었습니다.`);
       }
+
+      // ✅ 사용자 게임 접근 권한 다시 로드
+      await loadUserGameAccess(selectedUser.id);
     } catch (error) {
-      console.error("❌ 사용자별 전체 게임 접근 권한 업데이트 실패:", error);
-      toast.error("일괄 업데이트에 실패했습니다.");
+      console.error("❌ 게임 일괄 처리 실패:", error);
+      toast.error("게임 일괄 처리에 실패했습니다.");
       
       // ✅ Rollback: 에러 발생 시 이전 상태로 복원
       setUserBlockedGames(previousBlockedGames);
-      setUserBlockedProviders(previousBlockedProviders);
     }
   };
 
@@ -2984,9 +2968,10 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                 // 제공사명이 매칭되면 모든 게임 표시
                                 if (isProviderMatch) return true;
                                 
-                                // 게임명으로 검색 (띄어쓰기 무시)
+                                // 게임명으로 검색 (띄어쓰기 무시, 한글명 포함)
                                 const gameNameNormalized = g.name.replace(/\s/g, '').toLowerCase();
-                                return gameNameNormalized.includes(searchNormalized);
+                                const gameNameKoNormalized = (g.name_ko || '').replace(/\s/g, '').toLowerCase();
+                                return gameNameNormalized.includes(searchNormalized) || gameNameKoNormalized.includes(searchNormalized);
                               });
 
                               if (providerGames.length === 0 && debouncedSearchTerm) {
@@ -3291,9 +3276,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                                   <div className="min-h-[32px] flex items-center">
                                                     <div
                                                       className="text-xs text-slate-200 line-clamp-2 leading-tight"
-                                                      title={game.name}
+                                                      title={game.name_ko || game.name}
                                                     >
-                                                      {game.name}
+                                                      {game.name_ko || game.name}
                                                     </div>
                                                   </div>
                                                 </div>
@@ -3574,7 +3559,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                             className="px-6 py-3 h-12 text-base font-bold bg-emerald-900/30 border-2 border-emerald-600 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-500 hover:text-emerald-200"
                           >
                             <Eye className="w-5 h-5 mr-2" />
-                            전체 노출
+                            게임 전체 허용
                           </Button>
                           <Button
                             variant="outline"
@@ -3582,7 +3567,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                             className="px-6 py-3 h-12 text-base font-bold bg-orange-900/30 border-2 border-orange-600 text-orange-300 hover:bg-orange-900/50 hover:border-orange-500 hover:text-orange-200"
                           >
                             <AlertTriangle className="w-5 h-5 mr-2" />
-                            전체 점검중
+                            게임 전체 점검
                           </Button>
                           <Button
                             variant="outline"
@@ -3590,7 +3575,7 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                             className="px-6 py-3 h-12 text-base font-bold bg-red-900/30 border-2 border-red-600 text-red-300 hover:bg-red-900/50 hover:border-red-500 hover:text-red-200"
                           >
                             <EyeOff className="w-5 h-5 mr-2" />
-                            전체 숨김
+                            게임 전체 차단
                           </Button>
                         </div>
                       </div>
@@ -3668,9 +3653,10 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                 // 제공사명이 매칭되면 모든 게임 표시
                                 if (isProviderMatch) return true;
                                 
-                                // 게임명으로 검색 (띄어쓰기 무시)
+                                // 게임명으로 검색 (띄어쓰기 무시, 한글명 포함)
                                 const gameNameNormalized = g.name.replace(/\s/g, '').toLowerCase();
-                                return gameNameNormalized.includes(searchNormalized);
+                                const gameNameKoNormalized = (g.name_ko || '').replace(/\s/g, '').toLowerCase();
+                                return gameNameNormalized.includes(searchNormalized) || gameNameKoNormalized.includes(searchNormalized);
                               });
 
                               if (providerGames.length === 0 && debouncedSearchTerm) {
@@ -3741,134 +3727,27 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                     <div className="flex items-center gap-3">
                                       <Button
                                         variant="outline"
-                                        onClick={async () => {
-                                          if (!selectedUser || !selectedStore) return;
-                                          try {
-                                            // Optimistic Update
-                                            const previousBlockedProviders = userBlockedProviders;
-                                            setUserBlockedProviders(prev => prev.filter(id => id !== provider.id));
-                                            
-                                            // ✅ 새로운 방식: provider 레코드만 삭제!
-                                            const { error } = await supabase
-                                              .from("partner_game_access")
-                                              .delete()
-                                              .is("partner_id", null)
-                                              .eq("user_id", selectedUser.id)
-                                              .eq("api_provider", provider.api_type)
-                                              .eq("game_provider_id", provider.id)
-                                              .eq("access_type", "provider");
-                                            
-                                            if (error) {
-                                              console.error("DELETE 오류:", error);
-                                              setUserBlockedProviders(previousBlockedProviders);
-                                              throw error;
-                                            }
-                                            
-                                            // ✅ game_providers 테이블 동기화
-                                            const providerTableName = provider.api_type === 'honorapi' ? 'honor_game_providers' : 'game_providers';
-                                            await supabase
-                                              .from(providerTableName)
-                                              .update({ game_visible: 'visible' })
-                                              .eq('id', provider.id);
-                                            
-                                            await loadUserGameAccess(selectedUser.id);
-                                            console.log(`허용 완료: provider 레코드만 삭제`);
-                                            toast.success(`${provider.name}의 모든 게임을 허용했습니다.`);
-                                          } catch (error) {
-                                            console.error("❌ 전체 허용 실패:", error);
-                                            toast.error("일괄 허용에 실패했습니다.");
-                                          }
-                                        }}
+                                        onClick={() => handleProviderGames(provider.id, 'allow')}
                                         className="px-5 py-2.5 text-base font-bold bg-emerald-900/30 border-2 border-emerald-600 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-500"
                                       >
                                         <Eye className="w-5 h-5 mr-2" />
-                                        전체 허용
+                                        게임 허용
                                       </Button>
                                       <Button
                                         variant="outline"
-                                        onClick={() => handleProviderMaintenance(provider.id)}
+                                        onClick={() => handleProviderGames(provider.id, 'maintenance')}
                                         className="px-5 py-2.5 text-base font-bold bg-orange-900/30 border-2 border-orange-600 text-orange-300 hover:bg-orange-900/50 hover:border-orange-500"
                                       >
                                         <AlertTriangle className="w-5 h-5 mr-2" />
-                                        전체 점검중
+                                        게임 점검
                                       </Button>
                                       <Button
                                         variant="outline"
-                                        onClick={async () => {
-                                          if (!selectedUser || !selectedStore) return;
-                                          try {
-                                            // 해당 제공사의 모든 게임 ID
-                                            const allProviderGameIds = games
-                                              .filter(g => g.provider_id === provider.id)
-                                              .map(g => String(g.id));
-                                            
-                                            if (allProviderGameIds.length === 0) {
-                                              toast.error("게임이 없습니다.");
-                                              return;
-                                            }
-
-                                            console.log("��� 사용자별 전체 차단:", { 
-                                              provider: provider.name, 
-                                              providerId: provider.id,
-                                              storeId: selectedStore.id,
-                                              userId: selectedUser.id 
-                                            });
-
-                                            // Optimistic Update
-                                            const previousBlockedProviders = userBlockedProviders;
-                                            setUserBlockedProviders(prev => [...new Set([...prev, provider.id])]);
-                                            
-                                            // ✅ 새로운 방식: provider 레코드 1개만 생성!
-                                            const providerRecord = {
-                                              user_id: selectedUser.id,
-                                              api_provider: provider.api_type,
-                                              game_provider_id: provider.id,
-                                              game_id: null,
-                                              access_type: "provider" as const,
-                                              is_allowed: false,
-                                              game_status: "hidden" as const,
-                                            };
-                                            
-                                            // 1단계: 기존 제공사 레코드 삭제
-                                            await supabase
-                                              .from("partner_game_access")
-                                              .delete()
-                                              .is("partner_id", null)
-                                              .eq("user_id", selectedUser.id)
-                                              .eq("api_provider", provider.api_type)
-                                              .eq("game_provider_id", provider.id)
-                                              .eq("access_type", "provider");
-                                            
-                                            // 2단계: 새 provider 레코드 1개만 생성
-                                            const { error } = await supabase
-                                              .from("partner_game_access")
-                                              .insert([providerRecord]);
-                                            
-                                            if (error) {
-                                              console.error("INSERT 오류:", error);
-                                              setUserBlockedProviders(previousBlockedProviders);
-                                              throw error;
-                                            }
-                                            
-                                            // ✅ game_providers 테이블 동기화
-                                            const providerTableName = provider.api_type === 'honorapi' ? 'honor_game_providers' : 'game_providers';
-                                            await supabase
-                                              .from(providerTableName)
-                                              .update({ game_visible: 'hidden' })
-                                              .eq('id', provider.id);
-                                            
-                                            await loadUserGameAccess(selectedUser.id);
-                                            console.log(`차단 완료: provider 레코드 1개만 생성`);
-                                            toast.success(`${provider.name}의 모든 게임을 차단했습니다.`);
-                                          } catch (error) {
-                                            console.error("❌ 전체 차단 실패:", error);
-                                            toast.error("일괄 차단에 실패했습니다.");
-                                          }
-                                        }}
+                                        onClick={() => handleProviderGames(provider.id, 'block')}
                                         className="px-5 py-2.5 text-base font-bold bg-red-900/30 border-2 border-red-600 text-red-300 hover:bg-red-900/50 hover:border-red-500"
                                       >
                                         <EyeOff className="w-5 h-5 mr-2" />
-                                        전체 차단
+                                        게임 차단
                                       </Button>
                                     </div>
                                   </div>
@@ -3977,9 +3856,9 @@ export function EnhancedGameManagement({ user }: EnhancedGameManagementProps) {
                                                   <div className="min-h-[32px] flex items-center">
                                                     <div
                                                       className="text-xs text-slate-200 line-clamp-2 leading-tight"
-                                                      title={game.name}
+                                                      title={game.name_ko || game.name}
                                                     >
-                                                      {game.name}
+                                                      {game.name_ko || game.name}
                                                     </div>
                                                   </div>
                                                 </div>

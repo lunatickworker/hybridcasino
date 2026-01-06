@@ -407,27 +407,27 @@ export function TransactionApprovalManager({ user }: TransactionApprovalManagerP
                     ) : (
                       filteredTransactions.map((transaction) => (
                         <tr key={transaction.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                          <td className="p-3 text-sm">
+                          <td className="p-3 text-sm font-asiahead">
                             {new Date(transaction.created_at).toLocaleString('ko-KR')}
                           </td>
                           <td className="p-3">
                             <div>
-                              <div className="text-sm">{transaction.users?.username || '-'}</div>
-                              <div className="text-xs text-gray-400">{transaction.users?.nickname || '-'}</div>
+                              <div className="text-sm font-asiahead">{transaction.users?.username || '-'}</div>
+                              <div className="text-xs text-gray-400 font-asiahead">{transaction.users?.nickname || '-'}</div>
                             </div>
                           </td>
-                          <td className="p-3 text-sm">
+                          <td className="p-3 text-sm font-asiahead">
                             {getTransactionTypeText(transaction.transaction_type)}
                           </td>
-                          <td className="p-3 text-right">
+                          <td className="p-3 text-right font-asiahead">
                             {formatCurrency(transaction.amount)}
                           </td>
-                          <td className="p-3 text-right text-sm text-gray-400">
+                          <td className="p-3 text-right text-sm text-gray-400 font-asiahead">
                             {transaction.balance_before ? formatCurrency(transaction.balance_before) : '-'}
                           </td>
                           <td className="p-3 text-center">
                             <span
-                              className={`inline-block px-3 py-1 rounded-full text-xs ${
+                              className={`inline-block px-3 py-1 rounded-full text-xs font-asiahead ${
                                 transaction.status === 'pending'
                                   ? 'bg-yellow-500/20 text-yellow-400'
                                   : transaction.status === 'approved' || transaction.status === 'completed'
@@ -438,10 +438,10 @@ export function TransactionApprovalManager({ user }: TransactionApprovalManagerP
                               {getStatusText(transaction.status)}
                             </span>
                           </td>
-                          <td className="p-3 text-sm text-gray-400">
+                          <td className="p-3 text-sm text-gray-400 font-asiahead">
                             {transaction.memo || '-'}
                           </td>
-                          <td className="p-3 text-sm text-gray-400">
+                          <td className="p-3 text-sm text-gray-400 font-asiahead">
                             {transaction.processors?.username || '-'}
                           </td>
                           <td className="p-3 text-center">

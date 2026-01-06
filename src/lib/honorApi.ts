@@ -1020,31 +1020,63 @@ export async function syncHonorApiGames(): Promise<{
           let localNewProviders = 0;
           let localUpdatedProviders = 0;
 
+          // ✅ Pragmatic 한글명 매핑
+          const getKoreanName = (name: string): string | undefined => {
+            const nameLower = name.toLowerCase();
+            
+            if (nameLower.includes('pragmatic')) {
+              if (nameLower.includes('live')) {
+                return '프라그마틱 라이브';
+              } else if (nameLower.includes('slot') || nameLower.includes('play')) {
+                return '프라그마틱 플레이';
+              }
+              return '프라그마틱 플레이';
+            }
+            
+            return undefined;
+          };
+
           if (existingProvider) {
             // 기존 제공사 업데이트
+            const updateData: any = {
+              vendor_code: vendorName,
+              type: vendorType,
+              updated_at: new Date().toISOString()
+            };
+            
+            // ✅ Pragmatic인 경우 한글명 추가
+            const koreanName = getKoreanName(vendorData.name);
+            if (koreanName) {
+              updateData.name_ko = koreanName;
+            }
+            
             await supabase
               .from('honor_game_providers')
-              .update({
-                vendor_code: vendorName,
-                type: vendorType,
-                updated_at: new Date().toISOString()
-              })
+              .update(updateData)
               .eq('id', existingProvider.id);
 
             providerId = existingProvider.id;
             localUpdatedProviders++;
-            console.log(`✅ [HonorAPI] 제공사 업데이트: ${vendorData.name} (ID: ${providerId}, type: ${vendorType})`);
+            console.log(`✅ [HonorAPI] 제공사 업데이트: ${vendorData.name} (ID: ${providerId}, type: ${vendorType}${koreanName ? `, name_ko: ${koreanName}` : ''})`);
           } else {
             // 신규 제공사 추가
+            const insertData: any = {
+              name: vendorData.name,
+              vendor_code: vendorName,
+              type: vendorType,
+              status: 'visible',
+              is_visible: true
+            };
+            
+            // ✅ Pragmatic인 경우 한글명 추가
+            const koreanName = getKoreanName(vendorData.name);
+            if (koreanName) {
+              insertData.name_ko = koreanName;
+            }
+            
             const { data: newProvider, error: insertError } = await supabase
               .from('honor_game_providers')
-              .insert({
-                name: vendorData.name,
-                vendor_code: vendorName,
-                type: vendorType,
-                status: 'visible',
-                is_visible: true
-              })
+              .insert(insertData)
               .select('id')
               .single();
 

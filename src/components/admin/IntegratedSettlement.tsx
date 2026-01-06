@@ -248,8 +248,12 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       }
 
       // 거래 데이터 조회 (누적 정산 모드면 날짜 필터 제거)
-      const targetUserIds = users?.map(u => u.id) || [];
-      console.log('🎯 조직격리 적용 - 대상 회원 ID:', targetUserIds.length, '명');
+      // ⭐ 회원 + 파트너 ID 모두 포함 (파트너 간 입금/출금도 집계하기 위해)
+      const targetUserIds = [
+        ...(users?.map(u => u.id) || []),
+        ...(partners?.map(p => p.id) || [])
+      ];
+      console.log('🎯 조직격리 적용 - 대상 ID:', targetUserIds.length, '개 (회원:', users?.length || 0, '명 + 파트너:', partners?.length || 0, '명)');
       
       let transactionsQuery = supabase.from('transactions').select('*').in('user_id', targetUserIds);
       if (!showCumulative) {
@@ -269,6 +273,21 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       if (transError) throw transError;
       console.log('✅ 거래 데이터:', transactions?.length || 0, '개', showCumulative ? '(누적)' : '(기간)');
       
+      // 전체 거래 타입별 통계
+      if (transactions && transactions.length > 0) {
+        const typeStats = transactions.reduce((acc: any, t: any) => {
+          const type = t.transaction_type;
+          if (!acc[type]) acc[type] = { count: 0, completed: 0, total: 0 };
+          acc[type].count++;
+          if (t.status === 'completed') {
+            acc[type].completed++;
+            acc[type].total += (t.amount || 0);
+          }
+          return acc;
+        }, {});
+        console.log('📊 거래 타입별 통계:', typeStats);
+      }
+      
       // admin_deposit 타입의 거래만 필터링해서 확인
       const adminDeposits = transactions?.filter(t => t.transaction_type === 'admin_deposit' && t.status === 'completed') || [];
       console.log('💰 관리자 입금 거래:', {
@@ -277,7 +296,21 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         transactions: adminDeposits.map(t => ({
           amount: t.amount,
           created_at: t.created_at,
-          user_id: t.user_id
+          user_id: t.user_id,
+          status: t.status
+        }))
+      });
+      
+      // admin_withdrawal 타입의 거래도 확인
+      const adminWithdrawals = transactions?.filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'completed') || [];
+      console.log('💸 관리자 출금 거래:', {
+        count: adminWithdrawals.length,
+        total: adminWithdrawals.reduce((sum, t) => sum + (t.amount || 0), 0),
+        transactions: adminWithdrawals.map(t => ({
+          amount: t.amount,
+          created_at: t.created_at,
+          user_id: t.user_id,
+          status: t.status
         }))
       });
 
@@ -511,12 +544,15 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       }
     });
 
-    // ✅ 거래 데이터 필터링 - 파트너는 소속 회원, 회원은 본인!
+    // ✅ 거래 데이터 필터링 - 파트너는 소속 회원 + 본인, 회원은 본인!
     let relevantUserIdsForTransactions: string[];
     if (isPartner) {
-      // 파트너: 전체 하위 조직의 회원 ID (파트너 본인 제외)
-      relevantUserIdsForTransactions = getAllDescendantUserIds(entityId, partners, users);
-      console.log(`  🎯 [${username}] 파트너 - 소속 회원 ${relevantUserIdsForTransactions.length}명의 거래 집계`);
+      // 파트너: 본인 + 전체 하위 조직의 회원 ID (파트너 간 입금/출금도 집계)
+      relevantUserIdsForTransactions = [
+        entityId, // 파트너 본인
+        ...getAllDescendantUserIds(entityId, partners, users) // 소속 회원들
+      ];
+      console.log(`  🎯 [${username}] 파트너 - 본인 + 소속 회원 ${relevantUserIdsForTransactions.length - 1}명의 거래 집계`);
     } else {
       // 회원: 본인만
       relevantUserIdsForTransactions = [entityId];
@@ -1435,12 +1471,17 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                         key={row.id} 
                         className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors"
                         style={{ 
-                          cursor: row.hasChildren ? 'pointer' : 'default',
                           backgroundColor: bgColor
                         }}
-                        onClick={() => row.hasChildren && toggleRow(row.id)}
                       >
-                        <td className="px-4 py-3 text-slate-300 sticky left-0 z-10 whitespace-nowrap" style={{ backgroundColor: bgColor }}>
+                        <td 
+                          className="px-4 py-3 text-slate-300 sticky left-0 z-10 whitespace-nowrap" 
+                          style={{ 
+                            backgroundColor: bgColor,
+                            cursor: row.hasChildren ? 'pointer' : 'default'
+                          }}
+                          onClick={() => row.hasChildren && toggleRow(row.id)}
+                        >
                           <div className="flex items-center gap-1">
                             {row.hasChildren && row.level > 0 && (
                               expandedRows.has(row.id) ? 
