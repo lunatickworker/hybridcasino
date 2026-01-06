@@ -288,29 +288,42 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         console.log('📊 거래 타입별 통계:', typeStats);
       }
       
-      // admin_deposit 타입의 거래만 필터링해서 확인
-      const adminDeposits = transactions?.filter(t => t.transaction_type === 'admin_deposit' && t.status === 'completed') || [];
-      console.log('💰 관리자 입금 거래:', {
+      // ✅ partner_balance_logs 조회 (관리자입금/관리자출금용)
+      let partnerBalanceLogsQuery = supabase
+        .from('partner_balance_logs')
+        .select('*')
+        .in('partner_id', targetUserIds)
+        .in('transaction_type', ['deposit', 'withdrawal']);
+      
+      if (!showCumulative) {
+        partnerBalanceLogsQuery = partnerBalanceLogsQuery
+          .gte('created_at', dateRange.from.toISOString())
+          .lte('created_at', dateRange.to.toISOString());
+      }
+      const { data: partnerBalanceLogs, error: balanceLogsError } = await partnerBalanceLogsQuery;
+
+      if (balanceLogsError) throw balanceLogsError;
+      console.log('✅ 파트너 보유금 로그:', partnerBalanceLogs?.length || 0, '개', showCumulative ? '(누적)' : '(기간)');
+      
+      // 관리자 입금/출금 통계
+      const adminDeposits = partnerBalanceLogs?.filter(l => l.transaction_type === 'deposit') || [];
+      const adminWithdrawals = partnerBalanceLogs?.filter(l => l.transaction_type === 'withdrawal') || [];
+      console.log('💰 관리자 입금 로그:', {
         count: adminDeposits.length,
-        total: adminDeposits.reduce((sum, t) => sum + (t.amount || 0), 0),
-        transactions: adminDeposits.map(t => ({
-          amount: t.amount,
-          created_at: t.created_at,
-          user_id: t.user_id,
-          status: t.status
+        total: adminDeposits.reduce((sum, l) => sum + (l.amount || 0), 0),
+        logs: adminDeposits.slice(0, 3).map(l => ({
+          amount: l.amount,
+          created_at: l.created_at,
+          partner_id: l.partner_id
         }))
       });
-      
-      // admin_withdrawal 타입의 거래도 확인
-      const adminWithdrawals = transactions?.filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'completed') || [];
-      console.log('💸 관리자 출금 거래:', {
+      console.log('💸 관리자 출금 로그:', {
         count: adminWithdrawals.length,
-        total: adminWithdrawals.reduce((sum, t) => sum + (t.amount || 0), 0),
-        transactions: adminWithdrawals.map(t => ({
-          amount: t.amount,
-          created_at: t.created_at,
-          user_id: t.user_id,
-          status: t.status
+        total: adminWithdrawals.reduce((sum, l) => sum + (l.amount || 0), 0),
+        logs: adminWithdrawals.slice(0, 3).map(l => ({
+          amount: l.amount,
+          created_at: l.created_at,
+          partner_id: l.partner_id
         }))
       });
 
@@ -377,7 +390,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         console.log('📊 game_type 분포:', { casino: casinoCount, slot: slotCount, null: nullCount });
       }
 
-      const rows = await processSettlementData(filteredPartners || [], users || [], transactions || [], pointTransactions || [], gameRecords || []);
+      const rows = await processSettlementData(filteredPartners || [], users || [], transactions || [], pointTransactions || [], gameRecords || [], partnerBalanceLogs || []);
       
       console.log('✅ 정산 데이터 처리 완료:', rows.length, '개');
       setData(rows);
@@ -396,7 +409,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     users: any[],
     transactions: any[],
     pointTransactions: any[],
-    gameRecords: any[]
+    gameRecords: any[],
+    partnerBalanceLogs: any[]
   ): Promise<SettlementRow[]> => {
     const rows: SettlementRow[] = [];
 
@@ -432,7 +446,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         pointTransactions,
         gameRecords,
         partners,
-        users
+        users,
+        partnerBalanceLogs
       );
       rows.push({
         ...row,
@@ -469,7 +484,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         pointTransactions,
         gameRecords,
         partners,
-        users
+        users,
+        partnerBalanceLogs
       );
       rows.push({
         ...row,
@@ -529,7 +545,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     pointTransactions: any[],
     gameRecords: any[],
     partners: any[],
-    users: any[]
+    users: any[],
+    partnerBalanceLogs: any[]
   ): Promise<SettlementRow> => {
     const isPartner = level > 0;
 
@@ -568,13 +585,16 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    const adminDeposit = userTransactions
-      .filter(t => t.transaction_type === 'admin_deposit' && t.status === 'completed')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
+    // ✅ partner_balance_logs에서 관리자입금/관리자출금 집계
+    const relevantBalanceLogs = partnerBalanceLogs.filter(l => relevantUserIdsForTransactions.includes(l.partner_id));
+    
+    const adminDeposit = relevantBalanceLogs
+      .filter(l => l.transaction_type === 'deposit')
+      .reduce((sum, l) => sum + (l.amount || 0), 0);
 
-    const adminWithdrawal = userTransactions
-      .filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'completed')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
+    const adminWithdrawal = relevantBalanceLogs
+      .filter(l => l.transaction_type === 'withdrawal')
+      .reduce((sum, l) => sum + (l.amount || 0), 0);
 
     console.log(`  💰 [${username}] 거래 집계:`, {
       relevantUsers: relevantUserIdsForTransactions.length,

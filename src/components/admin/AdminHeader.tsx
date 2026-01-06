@@ -727,14 +727,28 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             const transaction = payload.new as any;
             
             if (transaction.status === 'pending') {
-              // ✅ user_id로 username 조회
-              const { data: userData } = await supabase
+              // 🔐 조직격리: 해당 회원이 내 조직에 속하는지 확인
+              const { data: transactionUser } = await supabase
                 .from('users')
-                .select('username')
+                .select('id, username, referrer_id')
                 .eq('id', transaction.user_id)
                 .single();
               
-              const username = userData?.username || transaction.user_id;
+              if (!transactionUser) return; // 사용자 정보 없으면 알림 X
+              
+              // Lv1이면 모든 거래, Lv2+ 이면 하위 조직만
+              let shouldNotify = false;
+              if (user.level === 1) {
+                shouldNotify = true;
+              } else {
+                // 하위 조직에 속하는지 확인
+                const descendantIds = await getDescendantUserIds(user.id);
+                shouldNotify = descendantIds.includes(transaction.user_id);
+              }
+              
+              if (!shouldNotify) return; // 내 조직이 아니면 알림 X
+              
+              const username = transactionUser.username || transaction.user_id;
               
               if (transaction.transaction_type === 'deposit') {
                 toast.info('새로운 입금 요청이 있습니.', {
