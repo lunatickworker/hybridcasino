@@ -922,7 +922,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       adminTotalWithdrawal: filteredRows.reduce((sum, r) => sum + r.adminWithdrawal, 0),
       pointGiven: filteredRows.reduce((sum, r) => sum + r.pointGiven, 0),
       pointRecovered: filteredRows.reduce((sum, r) => sum + r.pointRecovered, 0),
-      depositWithdrawalDiff: 0, // ✅ 아래에서 계산
+      depositWithdrawalDiff: filteredRows.reduce((sum, r) => sum + r.depositWithdrawalDiff, 0),
       casinoBet: filteredRows.reduce((sum, r) => sum + r.casinoBet, 0),
       casinoWin: filteredRows.reduce((sum, r) => sum + r.casinoWin, 0),
       slotBet: filteredRows.reduce((sum, r) => sum + r.slotBet, 0),
@@ -935,9 +935,6 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       errorBetAmount: bettingErrors.errorBetAmount, // ✅ NEW: 베팅정보오류금액
       errorBetCount: bettingErrors.errorBetCount    // ✅ NEW: 베팅정보오류건수
     };
-    
-    // ✅ 입출차액 = 통계카드의 실제 입출금 값으로 계산 (중복 집계 방지)
-    summary.depositWithdrawalDiff = summary.totalDeposit - summary.totalWithdrawal + summary.adminTotalDeposit - summary.adminTotalWithdrawal;
 
     setSummary(summary);
   };

@@ -3,7 +3,7 @@ import { Card, CardContent } from "../../ui/card";
 import { ScrollArea } from "../../ui/scroll-area";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
-import { Store, RefreshCw, Search, ChevronDown, ChevronRight, Ban, Check, X } from "lucide-react";
+import { Store, RefreshCw, Search, ChevronDown, ChevronRight, Ban, Check } from "lucide-react";
 import { Partner } from "../../../types";
 import { gameApi, GameProvider, Game } from "../../../lib/gameApi";
 import { toast } from "sonner@2.0.3";
@@ -532,16 +532,8 @@ export function StoresTab({ user }: StoresTabProps) {
                     placeholder="게임 검색..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-11 pr-10 bg-slate-800/50 border-slate-700/50 text-white"
+                    className="pl-11 bg-slate-800/50 border-slate-700/50 text-white"
                   />
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
               </div>
 

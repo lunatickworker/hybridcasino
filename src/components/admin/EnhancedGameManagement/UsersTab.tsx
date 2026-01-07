@@ -3,7 +3,7 @@ import { Card, CardContent } from "../../ui/card";
 import { ScrollArea } from "../../ui/scroll-area";
 import { Input } from "../../ui/input";
 import { Button } from "../../ui/button";
-import { User as UserIcon, Search, RefreshCw, ChevronDown, ChevronRight, Ban, Check, Wrench, X } from "lucide-react";
+import { User as UserIcon, Search, RefreshCw, ChevronDown, ChevronRight, Ban, Check, Wrench } from "lucide-react";
 import { Partner, User } from "../../../types";
 import { gameApi, GameProvider, Game } from "../../../lib/gameApi";
 import { toast } from "sonner@2.0.3";
@@ -743,16 +743,8 @@ export function UsersTab({ user }: UsersTabProps) {
                 placeholder="사용자 검색..."
                 value={userSearchTerm}
                 onChange={(e) => setUserSearchTerm(e.target.value)}
-                className="pl-10 pr-9 text-sm bg-slate-800/50 border-slate-700/50 text-white"
+                className="pl-10 text-sm bg-slate-800/50 border-slate-700/50 text-white"
               />
-              {userSearchTerm && (
-                <button
-                  onClick={() => setUserSearchTerm('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
             </div>
 
             {loadingUsers ? (
@@ -876,16 +868,8 @@ export function UsersTab({ user }: UsersTabProps) {
                     placeholder="게임 검색..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-11 pr-10 bg-slate-800/50 border-slate-700/50 text-white"
+                    className="pl-11 bg-slate-800/50 border-slate-700/50 text-white"
                   />
-                  {searchTerm && (
-                    <button
-                      onClick={() => setSearchTerm('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
                 </div>
               </div>
 

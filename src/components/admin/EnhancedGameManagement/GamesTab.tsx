@@ -9,7 +9,6 @@ import {
   EyeOff,
   ChevronDown,
   ChevronRight,
-  X,
 } from "lucide-react";
 import { Partner } from "../../../types";
 import { gameApi, Game, GameProvider } from "../../../lib/gameApi";
@@ -495,16 +494,8 @@ export function GamesTab({ user }: GamesTabProps) {
                 placeholder="게임 검색..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-11 pr-10 text-base font-medium bg-slate-800/50 border-slate-700/50 focus:border-blue-500/50 focus:ring-blue-500/20 text-white placeholder:text-slate-400"
+                className="pl-11 text-base font-medium bg-slate-800/50 border-slate-700/50 focus:border-blue-500/50 focus:ring-blue-500/20 text-white placeholder:text-slate-400"
               />
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
             </div>
 
             <div className="flex items-center gap-2">
