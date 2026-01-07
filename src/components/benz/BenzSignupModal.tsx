@@ -1,0 +1,752 @@
+import { Input } from "../ui/input";
+import { Button } from "../ui/button";
+import { useState, useEffect } from "react";
+import { supabase } from "../../lib/supabase";
+import { toast } from "sonner@2.0.3";
+import bcrypt from 'bcryptjs';
+import { X, UserPlus, Loader2, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Alert, AlertDescription } from "../ui/alert";
+
+interface BenzSignupModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSwitchToLogin: () => void;
+}
+
+interface Bank {
+  id: string;
+  bank_code: string;
+  name: string;
+  name_ko: string;
+  name_en: string;
+}
+
+export function BenzSignupModal({ isOpen, onClose, onSwitchToLogin }: BenzSignupModalProps) {
+  const [registerData, setRegisterData] = useState({
+    username: '',
+    nickname: '',
+    password: '',
+    email: '',
+    phone: '',
+    bank_name: '',
+    bank_account: '',
+    bank_holder: '',
+    referrer_username: '',
+    withdrawal_password: '',
+    point_conversion_password: ''
+  });
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [banks, setBanks] = useState<Bank[]>([]);
+  const [nicknameCheck, setNicknameCheck] = useState<{
+    status: 'idle' | 'checking' | 'available' | 'unavailable';
+    message: string;
+  }>({ status: 'idle', message: '' });
+
+  // 은행 목록 로드
+  useEffect(() => {
+    const loadBanks = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('banks')
+          .select('*')
+          .eq('status', 'active')
+          .order('display_order');
+        
+        if (error) {
+          console.error('은행 목록 로드 오류:', error);
+          setBanks([]);
+          return;
+        }
+        
+        const uniqueBanks = data?.filter((bank, index, self) =>
+          index === self.findIndex((b) => b.name_ko === bank.name_ko)
+        ) || [];
+        
+        setBanks(uniqueBanks);
+      } catch (error) {
+        console.error('은행 목록 로드 오류:', error);
+        setBanks([]);
+      }
+    };
+    
+    if (isOpen) {
+      loadBanks();
+    }
+  }, [isOpen]);
+
+  const handleRegisterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setRegisterData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    if (error) setError(null);
+  };
+
+  // 닉네임 중복 체크 (직접 SELECT)
+  const checkNickname = async (nickname: string) => {
+    if (!nickname.trim()) {
+      setNicknameCheck({ status: 'idle', message: '' });
+      return;
+    }
+
+    setNicknameCheck({ status: 'checking', message: '확인 중...' });
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id')
+        .eq('nickname', nickname.trim())
+        .limit(1);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setNicknameCheck({
+          status: 'unavailable',
+          message: '이미 사용 중인 닉네임입니다.'
+        });
+      } else {
+        setNicknameCheck({
+          status: 'available',
+          message: '사용 가능한 닉네임입니다.'
+        });
+      }
+    } catch (error) {
+      console.error('닉네임 체크 오류:', error);
+      setNicknameCheck({ status: 'unavailable', message: '확인 중 오류가 발생했습니다.' });
+    }
+  };
+
+  const handleClose = () => {
+    setRegisterData({
+      username: '',
+      nickname: '',
+      password: '',
+      email: '',
+      phone: '',
+      bank_name: '',
+      bank_account: '',
+      bank_holder: '',
+      referrer_username: '',
+      withdrawal_password: '',
+      point_conversion_password: ''
+    });
+    setError(null);
+    setNicknameCheck({ status: 'idle', message: '' });
+    onClose();
+  };
+
+  // 회원가입 처리
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // 필수 필드 검증
+    if (!registerData.username.trim()) {
+      setError('아이디를 입력해주세요.');
+      return;
+    }
+    
+    if (!registerData.nickname.trim()) {
+      setError('닉네임을 입력해주세요.');
+      return;
+    }
+    
+    if (nicknameCheck.status !== 'available') {
+      setError('닉네임 중복 확인을 완료해주세요.');
+      return;
+    }
+    
+    if (!registerData.password.trim()) {
+      setError('비밀번호를 입력해주세요.');
+      return;
+    }
+    
+    if (!registerData.referrer_username.trim()) {
+      setError('추천인을 입력해주세요.');
+      return;
+    }
+
+    // 출금 비밀번호 검증 (숫자 4자리)
+    if (!registerData.withdrawal_password.trim()) {
+      setError('출금 비밀번호를 입력해주세요.');
+      return;
+    }
+    
+    if (!/^\d{4}$/.test(registerData.withdrawal_password.trim())) {
+      setError('출금 비밀번호는 숫자 4자리로 입력해주세요.');
+      return;
+    }
+
+    // 포인트전환 비밀번호 검증 (숫자 4자리)
+    if (!registerData.point_conversion_password.trim()) {
+      setError('포인트전환 비밀번호를 입력해주세요.');
+      return;
+    }
+    
+    if (!/^\d{4}$/.test(registerData.point_conversion_password.trim())) {
+      setError('포인트전환 비밀번호는 숫자 4자리로 입력해주세요.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // 1단계: 추천인 확인 (partners 테이블에서 조회)
+      const { data: referrerData, error: referrerError } = await supabase
+        .from('partners')
+        .select('id')
+        .eq('username', registerData.referrer_username.trim())
+        .maybeSingle();
+
+      if (referrerError) {
+        console.error('추천인 조회 에러:', referrerError);
+        setError('추천인 조회 중 오류가 발생했습니다.');
+        return;
+      }
+
+      if (!referrerData) {
+        setError('존재하지 않는 추천인입니다.');
+        return;
+      }
+
+      // 2단계: 아이디 중복 체크 (users + partners 테이블)
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('username', registerData.username.trim())
+        .maybeSingle();
+
+      if (existingUser) {
+        setError('이미 사용 중인 아이디입니다.');
+        return;
+      }
+
+      const { data: existingPartner } = await supabase
+        .from('partners')
+        .select('id')
+        .eq('username', registerData.username.trim())
+        .maybeSingle();
+
+      if (existingPartner) {
+        setError('이미 사용 중인 아이디입니다. (파트너 계정과 중복)');
+        return;
+      }
+
+      // 3단계: 로컬 DB에 사용자 생성 (직접 INSERT)
+      const { data: newUser, error: insertError } = await supabase
+        .from('users')
+        .insert([{
+          username: registerData.username.trim(),
+          nickname: registerData.nickname.trim(),
+          password_hash: bcrypt.hashSync(registerData.password, 10), // 비밀번호 암호화
+          email: registerData.email.trim() || null,
+          phone: registerData.phone.trim() || null,
+          bank_name: registerData.bank_name || null,
+          bank_account: registerData.bank_account.trim() || null,
+          bank_holder: registerData.bank_holder.trim() || null,
+          referrer_id: referrerData.id,
+          withdrawal_password: bcrypt.hashSync(registerData.withdrawal_password.trim(), 10), // 출금 비밀번호 암호화
+          point_conversion_password: bcrypt.hashSync(registerData.point_conversion_password.trim(), 10), // 포인트전환 비밀번호 암호화
+          status: 'pending',
+          balance: 0,
+          points: 0
+        }])
+        .select('id, username')
+        .single();
+
+      if (insertError) {
+        if (insertError.code === '23505') { // Unique violation
+          if (insertError.message.includes('username')) {
+            setError('이미 사용 중인 아이디입니다.');
+          } else if (insertError.message.includes('nickname')) {
+            setError('이미 사용 중인 닉네임입니다.');
+          } else {
+            setError('중복된 정보가 있습니다.');
+          }
+        } else {
+          setError(insertError.message || '회원가입에 실패했습니다.');
+        }
+        return;
+      }
+
+      if (!newUser) {
+        setError('회원가입 처리 중 오류가 발생했습니다.');
+        return;
+      }
+
+      // 4단계: 회원가입 완료 (API 계정은 관리자 승인 시 생성)
+      // 정책 변경: 관리자 승인 전까지 게임 불가이므로 회원가입 시 API 계정 생성 불필요
+      console.log('✅ 회원가입 완료. API 계정은 관리자 승인 시 생성됩니다.');
+      
+      toast.success('회원가입이 완료되었습니다! 관리자 승인 후 게임을 이용할 수 있습니다.');
+
+      // 회원가입 폼 초기화
+      setRegisterData({
+        username: '',
+        nickname: '',
+        password: '',
+        email: '',
+        phone: '',
+        bank_name: '',
+        bank_account: '',
+        bank_holder: '',
+        referrer_username: '',
+        withdrawal_password: '',
+        point_conversion_password: ''
+      });
+      setNicknameCheck({ status: 'idle', message: '' });
+      
+      // 로그인 모달로 전환
+      onSwitchToLogin();
+
+    } catch (error: any) {
+      console.error('회원가입 오류:', error);
+      setError(error.message || '회원가입 중 오류가 발생했습니다.');
+      toast.error('회원가입에 실패했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="relative z-10 w-full max-w-6xl shadow-2xl border-2 overflow-hidden rounded-lg" style={{
+        background: 'linear-gradient(135deg, rgba(20, 20, 30, 0.98) 0%, rgba(15, 15, 25, 0.98) 100%)',
+        borderColor: 'rgba(193, 154, 107, 0.4)',
+        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(193, 154, 107, 0.1)',
+        maxHeight: '90vh',
+        overflowY: 'auto'
+      }}>
+        {/* Close Button */}
+        <button
+          onClick={handleClose}
+          className="absolute top-4 right-4 z-10 text-gray-400 hover:text-white transition-all p-2 hover:bg-white/10 rounded-lg"
+          style={{
+            color: '#E6C9A8'
+          }}
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Two Column Layout */}
+        <div className="flex flex-col md:flex-row h-full">
+          {/* Left Side - Title & Description */}
+          <div className="w-full md:w-2/5 p-6 md:p-10 flex flex-col justify-between md:border-r" style={{
+            background: 'linear-gradient(135deg, rgba(15, 15, 25, 0.95) 0%, rgba(10, 10, 20, 0.95) 100%)',
+            borderColor: 'rgba(193, 154, 107, 0.2)'
+          }}>
+            <div className="mt-4 md:mt-6">
+              <div className="flex items-center gap-3 mb-4 md:mb-6">
+                <UserPlus className="w-6 h-6 md:w-8 md:h-8" style={{ color: '#E6C9A8' }} />
+                <h3 className="text-2xl md:text-4xl font-bold" style={{
+                  color: '#E6C9A8',
+                  textShadow: '0 2px 8px rgba(193, 154, 107, 0.4)'
+                }}>회원가입</h3>
+              </div>
+              <p className="text-base md:text-lg leading-relaxed mb-2 md:mb-3" style={{
+                color: '#D1D5DB'
+              }}>
+                회원가입 시 모든항목을 정확하게 기재하시기 바랍니다.
+              </p>
+              <p className="text-base md:text-lg leading-relaxed" style={{
+                color: '#D1D5DB'
+              }}>
+                회원데이터는 안전한 서버에 안전하게 보관됩니다.
+              </p>
+            </div>
+
+            {/* 회원가입 버튼과 로그인 링크 */}
+            <div className="space-y-4 md:space-y-5 mb-4 md:mb-6 mt-6 md:mt-0">
+              <button
+                type="submit"
+                form="signup-form"
+                className="w-full h-12 font-bold rounded-lg transition-all duration-300 hover:scale-105 relative overflow-hidden group"
+                disabled={isLoading}
+                style={{
+                  background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                  boxShadow: '0 4px 15px rgba(193, 154, 107, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(230, 201, 168, 0.3)'
+                }}
+              >
+                <div 
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{
+                    background: 'linear-gradient(135deg, #D4AF87 0%, #C19A6B 100%)'
+                  }}
+                ></div>
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2 text-lg relative z-10" style={{
+                    color: '#FFFFFF',
+                    textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)'
+                  }}>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    가입 중...
+                  </span>
+                ) : (
+                  <span className="text-lg relative z-10 tracking-wide" style={{
+                    color: '#FFFFFF',
+                    textShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+                    fontWeight: '700',
+                    letterSpacing: '0.05em'
+                  }}>
+                    회원가입
+                  </span>
+                )}
+              </button>
+
+              <div className="text-center">
+                <p className="text-lg text-gray-400" style={{ fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif' }}>
+                  이미 계정이 있으신가요?{' '}
+                  <button
+                    type="button"
+                    onClick={onSwitchToLogin}
+                    className="font-semibold underline transition-colors"
+                    style={{ 
+                      fontFamily: '"Pretendard Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+                      color: '#E6C9A8'
+                    }}
+                  >
+                    로그인
+                  </button>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Side - Signup Form */}
+          <div className="w-full md:w-3/5 p-10 overflow-y-auto" style={{
+            background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.95) 0%, rgba(15, 15, 25, 0.95) 100%)'
+          }}>
+            <form id="signup-form" onSubmit={handleRegister} className="space-y-8">
+              {error && (
+                <Alert variant="destructive" className="py-3 rounded-lg border" style={{
+                  background: 'rgba(220, 38, 38, 0.1)',
+                  borderColor: 'rgba(220, 38, 38, 0.3)'
+                }}>
+                  <AlertDescription className="text-red-400 text-lg">{error}</AlertDescription>
+                </Alert>
+              )}
+
+              {/* 기본 정보 섹션 */}
+              <div className="space-y-5">
+                <h4 className="text-lg font-bold mb-4" style={{
+                  color: '#E6C9A8',
+                  textShadow: '0 2px 4px rgba(193, 154, 107, 0.3)'
+                }}>기본 정보</h4>
+                
+                {/* 휴대폰번호 */}
+                <div>
+                  <Input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    placeholder="휴대폰번호(숫자만, 띄어쓰기, 콤마 금지)"
+                    value={registerData.phone}
+                    onChange={handleRegisterChange}
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
+                    disabled={isLoading}
+                  />
+                </div>
+
+                {/* 추천인 아이디 */}
+                <div>
+                  <Input
+                    id="referrer_username"
+                    name="referrer_username"
+                    type="text"
+                    placeholder="추천인 아이디 *"
+                    value={registerData.referrer_username}
+                    onChange={handleRegisterChange}
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* 계정 정보 섹션 */}
+              <div className="space-y-5">
+                <h4 className="text-lg font-bold mb-4" style={{
+                  color: '#E6C9A8',
+                  textShadow: '0 2px 4px rgba(193, 154, 107, 0.3)'
+                }}>계정 정보</h4>
+                
+                {/* 아이디 */}
+                <div>
+                  <Input
+                    id="username"
+                    name="username"
+                    type="text"
+                    placeholder="아이디 (영문+숫자 포함 5자 이상) *"
+                    value={registerData.username}
+                    onChange={handleRegisterChange}
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+
+                {/* 닉네임 */}
+                <div>
+                  <div className="flex gap-2">
+                    <Input
+                      id="nickname"
+                      name="nickname"
+                      type="text"
+                      placeholder="닉네임 (한글 또는 영문만 이상) *"
+                      value={registerData.nickname}
+                      onChange={handleRegisterChange}
+                      className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 flex-1 transition-all duration-300 focus:scale-[1.02]"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                      }}
+                      disabled={isLoading}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => checkNickname(registerData.nickname)}
+                      className="shrink-0 h-12 px-6 rounded-lg text-lg font-semibold transition-all duration-300 hover:scale-105"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        color: '#E6C9A8',
+                        border: '1px solid rgba(193, 154, 107, 0.3)'
+                      }}
+                      disabled={isLoading || !registerData.nickname.trim()}
+                    >
+                      중복 확인
+                    </button>
+                  </div>
+                  {nicknameCheck.status !== 'idle' && (
+                    <div className={`flex items-center gap-1.5 text-base mt-2 ${ 
+                      nicknameCheck.status === 'available' ? 'text-green-400' : 
+                      nicknameCheck.status === 'unavailable' ? 'text-red-400' : 'text-gray-400'
+                    }`}>
+                      {nicknameCheck.status === 'available' && <CheckCircle className="w-4 h-4" />}
+                      {nicknameCheck.status === 'unavailable' && <XCircle className="w-4 h-4" />}
+                      {nicknameCheck.message}
+                    </div>
+                  )}
+                </div>
+
+                {/* 비밀번호 */}
+                <div>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="비밀번호 (6~20자 영문 대소문자 숫자 특수문자 사용가능) *"
+                      value={registerData.password}
+                      onChange={handleRegisterChange}
+                      className="pr-12 h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                      }}
+                      disabled={isLoading}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                      style={{
+                        color: '#A67C52'
+                      }}
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 비밀번호 확인 */}
+                <div>
+                  <Input
+                    id="password_confirm"
+                    name="password_confirm"
+                    type="password"
+                    placeholder="비밀번호 확인 *"
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+
+                {/* 출금 비밀번호 & 포인트전환 비밀번호 (2열) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    id="withdrawal_password"
+                    name="withdrawal_password"
+                    type="password"
+                    placeholder="출금 비밀번호 (4자리) *"
+                    value={registerData.withdrawal_password}
+                    onChange={handleRegisterChange}
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
+                    disabled={isLoading}
+                    required
+                  />
+                  <Input
+                    id="point_conversion_password"
+                    name="point_conversion_password"
+                    type="password"
+                    placeholder="포인트전환 비밀번호 (4자리) *"
+                    value={registerData.point_conversion_password}
+                    onChange={handleRegisterChange}
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
+                    disabled={isLoading}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* 계좌 정보 섹션 */}
+              <div className="space-y-5">
+                <h4 className="text-lg font-bold mb-4" style={{
+                  color: '#E6C9A8',
+                  textShadow: '0 2px 4px rgba(193, 154, 107, 0.3)'
+                }}>계좌 정보</h4>
+                
+                {/* 계좌번호 */}
+                <div>
+                  <Input
+                    id="bank_account"
+                    name="bank_account"
+                    type="text"
+                    placeholder="계좌번호"
+                    value={registerData.bank_account}
+                    onChange={handleRegisterChange}
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
+                    disabled={isLoading}
+                  />
+                </div>
+
+                {/* 계좌은행 */}
+                <div>
+                  <Select
+                    value={registerData.bank_name}
+                    onValueChange={(value) => {
+                      setRegisterData(prev => ({ ...prev, bank_name: value }));
+                      if (error) setError(null);
+                    }}
+                    disabled={isLoading}
+                  >
+                    <SelectTrigger className="h-12 text-lg rounded-lg w-auto inline-flex min-w-[200px] text-white transition-all duration-300 focus:scale-[1.02]" style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}>
+                      <SelectValue placeholder="계좌은행" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-lg" style={{
+                      background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.98) 0%, rgba(15, 15, 25, 0.98) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)'
+                    }}>
+                      {banks.map((bank) => (
+                        <SelectItem 
+                          key={bank.id} 
+                          value={bank.name_ko}
+                          className="text-white hover:text-white rounded-lg text-lg"
+                          style={{
+                            background: 'transparent'
+                          }}
+                        >
+                          {bank.name_ko}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 예금주 */}
+                <div>
+                  <Input
+                    id="bank_holder"
+                    name="bank_holder"
+                    type="text"
+                    placeholder="예금주"
+                    value={registerData.bank_holder}
+                    onChange={handleRegisterChange}
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
+                    disabled={isLoading}
+                  />
+                </div>
+
+                {/* 계좌번호(숫자만 입력) */}
+                <div>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="text"
+                    placeholder="계좌번호(숫자만 입력)"
+                    value={registerData.email}
+                    onChange={handleRegisterChange}
+                    className="h-12 text-lg rounded-lg text-white placeholder:text-gray-500 transition-all duration-300 focus:scale-[1.02]"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
+                      borderColor: 'rgba(193, 154, 107, 0.3)',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                    }}
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

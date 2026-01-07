@@ -1,0 +1,26 @@
+                                    <div className="flex items-center gap-3">
+                                      <Button
+                                        variant="outline"
+                                        onClick={() => handleProviderGames(provider.id, 'allow')}
+                                        className="px-5 py-2.5 text-base font-bold bg-emerald-900/30 border-2 border-emerald-600 text-emerald-300 hover:bg-emerald-900/50 hover:border-emerald-500"
+                                      >
+                                        <Eye className="w-5 h-5 mr-2" />
+                                        게임 허용
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        onClick={() => handleProviderGames(provider.id, 'maintenance')}
+                                        className="px-5 py-2.5 text-base font-bold bg-orange-900/30 border-2 border-orange-600 text-orange-300 hover:bg-orange-900/50 hover:border-orange-500"
+                                      >
+                                        <AlertTriangle className="w-5 h-5 mr-2" />
+                                        게임 점검
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        onClick={() => handleProviderGames(provider.id, 'block')}
+                                        className="px-5 py-2.5 text-base font-bold bg-red-900/30 border-2 border-red-600 text-red-300 hover:bg-red-900/50 hover:border-red-500"
+                                      >
+                                        <EyeOff className="w-5 h-5 mr-2" />
+                                        게임 차단
+                                      </Button>
+                                    </div>

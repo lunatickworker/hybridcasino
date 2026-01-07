@@ -1,0 +1,58 @@
+      } else if (user.level === 2) {
+        // ✅ Lv2: Optimistic Update - is_visible 일괄 업데이트 (UI만)
+        const originalGames = [...games];
+        const isVisible = status === "visible";
+        
+        setGames(prev => prev.map(g => 
+          selectedGameIds.has(g.id) ? { ...g, is_visible: isVisible } : g
+        ));
+        
+        console.log(`🔄 [Lv2] 일괄 is_visible 업데이트 시작...`);
+        
+        try {
+          const selectedGames = games.filter(g => selectedGameIds.has(g.id));
+          
+          for (const game of selectedGames) {
+            await gameApi.updateGameVisibility(game.id, isVisible, game.api_type);
+          }
+          
+          console.log(`✅ [Lv2] 일괄 is_visible 업데이트 완료`);
+          
+          const statusText = isVisible ? "노출" : "숨김";
+          toast.success(`${selectedGameIds.size}개 게임 상태가 ${statusText}로 변경되었습니다.`);
+        } catch (error) {
+          // ❌ 실패 시 롤백
+          console.error("❌ 일괄 상태 업데이트 실패:", error);
+          setGames(originalGames);
+          toast.error("일괄 상태 변경에 실패했습니다.");
+        }
+      } else {
+        // ✅ Lv3~Lv7: partner_game_access 테이블 사용 (블랙리스트 방식)
+        console.log(`🔄 [Lv${user.level}] gameApi.updatePartnerGameAccess 일괄 호출 시작...`);
+        
+        const isVisible = status === "visible";
+        const selectedGames = games.filter(g => selectedGameIds.has(g.id));
+        
+        for (const game of selectedGames) {
+          await gameApi.updatePartnerGameAccess(
+            user.id,
+            game.id,
+            game.api_type,
+            game.provider_id,
+            isVisible
+          );
+        }
+        
+        console.log(`✅ [Lv${user.level}] gameApi.updatePartnerGameAccess 일괄 완료`);
+
+        const statusText = status === "visible" ? "노출" : "숨김";
+        toast.success(`${selectedGameIds.size}개 게임 상태가 ${statusText}로 변경되었습니다.`);
+        
+        // ✅ 차단 목록 다시 로드
+        const [blockedProviders, blockedGames] = await Promise.all([
+          gameApi.getPartnerBlockedProviders(user.id),
+          gameApi.getPartnerBlockedGames(user.id)
+        ]);
+        setBlockedProviderIds(blockedProviders);
+        setBlockedGameIds(blockedGames);
+      }
