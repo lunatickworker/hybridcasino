@@ -121,9 +121,9 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   
   // ✅ Realtime 구독: partner_game_access 변경 감지
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !user?.referrer_id) return;
 
-    console.log('🔔 [BenzSlot] Realtime 구독 시작');
+    console.log('🔔 [BenzSlot] Realtime 구독 시작 - partner_id:', user.referrer_id);
     
     const channel = supabase
       .channel('benz_slot_game_access')
@@ -132,11 +132,20 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
         {
           event: '*', // INSERT, UPDATE, DELETE 모두 감지
           schema: 'public',
-          table: 'partner_game_access'
+          table: 'partner_game_access',
+          filter: `partner_id=eq.${user.referrer_id}` // ✅ 현재 사용자 파트너만 필터링
         },
         (payload) => {
-          console.log('🎮 [BenzSlot] 게임 노출 설정 변경 감지:', payload.eventType);
-          loadProviders(); // 즉시 갱신
+          console.log('🎮 [BenzSlot] 게임 노출 설정 변경 감지:', payload.eventType, payload);
+          
+          // 제공사 목록 새로고침
+          loadProviders();
+          
+          // 🆕 현재 열려있는 게임 목록도 새로고침
+          if (selectedProviderRef.current) {
+            console.log('🔄 [BenzSlot] 게임 목록 새로고침:', selectedProviderRef.current.name_ko);
+            loadGames(selectedProviderRef.current);
+          }
         }
       )
       .subscribe();
@@ -145,7 +154,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       console.log('🔕 [BenzSlot] Realtime 구독 해제');
       supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [user?.id, user?.referrer_id]);
   
   // 🆕 providers 로드 완료 후 localStorage에서 선택한 provider 자동 로드
   useEffect(() => {
@@ -193,8 +202,29 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       const allProviders = await gameApi.getProviders({ type: 'slot' });
       const providersData = await filterVisibleProviders(allProviders, user.id);
       
-      console.log('🎰 [BenzSlot] API 응답 게임사:', providersData.length, '개');
-      console.log('🎰 [BenzSlot] 게임사 상세:', providersData.map(p => ({
+      // 🔥 카지노 게임사 제외 필터링 (DB에 type이 잘못 저장된 경우 대비)
+      const CASINO_PROVIDERS = [
+        'evolution', 'ezugi', 'microgaming', 'asia', 'sa',
+        'dream', 'playace', 'pragmatic live', 'sexy',
+        '에볼루션', '이주기', '마이크로', '아시아', '드림', 
+        '플레이', '프라그마틱 라이브', '섹시'
+      ];
+      
+      // 슬롯 페이지용: 카지노 게임사 제외
+      const slotOnlyProviders = providersData.filter(p => {
+        const name = (p.name_ko || p.name || '').toLowerCase();
+        
+        // Pragmatic의 경우 Live가 아닌 것만 슬롯
+        if (name.includes('pragmatic') || name.includes('프라그마틱')) {
+          return !(name.includes('live') || name.includes('라이브'));
+        }
+        
+        // 카지노 게임사는 제외
+        return !CASINO_PROVIDERS.some(casino => name.includes(casino.toLowerCase()));
+      });
+      
+      console.log('🎰 [BenzSlot] API 응답 게임사:', slotOnlyProviders.length, '개');
+      console.log('🎰 [BenzSlot] 게임사 상세:', slotOnlyProviders.map(p => ({
         id: p.id,
         name: p.name,
         name_ko: p.name_ko,
@@ -209,23 +239,22 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       const normalizeProviderName = (provider: GameProvider): string => {
         const name = (provider.name_ko || provider.name || '').toLowerCase();
         
-        // 프라그마틱 관련 통합
+        // 프라그마틱 관련 통합 (슬롯만)
         if (name.includes('pragmatic') || name.includes('프라그마틱')) {
           if (name.includes('slot') || name.includes('슬롯')) {
             return 'pragmatic_slot';
           }
-          if (name.includes('live') || name.includes('라이브')) {
-            return 'pragmatic_live';
+          // Live가 아니면 슬롯으로 간주
+          if (!(name.includes('live') || name.includes('라이브'))) {
+            return 'pragmatic_slot';
           }
-          // 기본 프라그마틱
-          return 'pragmatic_slot';
         }
         
         // 다른 게임사들은 name_ko 또는 name 사용
         return provider.name_ko || provider.name;
       };
       
-      for (const provider of providersData) {
+      for (const provider of slotOnlyProviders) {
         const key = normalizeProviderName(provider);
         
         if (providerMap.has(key)) {
@@ -367,10 +396,9 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       let allGames: Game[] = [];
 
       for (const providerId of providerIds) {
-        const gamesData = await gameApi.getUserVisibleGames({
+        const gamesData = await gameApi.getGames({
           type: 'slot',
-          provider_id: providerId,
-          userId: user.id
+          provider_id: providerId
         });
 
         if (gamesData && gamesData.length > 0) {
@@ -378,7 +406,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
         }
       }
 
-      // ⭐ 점검중 상태 추가 (benzGameVisibility 사용)
+      // ⭐ benzGameVisibility로 매장+사용자 차단 및 점검 상태 처리
       const gamesWithStatus = await filterVisibleGames(allGames, user.id);
       
       setGames(gamesWithStatus);
@@ -453,10 +481,13 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       // 🆕 디버깅 로그: 활성 세션 정보 출력
       console.log('🔍 [활성 세션 체크]', activeSession);
       
-      // ⭐ 0. 세션 종료 중(ending)인지 체크 (자동 대기 처리)
+      // ⭐ 0. 세션 종료 중(ending)인지 체크 - 게임 실행 차단
       if (activeSession?.isActive && activeSession.status === 'ending') {
-        console.log('⏳ [게임 실행] 이전 세션 종료 중... (자동 대기 처리)');
-        toast.info('이전 게임 종료 중입니다. 잠시만 기다려주세요...', { duration: 3000 });
+        console.log('⏳ [게임 실행 차단] 이전 세션 종료 중...');
+        toast.warning('이전 게임 종료 중입니다. 잠시 후 다시 시도해주세요.', { duration: 3000 });
+        setLaunchingGameId(null);
+        setIsProcessing(false);
+        return;
       }
       
       // ⭐ 1. 다른 API 게임이 실행 중인지 체크
@@ -852,13 +883,12 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                   className="cursor-pointer group relative"
                   onClick={() => handleProviderClick(provider)}
                 > 
-                  {provider.logo_url && (
-                    <img
-                      src={provider.logo_url}
-                      alt={provider.name_ko || provider.name}
-                      className="w-full h-full object-cover"
-                    />
-                  )}
+                  {/* ✅ logo_url이 있으면 이미지 표시, 없으면 fallback 이미지 표시 */}
+                  <img
+                    src={provider.logo_url || getLogoUrlByProviderName(provider) || getRandomSlotImage()}
+                    alt={provider.name_ko || provider.name}
+                    className="w-full h-full object-cover"
+                  />
                   {/* 🚫 점검중 오버레이 */}
                   {provider.status === 'maintenance' && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">

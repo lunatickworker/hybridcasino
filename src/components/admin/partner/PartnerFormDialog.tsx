@@ -8,7 +8,7 @@ import { Label } from "../../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Badge } from "../../ui/badge";
 import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle } from "../AdminDialog";
-import { UserPlus, Building2, AlertCircle } from "lucide-react";
+import { UserPlus, Building2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { Partner } from "./types";
 import { useLanguage } from "../../../contexts/LanguageContext";
 import { toast } from "sonner@2.0.3";
@@ -53,6 +53,8 @@ export function PartnerFormDialog({
 }: PartnerFormDialogProps) {
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
 
   // 파트너 타입 목록
   const partnerTypes = [
@@ -80,9 +82,8 @@ export function PartnerFormDialog({
     parent_id: "",
     selected_parent_id: "", // Lv2가 Lv3~Lv6 생성 시 소속 파트너 선택
     casino_rolling_commission: 0,
-    casino_losing_commission: 0,
+    losing_commission: 0, // 통합된 루징 커미션 (카지노/슬롯 공통)
     slot_rolling_commission: 0,
-    slot_losing_commission: 0,
     withdrawal_fee: 0,
   });
 
@@ -116,9 +117,8 @@ export function PartnerFormDialog({
       parent_id: partner.parent_id || "",
       selected_parent_id: "",
       casino_rolling_commission: partner.casino_rolling_commission || 0,
-      casino_losing_commission: partner.casino_losing_commission || 0,
+      losing_commission: partner.casino_losing_commission || 0, // 통합된 루징 커미션 (카지노/슬롯 공통)
       slot_rolling_commission: partner.slot_rolling_commission || 0,
-      slot_losing_commission: partner.slot_losing_commission || 0,
       withdrawal_fee: partner.withdrawal_fee || 0,
     });
   };
@@ -172,9 +172,8 @@ export function PartnerFormDialog({
       parent_id: "",
       selected_parent_id: "",
       casino_rolling_commission: 0,
-      casino_losing_commission: 0,
+      losing_commission: 0, // 통합된 루징 커미션 (카지노/슬롯 공통)
       slot_rolling_commission: 0,
-      slot_losing_commission: 0,
       withdrawal_fee: 0,
     });
   };
@@ -224,11 +223,11 @@ export function PartnerFormDialog({
           status: 'active',
           balance: 0,
           casino_rolling_commission: formData.casino_rolling_commission || 0,
-          casino_losing_commission: formData.casino_losing_commission || 0,
+          casino_losing_commission: formData.losing_commission || 0, // 통합된 루징 커미션 (카지노/슬롯 공통)
           slot_rolling_commission: formData.slot_rolling_commission || 0,
-          slot_losing_commission: formData.slot_losing_commission || 0,
+          slot_losing_commission: formData.losing_commission || 0, // 통합된 루징 커미션 (카지노/슬롯 공통)
           commission_rolling: formData.casino_rolling_commission || 0,
-          commission_losing: formData.casino_losing_commission || 0,
+          commission_losing: formData.losing_commission || 0, // 통합된 루징 커미션 (카지노/슬롯 공통)
           withdrawal_fee: formData.withdrawal_fee || 0,
           invest_balance: 0,
           oroplay_balance: 0,
@@ -271,11 +270,11 @@ export function PartnerFormDialog({
         const updateData: any = {
           nickname: formData.nickname,
           casino_rolling_commission: formData.casino_rolling_commission,
-          casino_losing_commission: formData.casino_losing_commission,
+          casino_losing_commission: formData.losing_commission, // 통합된 루징 커미션 (카지노/슬롯 공통)
           slot_rolling_commission: formData.slot_rolling_commission,
-          slot_losing_commission: formData.slot_losing_commission,
+          slot_losing_commission: formData.losing_commission, // 통합된 루징 커미션 (카지노/슬롯 공통)
           commission_rolling: formData.casino_rolling_commission,
-          commission_losing: formData.casino_losing_commission,
+          commission_losing: formData.losing_commission, // 통합된 루징 커미션 (카지노/슬롯 공통)
           withdrawal_fee: formData.withdrawal_fee,
           updated_at: new Date().toISOString(),
         };
@@ -359,34 +358,56 @@ export function PartnerFormDialog({
               <Label htmlFor="password" className="text-base">
                 {mode === 'create' ? (t.partnerCreation?.password || '비밀번호') : '비밀번호 변경'}
               </Label>
-              <Input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
-                placeholder={mode === 'create' 
-                  ? (t.partnerCreation?.passwordPlaceholder || '비밀번호를 입력하세요')
-                  : '변경할 비밀번호를 입력하세요 (변경 시에만)'
-                }
-                className="h-11 text-base"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  placeholder={mode === 'create' 
+                    ? (t.partnerCreation?.passwordPlaceholder || '비밀번호를 입력하세요')
+                    : '변경할 비밀번호를 입력하세요 (변경 시에만)'
+                  }
+                  className="h-11 text-base pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-11 px-3 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-2 col-span-2">
               <Label htmlFor="password_confirm" className="text-base">
                 {mode === 'create' ? (t.partnerCreation?.passwordConfirm || '비밀번호 확인') : '비밀번호 확인'}
               </Label>
-              <Input
-                id="password_confirm"
-                type="password"
-                value={formData.password_confirm}
-                onChange={(e) => handleInputChange('password_confirm', e.target.value)}
-                placeholder={mode === 'create' 
-                  ? (t.partnerCreation?.passwordConfirmPlaceholder || '비밀번호를 다시 입력하세요')
-                  : '변경할 비밀번호를 다시 입력하세요 (변경 시에만)'
-                }
-                className="h-11 text-base"
-              />
+              <div className="relative">
+                <Input
+                  id="password_confirm"
+                  type={showPasswordConfirm ? "text" : "password"}
+                  value={formData.password_confirm}
+                  onChange={(e) => handleInputChange('password_confirm', e.target.value)}
+                  placeholder={mode === 'create' 
+                    ? (t.partnerCreation?.passwordConfirmPlaceholder || '비밀번호를 다시 입력하세요')
+                    : '변경할 비밀번호를 다시 입력하세요 (변경 시에만)'
+                  }
+                  className="h-11 text-base pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-11 px-3 hover:bg-transparent"
+                  onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                >
+                  {showPasswordConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
 
             {/* 파트너 등급 (생성시에만) */}
@@ -517,27 +538,27 @@ export function PartnerFormDialog({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="casino_losing_commission" className="text-sm text-muted-foreground">카지노 루징 커미션 (%)</Label>
+                  <Label htmlFor="losing_commission" className="text-sm text-muted-foreground">루징 커미션 (%) - 카지노/슬롯 공통</Label>
                   <Input
-                    id="casino_losing_commission"
+                    id="losing_commission"
                     type="number"
                     step="0.1"
-                    value={formData.casino_losing_commission === 0 ? '' : formData.casino_losing_commission}
+                    value={formData.losing_commission === 0 ? '' : formData.losing_commission}
                     onChange={(e) => {
                       if (e.target.value === '') {
-                        handleInputChange('casino_losing_commission', 0);
+                        handleInputChange('losing_commission', 0);
                         return;
                       }
                       const value = parseFloat(e.target.value);
                       if (!isNaN(value)) {
-                        handleInputChange('casino_losing_commission', value);
+                        handleInputChange('losing_commission', value);
                       }
                     }}
                     onBlur={(e) => {
                       let value = parseFloat(e.target.value);
                       if (isNaN(value) || value < 0) value = 0;
                       if (value > 100) value = 100;
-                      handleInputChange('casino_losing_commission', value);
+                      handleInputChange('losing_commission', value);
                     }}
                     placeholder="10"
                     className="h-11 text-base"
@@ -572,34 +593,6 @@ export function PartnerFormDialog({
                       if (isNaN(value) || value < 0) value = 0;
                       if (value > 100) value = 100;
                       handleInputChange('slot_rolling_commission', value);
-                    }}
-                    placeholder="10"
-                    className="h-11 text-base"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="slot_losing_commission" className="text-sm text-muted-foreground">슬롯 루징 커미션 (%)</Label>
-                  <Input
-                    id="slot_losing_commission"
-                    type="number"
-                    step="0.1"
-                    value={formData.slot_losing_commission === 0 ? '' : formData.slot_losing_commission}
-                    onChange={(e) => {
-                      if (e.target.value === '') {
-                        handleInputChange('slot_losing_commission', 0);
-                        return;
-                      }
-                      const value = parseFloat(e.target.value);
-                      if (!isNaN(value)) {
-                        handleInputChange('slot_losing_commission', value);
-                      }
-                    }}
-                    onBlur={(e) => {
-                      let value = parseFloat(e.target.value);
-                      if (isNaN(value) || value < 0) value = 0;
-                      if (value > 100) value = 100;
-                      handleInputChange('slot_losing_commission', value);
                     }}
                     placeholder="10"
                     className="h-11 text-base"

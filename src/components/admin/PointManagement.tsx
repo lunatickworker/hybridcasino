@@ -184,18 +184,18 @@ export function PointManagement() {
   const quickAmounts = [10, 30, 50, 70, 100, 200, 300, 400];
   
   const addQuickAmount = (amount: number) => {
-    const currentAmount = parseFloat(pointAmount) || 0;
-    setPointAmount((currentAmount + amount).toString());
+    const currentAmount = parseFloat(pointAmount.replace(/,/g, '') || '0');
+    setPointAmount((currentAmount + amount).toLocaleString());
   };
 
   const addQuickConvertAmount = (amount: number) => {
-    const currentAmount = parseFloat(convertAmount) || 0;
-    setConvertAmount((currentAmount + amount).toString());
+    const currentAmount = parseFloat(convertAmount.replace(/,/g, '') || '0');
+    setConvertAmount((currentAmount + amount).toLocaleString());
   };
 
   const addQuickRecoverAmount = (amount: number) => {
-    const currentAmount = parseFloat(recoverAmount) || 0;
-    setRecoverAmount((currentAmount + amount).toString());
+    const currentAmount = parseFloat(recoverAmount.replace(/,/g, '') || '0');
+    setRecoverAmount((currentAmount + amount).toLocaleString());
   };
 
   const clearPointAmount = () => {
@@ -213,12 +213,12 @@ export function PointManagement() {
   // 포인트 지급 (외부 API 호출 없음 - 레벨별 차등 처리)
   const givePoints = async () => {
     try {
-      if (!selectedUserId || !pointAmount || parseFloat(pointAmount) <= 0) {
+      if (!selectedUserId || !pointAmount || parseFloat(pointAmount.replace(/,/g, '') || '0') <= 0) {
         toast.error(t.pointManagement.enterValidAmount);
         return;
       }
 
-      const amount = parseFloat(pointAmount);
+      const amount = parseFloat(pointAmount.replace(/,/g, '') || '0');
       const adminLevel = authState.user?.level || 1;
 
       // Lv1은 포인트 지급 불가
@@ -482,13 +482,13 @@ export function PointManagement() {
   // 포인트 회수 (외부 API 호출 없음 - 레벨별 차등 처리)
   const recoverPoints = async () => {
     try {
-      if (!selectedUserId || !recoverAmount || parseFloat(recoverAmount) <= 0) {
+      if (!selectedUserId || !recoverAmount || parseFloat(recoverAmount.replace(/,/g, '') || '0') <= 0) {
         toast.error('사용자와 유효한 포인트 금액을 입력해주세요.');
         return;
       }
 
       setLoading(true);
-      const amount = parseFloat(recoverAmount);
+      const amount = parseFloat(recoverAmount.replace(/,/g, '') || '0');
       const adminLevel = authState.user?.level || 1;
 
       // 현재 관리자 정보 조회
@@ -973,13 +973,13 @@ export function PointManagement() {
   // 포인트를 잔고로 전환
   const convertPointsToBalance = async () => {
     try {
-      if (!selectedUserId || !convertAmount || parseFloat(convertAmount) <= 0) {
+      if (!selectedUserId || !convertAmount || parseFloat(convertAmount.replace(/,/g, '') || '0') <= 0) {
         toast.error('사용자와 유효한 전환 금액을 입력해주세요.');
         return;
       }
 
       setLoading(true);
-      const amount = parseFloat(convertAmount);
+      const amount = parseFloat(convertAmount.replace(/,/g, '') || '0');
 
       // 현재 사용자 정보 조회
       const { data: userData, error: userError } = await supabase
@@ -1321,9 +1321,16 @@ export function PointManagement() {
                   </div>
                   <Input
                     id="amount"
-                    type="number"
+                    type="text"
                     value={pointAmount}
-                    onChange={(e) => setPointAmount(e.target.value)}
+                    onChange={(e) => {
+                      const numericValue = e.target.value.replace(/[^\d]/g, '');
+                      if (numericValue === '') {
+                        setPointAmount('');
+                      } else {
+                        setPointAmount(parseInt(numericValue).toLocaleString());
+                      }
+                    }}
                     className="input-premium h-14 text-lg"
                     placeholder={t.pointManagement.enterGiveAmount}
                   />
@@ -1467,9 +1474,16 @@ export function PointManagement() {
                   </div>
                   <Input
                     id="recover_amount"
-                    type="number"
+                    type="text"
                     value={recoverAmount}
-                    onChange={(e) => setRecoverAmount(e.target.value)}
+                    onChange={(e) => {
+                      const numericValue = e.target.value.replace(/[^\d]/g, '');
+                      if (numericValue === '') {
+                        setRecoverAmount('');
+                      } else {
+                        setRecoverAmount(parseInt(numericValue).toLocaleString());
+                      }
+                    }}
                     className="input-premium h-14 text-lg"
                     placeholder={t.pointManagement.enterRecoverAmount}
                   />
@@ -1613,9 +1627,16 @@ export function PointManagement() {
                   </div>
                   <Input
                     id="convert_amount"
-                    type="number"
+                    type="text"
                     value={convertAmount}
-                    onChange={(e) => setConvertAmount(e.target.value)}
+                    onChange={(e) => {
+                      const numericValue = e.target.value.replace(/[^\d]/g, '');
+                      if (numericValue === '') {
+                        setConvertAmount('');
+                      } else {
+                        setConvertAmount(parseInt(numericValue).toLocaleString());
+                      }
+                    }}
                     className="input-premium h-14 text-lg"
                     placeholder={t.pointManagement.enterConvertAmount}
                   />

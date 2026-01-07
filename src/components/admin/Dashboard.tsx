@@ -298,7 +298,7 @@ export function Dashboard({ user }: DashboardProps) {
         const { data: depositData } = await supabase
           .from('transactions')
           .select('amount, created_at')
-          .in('transaction_type', ['deposit', 'admin_deposit'])
+          .in('transaction_type', ['deposit', 'partner_deposit'])
           .in('status', ['approved', 'completed'])
           .in('user_id', directUserIds)
           .gte('created_at', todayStartISO);
@@ -312,7 +312,7 @@ export function Dashboard({ user }: DashboardProps) {
         const { data: withdrawalData } = await supabase
           .from('transactions')
           .select('amount, created_at')
-          .in('transaction_type', ['withdrawal', 'admin_withdrawal'])
+          .in('transaction_type', ['withdrawal', 'partner_withdrawal'])
           .in('status', ['approved', 'completed'])
           .in('user_id', directUserIds)
           .gte('created_at', todayStartISO);
@@ -326,7 +326,7 @@ export function Dashboard({ user }: DashboardProps) {
         const { data: depositData } = await supabase
           .from('transactions')
           .select('amount, created_at')
-          .in('transaction_type', ['deposit', 'admin_deposit'])
+          .in('transaction_type', ['deposit', 'partner_deposit'])
           .in('status', ['approved', 'completed'])
           .in('user_id', subPartnerUserIds)
           .gte('created_at', todayStartISO);
@@ -340,7 +340,7 @@ export function Dashboard({ user }: DashboardProps) {
         const { data: withdrawalData } = await supabase
           .from('transactions')
           .select('amount, created_at')
-          .in('transaction_type', ['withdrawal', 'admin_withdrawal'])
+          .in('transaction_type', ['withdrawal', 'partner_withdrawal'])
           .in('status', ['approved', 'completed'])
           .in('user_id', subPartnerUserIds)
           .gte('created_at', todayStartISO);

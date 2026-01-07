@@ -1060,7 +1060,7 @@ export async function syncHonorApiGames(): Promise<{
               name: vendorData.name,
               vendor_code: vendorName,
               type: vendorType,
-              status: 'visible',
+              status: 'hidden',
               is_visible: true
             };
             
@@ -1152,7 +1152,7 @@ export async function syncHonorApiGames(): Promise<{
                   name_ko: game.langs?.ko || game.title, // ✅ 한국어 이름!
                   vendor_code: vendorName,
                   type: gameType,
-                  status: 'visible', // ✅ GMS 어드민 기본 노출
+                  status: 'hidden', // ✅ 기본값 hidden으로 변경
                   is_visible: true, // ✅ GMS 어드민 기본 노출
                   image_url: game.thumbnail,
                   game_code: String(game.id),

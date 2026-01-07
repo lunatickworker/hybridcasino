@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { getUserBalanceWithConfig } from "../../lib/investApi";
 import { publicAnonKey } from "../../utils/supabase";
+import { syncBalanceOnSessionEnd } from "../../lib/gameApi";
 
 interface BenzLayoutProps {
   user: any;
@@ -388,7 +389,6 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         syncingSessionsRef.current.add(sessionId);
 
         try {
-          const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
           await syncBalanceOnSessionEnd(session.user_id, session.api_type);
         } finally {
           syncingSessionsRef.current.delete(sessionId);
@@ -470,71 +470,27 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   }, [user?.id]);
 
   // ==========================================================================
-  // 1분 30초 비활성 시 자동 로그아웃 (⚠️ 임시 비활성화)
+  // 3분 후 자동 로그아웃
   // ==========================================================================
-  // useEffect(() => {
-  //   if (!user?.id) return;
+  useEffect(() => {
+    if (!user?.id) return;
 
-  //   console.log('⏰ [Benz 자동 로그아웃] 1분 30초 타이머 시작');
+    console.log('⏰ [Benz 자동 로그아웃] 3분 타이머 시작');
 
-  //   // 1분 30초 = 90초 = 90000ms
-  //   inactivityTimerRef.current = setTimeout(() => {
-  //     console.log('⏰ [Benz 자동 로그아웃] 1분 30초 경과 - 로그아웃 실행');
-  //     toast.info('세션이 만료되었습니다.');
-  //     onLogout();
-  //   }, 90000);
+    // 3분 = 180초 = 180000ms
+    inactivityTimerRef.current = setTimeout(() => {
+      console.log('⏰ [Benz 자동 로그아웃] 3분 경과 - 로그아웃 실행');
+      toast.info('세션이 만료되었습니다.');
+      onLogout();
+    }, 180000);
 
-  //   return () => {
-  //     if (inactivityTimerRef.current) {
-  //       console.log('⏰ [Benz 자동 로그아웃] 타이머 정리');
-  //       clearTimeout(inactivityTimerRef.current);
-  //     }
-  //   };
-  // }, [user?.id, onLogout]);
-
-  // ==========================================================================
-  // 30분 무활동 시 자동 로그아웃 (⚠️ 임시 비활성화)
-  // ==========================================================================
-  // useEffect(() => {
-  //   if (!user?.id) return;
-
-  //   const checkAutoLogout = async () => {
-  //     try {
-  //       const { data: userData, error } = await supabase
-  //         .from('users')
-  //         .select('balance_sync_started_at, is_online')
-  //         .eq('id', user.id)
-  //         .single();
-
-  //       if (error || !userData?.is_online || !userData.balance_sync_started_at) {
-  //         return;
-  //       }
-
-  //       const startedAt = new Date(userData.balance_sync_started_at);
-  //       const now = new Date();
-  //       const elapsedMinutes = (now.getTime() - startedAt.getTime()) / 1000 / 60;
-
-  //       if (elapsedMinutes >= 30) {
-  //         await supabase
-  //           .from('users')
-  //           .update({ is_online: false })
-  //           .eq('id', user.id);
-
-  //         onLogout();
-  //       }
-  //     } catch (err) {
-  //       console.error('❌ [Benz 자동 로그아웃 체크 오류]:', err);
-  //     }
-  //   };
-
-  //   autoLogoutTimerRef.current = setInterval(checkAutoLogout, 10000);
-
-  //   return () => {
-  //     if (autoLogoutTimerRef.current) {
-  //       clearInterval(autoLogoutTimerRef.current);
-  //     }
-  //   };
-  // }, [user?.id, onLogout]);
+    return () => {
+      if (inactivityTimerRef.current) {
+        console.log('⏰ [Benz 자동 로그아웃] 타이머 정리');
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, [user?.id, onLogout]);
 
   // ==========================================================================
   // 온라인 상태 모니터링 (Realtime)

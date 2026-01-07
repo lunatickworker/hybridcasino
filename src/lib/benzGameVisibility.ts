@@ -40,8 +40,7 @@ async function getStoreBlockedItems(partnerId: string) {
     .from('partner_game_access')
     .select('*')
     .eq('partner_id', partnerId)
-    .is('user_id', null) // 매장 레벨 설정 (user_id가 NULL)
-    .or('is_allowed.eq.false,game_status.eq.maintenance'); // 차단 또는 점검중
+    .is('user_id', null); // 매장 레벨 설정 (user_id가 NULL)
 
   if (error) {
     return [];
@@ -58,8 +57,7 @@ async function getUserBlockedItems(userId: string) {
     .from('partner_game_access')
     .select('*')
     .eq('user_id', userId)
-    .is('partner_id', null) // 사용자 레벨 설정 (partner_id가 NULL)
-    .or('is_allowed.eq.false,game_status.eq.maintenance'); // 차단 또는 점검중
+    .is('partner_id', null); // 사용자 레벨 설정 (partner_id가 NULL)
 
   if (error) {
     return [];
@@ -75,8 +73,11 @@ function isProviderBlocked(
   provider: GameProvider,
   blockedItems: any[]
 ): boolean {
+  // 🆕 game_status='maintenance'인 레코드는 차단이 아니라 점검중이므로 제외
+  const actuallyBlockedItems = blockedItems.filter(item => item.game_status !== 'maintenance');
+
   // API 전체 차단 확인
-  const apiBlocked = blockedItems.some(
+  const apiBlocked = actuallyBlockedItems.some(
     item =>
       item.access_type === 'api' &&
       item.api_provider === provider.api_type
@@ -86,12 +87,13 @@ function isProviderBlocked(
     return true;
   }
 
-  // 제공사 개별 차단 확인
-  const providerBlocked = blockedItems.some(
+  // 제공사 개별 차단 확인 (game_id=NULL이고 game_status='hidden')
+  const providerBlocked = actuallyBlockedItems.some(
     item =>
-      item.access_type === 'provider' &&
+      item.game_status === 'hidden' &&
       item.api_provider === provider.api_type &&
-      String(item.game_provider_id) === String(provider.id)
+      String(item.game_provider_id) === String(provider.id) &&
+      (item.game_id === null || item.game_id === undefined)
   );
 
   if (providerBlocked) {
@@ -191,32 +193,27 @@ function isGameBlocked(
     return true;
   }
 
-  // 제공사 전체 차단 확인
+  // 제공사 전체 차단 확인 (game_id=NULL이고 game_status='hidden')
   const providerBlocked = actuallyBlockedItems.some(
     item =>
-      item.access_type === 'provider' &&
-      item.api_provider === game.api_type &&
-      String(item.game_provider_id) === String(game.provider_id)
+      item.game_status === 'hidden' &&
+      String(item.game_provider_id) === String(game.provider_id) &&
+      (item.game_id === null || item.game_id === undefined)
   );
 
   if (providerBlocked) {
     return true;
   }
 
-  // 게임 개별 차단 확인
+  // 게임 개별 차단 확인 (해당 game_id의 game_status='hidden')
   const gameBlocked = actuallyBlockedItems.some(
     item =>
-      item.access_type === 'game' &&
-      item.api_provider === game.api_type &&
+      item.game_status === 'hidden' &&
       String(item.game_provider_id) === String(game.provider_id) &&
       String(item.game_id) === String(game.id)
   );
 
-  if (gameBlocked) {
-    return true;
-  }
-
-  return false;
+  return gameBlocked;
 }
 
 // ============================================

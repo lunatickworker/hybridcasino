@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 import { Badge } from "../ui/badge";
 import { DataTableLarge } from "../common/DataTableLarge";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle, AdminDialogTrigger as DialogTrigger } from "./AdminDialog";
+import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle, AdminDialogTrigger as DialogTrigger, AdminDialogClose as DialogClose } from "./AdminDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Label } from "../ui/label";
 import { Switch } from "../ui/switch";
@@ -893,6 +893,9 @@ export function UserManagement() {
       
       // 간단한 성공 메시지만 표시
       toast.success(`✅ 회원 ${userData.username} 생성 완료!`, { id: 'create-user', duration: 3000 });
+      
+      // 🆕 모달 자동 닫기
+      setShowCreateDialog(false);
       
       await fetchUsers();
     } catch (error: any) {
@@ -1884,9 +1887,12 @@ export function UserManagement() {
         const year = date.getFullYear();
         const month = date.getMonth() + 1;
         const day = date.getDate();
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
         return (
           <span className="text-slate-400">
-            {year}. {month}. {day}.
+            {year}. {month}. {day}. {hours}:{minutes}:{seconds}
           </span>
         );
       }
@@ -2226,7 +2232,14 @@ export function UserManagement() {
         }
         setShowCreateDialog(open);
       }}>
-        <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto bg-slate-900/90 backdrop-blur-md border-slate-700/60 shadow-2xl shadow-blue-500/20">
+        <DialogContent 
+          className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto border-slate-700/60 shadow-2xl shadow-blue-500/20" 
+          onInteractOutside={(e) => e.preventDefault()}
+        >
+          <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10">
+            <X className="h-8 w-8 text-slate-400 hover:text-slate-100" />
+            <span className="sr-only">닫기</span>
+          </DialogClose>
           <DialogHeader>
             <DialogTitle className="text-2xl text-slate-100 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">{t.userManagement.newUser}</DialogTitle>
             <DialogDescription className="text-sm text-slate-400">
@@ -2606,19 +2619,23 @@ export function UserManagement() {
                     placeholder="0.00"
                   />
                 </div>
-                {/* 카지노 루징 */}
+                {/* 루징 커미션 (통합) */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="casino_losing" className="text-slate-300 text-xs">
-                    🎰 카지노 루징 (%)
+                  <Label htmlFor="losing_commission" className="text-slate-300 text-xs">
+                    💰 루징 (%) - 카지노/슬롯 공통
                   </Label>
                   <Input
-                    id="casino_losing"
+                    id="losing_commission"
                     type="number"
                     step="0.01"
                     min="0"
                     max="100"
                     value={formData.casino_losing_commission}
-                    onChange={(e) => setFormData(prev => ({ ...prev, casino_losing_commission: e.target.value }))}
+                    onChange={(e) => setFormData(prev => ({ 
+                      ...prev, 
+                      casino_losing_commission: e.target.value,
+                      slot_losing_commission: e.target.value // 슬롯 루징도 동일하게 설정
+                    }))}
                     className="input-premium focus:border-purple-500/60 focus:ring-2 focus:ring-purple-500/20 text-sm h-9"
                     placeholder="0.00"
                   />
@@ -2636,23 +2653,6 @@ export function UserManagement() {
                     max="100"
                     value={formData.slot_rolling_commission}
                     onChange={(e) => setFormData(prev => ({ ...prev, slot_rolling_commission: e.target.value }))}
-                    className="input-premium focus:border-pink-500/60 focus:ring-2 focus:ring-pink-500/20 text-sm h-9"
-                    placeholder="0.00"
-                  />
-                </div>
-                {/* 슬롯 루징 */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="slot_losing" className="text-slate-300 text-xs">
-                    🎮 슬롯 루징 (%)
-                  </Label>
-                  <Input
-                    id="slot_losing"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
-                    value={formData.slot_losing_commission}
-                    onChange={(e) => setFormData(prev => ({ ...prev, slot_losing_commission: e.target.value }))}
                     className="input-premium focus:border-pink-500/60 focus:ring-2 focus:ring-pink-500/20 text-sm h-9"
                     placeholder="0.00"
                   />

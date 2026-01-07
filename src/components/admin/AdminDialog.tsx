@@ -46,7 +46,7 @@ const AdminDialogOverlay = React.forwardRef<
       ref={ref}
       data-slot="dialog-overlay"
       className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/10",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-transparent pointer-events-none",
         className,
       )}
       {...props}
@@ -57,19 +57,74 @@ AdminDialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const AdminDialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    'data-transparent'?: string;
+  }
 >(({ className, children, ...props }, ref) => {
   const contentId = React.useId();
   const defaultDescriptionId = `dialog-description-${contentId}`;
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const [position, setPosition] = React.useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 });
+
+  React.useImperativeHandle(ref, () => contentRef.current as HTMLDivElement);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // 헤더 영역에서만 드래그 가능
+    const target = e.target as HTMLElement;
+    const header = contentRef.current?.querySelector('[data-slot="dialog-header"]');
+    if (header && (header.contains(target) || header === target)) {
+      setIsDragging(true);
+      setDragStart({
+        x: e.clientX - position.x,
+        y: e.clientY - position.y,
+      });
+      e.preventDefault();
+    }
+  };
+
+  const handleMouseMove = React.useCallback((e: MouseEvent) => {
+    if (isDragging) {
+      setPosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    }
+  }, [isDragging, dragStart]);
+
+  const handleMouseUp = React.useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
+  // data-transparent를 props에서 추출
+  const isTransparent = props['data-transparent'];
 
   return (
     <AdminDialogPortal data-slot="dialog-portal">
       <AdminDialogOverlay />
       <DialogPrimitive.Content
-        ref={ref}
+        ref={contentRef}
         data-slot="dialog-content"
+        data-transparent={isTransparent}
+        onMouseDown={handleMouseDown}
+        style={{
+          transform: `translate(calc(-50% + ${position.x}px), calc(-50% + ${position.y}px))`,
+          cursor: isDragging ? 'grabbing' : 'default',
+        }}
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200",
+          "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full gap-4 rounded-lg border p-6 shadow-lg duration-200",
           className,
         )}
         aria-describedby={props['aria-describedby'] || defaultDescriptionId}
@@ -95,7 +150,7 @@ const AdminDialogHeader = React.forwardRef<
     <div
       ref={ref}
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
+      className={cn("flex flex-col gap-2 text-center sm:text-left cursor-grab active:cursor-grabbing", className)}
       {...props}
     />
   );

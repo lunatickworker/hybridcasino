@@ -105,18 +105,24 @@ export function ForceTransactionModal({
 
   // 금액 단축 버튼 클릭 (누적 더하기)
   const handleAmountShortcut = (value: number) => {
-    const currentAmount = parseFloat(amount || '0');
+    const currentAmount = parseFloat(amount.replace(/,/g, '') || '0');
     const newAmount = currentAmount + value;
-    setAmount(newAmount.toString());
+    setAmount(newAmount.toLocaleString());
   };
 
   // 금액 입력 처리 (자유롭게 입력 허용)
   const handleAmountChange = (value: string) => {
-    setAmount(value);
+    // 숫자와 콤마만 허용
+    const numericValue = value.replace(/[^\d]/g, '');
+    if (numericValue === '') {
+      setAmount('');
+    } else {
+      setAmount(parseInt(numericValue).toLocaleString());
+    }
   };
 
   // 검증 로직
-  const amountNum = parseFloat(amount || '0');
+  const amountNum = parseFloat(amount.replace(/,/g, '') || '0');
   const isLv1ToLv2 = currentUserLevel === 1 && selectedTarget?.level === 2;
   const isLv1ToLv3 = currentUserLevel === 1 && selectedTarget?.level === 3;
   const isLv2ToLv3 = currentUserLevel === 2 && selectedTarget?.level === 3;
@@ -174,14 +180,14 @@ export function ForceTransactionModal({
 
   // 전액삭제
   const handleClearAmount = () => {
-    setAmount('0');
+    setAmount('');
   };
 
   // 전액출금
   const handleFullWithdrawal = () => {
     if (selectedTarget && type === 'withdrawal') {
       // ✅ Lv2는 GMS 머니(balance)만 사용하므로 단일 balance 전액 출금
-      setAmount(currentBalance.toString());
+      setAmount(currentBalance.toLocaleString());
     }
   };
 
@@ -193,7 +199,7 @@ export function ForceTransactionModal({
       return;
     }
 
-    const submitAmount = parseFloat(amount || '0');
+    const submitAmount = parseFloat(amount.replace(/,/g, '') || '0');
     if (submitAmount <= 0) {
       return;
     }
@@ -475,7 +481,7 @@ export function ForceTransactionModal({
             <Input
               id="force-transaction-amount"
               name="amount"
-              type="number"
+              type="text"
               value={amount}
               onChange={(e) => handleAmountChange(e.target.value)}
               className="input-premium h-10 text-base"
@@ -545,7 +551,7 @@ export function ForceTransactionModal({
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={submitting || (!propSelectedTarget?.id && !selectedTargetId) || !amount || parseFloat(amount) <= 0 || !!errorMessage}
+            disabled={submitting || (!propSelectedTarget?.id && !selectedTargetId) || !amount || parseFloat(amount.replace(/,/g, '') || '0') <= 0 || !!errorMessage}
             className={`w-full h-10 text-base ${type === 'deposit' ? 'btn-premium-warning' : 'btn-premium-danger'}`}
           >
             {submitting ? '처리 중...' : type === 'deposit' ? '강제 입금' : '강제 출금'}

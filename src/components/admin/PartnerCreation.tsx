@@ -10,7 +10,7 @@ import { DataTableLarge } from "../common/DataTableLarge";
 import { 
   UserPlus, Save, Building2, 
   Database, Shield, Trash2, Edit, RefreshCw, 
-  AlertCircle, Users, Gamepad2, CreditCard
+  AlertCircle, Users, Gamepad2, CreditCard, Eye, EyeOff
 } from "lucide-react";
 import { toast } from "sonner@2.0.3";
 import { Partner } from "../../types";
@@ -659,17 +659,17 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
   const partnerColumns = [
     {
       key: "username",
-      title: t.partnerCreation.username,
+      title: "아이디",
       sortable: true,
     },
     {
       key: "nickname",
-      title: t.partnerCreation.nickname,
+      title: "닉네임",
       sortable: true,
     },
     {
       key: "level",
-      title: t.partnerCreation.grade,
+      title: "등급",
       cell: (partner: Partner) => (
         <Badge variant={partner.level === 2 ? 'default' : 'secondary'} className="text-base py-2 px-3">
           {getPartnerTypeText(partner.partner_type)}
@@ -677,48 +677,52 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       ),
     },
     {
-      key: "status",
-      title: t.partnerCreation.status,
+      key: "rolling_rate",
+      title: "롤링률",
       cell: (partner: Partner) => (
-        <Badge variant={partner.status === 'active' ? 'default' : 'secondary'} className="text-base py-2 px-3">
-          {partner.status === 'active' ? t.partnerCreation.active : t.partnerCreation.inactive}
-        </Badge>
-      ),
-    },
-    {
-      key: "balance",
-      title: t.partnerCreation.balance,
-      cell: (partner: Partner) => (
-        <div className="text-right font-mono">
-          {(() => {
-            // ✅ Lv1, Lv2: 4개 지갑 모두 합산
-            if (partner.level === 1 || partner.level === 2) {
-              let total = 0;
-              total += (partner.invest_balance || 0);
-              total += (partner.oroplay_balance || 0);
-              total += (partner.familyapi_balance || 0);
-              total += (partner.honorapi_balance || 0);
-              
-              return new Intl.NumberFormat('ko-KR').format(total);
-            }
-            // Lv3~7: GMS 머니 (balance)
-            return new Intl.NumberFormat('ko-KR').format(partner.balance || 0);
-          })()}{t.partnerCreation.won}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <span className="text-blue-400">카지노:</span>
+            <span className="font-mono">{partner.casino_rolling_commission || 0}%</span>
+          </div>
+          <span className="text-muted-foreground">/</span>
+          <div className="flex items-center gap-1">
+            <span className="text-purple-400">슬롯:</span>
+            <span className="font-mono">{partner.slot_rolling_commission || 0}%</span>
+          </div>
         </div>
       ),
     },
     {
-      key: "created_at",
-      title: t.partnerCreation.createdAt,
+      key: "losing_rate",
+      title: "루징률",
       cell: (partner: Partner) => (
-        <div className="text-sm text-muted-foreground">
+        <div className="font-mono">
+          {partner.casino_losing_commission || 0}%
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      title: "상태",
+      cell: (partner: Partner) => (
+        <Badge variant={partner.status === 'active' ? 'default' : 'secondary'} className="text-base py-2 px-3">
+          {partner.status === 'active' ? '활성' : '비활성'}
+        </Badge>
+      ),
+    },
+    {
+      key: "created_at",
+      title: "생성일",
+      cell: (partner: Partner) => (
+        <div className="text-muted-foreground">
           {new Date(partner.created_at).toLocaleDateString('ko-KR')}
         </div>
       ),
     },
     {
       key: "actions",
-      title: t.partnerCreation.actions,
+      title: "관리",
       cell: (partner: Partner) => (
         <div className="flex gap-1">
           <Button
@@ -789,14 +793,25 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
 
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="password" className="text-lg">{t.partnerCreation.password}</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  placeholder={t.partnerCreation.passwordPlaceholder}
-                  className="text-lg py-6"
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={(e) => handleInputChange('password', e.target.value)}
+                    placeholder={t.partnerCreation.passwordPlaceholder}
+                    className="text-lg py-6 pr-12"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -969,9 +984,9 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                 <span className="text-lg font-medium">{t.partnerCreation.commissionSettings}</span>
               </div>
               
-              {/* 카지노 커미션 */}
+              {/* 커미션 설정 */}
               <div className="space-y-3">
-                <Label className="text-lg text-blue-400">카지노 커미션</Label>
+                <Label className="text-lg text-blue-400">커미션 설정</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="casino_rolling_commission" className="text-lg">카지노 롤링 커미션 (%)</Label>
@@ -1002,40 +1017,6 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="casino_losing_commission" className="text-lg">카지노 루징 커미션 (%)</Label>
-                    <Input
-                      id="casino_losing_commission"
-                      type="number"
-                      step="0.1"
-                      value={formData.casino_losing_commission === 0 ? '' : formData.casino_losing_commission}
-                      onChange={(e) => {
-                        if (e.target.value === '') {
-                          handleInputChange('casino_losing_commission', 0);
-                          return;
-                        }
-                        const value = parseFloat(e.target.value);
-                        if (!isNaN(value)) {
-                          handleInputChange('casino_losing_commission', value);
-                        }
-                      }}
-                      onBlur={(e) => {
-                        let value = parseFloat(e.target.value);
-                        if (isNaN(value) || value < 0) value = 0;
-                        if (value > 100) value = 100;
-                        handleInputChange('casino_losing_commission', value);
-                      }}
-                      placeholder="0"
-                      className="text-lg py-6"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 슬롯 커미션 */}
-              <div className="space-y-3">
-                <Label className="text-lg text-purple-400">슬롯 커미션</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
                     <Label htmlFor="slot_rolling_commission" className="text-lg">슬롯 롤링 커미션 (%)</Label>
                     <Input
                       id="slot_rolling_commission"
@@ -1064,19 +1045,21 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="slot_losing_commission" className="text-lg">슬롯 루징 커미션 (%)</Label>
+                    <Label htmlFor="casino_losing_commission" className="text-lg">루징 커미션 (%)</Label>
                     <Input
-                      id="slot_losing_commission"
+                      id="casino_losing_commission"
                       type="number"
                       step="0.1"
-                      value={formData.slot_losing_commission === 0 ? '' : formData.slot_losing_commission}
+                      value={formData.casino_losing_commission === 0 ? '' : formData.casino_losing_commission}
                       onChange={(e) => {
                         if (e.target.value === '') {
+                          handleInputChange('casino_losing_commission', 0);
                           handleInputChange('slot_losing_commission', 0);
                           return;
                         }
                         const value = parseFloat(e.target.value);
                         if (!isNaN(value)) {
+                          handleInputChange('casino_losing_commission', value);
                           handleInputChange('slot_losing_commission', value);
                         }
                       }}
@@ -1084,6 +1067,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
                         let value = parseFloat(e.target.value);
                         if (isNaN(value) || value < 0) value = 0;
                         if (value > 100) value = 100;
+                        handleInputChange('casino_losing_commission', value);
                         handleInputChange('slot_losing_commission', value);
                       }}
                       placeholder="0"

@@ -180,13 +180,16 @@ export interface GameProvider {
   name: string;
   name_ko?: string;  // 한국어 이름
   name_en?: string;  // 영어 이름
-  api_type: 'invest' | 'oroplay';
+  api_type: 'invest' | 'oroplay' | 'familyapi' | 'honorapi';
   type: 'slot' | 'casino' | 'minigame';
   status: 'visible' | 'hidden' | 'maintenance';
   is_visible?: boolean;
   logo_url?: string;
   created_at?: string;
   updated_at?: string;
+  // 🆕 멀티 API 지원 (같은 제공사가 여러 API에 존재)
+  multi_api?: boolean;
+  source_apis?: ('invest' | 'oroplay' | 'familyapi' | 'honorapi')[];
 }
 
 export interface Game {

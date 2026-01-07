@@ -46,9 +46,8 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
   
   // ✅ 커미션 요율 state
   const [casinoRollingRate, setCasinoRollingRate] = useState('');
-  const [casinoLosingRate, setCasinoLosingRate] = useState('');
+  const [losingRate, setLosingRate] = useState(''); // 통합된 루징 요율
   const [slotRollingRate, setSlotRollingRate] = useState('');
-  const [slotLosingRate, setSlotLosingRate] = useState('');
   const [isUpdatingCommission, setIsUpdatingCommission] = useState(false);
 
   // 모달이 닫힐 때 상태 초기화
@@ -58,15 +57,13 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
       setPointConversionPassword('');
       setActiveTab('info');
       setCasinoRollingRate('');
-      setCasinoLosingRate('');
+      setLosingRate('');
       setSlotRollingRate('');
-      setSlotLosingRate('');
     } else if (user) {
       // 모달이 열릴 때 현재 요율 값 로드
       setCasinoRollingRate(String(user.casino_rolling_commission || 0));
-      setCasinoLosingRate(String(user.casino_losing_commission || 0));
+      setLosingRate(String(user.casino_losing_commission || 0)); // 통합된 루징 요율
       setSlotRollingRate(String(user.slot_rolling_commission || 0));
-      setSlotLosingRate(String(user.slot_losing_commission || 0));
     }
   }, [isOpen, user]);
 
@@ -152,12 +149,12 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
 
   // 커미션 요율 업데이트
   const handleUpdateCommissionRates = async () => {
-    if (!casinoRollingRate.trim() || !casinoLosingRate.trim() || !slotRollingRate.trim() || !slotLosingRate.trim()) {
+    if (!casinoRollingRate.trim() || !losingRate.trim() || !slotRollingRate.trim()) {
       toast.error('모든 커미션 요율을 입력해주세요.');
       return;
     }
 
-    if (!/^\d+(\.\d+)?$/.test(casinoRollingRate.trim()) || !/^\d+(\.\d+)?$/.test(casinoLosingRate.trim()) || !/^\d+(\.\d+)?$/.test(slotRollingRate.trim()) || !/^\d+(\.\d+)?$/.test(slotLosingRate.trim())) {
+    if (!/^\d+(\.\d+)?$/.test(casinoRollingRate.trim()) || !/^\d+(\.\d+)?$/.test(losingRate.trim()) || !/^\d+(\.\d+)?$/.test(slotRollingRate.trim())) {
       toast.error('커미션 요율은 숫자로 입력해주세요.');
       return;
     }
@@ -168,9 +165,9 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
         .from('users')
         .update({
           casino_rolling_commission: parseFloat(casinoRollingRate.trim()),
-          casino_losing_commission: parseFloat(casinoLosingRate.trim()),
+          casino_losing_commission: parseFloat(losingRate.trim()), // 통합된 루징 요율
           slot_rolling_commission: parseFloat(slotRollingRate.trim()),
-          slot_losing_commission: parseFloat(slotLosingRate.trim())
+          slot_losing_commission: parseFloat(losingRate.trim()) // 통합된 루징 요율 (카지노/슬롯 공통)
         })
         .eq('id', user.id);
 
@@ -691,14 +688,14 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                 <div className="space-y-3">
                   <Label className="text-gray-300 flex items-center gap-2">
                     <Key className="w-4 h-4" />
-                    카지노 패배 커미션 요율 (%)
+                    루징 커미션 요율 (%) - 카지노/슬롯 공통
                   </Label>
                   <div className="flex gap-3">
                     <Input
                       type="text"
                       placeholder="예: 1.5"
-                      value={casinoLosingRate}
-                      onChange={(e) => setCasinoLosingRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                      value={losingRate}
+                      onChange={(e) => setLosingRate(e.target.value.replace(/[^0-9.]/g, ''))}
                       className="flex-1 h-12 text-lg text-white"
                       style={{
                         background: 'rgba(20, 20, 35, 0.8)',
@@ -718,25 +715,6 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                       placeholder="예: 1.5"
                       value={slotRollingRate}
                       onChange={(e) => setSlotRollingRate(e.target.value.replace(/[^0-9.]/g, ''))}
-                      className="flex-1 h-12 text-lg text-white"
-                      style={{
-                        background: 'rgba(20, 20, 35, 0.8)',
-                        borderColor: 'rgba(193, 154, 107, 0.3)',
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-gray-300 flex items-center gap-2">
-                    <Key className="w-4 h-4" />
-                    슬롯 패배 커미션 요율 (%)
-                  </Label>
-                  <div className="flex gap-3">
-                    <Input
-                      type="text"
-                      placeholder="예: 1.5"
-                      value={slotLosingRate}
-                      onChange={(e) => setSlotLosingRate(e.target.value.replace(/[^0-9.]/g, ''))}
                       className="flex-1 h-12 text-lg text-white"
                       style={{
                         background: 'rgba(20, 20, 35, 0.8)',

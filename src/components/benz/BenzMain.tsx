@@ -70,12 +70,93 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
     { id: 108, name: 'Jingzibao', name_ko: '진지바오시', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/jinjibaoxi.jpg', status: 'visible' },
   ];
 
+  // 🆕 카지노 게임사 이름으로 logo_url 찾기
+  const getCasinoLogoUrlByProviderName = (provider: GameProvider): string | undefined => {
+    const name = (provider.name_ko || provider.name || '').toLowerCase();
+    
+    if (name.includes('evolution') || name.includes('에볼루션')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evolution.jpg';
+    }
+    if ((name.includes('pragmatic') || name.includes('프라그마틱')) && (name.includes('live') || name.includes('라이브'))) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticlive.jpg';
+    }
+    if (name.includes('microgaming') || name.includes('마이크로')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg';
+    }
+    if (name.includes('asia') || name.includes('아시아')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/asiagaming.jpg';
+    }
+    if (name.includes('sa gaming') || name.includes('sa게이밍') || name === 'sa') {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/sagaming.jpg';
+    }
+    if (name.includes('ezugi') || name.includes('이주기')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/ezugi.jpg';
+    }
+    if (name.includes('dream') || name.includes('드림')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/dreamgaming.jpg';
+    }
+    if (name.includes('playace') || name.includes('플레이') || name.includes('에이스')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg';
+    }
+    
+    return provider.logo_url;
+  };
+
+  // 🆕 슬롯 게임사 이름으로 logo_url 찾기
+  const getSlotLogoUrlByProviderName = (provider: GameProvider): string | undefined => {
+    const name = (provider.name_ko || provider.name || '').toLowerCase();
+    
+    if ((name.includes('pragmatic') || name.includes('프라그마틱')) && (name.includes('slot') || name.includes('슬롯') || name.includes('play'))) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticslot.jpg';
+    }
+    if (name.includes('pg') || name.includes('pocket')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pgsoft.jpg';
+    }
+    if (name.includes('habanero') || name.includes('하바네로')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/habanero.jpg';
+    }
+    if (name.includes('booongo') || name.includes('bng') || name.includes('부운고')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/bng.jpg';
+    }
+    if (name.includes('cq9')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/cq9.jpg';
+    }
+    if (name.includes('evoplay') || name.includes('에보플레이')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evoplay.jpg';
+    }
+    if (name.includes('nolimit') || name.includes('노리밋')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/nolimit.jpg';
+    }
+    if (name.includes('jing') || name.includes('진지') || name.includes('바오')) {
+      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/jinjibaoxi.jpg';
+    }
+    
+    return provider.logo_url;
+  };
+
+  // 🆕 랜덤 카지노 이미지 선택
+  const getRandomCasinoImage = () => {
+    const randomIndex = Math.floor(Math.random() * FALLBACK_CASINO_PROVIDERS.length);
+    return FALLBACK_CASINO_PROVIDERS[randomIndex].logo_url;
+  };
+
+  // 🆕 랜덤 슬롯 이미지 선택
+  const getRandomSlotImage = () => {
+    const randomIndex = Math.floor(Math.random() * FALLBACK_SLOT_PROVIDERS.length);
+    return FALLBACK_SLOT_PROVIDERS[randomIndex].logo_url;
+  };
+
   useEffect(() => {
     console.log('🏠 [BenzMain] useEffect 시작 - Realtime 구독 설정 중...');
     loadData();
 
+    if (!user) {
+      console.log('ℹ️ [BenzMain] 비로그인 상태 - Realtime 구독 스킵');
+      return;
+    }
+
     // ✅ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
-    const gamesChannel = supabase
+    const channelBuilder = supabase
       .channel('benz_main_games_changes')
       .on(
         'postgres_changes',
@@ -108,31 +189,41 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
           console.log('🔄 [BenzMain] honor_games_provider 테이블 변경 감지 - 리로드');
           loadData();
         }
-      )
-      .on(
+      );
+
+    // partner_game_access는 user.referrer_id가 있을 때만 구독
+    if (user.referrer_id) {
+      channelBuilder.on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'partner_game_access' },
-        () => {
-          console.log('🔄🔄🔄 [BenzMain] partner_game_access 테이블 변경 감지!!!');
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'partner_game_access',
+          filter: `partner_id=eq.${user.referrer_id}` // ✅ 현재 사용자 파트너만 필터링
+        },
+        (payload) => {
+          console.log('🔄🔄🔄 [BenzMain] partner_game_access 테이블 변경 감지!!!', payload);
           // ⚡ 게임 스위칭 설정이 변경되면 즉시 게임사 목록 새로고침
           console.log('🎮 [BenzMain] 게임 스위칭 설정 변경 감지! 즉시 새로고침...');
           loadData();
         }
-      )
-      .subscribe((status, err) => {
-        console.log('📡📡📡 [BenzMain] Realtime 구독 상태:', status);
-        if (err) {
-          console.error('❌❌❌ [BenzMain] Realtime 구독 에러:', err);
-        }
-        if (status === 'SUBSCRIBED') {
-          console.log('✅✅✅ [BenzMain] Realtime 구독 성공! partner_game_access 테이블 감지 중...');
-        }
-      });
+      );
+    }
+
+    const gamesChannel = channelBuilder.subscribe((status, err) => {
+      console.log('📡📡📡 [BenzMain] Realtime 구독 상태:', status);
+      if (err) {
+        console.error('❌❌❌ [BenzMain] Realtime 구독 에러:', err);
+      }
+      if (status === 'SUBSCRIBED') {
+        console.log('✅✅✅ [BenzMain] Realtime 구독 성공! partner_game_access 테이블 감지 중... (partner_id:', user.referrer_id, ')');
+      }
+    });
 
     return () => {
       supabase.removeChannel(gamesChannel);
     };
-  }, []);
+  }, [user]);
 
   const loadData = async () => {
     try {
@@ -146,6 +237,48 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       
       const allSlotProviders = await gameApi.getProviders({ type: 'slot' });
       const slotData = await filterVisibleProviders(allSlotProviders, user?.id);
+      
+      // 🔥 카지노/슬롯 게임사 제외 필터링 (DB에 type이 잘못 저장된 경우 대비)
+      const SLOT_PROVIDERS = [
+        'pragmatic', 'pg', 'pocket', 'habanero', 'booongo', 'bng',
+        'cq9', 'evoplay', 'nolimit', 'jingzibao', '진지바오',
+        '프라그마틱 슬롯', 'pragmatic slot', 'pg soft', 'pg소프트',
+        '하바네로', '부운고', '에보플레이', '노리밋'
+      ];
+      
+      const CASINO_PROVIDERS = [
+        'evolution', 'ezugi', 'microgaming', 'asia', 'sa',
+        'dream', 'playace', 'pragmatic live', 'sexy',
+        '에볼루션', '이주기', '마이크로', '아시아', '드림', 
+        '플레이', '프라그마틱 라이브', '섹시'
+      ];
+      
+      // 카지노 페이지용: 슬롯 게임사 제외
+      const casinoOnlyProviders = casinoData.filter(p => {
+        const name = (p.name_ko || p.name || '').toLowerCase();
+        
+        // Pragmatic의 경우 Live만 카지노
+        if (name.includes('pragmatic') || name.includes('프라그마틱')) {
+          return name.includes('live') || name.includes('라이브');
+        }
+        
+        // 슬롯 게임사는 제외
+        return !SLOT_PROVIDERS.some(slot => name.includes(slot.toLowerCase()));
+      });
+      
+      // 슬롯 페이지용: 카지노 게임사 제외
+      const slotOnlyProviders = slotData.filter(p => {
+        const name = (p.name_ko || p.name || '').toLowerCase();
+        
+        // Pragmatic의 경우 Slot만 슬롯
+        if (name.includes('pragmatic') || name.includes('프라그마틱')) {
+          // Live가 아니면 슬롯으로 간주
+          return !(name.includes('live') || name.includes('라이브'));
+        }
+        
+        // 카지노 게임사는 제외
+        return !CASINO_PROVIDERS.some(casino => name.includes(casino.toLowerCase()));
+      });
       
       // 🆕 카지노 게임사 통합 (같은 이름끼리 합치기)
       const casinoProviderMap = new Map<string, GameProvider>();
@@ -174,7 +307,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         return provider.name_ko || provider.name;
       };
       
-      for (const provider of casinoData) {
+      for (const provider of casinoOnlyProviders) {
         const key = normalizeCasinoName(provider);
         
         if (casinoProviderMap.has(key)) {
@@ -215,7 +348,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         return provider.name_ko || provider.name;
       };
       
-      for (const provider of slotData) {
+      for (const provider of slotOnlyProviders) {
         const key = normalizeSlotName(provider);
         
         if (slotProviderMap.has(key)) {
@@ -274,7 +407,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
             if (name.includes('asia') || name.includes('아시아')) return 'asiagaming';
             
             // SA Gaming
-            if (name.includes('sa') || name.includes('게이밍')) return 'sa gaming';
+            if (name.includes('sa') && name.includes('gaming')) return 'sa gaming';
             
             // Ezugi
             if (name.includes('ezugi') || name.includes('이주기')) return 'ezugi';
@@ -367,20 +500,35 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
     if (type === 'casino') {
       // ⭐ Evolution
       if (providerName.includes('evolution') || providerNameKo.includes('에볼루션')) {
-        console.log('🎰 [BenzMain] Evolution 바로 실행');
+        console.log('🎰 [BenzMain] Evolution 바로 실행 - 특정 게임 ID: 5254616');
         setIsProcessing(true);
         
         try {
-          const evolutionGame: Game = {
-            id: '5185869',
-            name: 'Evolution Top Games',
-            name_ko: 'Evolution Top Games',
-            game_code: 'evolution_top_games',
-            provider_id: 6717,
-            api_type: 'honorapi'
+          // 🎯 특정 Evolution Top Games 게임 바로 실행 (id: 5254616)
+          const { data: evolutionGame, error: evolutionError } = await supabase
+            .from('honor_games')
+            .select('id, name, name_ko, game_code, vendor_code, api_type')
+            .eq('id', '5254616')
+            .maybeSingle();
+
+          if (evolutionError || !evolutionGame) {
+            console.error('❌ [Evolution] 특정 게임(ID: 5254616)을 찾을 수 없습니다:', evolutionError);
+            toast.error('Evolution 게임을 찾을 수 없습니다.');
+            setIsProcessing(false);
+            return;
+          }
+
+          const game: Game = {
+            id: evolutionGame.id,
+            name: evolutionGame.name,
+            name_ko: evolutionGame.name_ko || evolutionGame.name,
+            game_code: evolutionGame.game_code,
+            provider_id: 0,
+            api_type: evolutionGame.api_type || 'honor',
+            vendor_code: evolutionGame.vendor_code
           };
           
-          await handleGameClick(evolutionGame);
+          await handleGameClick(game);
         } catch (error) {
           console.error('Evolution 게임 실행 오류:', error);
           toast.error('Evolution 게임 실행에 실패했습니다.');
@@ -392,28 +540,37 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       
       // ⭐ Pragmatic Live
       if (providerName.includes('pragmatic') || providerNameKo.includes('프라그마틱')) {
-        console.log('🎰 [BenzMain] Pragmatic Live 바로 실행');
+        console.log('🎰 [BenzMain] Pragmatic Live 바로 실행 - 특정 게임 ID: 5246855');
         setIsProcessing(true);
         
         try {
-          const { data: games, error } = await supabase
-            .from('games')
-            .select('id, name, name_ko, game_code, vendor_code, api_type, provider_id')
-            .eq('vendor_code', 'casino-pragmatic')
-            .eq('name', 'lobby')
-            .limit(1)
+          // 🎯 특정 Pragmatic Play Live Lobby 게임 바로 실행 (id: 5246855)
+          const { data: pragmaticGame, error: pragmaticError } = await supabase
+            .from('honor_games')
+            .select('id, name, name_ko, game_code, vendor_code, api_type')
+            .eq('id', '5246855')
             .maybeSingle();
 
-          if (error || !games) {
-            console.error('❌ [Pragmatic Live] DB에서 게임을 찾을 수 없습니다:', error);
+          if (pragmaticError || !pragmaticGame) {
+            console.error('❌ [Pragmatic Live] 특정 게임(ID: 5246855)을 찾을 수 없습니다:', pragmaticError);
             toast.error('Pragmatic Live 게임을 찾을 수 없습니다.');
             setIsProcessing(false);
             return;
           }
 
-          await handleGameClick(games);
+          const game: Game = {
+            id: pragmaticGame.id,
+            name: pragmaticGame.name,
+            name_ko: pragmaticGame.name_ko || pragmaticGame.name,
+            game_code: pragmaticGame.game_code,
+            provider_id: 0,
+            api_type: pragmaticGame.api_type || 'honor',
+            vendor_code: pragmaticGame.vendor_code
+          };
+          
+          await handleGameClick(game);
         } catch (error) {
-          console.error('Pragmatic Live 실행 오류:', error);
+          console.error('Pragmatic Live 게임 실행 오류:', error);
           toast.error('Pragmatic Live 게임 실행에 실패했습니다.');
         } finally {
           setIsProcessing(false);
@@ -581,23 +738,37 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       
       // ⭐ Ezugi (이주기)
       if (providerName.includes('ezugi') || providerName.includes('ezu') || providerNameKo.includes('이주기') || providerNameKo.includes('주기')) {
-        console.log('🎰 [BenzMain] Ezugi 바로 실행');
+        console.log('🎰 [BenzMain] Ezugi 바로 실행 - 특정 게임 ID: 5254603');
         setIsProcessing(true);
         
         try {
-          const ezugiGame: Game = {
-            id: '5185843',
-            name: 'Ezugi',
-            name_ko: 'Ezugi',
-            game_code: 'Ezugi',
+          // 🎯 특정 Ezugi 게임 바로 실행 (id: 5254603)
+          const { data: ezugiGame, error: ezugiError } = await supabase
+            .from('honor_games')
+            .select('id, name, name_ko, game_code, vendor_code, api_type')
+            .eq('id', '5254603')
+            .maybeSingle();
+
+          if (ezugiError || !ezugiGame) {
+            console.error('❌ [Ezugi] 특정 게임(ID: 5254603)을 찾을 수 없습니다:', ezugiError);
+            toast.error('Ezugi 게임을 찾을 수 없습니다.');
+            setIsProcessing(false);
+            return;
+          }
+
+          const game: Game = {
+            id: ezugiGame.id,
+            name: ezugiGame.name,
+            name_ko: ezugiGame.name_ko || ezugiGame.name,
+            game_code: ezugiGame.game_code,
             provider_id: 0,
-            api_type: 'honorapi',
-            vendor_code: 'ezugi'
+            api_type: ezugiGame.api_type || 'honor',
+            vendor_code: ezugiGame.vendor_code
           };
           
-          await handleGameClick(ezugiGame);
+          await handleGameClick(game);
         } catch (error) {
-          console.error('Ezugi 실행 오류:', error);
+          console.error('Ezugi 게임 실행 오류:', error);
           toast.error('Ezugi 게임 실행에 실패했습니다.');
         } finally {
           setIsProcessing(false);
@@ -1041,13 +1212,12 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   className={`group relative ${provider.status === 'maintenance' ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                   onClick={() => handleProviderClick(provider, 'casino')}
                 >
-                  {provider.logo_url && (
-                    <img
-                      src={provider.logo_url}
-                      alt=""
-                      className="w-full object-contain"
-                    />
-                  )}
+                  {/* ✅ logo_url이 있으면 이미지 표시, 없으면 fallback 이미지 표시 */}
+                  <img
+                    src={provider.logo_url || getCasinoLogoUrlByProviderName(provider) || getRandomCasinoImage()}
+                    alt={provider.name_ko || provider.name}
+                    className="w-full object-contain"
+                  />
                   {/* 🚫 점검중 오버레이 */}
                   {provider.status === 'maintenance' && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
@@ -1106,13 +1276,12 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   className={`group relative ${provider.status === 'maintenance' ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                   onClick={() => handleProviderClick(provider, 'slot')}
                 >
-                  {provider.logo_url && (
-                    <img
-                      src={provider.logo_url}
-                      alt=""
-                      className="w-[120%] object-contain"
-                    />
-                  )}
+                  {/* ✅ logo_url이 있으면 이미지 표시, 없으면 fallback 이미지 표시 */}
+                  <img
+                    src={provider.logo_url || getSlotLogoUrlByProviderName(provider) || getRandomSlotImage()}
+                    alt={provider.name_ko || provider.name}
+                    className="w-[120%] object-contain"
+                  />
                   {/* 🚫 점검중 오버레이 */}
                   {provider.status === 'maintenance' && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">

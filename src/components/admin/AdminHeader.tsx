@@ -542,11 +542,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           return;
         }
 
-        // 1️⃣ 입금 합계 (deposit + admin_deposit) - 소속 사용자만
+        // 1️⃣ 입금 합계 (사용자 deposit + 관리자 partner_deposit) - 소속 사용자만
         const { data: depositData, error: depositError } = await supabase
           .from('transactions')
           .select('amount')
-          .in('transaction_type', ['deposit', 'admin_deposit'])
+          .in('transaction_type', ['deposit', 'partner_deposit'])
           .eq('status', 'completed')
           .gte('created_at', todayStartISO)
           .in('user_id', allowedUserIds);
@@ -557,11 +557,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
         const dailyDeposit = depositData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
 
-        // 2️⃣ 출금 합계 (withdrawal + admin_withdrawal) - 소속 사용자만
+        // 2️⃣ 출금 합계 (사용자 withdrawal + 관리자 partner_withdrawal) - 소속 사용자만
         const { data: withdrawalData, error: withdrawalError } = await supabase
           .from('transactions')
           .select('amount')
-          .in('transaction_type', ['withdrawal', 'admin_withdrawal'])
+          .in('transaction_type', ['withdrawal', 'partner_withdrawal'])
           .eq('status', 'completed')
           .gte('created_at', todayStartISO)
           .in('user_id', allowedUserIds);
@@ -604,21 +604,39 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           .eq('receiver_type', 'partner')
           .is('parent_id', null);
 
-        // 🔔 7️⃣ 입금요청 대기 수 - 소속 사용자만
-        const { count: pendingDepositsCount } = await supabase
+        // 🔔 7️⃣ 입금요청 대기 수 - 사용자 입금 + 관리자 입금
+        const { count: userDepositCount } = await supabase
           .from('transactions')
           .select('id', { count: 'exact', head: true })
           .eq('transaction_type', 'deposit')
           .eq('status', 'pending')
           .in('user_id', allowedUserIds);
+        
+        const { count: adminDepositCount } = await supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('transaction_type', 'partner_deposit')
+          .eq('status', 'pending')
+          .neq('partner_id', user.id); // 본인이 신청한 것은 제외
+        
+        const pendingDepositsCount = (userDepositCount || 0) + (adminDepositCount || 0);
 
-        // 🔔 8️⃣ 출금요청 대기 수 - 소속 사용자만
-        const { count: pendingWithdrawalsCount } = await supabase
+        // 🔔 8️⃣ 출금요청 대기 수 - 사용자 출금 + 관리자 출금
+        const { count: userWithdrawalCount } = await supabase
           .from('transactions')
           .select('id', { count: 'exact', head: true })
           .eq('transaction_type', 'withdrawal')
           .eq('status', 'pending')
           .in('user_id', allowedUserIds);
+        
+        const { count: adminWithdrawalCount } = await supabase
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('transaction_type', 'partner_withdrawal')
+          .eq('status', 'pending')
+          .neq('partner_id', user.id); // 본인이 신청한 것은 제외
+        
+        const pendingWithdrawalsCount = (userWithdrawalCount || 0) + (adminWithdrawalCount || 0);
 
         // 💰 9️⃣ 총 잔고 (소속 사용자들의 balance 합계)
         const { data: usersBalanceData } = await supabase
@@ -727,6 +745,47 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             const transaction = payload.new as any;
             
             if (transaction.status === 'pending') {
+              // ✅ 관리자 입출금 신청 처리 (partner_deposit, partner_withdrawal)
+              if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_withdrawal') {
+                // ✅ 신청자 본인에게는 알람 표시 안 함
+                // Lv2만 알림 받기 (단, 본인이 아닌 경우만)
+                if (user.level === 2 && transaction.partner_id !== user.id) {
+                  const memo = transaction.memo || '';
+                  
+                  if (transaction.transaction_type === 'partner_deposit') {
+                    toast.info('새로운 관리자 입금 신청이 있습니다.', {
+                      description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
+                      duration: 10000,
+                      position: 'bottom-left',
+                      action: {
+                        label: '확인',
+                        onClick: () => {
+                          if (onRouteChange) {
+                            onRouteChange('/admin/transactions#deposit-request');
+                          }
+                        }
+                      }
+                    });
+                  } else if (transaction.transaction_type === 'partner_withdrawal') {
+                    toast.warning('새로운 관리자 출금 신청이 있습니다.', {
+                      description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
+                      duration: 10000,
+                      position: 'bottom-left',
+                      action: {
+                        label: '확인',
+                        onClick: () => {
+                          if (onRouteChange) {
+                            onRouteChange('/admin/transactions#withdrawal-request');
+                          }
+                        }
+                      }
+                    });
+                  }
+                }
+                return; // 관리자 신청은 여기서 처리 완료
+              }
+              
+              // ✅ 사용자 입출금 신청 처리 (deposit, withdrawal)
               // 🔐 조직격리: 해당 회원이 내 조직에 속하는지 확인
               const { data: transactionUser } = await supabase
                 .from('users')
@@ -1126,6 +1185,158 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     }
   };
 
+  // =====================================================
+  // 관리자 입금/출금 신청
+  // =====================================================
+  const handleDepositRequest = async () => {
+    if (!requestAmount || parseFloat(requestAmount.replace(/,/g, '')) <= 0) {
+      toast.error('입금 금액을 입력해주세요.');
+      return;
+    }
+
+    setIsSubmittingRequest(true);
+    try {
+      const amount = parseFloat(requestAmount.replace(/,/g, ''));
+
+      // Lv2 본사 찾기 (자신이 속한 Lv2)
+      let lv2PartnerId = user.id;
+      if (user.level > 2) {
+        // 상위로 올라가면서 Lv2 찾기
+        let currentPartnerId = user.referrer_id;
+        while (currentPartnerId) {
+          const { data: parentPartner } = await supabase
+            .from('partners')
+            .select('id, level, referrer_id')
+            .eq('id', currentPartnerId)
+            .single();
+          
+          if (!parentPartner) break;
+          
+          if (parentPartner.level === 2) {
+            lv2PartnerId = parentPartner.id;
+            break;
+          }
+          
+          currentPartnerId = parentPartner.referrer_id;
+        }
+      }
+
+      // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
+      const { data: transaction, error } = await supabase
+        .from('transactions')
+        .insert({
+          partner_id: user.id, // 관리자 입출금은 partner_id 사용
+          transaction_type: 'partner_deposit',
+          amount: amount,
+          status: 'pending',
+          balance_before: balance,
+          balance_after: balance, // 승인 전까지는 동일
+          created_at: new Date().toISOString(),
+          memo: `[관리자 입금신청] ${user.nickname || user.username} → 본사`
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      toast.success(`입금 신청이 완료되었습니다. (${formatCurrency(amount)})`);
+      setShowDepositRequestModal(false);
+      setRequestAmount('');
+      
+      // 알림 개수 갱신
+      await loadNotificationCount();
+    } catch (error: any) {
+      console.error('❌ 입금 신청 실패:', error);
+      toast.error(error.message || '입금 신청에 실패했습니다.');
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  };
+
+  const handleWithdrawalRequest = async () => {
+    if (!requestAmount || parseFloat(requestAmount.replace(/,/g, '')) <= 0) {
+      toast.error('출금 금액을 입력해주세요.');
+      return;
+    }
+
+    setIsSubmittingRequest(true);
+    try {
+      const amount = parseFloat(requestAmount.replace(/,/g, ''));
+
+      // 보유 잔액 체크
+      if (balance < amount) {
+        toast.error('보유금이 부족합니다.');
+        return;
+      }
+
+      // Lv2 본사 찾기 (자신이 속한 Lv2)
+      let lv2PartnerId = user.id;
+      if (user.level > 2) {
+        // 상위로 올라가면서 Lv2 찾기
+        let currentPartnerId = user.referrer_id;
+        while (currentPartnerId) {
+          const { data: parentPartner } = await supabase
+            .from('partners')
+            .select('id, level, referrer_id')
+            .eq('id', currentPartnerId)
+            .single();
+          
+          if (!parentPartner) break;
+          
+          if (parentPartner.level === 2) {
+            lv2PartnerId = parentPartner.id;
+            break;
+          }
+          
+          currentPartnerId = parentPartner.referrer_id;
+        }
+      }
+
+      // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
+      const { data: transaction, error } = await supabase
+        .from('transactions')
+        .insert({
+          partner_id: user.id, // 관리자 입출금은 partner_id 사용
+          transaction_type: 'partner_withdrawal',
+          amount: amount,
+          status: 'pending',
+          balance_before: balance,
+          balance_after: balance, // 승인 전까지는 동일
+          created_at: new Date().toISOString(),
+          memo: `[관리자 출금신청] ${user.nickname || user.username} → 본사`
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      toast.success(`출금 신청이 완료되었습니다. (${formatCurrency(amount)})`);
+      setShowWithdrawalRequestModal(false);
+      setRequestAmount('');
+      
+      // 알림 개수 갱신
+      await loadNotificationCount();
+    } catch (error: any) {
+      console.error('❌ 출금 신청 실패:', error);
+      toast.error(error.message || '출금 신청에 실패했습니다.');
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  };
+
+  // ✅ 금액 입력 시 3자리 콤마 포맷
+  const handleAmountChange = (value: string) => {
+    // 숫자와 콤마만 허용
+    const numericValue = value.replace(/[^\d]/g, '');
+    // 3자리마다 콤마 추가
+    const formattedValue = numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    setRequestAmount(formattedValue);
+  };
+
   const handleApprovalClick = () => {
     if (onRouteChange) {
       onRouteChange('/admin/users');
@@ -1248,6 +1459,12 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     amount: number;
   } | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
+
+  // ✅ 입금/출금 신청 모달
+  const [showDepositRequestModal, setShowDepositRequestModal] = useState(false);
+  const [showWithdrawalRequestModal, setShowWithdrawalRequestModal] = useState(false);
+  const [requestAmount, setRequestAmount] = useState('');
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
 
   const loadCommissionInfo = async () => {
     setIsLoadingCommission(true);
@@ -2028,6 +2245,42 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                   </div>
                 )}
 
+                {/* 보유머니 & 입금/출금 신청 - Lv3 이상만 표시 */}
+                {user.level >= 3 && (
+                  <div className="space-y-3 mb-3 pb-3 border-b border-slate-700">
+                    {/* 보유머니 표시 */}
+                    <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Wallet className="h-6 w-6 text-emerald-400" />
+                          <h3 className="text-lg font-semibold text-slate-300">보유머니</h3>
+                        </div>
+                      </div>
+                      <div className="text-2xl font-bold text-emerald-400">
+                        {formatCurrency(balance)}
+                      </div>
+                    </div>
+
+                    {/* 입금/출금 신청 버튼 */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        onClick={() => setShowDepositRequestModal(true)}
+                        className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 h-10 text-sm font-semibold shadow-lg shadow-blue-500/30"
+                      >
+                        <TrendingUp className="h-4 w-4 mr-1" />
+                        입금신청
+                      </Button>
+                      <Button
+                        onClick={() => setShowWithdrawalRequestModal(true)}
+                        className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 h-10 text-sm font-semibold shadow-lg shadow-orange-500/30"
+                      >
+                        <TrendingDown className="h-4 w-4 mr-1" />
+                        출금신청
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {/* 하단: 비밀번호 변경 버튼 */}
                 <Button
                   variant="outline"
@@ -2158,6 +2411,106 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         onConvert={handleConvertToBalance}
         converting={!!convertingId}
       />
+
+      {/* ✅ 입금 신청 모달 */}
+      <Dialog open={showDepositRequestModal} onOpenChange={setShowDepositRequestModal}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle>입금 신청</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              상위 관리자에게 입금을 요청합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="depositAmount" className="text-slate-300">입금 금액</Label>
+              <Input
+                id="depositAmount"
+                type="text"
+                value={requestAmount}
+                onChange={(e) => handleAmountChange(e.target.value)}
+                className="bg-slate-700 border-slate-600 text-white"
+                placeholder="입금할 금액을 입력하세요"
+              />
+            </div>
+            <div className="text-sm text-slate-400 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+              💡 입금 신청 후 상위 관리자가 승인하면 보유머니에 반영됩니다.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDepositRequestModal(false);
+                setRequestAmount('');
+              }} 
+              className="bg-slate-700 border-slate-600 hover:bg-slate-600"
+            >
+              취소
+            </Button>
+            <Button 
+              onClick={handleDepositRequest} 
+              disabled={isSubmittingRequest}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isSubmittingRequest ? '신청 중...' : '입금 신청'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ✅ 출금 신청 모달 */}
+      <Dialog open={showWithdrawalRequestModal} onOpenChange={setShowWithdrawalRequestModal}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle>출금 신청</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              상위 관리자에게 출금을 요청합니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="withdrawalAmount" className="text-slate-300">출금 금액</Label>
+              <Input
+                id="withdrawalAmount"
+                type="text"
+                value={requestAmount}
+                onChange={(e) => handleAmountChange(e.target.value)}
+                className="bg-slate-700 border-slate-600 text-white"
+                placeholder="출금할 금액을 입력하세요"
+              />
+            </div>
+            <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-3 space-y-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400">현재 보유머니:</span>
+                <span className="text-white font-semibold">{formatCurrency(balance)}</span>
+              </div>
+            </div>
+            <div className="text-sm text-slate-400 bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+              💡 출금 신청 후 상위 관리자가 승인하면 보유머니에서 차감됩니다.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowWithdrawalRequestModal(false);
+                setRequestAmount('');
+              }} 
+              className="bg-slate-700 border-slate-600 hover:bg-slate-600"
+            >
+              취소
+            </Button>
+            <Button 
+              onClick={handleWithdrawalRequest} 
+              disabled={isSubmittingRequest}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {isSubmittingRequest ? '신청 중...' : '출금 신청'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

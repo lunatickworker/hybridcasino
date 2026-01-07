@@ -74,8 +74,13 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
     console.log('🎲 [BenzMinigame] useEffect 시작 - Realtime 구독 설정 중...');
     loadProviders();
     
+    if (!user) {
+      console.log('ℹ️ [BenzMinigame] 비로그인 상태 - Realtime 구독 스킵');
+      return;
+    }
+    
     // ⚡ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
-    const gamesChannel = supabase
+    const channelBuilder = supabase
       .channel('benz_minigame_games_changes')
       .on(
         'postgres_changes',
@@ -118,10 +123,18 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
           console.log('🔄 [BenzMinigame] honor_games_provider 테이블 UPDATE 감지:', payload);
           loadProviders();
         }
-      )
-      .on(
+      );
+
+    // partner_game_access는 user.referrer_id가 있을 때만 구독
+    if (user.referrer_id) {
+      channelBuilder.on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'partner_game_access' },
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'partner_game_access',
+          filter: `partner_id=eq.${user.referrer_id}` // ✅ 현재 사용자 파트너만 필터링
+        },
         (payload) => {
           console.log('🔄🔄🔄 [BenzMinigame] partner_game_access 테이블 변경 감지!!!', payload);
           console.log('🎮 [BenzMinigame] 게임 스위칭 설정 변경 감지! 즉시 새로고침...');
@@ -131,24 +144,26 @@ export function BenzMinigame({ user, onRouteChange }: BenzMinigameProps) {
             loadGames(selectedProviderRef.current);
           }
         }
-      )
-      .subscribe((status, err) => {
-        console.log('📡📡📡 [BenzMinigame] Realtime 구독 상태:', status);
-        if (err) {
-          console.error('❌❌❌ [BenzMinigame] Realtime 구독 에러:', err);
-        }
-        if (status === 'SUBSCRIBED') {
-          console.log('✅✅✅ [BenzMinigame] Realtime 구독 성공! partner_game_access 테이블 감지 중...');
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('❌❌❌ [BenzMinigame] Realtime 구독 실패:', status);
-        }
-      });
+      );
+    }
+    
+    const gamesChannel = channelBuilder.subscribe((status, err) => {
+      console.log('📡📡📡 [BenzMinigame] Realtime 구독 상태:', status);
+      if (err) {
+        console.error('❌❌❌ [BenzMinigame] Realtime 구독 에러:', err);
+      }
+      if (status === 'SUBSCRIBED') {
+        console.log('✅✅✅ [BenzMinigame] Realtime 구독 성공! partner_game_access 테이블 감지 중... (partner_id:', user.referrer_id, ')');
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.error('❌❌❌ [BenzMinigame] Realtime 구독 실패:', status);
+      }
+    });
     
     return () => {
       isMountedRef.current = false;
       supabase.removeChannel(gamesChannel);
     };
-  }, []);
+  }, [user]);
 
   const loadProviders = async () => {
     if (!user) return;

@@ -264,11 +264,11 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
       const adminDeposit = dayTransactions
-        .filter(t => t.transaction_type === 'admin_deposit' && t.status === 'approved')
+        .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'approved')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
       const adminWithdrawal = dayTransactions
-        .filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'approved')
+        .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'approved')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
       // 포인트 계산

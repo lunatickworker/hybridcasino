@@ -588,21 +588,34 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     // ✅ partner_balance_logs에서 관리자입금/관리자출금 집계
     const relevantBalanceLogs = partnerBalanceLogs.filter(l => relevantUserIdsForTransactions.includes(l.partner_id));
     
-    const adminDeposit = relevantBalanceLogs
+    const adminDepositFromLogs = relevantBalanceLogs
       .filter(l => l.transaction_type === 'deposit')
       .reduce((sum, l) => sum + (l.amount || 0), 0);
 
-    const adminWithdrawal = relevantBalanceLogs
+    const adminWithdrawalFromLogs = relevantBalanceLogs
       .filter(l => l.transaction_type === 'withdrawal')
       .reduce((sum, l) => sum + (l.amount || 0), 0);
+
+    // ✅ transactions 테이블에서 관리자입출금내역 집계 (admin_deposit/admin_withdrawal)
+    const adminDepositFromTransactions = userTransactions
+      .filter(t => t.transaction_type === 'admin_deposit' && t.status === 'completed')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    const adminWithdrawalFromTransactions = userTransactions
+      .filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'completed')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    // ✅ 관리자입금/출금 합산 (partner_balance_logs + transactions)
+    const adminDeposit = adminDepositFromLogs + adminDepositFromTransactions;
+    const adminWithdrawal = adminWithdrawalFromLogs + adminWithdrawalFromTransactions;
 
     console.log(`  💰 [${username}] 거래 집계:`, {
       relevantUsers: relevantUserIdsForTransactions.length,
       transactions: userTransactions.length,
       deposit,
       withdrawal,
-      adminDeposit,
-      adminWithdrawal
+      adminDeposit: { logs: adminDepositFromLogs, transactions: adminDepositFromTransactions, total: adminDeposit },
+      adminWithdrawal: { logs: adminWithdrawalFromLogs, transactions: adminWithdrawalFromTransactions, total: adminWithdrawal }
     });
 
     // ✅ 포인트 거래 데이터 필터링 - 파트너는 소속 회원, 회원은 본인!
@@ -903,7 +916,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     const filteredRows = getFilteredRows(rows);
     
     const summary: SummaryStats = {
-      totalDeposit: filteredRows.reduce((sum, r) => sum + r.deposit, 0),
+      totalDeposit: filteredRows.filter(r => r.level === 3).reduce((sum, r) => sum + r.deposit, 0), // ✅ 본사(lv3)만 집계
       totalWithdrawal: filteredRows.reduce((sum, r) => sum + r.withdrawal, 0),
       adminTotalDeposit: filteredRows.reduce((sum, r) => sum + r.adminDeposit, 0),
       adminTotalWithdrawal: filteredRows.reduce((sum, r) => sum + r.adminWithdrawal, 0),
@@ -1393,16 +1406,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                     </div>
                   </th>
                   
-                  {/* 루징 (카지노/슬롯) - 2단2열 */}
-                  <th className="px-4 py-0 text-center text-white font-normal bg-slate-800/70" rowSpan={1}>
-                    <div className="flex flex-col">
-                      <div className="py-2 border-b border-slate-700/50">루징</div>
-                      <div className="flex">
-                        <div className="flex-1 py-2 border-r border-slate-700/50">카지노</div>
-                        <div className="flex-1 py-2">슬롯</div>
-                      </div>
-                    </div>
-                  </th>
+                  {/* 루징 - 단일 열 */}
+                  <th className="px-4 py-3 text-center text-white font-normal bg-slate-800/70 whitespace-nowrap">루징</th>
                   
                   {/* 보유머니 및 포인트 - 2단2열 */}
                   <th className="px-4 py-0 text-center text-white font-normal bg-indigo-950/60" rowSpan={1}>
@@ -1521,12 +1526,9 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                           </div>
                         </td>
                         
-                        {/* 루징 (카지노/슬롯) - 2단2열 */}
-                        <td className="px-4 py-3 text-center whitespace-nowrap">
-                          <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-slate-300 font-asiahead">{row.casinoLosingRate}%</div>
-                            <div className="flex-1 text-slate-300 font-asiahead">{row.slotLosingRate}%</div>
-                          </div>
+                        {/* 루징 - 단일 열 */}
+                        <td className="px-4 py-3 text-center text-slate-300 font-asiahead whitespace-nowrap">
+                          {row.casinoLosingRate}%
                         </td>
                         
                         {/* 보유머니 및 포인트 - 2단2열 */}

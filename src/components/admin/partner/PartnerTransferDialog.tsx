@@ -91,27 +91,37 @@ export function PartnerTransferDialog({
 
   // 금액 단축 버튼 클릭 (누적 더하기)
   const handleAmountShortcut = (value: number) => {
-    const currentAmount = parseFloat(transferAmount || '0');
+    const currentAmount = parseFloat(transferAmount.replace(/,/g, '') || '0');
     const newAmount = currentAmount + value;
-    setTransferAmount(newAmount.toString());
+    setTransferAmount(newAmount.toLocaleString());
   };
 
   // 전액삭제
   const handleClearAmount = () => {
-    setTransferAmount('0');
+    setTransferAmount('');
   };
 
   // 전액출금
   const handleFullWithdrawal = () => {
     if (targetPartner && transferMode === 'withdrawal') {
-      setTransferAmount(targetPartner.balance.toString());
+      setTransferAmount(targetPartner.balance.toLocaleString());
+    }
+  };
+
+  // 금액 입력 처리
+  const handleAmountChange = (value: string) => {
+    const numericValue = value.replace(/[^\d]/g, '');
+    if (numericValue === '') {
+      setTransferAmount('');
+    } else {
+      setTransferAmount(parseInt(numericValue).toLocaleString());
     }
   };
 
   const handleTransfer = async () => {
     if (!targetPartner || !currentUserId) return;
 
-    const amount = parseFloat(transferAmount);
+    const amount = parseFloat(transferAmount.replace(/,/g, '') || '0');
 
     // 입력 검증
     if (!amount || amount <= 0) {
@@ -360,9 +370,9 @@ export function PartnerTransferDialog({
               </div>
               <Input
                 id="transfer-amount"
-                type="number"
+                type="text"
                 value={transferAmount}
-                onChange={(e) => setTransferAmount(e.target.value)}
+                onChange={(e) => handleAmountChange(e.target.value)}
                 className="input-premium"
                 placeholder="금액을 입력하세요"
               />
@@ -422,7 +432,7 @@ export function PartnerTransferDialog({
         <DialogFooter>
           <Button
             onClick={handleTransfer}
-            disabled={transferLoading || !transferAmount || parseFloat(transferAmount) <= 0}
+            disabled={transferLoading || !transferAmount || parseFloat(transferAmount.replace(/,/g, '') || '0') <= 0}
             className={`w-full ${transferMode === 'deposit' ? 'btn-premium-warning' : 'btn-premium-danger'}`}
           >
             {transferLoading ? t.partnerManagement.processing : t.partnerManagement.confirm}

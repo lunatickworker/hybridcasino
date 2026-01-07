@@ -18,7 +18,7 @@ const UserSettlement = lazy(() => import("../admin/UserSettlement"));
 const AdvancedSettlement = lazy(() => import("../admin/AdvancedSettlement"));
 const TransactionManagement = lazy(() => import("../admin/TransactionManagement"));
 const TransactionApprovalManager = lazy(() => import("../admin/TransactionApprovalManager").then(m => ({ default: m.TransactionApprovalManager })));
-const EnhancedGameManagement = lazy(() => import("../admin/EnhancedGameManagement").then(m => ({ default: m.EnhancedGameManagement })));
+const EnhancedGameManagement = lazy(() => import("../admin/EnhancedGameManagement").then(m => ({ default: m.EnhancedGameManagement }))); // ✅ 폴더 구조로 변경됨 (/EnhancedGameManagement/index.tsx)
 const BettingManagement = lazy(() => import("../admin/BettingManagement").then(m => ({ default: m.BettingManagement })));
 const BettingHistory = lazy(() => import("../admin/BettingHistory").then(m => ({ default: m.BettingHistory })));
 const CallCycle = lazy(() => import("../admin/CallCycle").then(m => ({ default: m.CallCycle })));

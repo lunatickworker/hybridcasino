@@ -161,12 +161,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         
         targetUserIds = userList?.map(u => u.id) || [];
         
-        if (targetUserIds.length === 0) {
-          setTransactions([]);
-          setUsers([]);
-          setStats({ totalDeposit: 0, totalWithdrawal: 0, pendingDepositCount: 0, pendingWithdrawalCount: 0 });
-          return;
-        }
+        // ✅ 사용자가 없어도 관리자 거래(partner_deposit/partner_withdrawal)는 있을 수 있으므로 계속 진행
+        // if (targetUserIds.length === 0) {
+        //   setTransactions([]);
+        //   setUsers([]);
+        //   setStats({ totalDeposit: 0, totalWithdrawal: 0, pendingDepositCount: 0, pendingWithdrawalCount: 0 });
+        //   return;
+        // }
       }
       
       // ⚡ 3단계: 거래 데이터 + 포인트 거래 데이터 + 활성 사용자 목록 병렬 조회
@@ -177,8 +178,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         .lte('created_at', dateRange.end)
         .order('created_at', { ascending: false });
         
-      if (user.level > 1 && targetUserIds.length > 0) {
-        transactionQuery = transactionQuery.in('user_id', targetUserIds);
+      if (user.level > 1) {
+        // ✅ 사용자 거래(user_id) + 관리자 거래(partner_id) 모두 포함
+        if (targetUserIds.length > 0) {
+          transactionQuery = transactionQuery.or(`user_id.in.(${targetUserIds.join(',')}),partner_id.in.(${partnerIds.join(',')})`);
+        } else {
+          // 사용자가 없는 경우 관리자 거래만 조회
+          transactionQuery = transactionQuery.in('partner_id', partnerIds);
+        }
       }
       
       // 포인트 거래 조회
@@ -188,8 +195,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         .select('*')
         .order('created_at', { ascending: false });
         
-      if (user.level > 1 && targetUserIds.length > 0) {
-        pointTransactionQuery = pointTransactionQuery.in('user_id', targetUserIds);
+      if (user.level > 1) {
+        if (targetUserIds.length > 0) {
+          pointTransactionQuery = pointTransactionQuery.in('user_id', targetUserIds);
+        } else {
+          // 사용자가 없으면 빈 배열 반환하도록
+          pointTransactionQuery = pointTransactionQuery.eq('user_id', '00000000-0000-0000-0000-000000000000');
+        }
       }
       
       let userListQuery = supabase
@@ -298,8 +310,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       
       // ⚡ 4단계: 관련 데이터 배치 조회 (병렬)
       const userIds = [...new Set(transactionsData.map(t => t.user_id).filter(Boolean))];
+      const partnerIdsInTransactions = [...new Set(transactionsData.map(t => t.partner_id).filter(Boolean))];
       
-      if (userIds.length === 0) {
+      // ✅ 관리자 거래(partner_id만 있음) + 사용자 거래(user_id만 있음) 둘 다 없으면 종료
+      if (userIds.length === 0 && partnerIdsInTransactions.length === 0) {
         setTransactions([]);
         setStats({ totalDeposit: 0, totalWithdrawal: 0, pendingDepositCount: 0, pendingWithdrawalCount: 0 });
         return;
@@ -307,15 +321,21 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       
       const processedByIds = [...new Set(transactionsData.map(t => t.processed_by).filter(Boolean))];
       
-      const [usersInfoResult, partnersInfoResult] = await Promise.all([
-        supabase.from('users').select('id, nickname, username, balance, bank_name, bank_account, bank_holder, referrer_id').in('id', userIds),
+      const [usersInfoResult, partnersInfoResult, transactionPartnersResult] = await Promise.all([
+        userIds.length > 0
+          ? supabase.from('users').select('id, nickname, username, balance, bank_name, bank_account, bank_holder, referrer_id').in('id', userIds)
+          : Promise.resolve({ data: [], error: null }),
         processedByIds.length > 0 
           ? supabase.from('partners').select('id, nickname, level').in('id', processedByIds)
+          : Promise.resolve({ data: [], error: null }),
+        partnerIdsInTransactions.length > 0
+          ? supabase.from('partners').select('id, nickname, username, level').in('id', partnerIdsInTransactions)
           : Promise.resolve({ data: [], error: null })
       ]);
       
       const usersInfo = usersInfoResult.data || [];
       const partnersInfo = partnersInfoResult.data || [];
+      const transactionPartnersInfo = transactionPartnersResult.data || [];
       
       // ⚡ 5단계: referrer 정보 조회
       const referrerIds = [...new Set(usersInfo.map(u => u.referrer_id).filter(Boolean))];
@@ -327,15 +347,18 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       const usersMap = new Map(usersInfo.map(u => [u.id, u]));
       const referrersMap = new Map((referrersResult.data || []).map(p => [p.id, p]));
       const partnersMap = new Map(partnersInfo.map(p => [p.id, p]));
+      const transactionPartnersMap = new Map(transactionPartnersInfo.map(p => [p.id, p]));
 
       const transactionsWithRelations = transactionsData.map(t => {
         const userInfo = t.user_id ? usersMap.get(t.user_id) : null;
+        const partnerInfo = t.partner_id ? transactionPartnersMap.get(t.partner_id) : null;
         return {
           ...t,
           user: userInfo ? {
             ...userInfo,
             referrer: userInfo.referrer_id ? referrersMap.get(userInfo.referrer_id) : null
           } : null,
+          partner: partnerInfo,
           processed_partner: t.processed_by ? partnersMap.get(t.processed_by) : null
         };
       });
@@ -344,43 +367,55 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       // 통계 계산 - 모든 입출금 타입 포함 (deposit, admin_deposit, withdrawal, admin_withdrawal)
       if (transactionsData) {
-        // 입금: deposit + admin_deposit (completed만)
+        // 입금: deposit + admin_deposit + partner_deposit (completed만)
         const depositSum = transactionsData
           .filter(t => 
-            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && 
+            (t.transaction_type === 'deposit' || 
+             t.transaction_type === 'admin_deposit' || 
+             t.transaction_type === 'partner_deposit') && 
             t.status === 'completed'
           )
           .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
         
-        // 출금: withdrawal + admin_withdrawal (completed만)
+        // 출금: withdrawal + admin_withdrawal + partner_withdrawal (completed만)
         const withdrawalSum = transactionsData
           .filter(t => 
-            (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && 
+            (t.transaction_type === 'withdrawal' || 
+             t.transaction_type === 'admin_withdrawal' || 
+             t.transaction_type === 'partner_withdrawal') && 
             t.status === 'completed'
           )
           .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
         
-        // 대기 중인 입금 신청 (사용자 요청만)
+        // 대기 중인 입금 신청 (사용자 + 관리자)
         const pendingDeposits = transactionsData.filter(t => 
-          t.transaction_type === 'deposit' && t.status === 'pending'
+          (t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit') && 
+          t.status === 'pending'
         );
         
-        // 대기 중인 출금 신청 (사용자 요청만)
+        // 대기 중인 출금 신청 (사용자 + 관리자)
         const pendingWithdrawals = transactionsData.filter(t => 
-          t.transaction_type === 'withdrawal' && t.status === 'pending'
+          (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal') && 
+          t.status === 'pending'
         );
 
         console.log('📊 통계 계산:', {
           depositSum,
           withdrawalSum,
           depositCount: transactionsData.filter(t => 
-            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && 
+            (t.transaction_type === 'deposit' || 
+             t.transaction_type === 'admin_deposit' || 
+             t.transaction_type === 'partner_deposit') && 
             t.status === 'completed'
           ).length,
           withdrawalCount: transactionsData.filter(t => 
-            (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && 
+            (t.transaction_type === 'withdrawal' || 
+             t.transaction_type === 'admin_withdrawal' || 
+             t.transaction_type === 'partner_withdrawal') && 
             t.status === 'completed'
-          ).length
+          ).length,
+          pendingDepositCount: pendingDeposits.length,
+          pendingWithdrawalCount: pendingWithdrawals.length
         });
 
         setStats({
@@ -494,6 +529,82 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       if (action === 'approve') {
         const amount = Math.floor(parseFloat(transaction.amount.toString()));
         
+        // ✅ 관리자 입출금 신청 승인 처리 (partner_deposit, partner_withdrawal)
+        if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_withdrawal') {
+          // Lv2만 승인 가능
+          if (user.level !== 2) {
+            toast.error('Lv2 본사만 관리자 입출금을 승인할 수 있습니다.');
+            setRefreshing(false);
+            return;
+          }
+
+          // 신청한 파트너 정보 조회
+          const requestPartnerId = (transaction as any).partner_id;
+          if (!requestPartnerId) {
+            throw new Error('신청자 정보가 없습니다.');
+          }
+
+          const { data: requestPartnerData, error: requestPartnerError } = await supabase
+            .from('partners')
+            .select('balance, username, level, nickname')
+            .eq('id', requestPartnerId)
+            .single();
+
+          if (requestPartnerError || !requestPartnerData) {
+            throw new Error('신청자 정보를 찾을 수 없습니다.');
+          }
+
+          // 입금 신청 승인: 본사(Lv2) 보유금 확인
+          if (transaction.transaction_type === 'partner_deposit') {
+            const { data: approverData, error: approverError } = await supabase
+              .from('partners')
+              .select('invest_balance, oroplay_balance, familyapi_balance, honorapi_balance')
+              .eq('id', user.id)
+              .single();
+
+            if (approverError || !approverData) {
+              throw new Error('승인자 정보를 찾을 수 없습니다.');
+            }
+
+            // Lv2는 4개 지갑 합계
+            const approverBalance = (parseFloat(approverData.invest_balance?.toString() || '0') || 0) +
+                          (parseFloat(approverData.oroplay_balance?.toString() || '0') || 0) +
+                          (parseFloat(approverData.familyapi_balance?.toString() || '0') || 0) +
+                          (parseFloat(approverData.honorapi_balance?.toString() || '0') || 0);
+
+            if (approverBalance < amount) {
+              toast.error(`보유금이 부족합니다. (현재: ${approverBalance.toLocaleString()}원, 필요: ${amount.toLocaleString()}원)`);
+              setRefreshing(false);
+              return;
+            }
+
+            console.log('✅ 관리자 입금 승인 가능:', {
+              requestPartner: requestPartnerData.username,
+              approverBalance,
+              amount,
+              remaining: approverBalance - amount
+            });
+          }
+          
+          // 출금 신청 승인: 신청자 보유금 확인
+          if (transaction.transaction_type === 'partner_withdrawal') {
+            const requestPartnerBalance = parseFloat(requestPartnerData.balance?.toString() || '0');
+
+            if (requestPartnerBalance < amount) {
+              toast.error(`신청자 보유금이 부족합니다. (현재: ${requestPartnerBalance.toLocaleString()}원)`);
+              setRefreshing(false);
+              return;
+            }
+
+            console.log('✅ 관리자 출금 승인 가능:', {
+              requestPartner: requestPartnerData.username,
+              requestPartnerBalance,
+              amount,
+              remaining: requestPartnerBalance - amount
+            });
+          }
+        }
+        
         // 입금 승인: 로그인한 관리자의 보유금 확인 (✅ 상위 권한자 입출금 가능)
         if (transaction.transaction_type === 'deposit') {
           // 로그인한 관리자의 보유금 조회
@@ -587,22 +698,144 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       if (error) throw error;
 
-      // ✅ 승인인 경우: users 테이블 balance 업데이트 (CRITICAL FIX)
+      // ✅ 승인인 경우: 처리 로직 (사용자 입출금 vs 관리자 입출금)
       if (action === 'approve') {
-        // 1️⃣ 현재 사용자 잔고 확인
-        const { data: currentUserData, error: currentUserError } = await supabase
-          .from('users')
-          .select('balance, username')
-          .eq('id', transaction.user_id)
-          .single();
-
-        if (currentUserError) {
-          console.error('❌ [사용자 조회 실패]:', currentUserError);
-          throw new Error('사용자 정보를 조회할 수 없습니다.');
-        }
-
-        const currentBalance = parseFloat(currentUserData?.balance?.toString() || '0');
         const amount = parseFloat(transaction.amount?.toString() || '0');
+        
+        // ✅ 관리자 입출금 신청 처리
+        if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_withdrawal') {
+          const requestPartnerId = (transaction as any).partner_id;
+          
+          // 신청자 현재 보유금 조회
+          const { data: requestPartnerData, error: requestPartnerError } = await supabase
+            .from('partners')
+            .select('balance, username, nickname')
+            .eq('id', requestPartnerId)
+            .single();
+
+          if (requestPartnerError || !requestPartnerData) {
+            throw new Error('신청자 정보를 조회할 수 없습니다.');
+          }
+
+          const currentBalance = parseFloat(requestPartnerData.balance?.toString() || '0');
+          let newBalance = currentBalance;
+
+          if (transaction.transaction_type === 'partner_deposit') {
+            // 입금: 신청자 보유금 증가
+            newBalance = currentBalance + amount;
+          } else if (transaction.transaction_type === 'partner_withdrawal') {
+            // 출금: 신청자 보유금 차감
+            newBalance = currentBalance - amount;
+            
+            if (newBalance < 0) {
+              throw new Error(`잔고가 음수가 될 수 없습니다. (현재: ${currentBalance}, 출금: ${amount})`);
+            }
+          }
+
+          // 신청자 보유금 업데이트
+          const { error: balanceUpdateError } = await supabase
+            .from('partners')
+            .update({
+              balance: newBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', requestPartnerId);
+
+          if (balanceUpdateError) {
+            console.error('❌ [신청자 보유금 업데이트 실패]:', balanceUpdateError);
+            throw new Error('신청자 보유금 업데이트에 실패했습니다.');
+          }
+
+          console.log('✅ [신청자 보유금 업데이트 완료]:', {
+            partner_id: requestPartnerId,
+            username: requestPartnerData.username,
+            before: currentBalance,
+            after: newBalance,
+            transaction_type: transaction.transaction_type
+          });
+
+          // 승인자(본사) 보유금 조정
+          const { data: approverData, error: approverError } = await supabase
+            .from('partners')
+            .select('balance, username, invest_balance, oroplay_balance, familyapi_balance, honorapi_balance')
+            .eq('id', user.id)
+            .single();
+
+          if (approverError || !approverData) {
+            throw new Error('승인자 정보를 찾을 수 없습니다.');
+          }
+
+          // Lv2는 4개 지갑 중 invest_balance만 조정 (편의상)
+          const currentApproverBalance = parseFloat(approverData.invest_balance?.toString() || '0');
+          let newApproverBalance = currentApproverBalance;
+
+          if (transaction.transaction_type === 'partner_deposit') {
+            // 입금 승인: 본사 보유금 차감
+            newApproverBalance = currentApproverBalance - amount;
+          } else if (transaction.transaction_type === 'partner_withdrawal') {
+            // 출금 승인: 본사 보유금 증가
+            newApproverBalance = currentApproverBalance + amount;
+          }
+
+          const { error: approverUpdateError } = await supabase
+            .from('partners')
+            .update({
+              invest_balance: newApproverBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', user.id);
+
+          if (approverUpdateError) {
+            console.error('❌ [승인자 보유금 업데이트 실패]:', approverUpdateError);
+            throw new Error('승인자 보유금 업데이트에 실패했습니다.');
+          }
+
+          console.log('✅ [승인자 보유금 업데이트 완료]:', {
+            approver_id: user.id,
+            username: approverData.username,
+            before: currentApproverBalance,
+            after: newApproverBalance
+          });
+
+          // 로그 기록
+          await supabase.from('partner_balance_logs').insert([
+            {
+              partner_id: requestPartnerId,
+              balance_before: currentBalance,
+              balance_after: newBalance,
+              amount: transaction.transaction_type === 'partner_deposit' ? amount : -amount,
+              transaction_type: transaction.transaction_type === 'partner_deposit' ? 'deposit' : 'withdrawal',
+              processed_by: user.id,
+              memo: `관리자 ${transaction.transaction_type === 'partner_deposit' ? '입금' : '출금'} 승인 (승인자: ${user.username})`,
+              created_at: new Date().toISOString()
+            },
+            {
+              partner_id: user.id,
+              balance_before: currentApproverBalance,
+              balance_after: newApproverBalance,
+              amount: transaction.transaction_type === 'partner_deposit' ? -amount : amount,
+              transaction_type: 'admin_adjustment',
+              processed_by: user.id,
+              memo: `${requestPartnerData.username} 관리자 ${transaction.transaction_type === 'partner_deposit' ? '입금' : '출금'} 승인`,
+              created_at: new Date().toISOString()
+            }
+          ]);
+        }
+        // ✅ 사용자 입출금 처리
+        else if (transaction.transaction_type === 'deposit' || transaction.transaction_type === 'withdrawal') {
+          // 1️⃣ 현재 사용자 잔고 확인
+          const { data: currentUserData, error: currentUserError } = await supabase
+            .from('users')
+            .select('balance, username')
+            .eq('id', transaction.user_id)
+            .single();
+
+          if (currentUserError) {
+            console.error('❌ [사용자 조회 실패]:', currentUserError);
+            throw new Error('사용자 정보를 조회할 수 없습니다.');
+          }
+
+          const currentBalance = parseFloat(currentUserData?.balance?.toString() || '0');
         
         // 2️⃣ 새로운 잔고 계산
         let newBalance = currentBalance;
@@ -778,6 +1011,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             created_at: new Date().toISOString()
           });
         }
+        }
       }
 
       toast.success(action === 'approve' ? t.transactionManagement.transactionApproved : t.transactionManagement.transactionRejected);
@@ -787,7 +1021,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         transactionId: transaction.id, 
         action, 
         processedBy: user.nickname,
-        userId: transaction.user_id
+        userId: transaction.user_id || null,
+        partnerId: (transaction as any).partner_id || null
       });
       
       setActionDialog({ open: false, transaction: null, action: 'approve', memo: '' });
@@ -823,7 +1058,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       }
 
       // amount를 정수로 변환 (Guidelines: 입금액/출금액은 숫자만)
-      const amountNum = Math.floor(parseFloat(amount));
+      const amountNum = Math.floor(parseFloat(amount.replace(/,/g, '') || '0'));
       const balanceBefore = parseFloat(selectedUser.balance?.toString() || '0');
 
       console.log('💰 강제 입출금 처리 시작:', {
@@ -1148,17 +1383,23 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   }
 
   // 탭별 데이터 필터링
-  const filterBySearch = (t: Transaction) => 
-    searchTerm === '' || t.user?.nickname?.toLowerCase().includes(searchTerm.toLowerCase());
+  const filterBySearch = (t: Transaction) => {
+    // 관리자 입출금 신청은 partner 정보로 검색
+    if (t.transaction_type === 'partner_deposit' || t.transaction_type === 'partner_withdrawal') {
+      return searchTerm === '' || (t as any).partner?.nickname?.toLowerCase().includes(searchTerm.toLowerCase());
+    }
+    // 사용자 입출금 신청은 user 정보로 검색
+    return searchTerm === '' || t.user?.nickname?.toLowerCase().includes(searchTerm.toLowerCase());
+  };
 
   const depositRequests = transactions.filter(t => 
-    t.transaction_type === 'deposit' && 
+    (t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit') && 
     t.status === 'pending' &&
     filterBySearch(t)
   );
 
   const withdrawalRequests = transactions.filter(t => 
-    t.transaction_type === 'withdrawal' && 
+    (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal') && 
     t.status === 'pending' &&
     filterBySearch(t)
   );
@@ -1175,6 +1416,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (transactionTypeFilter === 'user_withdrawal') return t.transaction_type === 'withdrawal';
         if (transactionTypeFilter === 'admin_deposit') return t.transaction_type === 'admin_deposit';
         if (transactionTypeFilter === 'admin_withdrawal') return t.transaction_type === 'admin_withdrawal';
+        if (transactionTypeFilter === 'partner_deposit') return t.transaction_type === 'partner_deposit';
+        if (transactionTypeFilter === 'partner_withdrawal') return t.transaction_type === 'partner_withdrawal';
         return false;
       })();
       
@@ -1182,6 +1425,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
        t.transaction_type === 'withdrawal' ||
        t.transaction_type === 'admin_deposit' || 
        t.transaction_type === 'admin_withdrawal' || 
+       t.transaction_type === 'partner_deposit' ||
+       t.transaction_type === 'partner_withdrawal' ||
        t.transaction_type === 'admin_adjustment') &&
       (t.status === 'completed' || t.status === 'rejected') &&
       filterBySearch(t) &&
@@ -1342,6 +1587,18 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           );
         }
         
+        // ✅ 관리자 입출금 신청인 경우 (partner_deposit, partner_withdrawal)
+        if (row.transaction_type === 'partner_deposit' || row.transaction_type === 'partner_withdrawal') {
+          return (
+            <div>
+              <p className="font-medium text-purple-300 text-base">
+                {row.partner?.nickname || '[관리자]'}
+              </p>
+              <p className="text-sm text-slate-500">{row.partner?.username || ''}</p>
+            </div>
+          );
+        }
+        
         // 일반 회원 거래
         return (
           <div>
@@ -1362,8 +1619,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         // 파트너 거래인 경우
         if (row.is_partner_transaction) {
           const partnerTypeMap: any = {
-            deposit: { text: '파트너입금', color: 'bg-cyan-600' },
-            withdrawal: { text: '파트너출금', color: 'bg-pink-600' },
+            deposit: { text: '관리자입금', color: 'bg-cyan-600' },
+            withdrawal: { text: '관리자출금', color: 'bg-pink-600' },
             admin_adjustment: { text: '파트너조정', color: 'bg-indigo-600' },
             commission: { text: '파트너수수료', color: 'bg-violet-600' },
             refund: { text: '파트너환급', color: 'bg-sky-600' },
@@ -1379,6 +1636,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           withdrawal: { text: t.transactionManagement.withdrawal, color: 'bg-orange-600' },
           admin_deposit: { text: t.transactionManagement.adminDeposit, color: 'bg-teal-600' },
           admin_withdrawal: { text: t.transactionManagement.adminWithdrawal, color: 'bg-rose-600' },
+          partner_deposit: { text: '관리자입금신청', color: 'bg-cyan-600' },
+          partner_withdrawal: { text: '관리자출금신청', color: 'bg-pink-600' },
           admin_adjustment: { 
             text: row.memo?.includes('강제 출금') ? t.transactionManagement.withdrawal : t.transactionManagement.deposit, 
             color: row.memo?.includes('강제 출금') ? 'bg-rose-600' : 'bg-teal-600'
@@ -1985,7 +2244,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => setForceDialog({ ...forceDialog, amount: '0' })}
+                  onClick={() => setForceDialog({ ...forceDialog, amount: '' })}
                   className={`h-10 px-4 text-base text-slate-400 ${
                     forceDialog.type === 'deposit' 
                       ? 'hover:text-orange-400 hover:bg-orange-500/10' 
@@ -1998,10 +2257,16 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               <Input
                 id="force-dialog-amount"
                 name="amount"
-                type="number"
+                type="text"
                 value={forceDialog.amount}
                 onChange={(e) => {
-                  const inputAmount = parseFloat(e.target.value || '0');
+                  const numericValue = e.target.value.replace(/[^\d]/g, '');
+                  if (numericValue === '') {
+                    setForceDialog({ ...forceDialog, amount: '' });
+                    return;
+                  }
+                  
+                  const inputAmount = parseInt(numericValue);
                   
                   // 출금 타입이고 회원이 선택된 경우 보유금 검증
                   if (forceDialog.type === 'withdrawal' && forceDialog.userId) {
@@ -2010,13 +2275,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                       const userBalance = parseFloat(selectedUser.balance?.toString() || '0');
                       if (inputAmount > userBalance) {
                         toast.error(`출금 금액이 보유금(${userBalance.toLocaleString()}원)을 초과할 수 없습니다.`);
-                        setForceDialog({ ...forceDialog, amount: userBalance.toString() });
+                        setForceDialog({ ...forceDialog, amount: userBalance.toLocaleString() });
                         return;
                       }
                     }
                   }
                   
-                  setForceDialog({ ...forceDialog, amount: e.target.value });
+                  setForceDialog({ ...forceDialog, amount: inputAmount.toLocaleString() });
                 }}
                 placeholder={t.transactionManagement.enterAmountPlaceholder}
                 className="input-premium h-14 text-lg"
@@ -2033,7 +2298,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                     type="button"
                     variant="outline"
                     onClick={() => {
-                      const currentAmount = parseFloat(forceDialog.amount || '0');
+                      const currentAmount = parseFloat(forceDialog.amount.replace(/,/g, '') || '0');
                       const newAmount = currentAmount + amt;
                       
                       // 출금 타입이고 회원이 선택된 경우 보유금 검증
@@ -2043,7 +2308,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                           const userBalance = parseFloat(selectedUser.balance?.toString() || '0');
                           if (newAmount > userBalance) {
                             toast.error(`출금 금액이 보유금(${userBalance.toLocaleString()}원)을 초과할 수 없습니다.`);
-                            setForceDialog({ ...forceDialog, amount: userBalance.toString() });
+                            setForceDialog({ ...forceDialog, amount: userBalance.toLocaleString() });
                             return;
                           }
                         }
@@ -2051,7 +2316,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                       
                       setForceDialog({ 
                         ...forceDialog, 
-                        amount: newAmount.toString() 
+                        amount: newAmount.toLocaleString() 
                       });
                     }}
                     className={`h-12 text-base transition-all bg-slate-800/50 border-slate-700 text-slate-300 ${
@@ -2076,7 +2341,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                     const selectedUser = users.find(u => u.id === forceDialog.userId);
                     if (selectedUser) {
                       const balance = parseFloat(selectedUser.balance?.toString() || '0');
-                      setForceDialog({ ...forceDialog, amount: balance.toString() });
+                      setForceDialog({ ...forceDialog, amount: balance.toLocaleString() });
                     }
                   }}
                   className="w-full h-12 text-lg bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40 hover:border-red-500"
@@ -2105,7 +2370,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             <Button 
               type="button"
               onClick={handleForceTransaction}
-              disabled={refreshing || !forceDialog.userId || !forceDialog.amount || parseFloat(forceDialog.amount) <= 0}
+              disabled={refreshing || !forceDialog.userId || !forceDialog.amount || parseFloat(forceDialog.amount.replace(/,/g, '') || '0') <= 0}
               className={`w-full h-14 text-xl ${forceDialog.type === 'deposit' ? 'btn-premium-warning' : 'btn-premium-danger'}`}
             >
               {refreshing ? t.transactionManagement.processing : forceDialog.type === 'deposit' ? t.transactionManagement.forceDeposit : t.transactionManagement.forceWithdrawal}

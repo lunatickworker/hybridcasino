@@ -700,12 +700,19 @@ html {
   }
 }
 
-/* Dialog/Modal 다크 스타일 */
-[role="dialog"], [data-state="open"] {
+/* Dialog/Modal 다크 스타일 - 회원 생성 모달은 투명하게 유지 */
+[data-slot="dialog-content"]:not([data-transparent="true"]) {
   background: rgba(26, 31, 46, 0.95) !important;
   border: 1px solid rgba(71, 85, 105, 0.5) !important;
   backdrop-filter: blur(20px) !important;
   color: #e2e8f0;
+}
+
+/* 투명 모달 스타일 */
+[data-slot="dialog-content"][data-transparent="true"] {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border: none !important;
 }
 
 /* ===== 블루 럭셔리 토스트 ===== */
