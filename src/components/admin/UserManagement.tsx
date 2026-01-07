@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Filter, Download, Upload, Edit, Trash2, Eye, DollarSign, UserX, UserCheck, X, Check, Clock, Bell, Users, Activity, RefreshCw, AlertCircle } from "lucide-react";
+import { Plus, Search, Filter, Download, Upload, Edit, Trash2, Eye, DollarSign, UserX, UserCheck, X, Check, Clock, Bell, Users, Activity, RefreshCw, AlertCircle, Info } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
@@ -632,6 +632,8 @@ export function UserManagement() {
           
           // 비밀번호 해싱
           const hashedPassword = await bcrypt.hash(password, 10);
+          // 출금 비밀번호 해싱 (기본값: 1234)
+          const hashedWithdrawalPassword = await bcrypt.hash('1234', 10);
           
           // DB에 사용자 생성
           const { data: newUser, error: insertError } = await supabase
@@ -640,6 +642,7 @@ export function UserManagement() {
               username,
               nickname,
               password_hash: hashedPassword,
+              withdrawal_password_hash: hashedWithdrawalPassword, // ✅ 출금 비밀번호 (기본값: 1234)
               bank_name: bulkFormData.bank_name || null,
               bank_account: bulkFormData.bank_account || null,
               memo: bulkFormData.memo || null,
@@ -825,6 +828,8 @@ export function UserManagement() {
 
       // 비밀번호 해싱
       const hashedPassword = await bcrypt.hash(userData.password, 10);
+      // 출금 비밀번호 해싱 (기본값: 1234)
+      const hashedWithdrawalPassword = await bcrypt.hash('1234', 10);
 
       // 1. DB에 사용자 생성 (api_account_status = 'pending')
       const { data: newUser, error: insertError } = await supabase
@@ -833,6 +838,7 @@ export function UserManagement() {
           username: userData.username,
           nickname: userData.nickname || userData.username,
           password_hash: hashedPassword,
+          withdrawal_password_hash: hashedWithdrawalPassword, // ✅ 출금 비밀번호 (기본값: 1234)
           bank_name: userData.bank_name || null,
           bank_account: userData.bank_account || null,
           memo: userData.memo || null,
@@ -2410,6 +2416,24 @@ export function UserManagement() {
                   className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
                   placeholder={t.userManagement.enterInitialPassword}
                 />
+              </div>
+              
+              {/* 출금 비밀번호 안내 */}
+              <div className="col-span-4 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                    <Info className="h-4 w-4 text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-300 font-medium mb-0.5">
+                      출금 비밀번호 안내
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      회원 생성 시 출금 비밀번호는 자동으로 <strong className="text-blue-400">1234</strong>로 설정됩니다.<br />
+                      회원이 마이페이지에서 직접 변경할 수 있습니다.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
             
