@@ -1,0 +1,536 @@
+import { useState, useEffect } from "react";
+import { Calculator, Download, RefreshCw, TrendingUp, Calendar as CalendarIcon, AlertCircle, Wallet, BadgeDollarSign, CheckCircle } from "lucide-react";
+import { Button } from "../ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Badge } from "../ui/badge";
+import { LoadingSpinner } from "../common/LoadingSpinner";
+import { DateRange } from "react-day-picker";
+import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
+import { Calendar } from "../ui/calendar";
+import { toast } from "sonner@2.0.3";
+import { Partner } from "../../types";
+import { supabase } from "../../lib/supabase";
+import { cn } from "../../lib/utils";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
+import { MetricCard } from "./MetricCard";
+import { calculateChildPartnersCommission, PartnerCommissionInfo } from "../../lib/settlementCalculator";
+import { executePartnerCommissionSettlement } from "../../lib/settlementExecutor";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { getTodayStartUTC, getTomorrowStartUTC } from "../../utils/timezone";
+import { motion, AnimatePresence } from "motion/react";
+
+interface CommissionSettlementProps {
+  user: Partner;
+}
+
+export function CommissionSettlement({ user }: CommissionSettlementProps) {
+  const { t } = useLanguage();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [settlementMethod, setSettlementMethod] = useState<'differential' | 'direct_subordinate'>('direct_subordinate');
+  const [periodFilter, setPeriodFilter] = useState("today");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  // Lv3~Lv6은 통합 GMS 머니만 사용하므로 API 필터 불필요
+  const [apiFilter, setApiFilter] = useState<'all' | 'invest' | 'oroplay'>('all');
+  const [commissions, setCommissions] = useState<PartnerCommissionInfo[]>([]);
+  
+  const [stats, setStats] = useState({
+    totalRollingCommission: 0,
+    totalLosingCommission: 0,
+    totalWithdrawalCommission: 0,
+    totalCommission: 0,
+    partnerCount: 0
+  });
+
+  useEffect(() => {
+    loadSettlementMethod();
+    loadCommissions();
+  }, [user.id, periodFilter, dateRange, apiFilter]);
+
+  const loadSettlementMethod = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'settlement_method')
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) {
+        setSettlementMethod(data.setting_value as 'differential' | 'direct_subordinate');
+      }
+    } catch (error) {
+      console.error(t.settlement.settlementMethodLoadFailed, error);
+    }
+  };
+
+  const getDateRange = () => {
+    // 시스템 타임존 기준 오늘/내일 0시
+    const todayStart = getTodayStartUTC();
+    const tomorrowStart = getTomorrowStartUTC();
+    
+    switch (periodFilter) {
+      case "today":
+        return {
+          start: todayStart,
+          end: tomorrowStart
+        };
+      case "yesterday":
+        const yesterdayStart = new Date(new Date(todayStart).getTime() - 86400000).toISOString();
+        return {
+          start: yesterdayStart,
+          end: todayStart
+        };
+      case "week":
+        const weekStart = new Date(new Date(todayStart).getTime() - 7 * 86400000).toISOString();
+        return {
+          start: weekStart,
+          end: tomorrowStart
+        };
+      case "month":
+        // 시스템 타임존 기준 이번 달 1일 0시
+        const todayDate = new Date(todayStart);
+        const monthStart = new Date(Date.UTC(
+          todayDate.getUTCFullYear(),
+          todayDate.getUTCMonth(),
+          1, 0, 0, 0, 0
+        )).toISOString();
+        return {
+          start: monthStart,
+          end: tomorrowStart
+        };
+      case "custom":
+        if (dateRange?.from) {
+          const start = new Date(dateRange.from);
+          const end = dateRange.to ? new Date(dateRange.to) : new Date(dateRange.from);
+          return {
+            start: start.toISOString(),
+            end: new Date(end.getTime() + 86400000).toISOString()
+          };
+        }
+        return {
+          start: todayStart,
+          end: tomorrowStart
+        };
+      default:
+        return {
+          start: todayStart,
+          end: tomorrowStart
+        };
+    }
+  };
+
+  const loadCommissions = async () => {
+    try {
+      if (!refreshing) {
+        setLoading(true);
+      }
+      const { start, end } = getDateRange();
+
+      const commissionsData = await calculateChildPartnersCommission(user.id, start, end, apiFilter);
+
+      if (commissionsData.length === 0) {
+        setCommissions([]);
+        setStats({
+          totalRollingCommission: 0,
+          totalLosingCommission: 0,
+          totalWithdrawalCommission: 0,
+          totalCommission: 0,
+          partnerCount: 0
+        });
+        return;
+      }
+
+      setCommissions(commissionsData);
+
+      const newStats = commissionsData.reduce((acc, comm) => ({
+        totalRollingCommission: acc.totalRollingCommission + comm.rolling_commission,
+        totalLosingCommission: acc.totalLosingCommission + comm.losing_commission,
+        totalWithdrawalCommission: acc.totalWithdrawalCommission + comm.withdrawal_commission,
+        totalCommission: acc.totalCommission + comm.total_commission,
+        partnerCount: acc.partnerCount + 1
+      }), {
+        totalRollingCommission: 0,
+        totalLosingCommission: 0,
+        totalWithdrawalCommission: 0,
+        totalCommission: 0,
+        partnerCount: 0
+      });
+
+      setStats(newStats);
+    } catch (error) {
+      console.error('수수료 계산 실패:', error);
+      toast.error(t.settlement.commissionLoadFailed);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadCommissions();
+  };
+
+  const handleExport = () => {
+    toast.info(t.settlement.exportExcelPreparing);
+  };
+
+  const handleExecuteSettlement = async () => {
+    if (stats.totalCommission <= 0) {
+      toast.error(t.settlement.noCommissionToSettle);
+      return;
+    }
+
+    if (commissions.length === 0) {
+      toast.error(t.settlement.noPartnersToSettle);
+      return;
+    }
+
+    const confirmMessage = t.settlement.confirmSettlement
+      .replace('{count}', commissions.length.toString())
+      .replace('{total}', stats.totalCommission.toLocaleString())
+      .replace('{rolling}', stats.totalRollingCommission.toLocaleString())
+      .replace('{losing}', stats.totalLosingCommission.toLocaleString())
+      .replace('{withdrawal}', stats.totalWithdrawalCommission.toLocaleString());
+
+    if (!window.confirm(confirmMessage)) return;
+
+    setExecuting(true);
+    try {
+      const { start, end } = getDateRange();
+      
+      const result = await executePartnerCommissionSettlement(
+        user.id,
+        start,
+        end,
+        periodFilter,
+        apiFilter
+      );
+
+      if (result.success) {
+        toast.success(result.message);
+        loadCommissions();
+      } else {
+        toast.error(result.message || t.settlement.integratedSettlementFailed);
+      }
+    } catch (error) {
+      console.error('정산 실행 오류:', error);
+      toast.error(t.settlement.integratedSettlementError);
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const getLevelText = (level: number) => {
+    switch (level) {
+      case 2: return t.settlement.masterAgency;
+      case 3: return t.settlement.mainAgency;
+      case 4: return t.settlement.subAgency;
+      case 5: return t.settlement.distributor;
+      case 6: return t.settlement.store;
+      default: return t.settlement.unknown;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 p-6">
+      {/* 헤더 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl text-white mb-2">{t.settlement.commissionSettlementTitle}</h1>
+          <p className="text-xl text-slate-400">
+            {t.settlement.commissionSettlementSubtitle}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="text-lg px-4 py-2"
+          >
+            <RefreshCw className={cn("h-6 w-6 mr-2", refreshing && "animate-spin")} />
+            {t.common.refresh}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            className="text-lg px-4 py-2"
+          >
+            <Download className="h-6 w-6 mr-2" />
+            {t.settlement.exportExcel}
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleExecuteSettlement}
+            disabled={executing || stats.totalCommission <= 0}
+            className="bg-orange-600 hover:bg-orange-700 text-lg px-4 py-2"
+          >
+            <CheckCircle className={cn("h-6 w-6 mr-2", executing && "animate-spin")} />
+            {executing ? t.settlement.settling : t.settlement.executeSettlement}
+          </Button>
+        </div>
+      </div>
+
+      {/* 통계 카드 */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-5 relative">
+        {/* Smooth overlay loading */}
+        <AnimatePresence>
+          {refreshing && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm rounded-lg z-10 flex items-center justify-center"
+            >
+              <LoadingSpinner />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        <MetricCard
+          title={t.settlement.rollingCommission}
+          value={`₩${stats.totalRollingCommission.toLocaleString()}`}
+          subtitle={t.settlement.rollingCommissionSubtitle}
+          icon={TrendingUp}
+          color="blue"
+        />
+        <MetricCard
+          title={t.settlement.losingCommission}
+          value={`₩${stats.totalLosingCommission.toLocaleString()}`}
+          subtitle={t.settlement.losingCommissionSubtitle}
+          icon={BadgeDollarSign}
+          color="purple"
+        />
+        <MetricCard
+          title={t.settlement.withdrawalCommission}
+          value={`₩${stats.totalWithdrawalCommission.toLocaleString()}`}
+          subtitle={t.settlement.withdrawalCommissionSubtitle}
+          icon={Wallet}
+          color="emerald"
+        />
+        <MetricCard
+          title={t.settlement.totalCommission}
+          value={`₩${stats.totalCommission.toLocaleString()}`}
+          subtitle={t.settlement.totalCommissionSubtitle}
+          icon={Calculator}
+          color="orange"
+        />
+      </div>
+
+      {/* 수수료 테이블 */}
+      <Card className="relative">
+        {/* Smooth overlay loading */}
+        <AnimatePresence>
+          {refreshing && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm rounded-lg z-10 flex items-center justify-center"
+            >
+              <LoadingSpinner />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <CardTitle className="text-3xl">{t.settlement.partnerCommissionDetails}</CardTitle>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* API 필터 - Lv3~Lv6은 통합 GMS 머니만 사용하므로 숨김 */}
+              {user.level <= 2 && (
+                <Select value={apiFilter} onValueChange={(value) => setApiFilter(value as 'all' | 'invest' | 'oroplay')}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{t.settlement.allApi}</SelectItem>
+                    <SelectItem value="invest">{t.settlement.investOnly}</SelectItem>
+                    <SelectItem value="oroplay">{t.settlement.oroplaysOnly}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+
+              <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">{t.settlement.today}</SelectItem>
+                  <SelectItem value="yesterday">{t.settlement.yesterday}</SelectItem>
+                  <SelectItem value="week">{t.settlement.lastWeek}</SelectItem>
+                  <SelectItem value="month">{t.settlement.thisMonth}</SelectItem>
+                  <SelectItem value="custom">{t.settlement.customPeriod}</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {periodFilter === "custom" && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[280px] justify-start text-left">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, "PPP", { locale: ko })} -{" "}
+                            {format(dateRange.to, "PPP", { locale: ko })}
+                          </>
+                        ) : (
+                          format(dateRange.from, "PPP", { locale: ko })
+                        )
+                      ) : (
+                        <span>{t.settlement.selectDate}</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      initialFocus
+                      mode="range"
+                      defaultMonth={dateRange?.from}
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      numberOfMonths={2}
+                      locale={ko}
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {commissions.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">
+              <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p>{t.settlement.noSubPartners}</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-700">
+                    <th className="text-left p-4 text-slate-400 text-xl">{t.settlement.partner}</th>
+                    <th className="text-left p-4 text-slate-400 text-xl">{t.settlement.grade}</th>
+                    <th className="text-right p-4 text-blue-400 text-xl">🎰 카지노 롤링</th>
+                    <th className="text-right p-4 text-blue-400 text-xl">🎰 카지노 루징</th>
+                    <th className="text-right p-4 text-purple-400 text-xl">🎮 슬롯 롤링</th>
+                    <th className="text-right p-4 text-purple-400 text-xl">🎮 슬롯 루징</th>
+                    <th className="text-right p-4 text-emerald-400 text-xl">💰 환전 수수료</th>
+                    <th className="text-right p-4 text-slate-400 text-xl">{t.settlement.totalCommission}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <AnimatePresence mode="popLayout">
+                    {commissions.map((comm) => (
+                      <motion.tr
+                        key={comm.partner_id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="border-b border-slate-800 hover:bg-slate-800/30"
+                      >
+                        <td className="p-4">
+                          <div>
+                            <p className="text-white text-xl">{comm.partner_nickname}</p>
+                            <p className="text-lg text-slate-400">{comm.partner_username}</p>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <Badge variant="outline" className="text-lg px-3 py-1">{getLevelText(comm.partner_level)}</Badge>
+                        </td>
+                        {/* 카지노 롤링 */}
+                        <td className="p-4 text-right">
+                          <div>
+                            <p className="text-blue-400 text-xl">₩{comm.casino_rolling_commission_amount.toLocaleString()}</p>
+                            <p className="text-lg text-slate-500">{comm.casino_rolling_commission}% · ₩{comm.casino_bet_amount.toLocaleString()}</p>
+                          </div>
+                        </td>
+                        {/* 카지노 루징 */}
+                        <td className="p-4 text-right">
+                          <div>
+                            <p className="text-blue-400 text-xl">₩{comm.casino_losing_commission_amount.toLocaleString()}</p>
+                            <p className="text-lg text-slate-500">{comm.casino_losing_commission}% · ₩{comm.casino_loss_amount.toLocaleString()}</p>
+                          </div>
+                        </td>
+                        {/* 슬롯 롤링 */}
+                        <td className="p-4 text-right">
+                          <div>
+                            <p className="text-purple-400 text-xl">₩{comm.slot_rolling_commission_amount.toLocaleString()}</p>
+                            <p className="text-lg text-slate-500">{comm.slot_rolling_commission}% · ₩{comm.slot_bet_amount.toLocaleString()}</p>
+                          </div>
+                        </td>
+                        {/* 슬롯 루징 */}
+                        <td className="p-4 text-right">
+                          <div>
+                            <p className="text-purple-400 text-xl">₩{comm.slot_losing_commission_amount.toLocaleString()}</p>
+                            <p className="text-lg text-slate-500">{comm.slot_losing_commission}% · ₩{comm.slot_loss_amount.toLocaleString()}</p>
+                          </div>
+                        </td>
+                        {/* 환전 수수료 */}
+                        <td className="p-4 text-right">
+                          <div>
+                            <p className="text-emerald-400 text-xl">₩{comm.withdrawal_commission.toLocaleString()}</p>
+                            <p className="text-lg text-slate-500">{comm.withdrawal_fee}%</p>
+                          </div>
+                        </td>
+                        {/* 전체 커미션 */}
+                        <td className="p-4 text-right">
+                          <p className="text-orange-400 font-mono text-xl">₩{comm.total_commission.toLocaleString()}</p>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </AnimatePresence>
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-800/50 border-t-2 border-slate-600">
+                    <td colSpan={2} className="p-4 text-white text-xl">{t.settlement.totalSum}</td>
+                    <td className="p-4 text-right text-blue-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
+                      ₩{commissions.reduce((sum, c) => sum + c.casino_rolling_commission_amount, 0).toLocaleString()}
+                    </td>
+                    <td className="p-4 text-right text-blue-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
+                      ₩{commissions.reduce((sum, c) => sum + c.casino_losing_commission_amount, 0).toLocaleString()}
+                    </td>
+                    <td className="p-4 text-right text-purple-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
+                      ₩{commissions.reduce((sum, c) => sum + c.slot_rolling_commission_amount, 0).toLocaleString()}
+                    </td>
+                    <td className="p-4 text-right text-purple-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
+                      ₩{commissions.reduce((sum, c) => sum + c.slot_losing_commission_amount, 0).toLocaleString()}
+                    </td>
+                    <td className="p-4 text-right text-emerald-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
+                      ₩{stats.totalWithdrawalCommission.toLocaleString()}
+                    </td>
+                    <td className="p-4 text-right text-orange-400 font-mono" style={{ fontSize: 'calc(1.25rem * 1.03)' }}>
+                      ₩{stats.totalCommission.toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
