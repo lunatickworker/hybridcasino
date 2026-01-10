@@ -334,10 +334,12 @@ export function MenuManagement({ user }: MenuManagementProps) {
     p.nickname.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // 통계
+  // 통계 (선택된 파트너의 메뉴 권한 기준 - 현재 사용자에게 표시되는 메뉴만 카운트)
+  const enabledMenuCount = allMenus.filter(menu => enabledMenuPaths.includes(menu.menu_path)).length;
   const stats = {
     totalMenus: allMenus.length,
-    enabledMenus: enabledMenuPaths.length,
+    enabledMenus: enabledMenuCount,
+    disabledMenus: allMenus.length - enabledMenuCount,
   };
 
   useEffect(() => {
@@ -483,7 +485,7 @@ export function MenuManagement({ user }: MenuManagementProps) {
                       <EyeOff className="w-10 h-10 text-gray-100" />
                       <div>
                         <div className="text-sm text-gray-100">비활성화된 메뉴</div>
-                        <div className="text-3xl text-white">{stats.totalMenus - stats.enabledMenus}</div>
+                        <div className="text-3xl text-white">{stats.disabledMenus}</div>
                       </div>
                     </div>
                   </CardContent>
