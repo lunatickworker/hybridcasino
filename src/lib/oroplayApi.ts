@@ -196,37 +196,77 @@ export async function createOroPlayToken(
 // ============================================
 
 /**
+ * 상위 계층 파트너 ID 목록 조회 (계층 순서대로)
+ * 자신부터 Lv1까지 ascending order (자신, 부모, ..., Lv1)
+ */
+async function getPartnerHierarchy(partnerId: string): Promise<string[]> {
+  const hierarchy: string[] = [];
+  let currentId: string | null = partnerId;
+  const maxIterations = 10;
+
+  while (currentId && hierarchy.length < maxIterations) {
+    hierarchy.push(currentId);
+    
+    const { data: partner } = await supabase
+      .from('partners')
+      .select('id, parent_id, level')
+      .eq('id', currentId)
+      .single();
+    
+    if (!partner || partner.level === 1 || !partner.parent_id) {
+      break;
+    }
+    
+    currentId = partner.parent_id;
+  }
+
+  return hierarchy;
+}
+
+/**
  * OroPlay 토큰 조회 및 자동 갱신
- * 최초 접속 시 토큰이 없으면 자동 생성
+ * ⚡ hierarchical credential lookup: Lv6 → Lv5 → ... → Lv1 순서로 credentials 검색
  */
 export async function getOroPlayToken(partnerId: string): Promise<string> {
   console.log('🔑 [OroPlay] getOroPlayToken 호출 시작:', { partnerId });
   
-  const { data: config, error: configError } = await supabase
-    .from('api_configs')
-    .select('token, token_expires_at, client_id, client_secret')
-    .eq('partner_id', partnerId)
-    .eq('api_provider', 'oroplay')
-    .maybeSingle();
+  // ⚡ 계층 순서대로 파트너 ID 목록 조회 (자신부터 Lv1까지)
+  const hierarchy = await getPartnerHierarchy(partnerId);
+  console.log('🔗 [OroPlay] 검색할 파트너 계층:', hierarchy);
   
-  if (configError) {
-    console.error('❌ [OroPlay] API 설정 조회 실패:', {
-      partner_id: partnerId,
-      error: configError.message
-    });
-    throw new Error('OroPlay API 설정 조회에 실패했습니다.');
+  // ⚡ 계층 순서대로 credentials 검색 (Lv6 → ... → Lv1)
+  let foundPartnerId: string | null = null;
+  let config: any = null;
+  
+  for (const pid of hierarchy) {
+    const { data, error } = await supabase
+      .from('api_configs')
+      .select('token, token_expires_at, client_id, client_secret, partner_id')
+      .eq('partner_id', pid)
+      .eq('api_provider', 'oroplay')
+      .maybeSingle();
+    
+    if (!error && data?.client_id && data?.client_secret) {
+      config = data;
+      foundPartnerId = pid;
+      console.log(`✅ [OroPlay] Credentials 발견: partner_id=${pid}`);
+      break;
+    }
   }
   
-  // ✅ 설정이 없으면 에러 (최초 설정 필요)
-  if (!config) {
-    console.error('❌ [OroPlay] API 설정이 없음:', { partner_id: partnerId });
+  // ⚡ credentials가 없으면 에러
+  if (!config || !foundPartnerId) {
+    console.error('❌ [OroPlay] 어떤 파트너에도 credentials가 설정되지 않았습니다:', {
+      searched_hierarchy: hierarchy,
+      partner_id: partnerId
+    });
     throw new Error('OroPlay API가 설정되지 않았습니다. 관리자에게 문의하세요.');
   }
   
-  // ✅ client_id/client_secret 없으면 에러
+  // ⚡ client_id/client_secret 없으면 에러
   if (!config.client_id || !config.client_secret) {
     console.error('❌ [OroPlay] Credentials 정보 없음:', {
-      partner_id: partnerId,
+      partner_id: foundPartnerId,
       has_client_id: !!config.client_id,
       has_client_secret: !!config.client_secret
     });
@@ -240,10 +280,10 @@ export async function getOroPlayToken(partnerId: string): Promise<string> {
     client_id_length: config.client_id?.length || 0
   });
   
-  const token = await refreshTokenIfNeeded(partnerId, config);
+  const token = await refreshTokenIfNeeded(foundPartnerId, config);
   
   console.log('✅ [OroPlay] 토큰 획득 완료:', {
-    partner_id: partnerId,
+    partner_id: foundPartnerId,
     token_preview: token.substring(0, 20) + '...'
   });
   

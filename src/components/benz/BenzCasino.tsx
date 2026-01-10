@@ -18,17 +18,17 @@ interface GameProvider {
   id: number;
   name: string;
   name_ko?: string;
-  type: string;
+  type?: string;
   logo_url?: string;
   thumbnail_url?: string;
-  status: string;
+  status?: string;
   vendor_code?: string;
   api_type?: string;
   provider_ids?: number[]; // 🆕 통합된 게임사의 모든 provider_id
 }
 
 interface Game {
-  id: string;
+  id: number | string;
   name: string;
   name_ko?: string;
   game_code: string;
@@ -37,6 +37,8 @@ interface Game {
   api_type?: string;
   status?: string;
   vendor_code?: string;
+  is_visible?: boolean;
+  type?: string;
 }
 
 const FALLBACK_PROVIDERS = [
@@ -94,7 +96,7 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
   const [gamesLoading, setGamesLoading] = useState(false);
-  const [launchingGameId, setLaunchingGameId] = useState<string | null>(null);
+  const [launchingGameId, setLaunchingGameId] = useState<string | number | null>(null);
   const [isProcessing, setIsProcessing] = useState(false); // 🆕 백그라운드 프로세스 상태
   const isMountedRef = useRef(true);
   const closeProcessingRef = useRef<Map<number, boolean>>(new Map()); // 🆕 세션별 종료 처리 중 상태
@@ -357,33 +359,59 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
       const providerName = (provider.name || '').toLowerCase();
       const providerNameKo = (provider.name_ko || '').toLowerCase();
       
-      // ⭐ Evolution (에볼루션) - honor_games 테이블에서 동적 조회
+      // ⭐ Evolution (에볼루션) - honor_games 테이블에서 동적 조회 (provider 상태 확인)
       if (providerName.includes('evolution') || providerNameKo.includes('에볼루션')) {
-        console.log('🎰 [BenzCasino] Evolution 바로 실행 - 특정 게임 ID: 5254616');
+        console.log('🎰 [BenzCasino] Evolution 바로 실행 - 동적 조회');
         
         try {
-          // 🎯 특정 Evolution Top Games 게임 바로 실행 (id: 5254616)
-          const { data: evolutionGame, error: evolutionError } = await supabase
-            .from('honor_games')
-            .select('id, name, name_ko, game_code, vendor_code, api_type')
-            .eq('id', '5254616')
+          // ✅ 먼저 HonorAPI Pragmatic provider가 visible 상태인지 확인
+          const { data: honorProviders } = await supabase
+            .from('honor_game_providers')
+            .select('id, name, status, is_visible')
+            .ilike('name', '%evolution%')
             .maybeSingle();
 
-          if (evolutionError || !evolutionGame) {
-            console.error('❌ [Evolution] 특정 게임(ID: 5254616)을 찾을 수 없습니다:', evolutionError);
+          // provider가 hidden이거나 is_visible=false이면 실행 불가
+          if (!honorProviders || honorProviders.status !== 'visible' || honorProviders.is_visible !== true) {
+            console.warn(`❌ [Evolution] HonorAPI 제공사가 비노출 상태입니다:`, honorProviders);
+            toast.error('Evolution 게임이 현재 이용 불가능합니다.');
+            setIsProcessing(false);
+            return;
+          }
+
+          // 🎯 먼저 게임 목록에서 lobby 게임 찾기
+          const { data: games, error: gamesError } = await supabase
+            .from('honor_games')
+            .select('id, name, name_ko, game_code, vendor_code, api_type, status, is_visible')
+            .eq('provider_id', honorProviders.id)
+            .eq('status', 'visible')
+            .eq('is_visible', true)
+            .limit(50);
+
+          if (gamesError || !games || games.length === 0) {
+            console.error('❌ [Evolution] 게임을 찾을 수 없습니다:', gamesError);
             toast.error('Evolution 게임을 찾을 수 없습니다.');
             setIsProcessing(false);
             return;
           }
 
+          // 로비 또는 Top Games 찾기
+          const evolutionGame = games.find(g => 
+            g.name?.toLowerCase().includes('lobby') || 
+            g.name?.toLowerCase().includes('top games') ||
+            g.name_ko?.toLowerCase().includes('로비')
+          ) || games[0];
+
           const game: Game = {
-            id: evolutionGame.id,
+            id: evolutionGame.id.toString(),
             name: evolutionGame.name,
             name_ko: evolutionGame.name_ko || evolutionGame.name,
             game_code: evolutionGame.game_code,
             provider_id: 0,
-            api_type: evolutionGame.api_type || 'honor',
-            vendor_code: evolutionGame.vendor_code
+            api_type: evolutionGame.api_type || 'honorapi',
+            vendor_code: evolutionGame.vendor_code,
+            status: evolutionGame.status,
+            is_visible: evolutionGame.is_visible
           };
           
           await handleGameClick(game);
@@ -396,33 +424,117 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
         return;
       }
       
-      // ⭐ Pragmatic Live - honor_games 테이블에서 동적 조회
+      // ⭐ Pragmatic Live - OroPlay 우선, HonorAPI 폴백
       if (providerName.includes('pragmatic') || providerNameKo.includes('프라그마틱')) {
-        console.log('🎰 [BenzCasino] Pragmatic Live 바로 실행 - 특정 게임 ID: 5246855');
+        console.log('🎰 [BenzCasino] Pragmatic Live 실행 - OroPlay 우선 체크');
         
         try {
-          // 🎯 특정 Pragmatic Play Live Lobby 게임 바로 실행 (id: 5246855)
-          const { data: pragmaticGame, error: pragmaticError } = await supabase
-            .from('honor_games')
-            .select('id, name, name_ko, game_code, vendor_code, api_type')
-            .eq('id', '5246855')
-            .maybeSingle();
+          // 🆕 1. OroPlay API가 활성화되어 있는지 확인
+          const { checkApiActiveByPartnerId } = await import('../../lib/apiStatusChecker');
+          const isOroPlayActive = await checkApiActiveByPartnerId(user.referrer_id, 'oroplay');
+          
+          // 🆕 2. OroPlay가 활성화되어 있으면 OroPlay Pragmatic lobby 게임 사용
+          if (isOroPlayActive) {
+            console.log('✅ [Pragmatic Live] OroPlay API 활성화됨 - OroPlay 게임 사용');
+            
+            // OroPlay에서 Pragmatic 제공사 조회
+            const { data: oroplayProvider } = await supabase
+              .from('game_providers')
+              .select('id, name, vendor_code')
+              .eq('api_type', 'oroplay')
+              .ilike('name', '%pragmatic%')
+              .maybeSingle();
 
-          if (pragmaticError || !pragmaticGame) {
-            console.error('❌ [Pragmatic Live] 특정 게임(ID: 5246855)을 찾을 수 없습니다:', pragmaticError);
+            if (oroplayProvider) {
+              // OroPlay Pragmatic lobby 게임 찾기
+              const { data: lobbyGame, error: lobbyError } = await supabase
+                .from('games')
+                .select('id, name, name_ko, game_code, vendor_code, api_type, provider_id')
+                .eq('provider_id', oroplayProvider.id)
+                .eq('api_type', 'oroplay')
+                .eq('name', 'lobby')
+                .maybeSingle();
+
+              if (lobbyGame && !lobbyError) {
+                console.log(`✅ [Pragmatic Live] OroPlay lobby 게임 발견:`, lobbyGame.name);
+                
+                const game: Game = {
+                  id: lobbyGame.id,
+                  name: lobbyGame.name,
+                  name_ko: lobbyGame.name_ko || lobbyGame.name,
+                  game_code: lobbyGame.game_code,
+                  provider_id: lobbyGame.provider_id,
+                  api_type: lobbyGame.api_type,
+                  vendor_code: lobbyGame.vendor_code
+                };
+                
+                await handleGameClick(game);
+                setIsProcessing(false);
+                return;
+              } else {
+                console.log('⚠️ [Pragmatic Live] OroPlay lobby 게임 없음, HonorAPI로 폴백');
+              }
+            } else {
+              console.log('⚠️ [Pragmatic Live] OroPlay Pragmatic 제공사 없음, HonorAPI로 폴백');
+            }
+          } else {
+            console.log('ℹ️ [Pragmatic Live] OroPlay API 비활성화됨 - HonorAPI 사용');
+          }
+
+          // 🆕 3. HonorAPI 폴백 (OroPlay가 비활성화되었거나 lobby 게임이 없는 경우)
+          const { data: honorProviders, error: honorError } = await supabase
+            .from('honor_game_providers')
+            .select('id, name, status, is_visible')
+            .ilike('name', '%pragmatic%');
+
+          if (honorError) {
+            console.warn(`❌ [Pragmatic Live] HonorAPI 제공사 조회 오류:`, honorError);
+          }
+
+          const pragmaticLiveProvider = honorProviders?.find(p => 
+            (p.name?.toLowerCase().includes('pragmatic') && 
+             (p.name?.toLowerCase().includes('live') || p.name?.toLowerCase().includes('라이브')))
+          );
+
+          if (!pragmaticLiveProvider || pragmaticLiveProvider.status !== 'visible' || pragmaticLiveProvider.is_visible !== true) {
+            console.warn(`❌ [Pragmatic Live] HonorAPI 제공사가 비노출 상태입니다:`, pragmaticLiveProvider);
+            toast.error('Pragmatic Live 게임이 현재 이용 불가능합니다.');
+            setIsProcessing(false);
+            return;
+          }
+
+          console.log(`✅ [Pragmatic Live] HonorAPI 제공사 발견:`, pragmaticLiveProvider);
+
+          const { data: games, error: gamesError } = await supabase
+            .from('honor_games')
+            .select('id, name, name_ko, game_code, vendor_code, api_type, status, is_visible')
+            .eq('provider_id', pragmaticLiveProvider.id)
+            .eq('status', 'visible')
+            .eq('is_visible', true)
+            .limit(50);
+
+          if (gamesError || !games || games.length === 0) {
+            console.error('❌ [Pragmatic Live] 게임을 찾을 수 없습니다:', gamesError);
             toast.error('Pragmatic Live 게임을 찾을 수 없습니다.');
             setIsProcessing(false);
             return;
           }
 
+          const pragmaticGame = games.find(g => 
+            g.name?.toLowerCase().includes('lobby') || 
+            g.name_ko?.toLowerCase().includes('로비')
+          ) || games[0];
+
           const game: Game = {
-            id: pragmaticGame.id,
+            id: pragmaticGame.id.toString(),
             name: pragmaticGame.name,
             name_ko: pragmaticGame.name_ko || pragmaticGame.name,
             game_code: pragmaticGame.game_code,
             provider_id: 0,
-            api_type: pragmaticGame.api_type || 'honor',
-            vendor_code: pragmaticGame.vendor_code
+            api_type: pragmaticGame.api_type || 'honorapi',
+            vendor_code: pragmaticGame.vendor_code,
+            status: pragmaticGame.status,
+            is_visible: pragmaticGame.is_visible
           };
           
           await handleGameClick(game);
@@ -435,33 +547,67 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
         return;
       }
       
-      // ⭐ Ezugi (이주기) - honor_games 테이블에서 동적 조회
+      // ⭐ Ezugi (이주기) - honor_games 테이블에서 동적 조회 (provider 상태 확인)
       if (providerName.includes('ezugi') || providerName.includes('ezu') || providerNameKo.includes('이주기') || providerNameKo.includes('주기')) {
-        console.log('🎰 [BenzCasino] Ezugi 바로 실행 - 특정 게임 ID: 5254603');
+        console.log('🎰 [BenzCasino] Ezugi 바로 실행 - 동적 조회');
         
         try {
-          // 🎯 특정 Ezugi 게임 바로 실행 (id: 5254603)
-          const { data: ezugiGame, error: ezugiError } = await supabase
-            .from('honor_games')
-            .select('id, name, name_ko, game_code, vendor_code, api_type')
-            .eq('id', '5254603')
+          // ✅ 먼저 Ezugi provider가 visible 상태인지 확인
+          const { data: ezugiProvider, error: providerError } = await supabase
+            .from('honor_game_providers')
+            .select('id, name, status, is_visible')
+            .ilike('name', '%ezugi%')
             .maybeSingle();
 
-          if (ezugiError || !ezugiGame) {
-            console.error('❌ [Ezugi] 특정 게임(ID: 5254603)을 찾을 수 없습니다:', ezugiError);
+          if (providerError || !ezugiProvider) {
+            console.error('❌ [Ezugi] HonorAPI 제공사를 찾을 수 없습니다:', providerError);
             toast.error('Ezugi 게임을 찾을 수 없습니다.');
             setIsProcessing(false);
             return;
           }
 
+          // provider가 hidden이거나 is_visible=false이면 실행 불가
+          if (ezugiProvider.status !== 'visible' || ezugiProvider.is_visible !== true) {
+            console.warn(`❌ [Ezugi] HonorAPI 제공사가 비노출 상태입니다:`, ezugiProvider);
+            toast.error('Ezugi 게임이 현재 이용 불가능합니다.');
+            setIsProcessing(false);
+            return;
+          }
+
+          console.log(`✅ [Ezugi] HonorAPI 제공사 발견:`, ezugiProvider);
+
+          // 🎯 먼저 게임 목록에서 lobby 게임 찾기
+          const { data: games, error: gamesError } = await supabase
+            .from('honor_games')
+            .select('id, name, name_ko, game_code, vendor_code, api_type, status, is_visible')
+            .eq('provider_id', ezugiProvider.id)
+            .eq('status', 'visible')
+            .eq('is_visible', true)
+            .limit(50);
+
+          if (gamesError || !games || games.length === 0) {
+            console.error('❌ [Ezugi] 게임을 찾을 수 없습니다:', gamesError);
+            toast.error('Ezugi 게임을 찾을 수 없습니다.');
+            setIsProcessing(false);
+            return;
+          }
+
+          // 로비 찾기
+          const ezugiGame = games.find(g => 
+            g.name?.toLowerCase().includes('lobby') || 
+            g.name_ko?.toLowerCase().includes('로비')
+          ) || games[0];
+
           const game: Game = {
-            id: ezugiGame.id,
+            id: ezugiGame.id.toString(),
             name: ezugiGame.name,
             name_ko: ezugiGame.name_ko || ezugiGame.name,
             game_code: ezugiGame.game_code,
             provider_id: 0,
-            api_type: ezugiGame.api_type || 'honor',
-            vendor_code: ezugiGame.vendor_code
+            api_type: ezugiGame.api_type || 'honorapi',
+            vendor_code: ezugiGame.vendor_code,
+            status: ezugiGame.status,
+            is_visible: ezugiGame.is_visible
           };
           
           await handleGameClick(game);

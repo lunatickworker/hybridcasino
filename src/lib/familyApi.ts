@@ -132,28 +132,75 @@ export async function createFamilyApiToken(apiKey: string): Promise<TokenRespons
 // ============================================
 
 /**
+ * 상위 계층 파트너 ID 목록 조회 (계층 순서대로)
+ */
+async function getFamilyApiPartnerHierarchy(partnerId: string): Promise<string[]> {
+  const hierarchy: string[] = [];
+  let currentId: string | null = partnerId;
+  const maxIterations = 10;
+
+  while (currentId && hierarchy.length < maxIterations) {
+    hierarchy.push(currentId);
+    
+    const { data: partner } = await supabase
+      .from('partners')
+      .select('id, parent_id, level')
+      .eq('id', currentId)
+      .single();
+    
+    if (!partner || partner.level === 1 || !partner.parent_id) {
+      break;
+    }
+    
+    currentId = partner.parent_id;
+  }
+
+  return hierarchy;
+}
+
+/**
  * FamilyAPI 토큰 조회 (저장된 토큰 사용 또는 신규 발급)
- * ⚠️ 에러 발생 시 자동으로 재발급
+ * ⚡ hierarchical credential lookup: Lv6 → Lv5 → ... → Lv1 순서로 credentials 검색
  */
 export async function getFamilyApiToken(partnerId: string, forceRefresh: boolean = false): Promise<string> {
-  const { data: config, error: configError } = await supabase
-    .from('api_configs')
-    .select('api_key, token')
-    .eq('partner_id', partnerId)
-    .eq('api_provider', 'familyapi')
-    .maybeSingle();
+  console.log('🔑 [FamilyAPI] getFamilyApiToken 호출 시작:', { partnerId, forceRefresh });
   
-  if (configError || !config) {
-    console.error('❌ [FamilyAPI] API 설정 조회 실패:', {
-      partner_id: partnerId,
-      error: configError?.message
+  // ⚡ 계층 순서대로 파트너 ID 목록 조회
+  const hierarchy = await getFamilyApiPartnerHierarchy(partnerId);
+  console.log('🔗 [FamilyAPI] 검색할 파트너 계층:', hierarchy);
+  
+  // ⚡ 계층 순서대로 credentials 검색
+  let foundPartnerId: string | null = null;
+  let config: any = null;
+  
+  for (const pid of hierarchy) {
+    const { data, error } = await supabase
+      .from('api_configs')
+      .select('api_key, token, partner_id')
+      .eq('partner_id', pid)
+      .eq('api_provider', 'familyapi')
+      .maybeSingle();
+    
+    if (!error && data?.api_key) {
+      config = data;
+      foundPartnerId = pid;
+      console.log(`✅ [FamilyAPI] Credentials 발견: partner_id=${pid}`);
+      break;
+    }
+  }
+  
+  // ⚡ credentials가 없으면 에러
+  if (!config || !foundPartnerId) {
+    console.error('❌ [FamilyAPI] 어떤 파트너에도 credentials가 설정되지 않았습니다:', {
+      searched_hierarchy: hierarchy,
+      partner_id: partnerId
     });
     throw new Error('FamilyAPI API 설정을 찾을 수 없습니다.');
   }
   
   if (!config.api_key) {
     console.error('❌ [FamilyAPI] API Key 정보 없음:', {
-      partner_id: partnerId,
+      partner_id: foundPartnerId,
       has_api_key: !!config.api_key
     });
     throw new Error('FamilyAPI api_key가 설정되지 않았습니다.');
@@ -161,19 +208,22 @@ export async function getFamilyApiToken(partnerId: string, forceRefresh: boolean
   
   // 저장된 토큰이 있고 강제 갱신이 아닌 경우 기존 토큰 사용
   if (config.token && !forceRefresh) {
+    console.log('📋 [FamilyAPI] 기존 토큰 사용:', { partner_id: foundPartnerId });
     return config.token;
   }
   
   // 새로운 토큰 발급
+  console.log('🔄 [FamilyAPI] 새 토큰 발급 시작:', { partner_id: foundPartnerId });
   const tokenData = await createFamilyApiToken(config.api_key);
   
-  // 토큰을 DB에 저장
+  // 토큰을 DB에 저장 (credentials를 찾은 파트너 ID 사용)
   await supabase
     .from('api_configs')
     .update({ token: tokenData.token, updated_at: new Date().toISOString() })
-    .eq('partner_id', partnerId)
+    .eq('partner_id', foundPartnerId)
     .eq('api_provider', 'familyapi');
   
+  console.log('✅ [FamilyAPI] 새 토큰 발급 완료:', { partner_id: foundPartnerId });
   return tokenData.token;
 }
 
@@ -516,11 +566,13 @@ export async function withdrawUser(
 }
 
 // ============================================
-// 11. Lv1 관리자의 FamilyAPI 설정 조회
+// 11. FamilyAPI 설정 조회 (hierarchical credential lookup)
 // ============================================
 
 export async function getFamilyApiConfig() {
-  // 시스템 관리자 조회
+  console.log('🔑 [FamilyAPI] getFamilyApiConfig 호출 시작');
+  
+  // ⚡ 시스템 관리자 조회 (레거시 방식 - 하위 호환성)
   const { data: systemAdmin } = await supabase
     .from('partners')
     .select('id')
@@ -533,19 +585,36 @@ export async function getFamilyApiConfig() {
     throw new Error('시스템 관리자를 찾을 수 없습니다.');
   }
 
-  const { data: apiConfig } = await supabase
-    .from('api_configs')
-    .select('api_key, token')
-    .eq('partner_id', systemAdmin.id)
-    .eq('api_provider', 'familyapi')
-    .maybeSingle();
-
+  // ⚡ 계층 순서대로 credentials 검색
+  const hierarchy = await getFamilyApiPartnerHierarchy(systemAdmin.id);
+  console.log('🔗 [FamilyAPI] getFamilyApiConfig 검색할 파트너 계층:', hierarchy);
+  
+  let foundPartnerId: string | null = null;
+  let apiConfig: any = null;
+  
+  for (const pid of hierarchy) {
+    const { data, error } = await supabase
+      .from('api_configs')
+      .select('api_key, token, partner_id')
+      .eq('partner_id', pid)
+      .eq('api_provider', 'familyapi')
+      .maybeSingle();
+    
+    if (!error && data?.api_key) {
+      apiConfig = data;
+      foundPartnerId = pid;
+      console.log(`✅ [FamilyAPI] getFamilyApiConfig: Credentials 발견 partner_id=${pid}`);
+      break;
+    }
+  }
+  
   if (!apiConfig?.api_key) {
+    console.error('❌ [FamilyAPI] 어떤 파트너에도 credentials가 설정되지 않았습니다:', hierarchy);
     throw new Error('FamilyAPI 설정을 찾을 수 없습니다.');
   }
 
   return {
-    partnerId: systemAdmin.id,
+    partnerId: foundPartnerId!,
     apiKey: apiConfig.api_key,
     token: apiConfig.token || null,
   };

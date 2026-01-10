@@ -3,10 +3,10 @@ import { supabase } from './supabase';
 
 /**
  * API 활성화 상태 체크
- * @param apiProvider - 'invest', 'oroplay', 'familyapi'
+ * @param apiProvider - 'invest', 'oroplay', 'familyapi', 'honorapi'
  * @returns is_active 값 (true/false)
  */
-export async function checkApiActive(apiProvider: 'invest' | 'oroplay' | 'familyapi'): Promise<boolean> {
+export async function checkApiActive(apiProvider: 'invest' | 'oroplay' | 'familyapi' | 'honorapi'): Promise<boolean> {
   try {
     // ✅ 개발 환경에서는 API 체크 건너뛰기
     // Figma Make나 로컬 환경에서는 항상 true 반환
@@ -60,12 +60,12 @@ export async function checkApiActive(apiProvider: 'invest' | 'oroplay' | 'family
 /**
  * 파트너 ID로 API 활성화 상태 체크 (성능 최적화 버전)
  * @param partnerId - 파트너 ID (보통 Lv1)
- * @param apiProvider - 'invest', 'oroplay', 'familyapi'
+ * @param apiProvider - 'invest', 'oroplay', 'familyapi', 'honorapi'
  * @returns is_active 값 (true/false)
  */
 export async function checkApiActiveByPartnerId(
   partnerId: string, 
-  apiProvider: 'invest' | 'oroplay' | 'familyapi'
+  apiProvider: 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
 ): Promise<boolean> {
   try {
     const { data: apiConfig, error } = await supabase

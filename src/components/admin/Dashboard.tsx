@@ -5,18 +5,23 @@ import { PremiumSectionCard, SectionRow } from "./PremiumSectionCard";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { useBalance } from "../../contexts/BalanceContext";
-// import { getInfo } from "../../lib/investApi"; // ❌ 사용 중지
-import { getAgentBalance, getOroPlayToken } from "../../lib/oroplayApi";
+import { getAgentBalance, getOroPlayToken, createOroPlayToken } from "../../lib/oroplayApi";
+import { checkApiActiveByPartnerId } from '../../lib/apiStatusChecker';
+import * as familyApiModule from '../../lib/familyApi';
+import * as honorApiModule from '../../lib/honorApi';
+import { getLv1HonorApiCredentials } from "../../lib/apiConfigHelper";
 import { 
   Users, Wallet, TrendingUp, TrendingDown,
   Activity, DollarSign, AlertCircle, Clock, Shield,
-  Target, Zap, BarChart3, MessageSquare, FlaskConical
+  Target, Zap, BarChart3, MessageSquare, FlaskConical,
+  RefreshCw
 } from "lucide-react";
 import { formatCurrency as formatCurrencyUtil, formatNumber, getPartnerLevelText } from "../../lib/utils";
 import { DashboardStats, Partner } from "../../types";
 import { calculatePendingDeposits } from "../../lib/settlementCalculator";
 import { useLanguage } from "../../contexts/LanguageContext"; // v2.0 - Updated with fallback support
 import { getCurrentTimeFormatted } from "../../lib/timezoneHelper";
+import { gameApi } from "../../lib/gameApi";
 
 interface DashboardProps {
   user: Partner;
@@ -24,7 +29,7 @@ interface DashboardProps {
 
 export function Dashboard({ user }: DashboardProps) {
   // ✅ 전역 balance 사용 (AdminHeader와 동일한 상태 공유)
-  const { balance, investBalance, oroplayBalance } = useBalance();
+  const { balance, investBalance, oroplayBalance, familyapiBalance, honorapiBalance } = useBalance();
   const { t, formatCurrency } = useLanguage();
   
   const [stats, setStats] = useState<DashboardStats>({
@@ -74,6 +79,243 @@ export function Dashboard({ user }: DashboardProps) {
   const [formattedTime, setFormattedTime] = useState<string>('');
   const [isSyncingInvest, setIsSyncingInvest] = useState(false);
   const [isSyncingOroplay, setIsSyncingOroplay] = useState(false);
+  const [isSyncingFamily, setIsSyncingFamily] = useState(false);
+  const [isSyncingHonor, setIsSyncingHonor] = useState(false);
+
+  // 특정 Lv2 파트너별 보유금 상태
+  const [lv2Partners, setLv2Partners] = useState<{
+    id: string;
+    nickname: string;
+    selected_apis: string[] | null;
+    invest_balance: number;
+    oroplay_balance: number;
+    familyapi_balance: number;
+    honorapi_balance: number;
+  }[]>([]);
+  const [isLoadingLv2Partners, setIsLoadingLv2Partners] = useState(false);
+  const [syncingPartnerId, setSyncingPartnerId] = useState<string | null>(null);
+
+  // 게임 동기화 결과 추적
+  const [lastSyncResults, setLastSyncResults] = useState<{
+    invest?: { time: string; newGames: number; updatedGames: number };
+    oroplay?: { time: string; newGames: number; updatedGames: number };
+    familyapi?: { time: string; newGames: number; updatedGames: number };
+    honorapi?: { time: string; newProviders: number; newGames: number };
+  }>({});
+
+  // 게임 동기화 결과 로드
+  const loadSyncResults = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('setting_key, setting_value')
+        .in('setting_key', ['last_sync_invest', 'last_sync_oroplay', 'last_sync_familyapi', 'last_sync_honorapi']);
+
+      if (error) throw error;
+
+      const results: any = {};
+      data?.forEach(item => {
+        try {
+          const value = JSON.parse(item.setting_value);
+          const key = item.setting_key.replace('last_sync_', '');
+          results[key] = value;
+        } catch {
+          // JSON 파싱 실패 시 무시
+        }
+      });
+
+      setLastSyncResults(results);
+    } catch (error) {
+      console.error('동기화 결과 로드 실패:', error);
+    }
+  };
+
+  // =====================================================
+  // Lv2 파트너별 보유금 동기화
+  // =====================================================
+  const syncLv2PartnerBalance = async (partnerId: string, apiProvider: string) => {
+    setSyncingPartnerId(`${partnerId}-${apiProvider}`);
+    try {
+      console.log(`💰 [Dashboard] Lv2 파트너 ${partnerId} - ${apiProvider} 동기화 시작`);
+
+      if (apiProvider === 'familyapi') {
+        // FamilyAPI 동기화
+        const config = await familyApiModule.getFamilyApiConfig(partnerId);
+        let token = await familyApiModule.getFamilyApiToken(partnerId);
+        
+        let balanceData;
+        try {
+          balanceData = await familyApiModule.getAgentBalance(config.apiKey, token);
+        } catch (error: any) {
+          console.warn('⚠️ 토큰 오류 감지, 새 토큰으로 재시도:', error.message);
+          token = await familyApiModule.getFamilyApiToken(partnerId, true);
+          balanceData = await familyApiModule.getAgentBalance(config.apiKey, token);
+        }
+        
+        const balance = balanceData.credit || 0;
+
+        const { error: updateError } = await supabase
+          .from('api_configs')
+          .update({ balance, updated_at: new Date().toISOString() })
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'familyapi');
+
+        if (updateError) throw new Error(updateError.message);
+        
+        // 상태 업데이트
+        setLv2Partners(prev => prev.map(p => 
+          p.id === partnerId ? { ...p, familyapi_balance: balance } : p
+        ));
+        
+        toast.success(`${partnerId.slice(0, 8)}... FamilyAPI: ${formatCurrency(balance)}`);
+      }
+      else if (apiProvider === 'honorapi') {
+        // HonorAPI 동기화
+        const credentials = await getLv1HonorApiCredentials(partnerId);
+        if (!credentials.api_key) throw new Error('HonorAPI API Key가 설정되지 않았습니다.');
+        
+        const agentInfo = await honorApiModule.getAgentInfo(credentials.api_key);
+        const balance = parseFloat(agentInfo.balance) || 0;
+
+        const { error: updateError } = await supabase
+          .from('api_configs')
+          .update({ balance, updated_at: new Date().toISOString() })
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'honorapi');
+
+        if (updateError) throw new Error(updateError.message);
+        
+        setLv2Partners(prev => prev.map(p => 
+          p.id === partnerId ? { ...p, honorapi_balance: balance } : p
+        ));
+        
+        toast.success(`${partnerId.slice(0, 8)}... HonorAPI: ${formatCurrency(balance)}`);
+      }
+      else if (apiProvider === 'oroplay') {
+        // OroPlay 동기화
+        const { data: config, error: configError } = await supabase
+          .from('api_configs')
+          .select('token, token_expires_at, client_id, client_secret')
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'oroplay')
+          .maybeSingle();
+
+        if (configError || !config) throw new Error('OroPlay API 설정이 없습니다.');
+        if (!config.client_id || !config.client_secret) throw new Error('credentials 미설정');
+
+        let token = config.token || '';
+        const isTokenExpired = !config.token_expires_at || 
+          new Date(config.token_expires_at).getTime() < Date.now() + 5 * 60 * 1000;
+
+        if (isTokenExpired || !config.token) {
+          const tokenData = await createOroPlayToken(config.client_id, config.client_secret);
+          token = tokenData.token;
+          await supabase
+            .from('api_configs')
+            .update({ 
+              token: tokenData.token, 
+              token_expires_at: new Date(tokenData.expiration * 1000).toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('partner_id', partnerId)
+            .eq('api_provider', 'oroplay');
+        }
+
+        const balance = await getAgentBalance(token);
+
+        const { error: updateError } = await supabase
+          .from('api_configs')
+          .update({ balance, updated_at: new Date().toISOString() })
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'oroplay');
+
+        if (updateError) throw new Error(updateError.message);
+        
+        setLv2Partners(prev => prev.map(p => 
+          p.id === partnerId ? { ...p, oroplay_balance: balance } : p
+        ));
+        
+        toast.success(`${partnerId.slice(0, 8)}... oroplay: ${formatCurrency(balance)}`);
+      }
+
+      // 데이터 다시 로드
+      loadLv2Partners();
+    } catch (error: any) {
+      console.error(`❌ [Dashboard] 동기화 실패:`, error);
+      toast.error(`동기화 실패: ${error.message}`);
+    } finally {
+      setSyncingPartnerId(null);
+    }
+  };
+
+  // 특정 Lv2 파트너 ID 목록 (하드코딩)
+  const TARGET_LV2_PARTNER_IDS = [
+    '82781e5f-7982-496b-a036-be9277454626',
+    'ad6eef4d-200e-4aa6-b8b2-cf6ba3337355'
+  ];
+
+  // ✅ Lv2 파트너 데이터 로드
+  const loadLv2Partners = async () => {
+    setIsLoadingLv2Partners(true);
+    try {
+      // 1. 파트너基本信息 조회
+      const { data: partnersData, error: partnersError } = await supabase
+        .from('partners')
+        .select('id, nickname, selected_apis')
+        .in('id', TARGET_LV2_PARTNER_IDS);
+
+      if (partnersError) {
+        throw new Error(`파트너 조회 실패: ${partnersError.message}`);
+      }
+
+      if (!partnersData || partnersData.length === 0) {
+        setLv2Partners([]);
+        setIsLoadingLv2Partners(false);
+        return;
+      }
+
+      // 2. 각 파트너의 api_configs에서 보유금 조회
+      const partnersWithBalances = await Promise.all(
+        partnersData.map(async (partner) => {
+          const { data: apiConfigs } = await supabase
+            .from('api_configs')
+            .select('api_provider, balance')
+            .eq('partner_id', partner.id);
+
+          const configMap = apiConfigs?.reduce((acc, config) => {
+            acc[config.api_provider] = config.balance;
+            return acc;
+          }, {} as Record<string, number>) || {};
+
+          return {
+            id: partner.id,
+            nickname: partner.nickname,
+            selected_apis: partner.selected_apis,
+            invest_balance: configMap['invest'] || 0,
+            oroplay_balance: configMap['oroplay'] || 0,
+            familyapi_balance: configMap['familyapi'] || 0,
+            honorapi_balance: configMap['honorapi'] || 0,
+          };
+        })
+      );
+
+      setLv2Partners(partnersWithBalances);
+      console.log('✅ [Dashboard] Lv2 파트너 데이터 로드 완료:', partnersWithBalances);
+    } catch (error: any) {
+      console.error('❌ [Dashboard] Lv2 파트너 로드 실패:', error);
+      toast.error(`Lv2 파트너 데이터 로드 실패: ${error.message}`);
+    } finally {
+      setIsLoadingLv2Partners(false);
+    }
+  };
+
+  // 컴포넌트 마운트 시 Lv2 파트너 데이터 로드
+  useEffect(() => {
+    if (user.level === 1) {
+      loadLv2Partners();
+      loadSyncResults();
+    }
+  }, [user.level]);
 
   // ✅ balance가 변경되면 stats 업데이트
   useEffect(() => {
@@ -86,7 +328,112 @@ export function Dashboard({ user }: DashboardProps) {
   const handleSyncInvestBalance = async () => {
     // ❌ getInfo API 사용 중지로 인해 비활성화
     console.log('⚠️ Invest 수동 동기화 기능은 현재 비활성화되어 있습니다.');
+    toast.info('Invest API는 현재 비활성화되어 있습니다.');
     return;
+  };
+
+  // =====================================================
+  // FamilyAPI 보유금 수동 동기화 (카드 클릭 시)
+  // =====================================================
+  const handleSyncFamilyBalance = async () => {
+    if (user.level !== 1) {
+      toast.error('API 잔고를 조회할 수 있는 권한이 없습니다.');
+      return;
+    }
+
+    setIsSyncingFamily(true);
+    try {
+      console.log('💰 [Dashboard] FamilyAPI 보유금 수동 동기화 시작');
+
+      // API Key와 Token 조회
+      const config = await familyApiModule.getFamilyApiConfig();
+      let token = await familyApiModule.getFamilyApiToken(config.partnerId);
+      
+      // Agent 잔고 조회 (실패 시 토큰 재발급 후 재시도)
+      let balanceData;
+      try {
+        balanceData = await familyApiModule.getAgentBalance(config.apiKey, token);
+      } catch (error: any) {
+        console.warn('⚠️ 토큰 오류 감지, 새 토큰으로 재시도:', error.message);
+        token = await familyApiModule.getFamilyApiToken(config.partnerId, true);
+        balanceData = await familyApiModule.getAgentBalance(config.apiKey, token);
+      }
+      
+      const balance = balanceData.credit || 0;
+
+      console.log('✅ [Dashboard] FamilyAPI API 응답:', { balance });
+
+      // DB 업데이트
+      const { error: updateError } = await supabase
+        .from('api_configs')
+        .update({
+          balance: balance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'familyapi');
+
+      if (updateError) {
+        throw new Error(`DB 업데이트 실패: ${updateError.message}`);
+      }
+
+      toast.success(`FamilyAPI 보유금 동기화 완료: ${formatCurrency(balance)}`);
+    } catch (error: any) {
+      console.error('❌ [Dashboard] FamilyAPI 보유금 동기화 실패:', error);
+      toast.error(`FamilyAPI 보유금 동기화 실패: ${error.message}`);
+    } finally {
+      setIsSyncingFamily(false);
+    }
+  };
+
+  // =====================================================
+  // HonorAPI 보유금 수동 동기화 (카드 클릭 시)
+  // =====================================================
+  const handleSyncHonorBalance = async () => {
+    if (user.level !== 1) {
+      toast.error('API 잔고를 조회할 수 있는 권한이 없습니다.');
+      return;
+    }
+
+    setIsSyncingHonor(true);
+    try {
+      console.log('💰 [Dashboard] HonorAPI 보유금 수동 동기화 시작');
+
+      // API Key 조회
+      const credentials = await getLv1HonorApiCredentials(user.id);
+      
+      if (!credentials.api_key) {
+        throw new Error('HonorAPI API Key가 설정되지 않았습니다.');
+      }
+      
+      // Agent 정보 조회 (잔고 포함)
+      const agentInfo = await honorApiModule.getAgentInfo(credentials.api_key);
+      
+      const balance = parseFloat(agentInfo.balance) || 0;
+
+      console.log('✅ [Dashboard] HonorAPI API 응답:', { balance });
+
+      // DB 업데이트
+      const { error: updateError } = await supabase
+        .from('api_configs')
+        .update({
+          balance: balance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'honorapi');
+
+      if (updateError) {
+        throw new Error(`DB 업데이트 실패: ${updateError.message}`);
+      }
+
+      toast.success(`HonorAPI 보유금 동기화 완료: ${formatCurrency(balance)}`);
+    } catch (error: any) {
+      console.error('❌ [Dashboard] HonorAPI 보유금 동기화 실패:', error);
+      toast.error(`HonorAPI 보유금 동기화 실패: ${error.message}`);
+    } finally {
+      setIsSyncingHonor(false);
+    }
   };
 
   // =====================================================
@@ -102,15 +449,63 @@ export function Dashboard({ user }: DashboardProps) {
     try {
       console.log('💰 [Dashboard] OroPlay 보유금 수동 동기화 시작');
 
-      // 토큰 조회 (자동 갱신 포함)
-      const token = await getOroPlayToken(user.id);
+      // 1. 기존 토큰 조회
+      const { data: config, error: configError } = await supabase
+        .from('api_configs')
+        .select('token, token_expires_at, client_id, client_secret')
+        .eq('partner_id', user.id)
+        .eq('api_provider', 'oroplay')
+        .maybeSingle();
 
-      // GET /agent/balance 호출
+      if (configError || !config) {
+        throw new Error('OroPlay API 설정이 없습니다.');
+      }
+
+      if (!config.client_id || !config.client_secret) {
+        throw new Error('OroPlay credentials가 설정되지 않았습니다.');
+      }
+
+      // 2. 토큰 만료 체크 및 재발급
+      let token = config.token || '';
+      
+      const isTokenExpired = !config.token_expires_at || 
+        new Date(config.token_expires_at).getTime() < Date.now() + 5 * 60 * 1000; // 5분 전에 만료 예정
+
+      if (isTokenExpired || !config.token) {
+        console.log('🔄 [Dashboard] 토큰 재발급 필요');
+        
+        // 직접 토큰 생성 호출
+        const tokenData = await createOroPlayToken(
+          config.client_id,
+          config.client_secret
+        );
+        
+        token = tokenData.token;
+
+        // DB에 새 토큰 저장
+        const { error: updateError } = await supabase
+          .from('api_configs')
+          .update({
+            token: tokenData.token,
+            token_expires_at: new Date(tokenData.expiration * 1000).toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('partner_id', user.id)
+          .eq('api_provider', 'oroplay');
+
+        if (updateError) {
+          console.warn('⚠️ 토큰 저장 실패:', updateError.message);
+        } else {
+          console.log('✅ 토큰 재발급 및 저장 완료');
+        }
+      }
+
+      // 3. GET /agent/balance 호출
       const balance = await getAgentBalance(token);
 
       console.log('✅ [Dashboard] OroPlay API 응답:', { balance });
 
-      // api_configs 업데이트 (새 구조: api_provider='oroplay' 필터 추가)
+      // 4. api_configs 업데이트
       const { error: updateError } = await supabase
         .from('api_configs')
         .update({
@@ -655,124 +1050,481 @@ export function Dashboard({ user }: DashboardProps) {
         />
       </div>
       
-      {/* 하단 4열 섹션 - 자신 직속 / 하위파트너 구분 */}
-      <div className="grid gap-5 md:grid-cols-2">
-        {/* 자신의 사용자 입출금 현황 */}
-        <PremiumSectionCard
-          title={t.dashboard.directUserTransactions}
-          icon={TrendingUp}
-          iconColor="text-cyan-400"
-        >
-          <SectionRow
-            label={t.dashboard.dailyDeposit}
-            value={formatCurrency(directStats.deposit)}
-            valueColor="text-cyan-400"
+      {/* Lv1 보유금 카드 - 새로운 디자인 */}
+      {user.level === 1 && (
+        <div className="rounded-2xl p-5 relative overflow-hidden backdrop-blur-sm border border-white/10 shadow-xl bg-gradient-to-br from-slate-800/90 via-slate-800/90 to-slate-900/90">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
+          <div className="relative z-10">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-white/15 backdrop-blur-md shadow-lg">
+                  <Wallet className="h-5 w-5 text-cyan-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-white/95">🎯 내 보유금 현황</h3>
+              </div>
+              <div className="flex gap-1">
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300">Invest</span>
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-300">oroplay</span>
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300">Family</span>
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300">Honor</span>
+              </div>
+            </div>
+
+            {/* 보유금 그리드 */}
+            <div className="grid grid-cols-4 gap-3">
+              {/* Invest */}
+              <div 
+                className="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20 cursor-pointer hover:bg-blue-500/20 transition-colors"
+                onClick={handleSyncInvestBalance}
+              >
+                <div className="flex justify-between items-start">
+                  <p className="text-xs text-blue-400 mb-1">Invest</p>
+                  <RefreshCw className="h-3 w-3 text-blue-400" />
+                </div>
+                <p className="text-lg font-bold text-white">
+                  ₩{(investBalance || 0).toLocaleString()}
+                </p>
+              </div>
+
+              {/* oroplay */}
+              <div 
+                className="bg-green-500/10 rounded-xl p-3 border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors"
+                onClick={handleSyncOroplayBalance}
+              >
+                <div className="flex justify-between items-start">
+                  <p className="text-xs text-green-400 mb-1">oroplay</p>
+                  {isSyncingOroplay ? (
+                    <RefreshCw className="h-3 w-3 text-green-400 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3 text-green-400" />
+                  )}
+                </div>
+                <p className="text-lg font-bold text-white">
+                  ₩{(oroplayBalance || 0).toLocaleString()}
+                </p>
+              </div>
+
+              {/* Family */}
+              <div 
+                className="bg-purple-500/10 rounded-xl p-3 border border-purple-500/20 cursor-pointer hover:bg-purple-500/20 transition-colors"
+                onClick={handleSyncFamilyBalance}
+              >
+                <div className="flex justify-between items-start">
+                  <p className="text-xs text-purple-400 mb-1">Family</p>
+                  {isSyncingFamily ? (
+                    <RefreshCw className="h-3 w-3 text-purple-400 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3 text-purple-400" />
+                  )}
+                </div>
+                <p className="text-lg font-bold text-white">
+                  ₩{(familyapiBalance || 0).toLocaleString()}
+                </p>
+              </div>
+
+              {/* Honor */}
+              <div 
+                className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 transition-colors"
+                onClick={handleSyncHonorBalance}
+              >
+                <div className="flex justify-between items-start">
+                  <p className="text-xs text-amber-400 mb-1">Honor</p>
+                  {isSyncingHonor ? (
+                    <RefreshCw className="h-3 w-3 text-amber-400 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3 w-3 text-amber-400" />
+                  )}
+                </div>
+                <p className="text-lg font-bold text-white">
+                  ₩{(honorapiBalance || 0).toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            {/* 총 보유금 */}
+            <div className="mt-4 pt-3 border-t border-white/10">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-400">총 보유금</span>
+                <span className="text-xl font-bold text-cyan-400">
+                  ₩{(
+                    (investBalance || 0) +
+                    (oroplayBalance || 0) +
+                    (familyapiBalance || 0) +
+                    (honorapiBalance || 0)
+                  ).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 게임 동기화 결과 및 버튼 - Lv1 전용 */}
+      {user.level === 1 && (
+        <div className="rounded-2xl p-5 relative overflow-hidden backdrop-blur-sm border border-white/10 shadow-xl bg-gradient-to-br from-slate-800/90 via-slate-800/90 to-slate-900/90">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-white/15 backdrop-blur-md shadow-lg">
+                  <Activity className="h-5 w-5 text-cyan-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-white/95">🎮 게임 동기화 현황</h3>
+              </div>
+              <span className="text-xs text-slate-400">설정페이지 API 탭에서 동기화 가능</span>
+            </div>
+
+            {/* 동기화 결과 그리드 */}
+            <div className="grid grid-cols-4 gap-3 mb-4">
+              {/* Invest 동기화 결과 */}
+              <div className="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="text-xs text-blue-400">Invest</p>
+                  <span className="text-xs text-slate-500">게임사</span>
+                </div>
+                {lastSyncResults.invest ? (
+                  <div className="space-y-1">
+                    <p className="text-lg font-bold text-white">
+                      +{lastSyncResults.invest.newGames}개
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {lastSyncResults.invest.time}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">미동기화</p>
+                )}
+              </div>
+
+              {/* oroplay 동기화 결과 */}
+              <div className="bg-green-500/10 rounded-xl p-3 border border-green-500/20">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="text-xs text-green-400">oroplay</p>
+                  <span className="text-xs text-slate-500">게임사</span>
+                </div>
+                {lastSyncResults.oroplay ? (
+                  <div className="space-y-1">
+                    <p className="text-lg font-bold text-white">
+                      +{lastSyncResults.oroplay.newGames}개
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {lastSyncResults.oroplay.time}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">미동기화</p>
+                )}
+              </div>
+
+              {/* Family 동기화 결과 */}
+              <div className="bg-purple-500/10 rounded-xl p-3 border border-purple-500/20">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="text-xs text-purple-400">Family</p>
+                  <span className="text-xs text-slate-500">게임사</span>
+                </div>
+                {lastSyncResults.familyapi ? (
+                  <div className="space-y-1">
+                    <p className="text-lg font-bold text-white">
+                      +{lastSyncResults.familyapi.newGames}개
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {lastSyncResults.familyapi.time}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">미동기화</p>
+                )}
+              </div>
+
+              {/* Honor 동기화 결과 */}
+              <div className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20">
+                <div className="flex justify-between items-start mb-2">
+                  <p className="text-xs text-amber-400">Honor</p>
+                  <span className="text-xs text-slate-500">게임사</span>
+                </div>
+                {lastSyncResults.honorapi ? (
+                  <div className="space-y-1">
+                    <p className="text-lg font-bold text-white">
+                      +{lastSyncResults.honorapi.newGames}개
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {lastSyncResults.honorapi.time}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">미동기화</p>
+                )}
+              </div>
+            </div>
+
+            {/* 동기화 버튼 */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => window.location.hash = '/admin/settings?tab=api'}
+                className="flex-1 px-3 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90 text-white rounded-lg text-sm transition-all duration-200 flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                설정에서 게임 동기화
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 하단 4열 섹션 - 자신 직속 / 하위파트너 구분 - Lv1에게는 표시 안함 */}
+      {user.level !== 1 && (
+        <div className="grid gap-5 md:grid-cols-2">
+          {/* 자신의 사용자 입출금 현황 */}
+          <PremiumSectionCard
+            title={t.dashboard.directUserTransactions}
             icon={TrendingUp}
             iconColor="text-cyan-400"
-          />
-          <SectionRow
-            label={t.dashboard.dailyWithdrawal}
-            value={formatCurrency(directStats.withdrawal)}
-            valueColor="text-rose-400"
-            icon={TrendingDown}
-            iconColor="text-rose-400"
-          />
-          <SectionRow
-            label={t.dashboard.dailyNetDeposit}
-            value={formatCurrency(directStats.netDeposit)}
-            valueColor="text-cyan-400"
-            icon={DollarSign}
-            iconColor="text-cyan-400"
-          />
-        </PremiumSectionCard>
+          >
+            <SectionRow
+              label={t.dashboard.dailyDeposit}
+              value={formatCurrency(directStats.deposit)}
+              valueColor="text-cyan-400"
+              icon={TrendingUp}
+              iconColor="text-cyan-400"
+            />
+            <SectionRow
+              label={t.dashboard.dailyWithdrawal}
+              value={formatCurrency(directStats.withdrawal)}
+              valueColor="text-rose-400"
+              icon={TrendingDown}
+              iconColor="text-rose-400"
+            />
+            <SectionRow
+              label={t.dashboard.dailyNetDeposit}
+              value={formatCurrency(directStats.netDeposit)}
+              valueColor="text-cyan-400"
+              icon={DollarSign}
+              iconColor="text-cyan-400"
+            />
+          </PremiumSectionCard>
 
-        {/* 자신의 사용자 베팅 현황 */}
-        <PremiumSectionCard
-          title={t.dashboard.directUserBetting}
-          icon={Zap}
-          iconColor="text-amber-400"
-        >
-          <SectionRow
-            label={t.dashboard.casinoTotalBetting}
-            value={formatCurrency(directStats.casinoBetting)}
-            valueColor="text-cyan-400"
-            icon={Target}
-            iconColor="text-cyan-400"
-          />
-          <SectionRow
-            label={t.dashboard.slotTotalBetting}
-            value={formatCurrency(directStats.slotBetting)}
-            valueColor="text-amber-400"
+          {/* 자신의 사용자 베팅 현황 */}
+          <PremiumSectionCard
+            title={t.dashboard.directUserBetting}
             icon={Zap}
             iconColor="text-amber-400"
-          />
-          <SectionRow
-            label={t.dashboard.totalBetting}
-            value={formatCurrency(directStats.totalBetting)}
-            valueColor="text-cyan-400"
-            icon={BarChart3}
-            iconColor="text-cyan-400"
-          />
-        </PremiumSectionCard>
+          >
+            <SectionRow
+              label={t.dashboard.casinoTotalBetting}
+              value={formatCurrency(directStats.casinoBetting)}
+              valueColor="text-cyan-400"
+              icon={Target}
+              iconColor="text-cyan-400"
+            />
+            <SectionRow
+              label={t.dashboard.slotTotalBetting}
+              value={formatCurrency(directStats.slotBetting)}
+              valueColor="text-amber-400"
+              icon={Zap}
+              iconColor="text-amber-400"
+            />
+            <SectionRow
+              label={t.dashboard.totalBetting}
+              value={formatCurrency(directStats.totalBetting)}
+              valueColor="text-cyan-400"
+              icon={BarChart3}
+              iconColor="text-cyan-400"
+            />
+          </PremiumSectionCard>
 
-        {/* 하위 파트너 사용자 입출금 현황 */}
-        <PremiumSectionCard
-          title={t.dashboard.subPartnerTransactions}
-          icon={TrendingUp}
-          iconColor="text-purple-400"
-        >
-          <SectionRow
-            label={t.dashboard.dailyDeposit}
-            value={formatCurrency(subPartnerStats.deposit)}
-            valueColor="text-cyan-400"
+          {/* 하위 파트너 사용자 입출금 현황 */}
+          <PremiumSectionCard
+            title={t.dashboard.subPartnerTransactions}
             icon={TrendingUp}
-            iconColor="text-cyan-400"
-          />
-          <SectionRow
-            label={t.dashboard.dailyWithdrawal}
-            value={formatCurrency(subPartnerStats.withdrawal)}
-            valueColor="text-rose-400"
-            icon={TrendingDown}
-            iconColor="text-rose-400"
-          />
-          <SectionRow
-            label={t.dashboard.dailyNetDeposit}
-            value={formatCurrency(subPartnerStats.netDeposit)}
-            valueColor="text-cyan-400"
-            icon={DollarSign}
-            iconColor="text-cyan-400"
-          />
-        </PremiumSectionCard>
+            iconColor="text-purple-400"
+          >
+            <SectionRow
+              label={t.dashboard.dailyDeposit}
+              value={formatCurrency(subPartnerStats.deposit)}
+              valueColor="text-cyan-400"
+              icon={TrendingUp}
+              iconColor="text-cyan-400"
+            />
+            <SectionRow
+              label={t.dashboard.dailyWithdrawal}
+              value={formatCurrency(subPartnerStats.withdrawal)}
+              valueColor="text-rose-400"
+              icon={TrendingDown}
+              iconColor="text-rose-400"
+            />
+            <SectionRow
+              label={t.dashboard.dailyNetDeposit}
+              value={formatCurrency(subPartnerStats.netDeposit)}
+              valueColor="text-cyan-400"
+              icon={DollarSign}
+              iconColor="text-cyan-400"
+            />
+          </PremiumSectionCard>
 
-        {/* 하위 파트너 사용자 베팅 현황 */}
-        <PremiumSectionCard
-          title={t.dashboard.subPartnerBetting}
-          icon={Zap}
-          iconColor="text-green-400"
-        >
-          <SectionRow
-            label={t.dashboard.casinoTotalBetting}
-            value={formatCurrency(subPartnerStats.casinoBetting)}
-            valueColor="text-cyan-400"
-            icon={Target}
-            iconColor="text-cyan-400"
-          />
-          <SectionRow
-            label={t.dashboard.slotTotalBetting}
-            value={formatCurrency(subPartnerStats.slotBetting)}
-            valueColor="text-amber-400"
+          {/* 하위 파트너 사용자 베팅 현황 */}
+          <PremiumSectionCard
+            title={t.dashboard.subPartnerBetting}
             icon={Zap}
-            iconColor="text-amber-400"
-          />
-          <SectionRow
-            label={t.dashboard.totalBetting}
-            value={formatCurrency(subPartnerStats.totalBetting)}
-            valueColor="text-cyan-400"
-            icon={BarChart3}
-            iconColor="text-cyan-400"
-          />
-        </PremiumSectionCard>
-      </div>
+            iconColor="text-green-400"
+          >
+            <SectionRow
+              label={t.dashboard.casinoTotalBetting}
+              value={formatCurrency(subPartnerStats.casinoBetting)}
+              valueColor="text-cyan-400"
+              icon={Target}
+              iconColor="text-cyan-400"
+            />
+            <SectionRow
+              label={t.dashboard.slotTotalBetting}
+              value={formatCurrency(subPartnerStats.slotBetting)}
+              valueColor="text-amber-400"
+              icon={Zap}
+              iconColor="text-amber-400"
+            />
+            <SectionRow
+              label={t.dashboard.totalBetting}
+              value={formatCurrency(subPartnerStats.totalBetting)}
+              valueColor="text-cyan-400"
+              icon={BarChart3}
+              iconColor="text-cyan-400"
+            />
+          </PremiumSectionCard>
+        </div>
+      )}
+
+      {/* Lv2 파트너별 보유금 카드 */}
+      {user.level === 1 && lv2Partners.length > 0 && (
+        <div className="mt-6">
+          <h2 className="text-xl font-bold text-slate-100 mb-4">🎯 Lv2 파트너 보유금 현황</h2>
+          <div className="grid gap-5 md:grid-cols-2">
+            {lv2Partners.map((partner) => (
+              <div
+                key={partner.id}
+                className="rounded-2xl p-5 relative overflow-hidden backdrop-blur-sm border border-white/10 shadow-xl bg-gradient-to-br from-slate-800/90 via-slate-800/90 to-slate-900/90"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
+                <div className="relative z-10">
+                  {/* 파트너 정보 */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-xl bg-white/15 backdrop-blur-md shadow-lg">
+                        <Users className="h-5 w-5 text-cyan-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-white/95">{partner.nickname}</h3>
+                    </div>
+                    <div className="flex gap-1">
+                      {partner.selected_apis?.map((api) => (
+                        <span
+                          key={api}
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            api === 'invest' ? 'bg-blue-500/20 text-blue-300' :
+                            api === 'oroplay' ? 'bg-green-500/20 text-green-300' :
+                            api === 'familyapi' ? 'bg-purple-500/20 text-purple-300' :
+                            'bg-amber-500/20 text-amber-300'
+                          }`}
+                        >
+                          {api === 'invest' ? 'Invest' :
+                           api === 'oroplay' ? 'oroplay' :
+                           api === 'familyapi' ? 'Family' :
+                           api === 'honorapi' ? 'Honor' : api}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 보유금 그리드 (클릭 시 동기화) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {partner.selected_apis?.includes('invest') && (
+                      <div 
+                        className="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20 cursor-pointer hover:bg-blue-500/20 transition-colors"
+                        onClick={() => toast.info('Invest 동기화는 비활성화되어 있습니다.')}
+                      >
+                        <div className="flex justify-between items-start">
+                          <p className="text-xs text-blue-400 mb-1">Invest</p>
+                          <RefreshCw className="h-3 w-3 text-blue-400" />
+                        </div>
+                        <p className="text-lg font-bold text-white">
+                          ₩{(partner.invest_balance || 0).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    {partner.selected_apis?.includes('oroplay') && (
+                      <div 
+                        className="bg-green-500/10 rounded-xl p-3 border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors"
+                        onClick={() => syncLv2PartnerBalance(partner.id, 'oroplay')}
+                      >
+                        <div className="flex justify-between items-start">
+                          <p className="text-xs text-green-400 mb-1">oroplay</p>
+                          {syncingPartnerId === `${partner.id}-oroplay` ? (
+                            <RefreshCw className="h-3 w-3 text-green-400 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3 text-green-400" />
+                          )}
+                        </div>
+                        <p className="text-lg font-bold text-white">
+                          ₩{(partner.oroplay_balance || 0).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    {partner.selected_apis?.includes('familyapi') && (
+                      <div 
+                        className="bg-purple-500/10 rounded-xl p-3 border border-purple-500/20 cursor-pointer hover:bg-purple-500/20 transition-colors"
+                        onClick={() => syncLv2PartnerBalance(partner.id, 'familyapi')}
+                      >
+                        <div className="flex justify-between items-start">
+                          <p className="text-xs text-purple-400 mb-1">Family</p>
+                          {syncingPartnerId === `${partner.id}-familyapi` ? (
+                            <RefreshCw className="h-3 w-3 text-purple-400 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3 text-purple-400" />
+                          )}
+                        </div>
+                        <p className="text-lg font-bold text-white">
+                          ₩{(partner.familyapi_balance || 0).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                    {partner.selected_apis?.includes('honorapi') && (
+                      <div 
+                        className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 transition-colors"
+                        onClick={() => syncLv2PartnerBalance(partner.id, 'honorapi')}
+                      >
+                        <div className="flex justify-between items-start">
+                          <p className="text-xs text-amber-400 mb-1">Honor</p>
+                          {syncingPartnerId === `${partner.id}-honorapi` ? (
+                            <RefreshCw className="h-3 w-3 text-amber-400 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3 text-amber-400" />
+                          )}
+                        </div>
+                        <p className="text-lg font-bold text-white">
+                          ₩{(partner.honorapi_balance || 0).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 총 보유금 */}
+                  <div className="mt-4 pt-3 border-t border-white/10">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-slate-400">총 보유금</span>
+                      <span className="text-xl font-bold text-cyan-400">
+                        ₩{(
+                          (partner.selected_apis?.includes('invest') ? partner.invest_balance : 0) +
+                          (partner.selected_apis?.includes('oroplay') ? partner.oroplay_balance : 0) +
+                          (partner.selected_apis?.includes('familyapi') ? partner.familyapi_balance : 0) +
+                          (partner.selected_apis?.includes('honorapi') ? partner.honorapi_balance : 0)
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 모든 Frontend 바로가기 (작은 버튼) */}
       {user.level === 1 && (

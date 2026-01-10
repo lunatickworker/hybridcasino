@@ -2760,6 +2760,7 @@ export async function updatePartnerGameAccess(
 /**
  * 사용자에게 노출할 게임만 조회
  * ✅ Lv7 사용자의 partner_game_access 체크 추가
+ * ✅ multi_api 제공사의 경우, 각 API별 제공사 노출 여부도 체크
  */
 export async function getUserVisibleGames(filters?: {
   type?: 'slot' | 'casino' | 'minigame';
@@ -2776,13 +2777,76 @@ export async function getUserVisibleGames(filters?: {
   });
   
   // ✅ is_visible=true인 게임만 필터링
-  const allGames = allGamesRaw.filter(g => g.is_visible === true);
+  let allGames = allGamesRaw.filter(g => g.is_visible === true);
 
   console.log(`🎮 [getUserVisibleGames] 초기 게임 조회: ${allGames.length}개 (type=${filters?.type}, provider_id=${filters?.provider_id})`);
+
+  // 🆕 multi_api 제공사 필터링: 각 API별 제공사 노출 여부 체크
+  // 통합된 제공사(multi_api=true)인 경우, 게임의 api_type에 해당하는 원본 제공사가 실제로 노출 상태인지 확인
+  const multiApiProviderNames = ['pragmatic', 'evolution', 'pgsoft', 'playtech', 'habanero', 'CQ9', 'microgaming'];
+  
+  // 1. multi_api=true인 게임들의 원본 제공사 상태 조회
+  const multiApiGames = allGames.filter(g => {
+    // 게임의 provider_name이 multiApiProviderNames에 해당하고, multi_api 플래그가 있는 경우
+    return multiApiProviderNames.some(name => 
+      g.provider_name?.toLowerCase().includes(name.toLowerCase())
+    );
+  });
+
+  if (multiApiGames.length > 0) {
+    console.log(`🎯 [multi_api 필터링] multi_api 의심 게임: ${multiApiGames.length}개`);
+    console.log(`📋 게임 목록:`, multiApiGames.slice(0, 3).map(g => `${g.name} (${g.provider_name}, api_type: ${g.api_type})`));
+
+    // 2. 각 API별로 hidden 상태인 제공사 조회
+    const hiddenProviders = new Set<string>(); // "api_type-provider_id" 형식
+    
+    // oroplay/familyapi/invest는 game_providers, honorapi는 honor_game_providers
+    const { data: hiddenNormalProviders } = await supabase
+      .from('game_providers')
+      .select('id, api_type, status, is_visible')
+      .in('api_type', ['oroplay', 'familyapi', 'invest'])
+      .or('status.ne.visible,is_visible.eq.false');
+
+    if (hiddenNormalProviders && hiddenNormalProviders.length > 0) {
+      hiddenNormalProviders.forEach(p => {
+        hiddenProviders.add(`${p.api_type}-${p.id}`);
+      });
+    }
+
+    const { data: hiddenHonorProviders } = await supabase
+      .from('honor_game_providers')
+      .select('id, status, is_visible')
+      .or('status.ne.visible,is_visible.eq.false');
+
+    if (hiddenHonorProviders && hiddenHonorProviders.length > 0) {
+      hiddenHonorProviders.forEach(p => {
+        hiddenProviders.add(`honorapi-${p.id}`);
+      });
+    }
+
+    console.log(`🚫 [multi_api 필터링] 비노출 제공사: ${hiddenProviders.size}개`, Array.from(hiddenProviders));
+
+    // 3. 비노출 API의 게임 필터링
+    const beforeCount = allGames.length;
+    allGames = allGames.filter(g => {
+      const gameKey = `${g.api_type}-${g.provider_id}`;
+      const isHidden = hiddenProviders.has(gameKey);
+      
+      if (isHidden) {
+        console.log(`🚫 [필터링] 비노출 제공사 게임 제외: ${g.name} (${g.api_type}, provider_id: ${g.provider_id})`);
+        return false;
+      }
+      return true;
+    });
+
+    console.log(`✅ [multi_api 필터링] 게임 수: ${beforeCount}개 → ${allGames.length}개 (제외 ${beforeCount - allGames.length}개)`);
+  }
+
   console.log(`📋 [getUserVisibleGames] 처음 5개 게임:`, allGames.slice(0, 5).map(g => ({
     id: g.id,
     name: g.name,
     provider_id: g.provider_id,
+    api_type: g.api_type,
     status: g.status,
     is_visible: g.is_visible
   })));
@@ -6028,4 +6092,3 @@ export async function syncUserBalance(
     throw error;
   }
 }
-

@@ -262,30 +262,59 @@ export async function getHonorApiCredentials(partnerId: string): Promise<HonorAp
 }
 
 /**
- * Lv1 시스템관리자의 HonorAPI credentials 조회
- * @param partnerId - 현재 파트너 ID (Lv1까지 자동으로 탐색)
- * @returns Lv1의 HonorAPI credentials
+ * HonorAPI credentials 계층 탐색 조회 (hierarchical lookup)
+ * @param startPartnerId - 시작 파트너 ID (Lv6까지 가능)
+ * @returns credentials가 있는 첫 번째 파트너의 credentials
  */
-export async function getLv1HonorApiCredentials(partnerId: string): Promise<HonorApiCredentials> {
+export async function getHonorApiCredentialsHierarchical(startPartnerId: string): Promise<HonorApiCredentials> {
   try {
-    // Lv1 파트너 찾기
-    const { data: lv1Partner, error: lv1Error } = await supabase
-      .from('partners')
-      .select('id')
-      .eq('level', 1)
-      .limit(1)
-      .maybeSingle();
+    // ⚡ 계층 순서대로 파트너 ID 목록 조회
+    const hierarchy: string[] = [];
+    let currentId: string | null = startPartnerId;
+    const maxIterations = 10;
 
-    if (lv1Error || !lv1Partner) {
-      console.error('❌ [API Config] Lv1 파트너 조회 실패:', lv1Error);
-      return { api_key: '' };
+    while (currentId && hierarchy.length < maxIterations) {
+      hierarchy.push(currentId);
+      
+      const { data: partner } = await supabase
+        .from('partners')
+        .select('id, parent_id, level')
+        .eq('id', currentId)
+        .single();
+      
+      if (!partner || partner.level === 1 || !partner.parent_id) {
+        break;
+      }
+      
+      currentId = partner.parent_id;
     }
 
-    return getHonorApiCredentials(lv1Partner.id);
+    console.log('🔗 [API Config] HonorAPI 검색할 파트너 계층:', hierarchy);
+
+    // ⚡ 계층 순서대로 credentials 검색
+    for (const pid of hierarchy) {
+      const credentials = await getHonorApiCredentials(pid);
+      if (credentials.api_key) {
+        console.log(`✅ [API Config] HonorAPI Credentials 발견: partner_id=${pid}`);
+        return credentials;
+      }
+    }
+
+    console.warn('⚠️ [API Config] 어떤 파트너에도 HonorAPI credentials가 설정되지 않았습니다:', hierarchy);
+    return { api_key: '' };
   } catch (err) {
-    console.error('❌ [API Config] Lv1 HonorAPI credentials 조회 예외:', err);
+    console.error('❌ [API Config] HonorAPI credentials 계층 탐색 예외:', err);
     return { api_key: '' };
   }
+}
+
+/**
+ * Lv1 시스템관리자의 HonorAPI credentials 조회 (hierarchical lookup)
+ * @param partnerId - 현재 파트너 ID (Lv1까지 자동으로 탐색)
+ * @returns 계층 순서로 찾은 첫 번째 HonorAPI credentials
+ */
+export async function getLv1HonorApiCredentials(partnerId: string): Promise<HonorApiCredentials> {
+  return getHonorApiCredentialsHierarchical(partnerId);
 }
 
 /**
