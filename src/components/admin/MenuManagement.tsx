@@ -57,22 +57,65 @@ export function MenuManagement({ user }: MenuManagementProps) {
   const [hasChanges, setHasChanges] = useState(false);
   const [showHiddenMenus, setShowHiddenMenus] = useState(false);
 
-  // 파트너 목록 로드
+  // 파트너 목록 로드 (조직 계층 구조 적용)
   const loadPartners = useCallback(async () => {
     try {
       setLoading(true);
-      
-      // ✅ 자기보다 하위 레벨 파트너만 조회 (레벨 숫자가 큰 것)
-      const { data, error } = await supabase
-        .from('partners')
-        .select('*')
-        .eq('status', 'active')
-        .gt('level', user.level)  // 자기보다 레벨이 높은 숫자 (하위 파트너)
-        .order('level', { ascending: true })
-        .order('nickname', { ascending: true });
 
-      if (error) throw error;
-      setPartners(data || []);
+      let partnersData: Partner[] = [];
+
+      if (user.level === 1) {
+        // Lv1: 모든 파트너 조회 (제한 없음)
+        const { data, error } = await supabase
+          .from('partners')
+          .select('*')
+          .eq('status', 'active')
+          .gt('level', 1)  // 시스템 관리자 제외
+          .order('level', { ascending: true })
+          .order('nickname', { ascending: true });
+
+        if (error) throw error;
+        partnersData = data || [];
+      } else {
+        // Lv2+: BFS 방식으로 조직 내 하위 파트너만 조회
+        
+        // 1. BFS로 모든 하위 파트너 ID 수집
+        const myDescendantIds: string[] = [];
+        const queue = [user.id];
+        
+        while (queue.length > 0) {
+          const currentBatch = queue.splice(0, queue.length);
+          
+          const { data: children } = await supabase
+            .from('partners')
+            .select('id, level')
+            .in('parent_id', currentBatch)
+            .eq('status', 'active');
+          
+          if (children && children.length > 0) {
+            const childIds = children.map(c => c.id);
+            myDescendantIds.push(...childIds);
+            queue.push(...childIds);
+          }
+        }
+
+        // 2. 하위 파트너들 조회 (자신보다 레벨이 높은 것만)
+        if (myDescendantIds.length > 0) {
+          const { data, error } = await supabase
+            .from('partners')
+            .select('*')
+            .in('id', myDescendantIds)
+            .eq('status', 'active')
+            .gt('level', user.level)  // 자기보다 레벨이 높은 것만
+            .order('level', { ascending: true })
+            .order('nickname', { ascending: true });
+
+          if (error) throw error;
+          partnersData = data || [];
+        }
+      }
+
+      setPartners(partnersData);
     } catch (error: any) {
       console.error('파트너 목록 로드 실패:', error);
       toast.error('파트너 목록을 불러오는데 실패했습니다.');
@@ -81,34 +124,57 @@ export function MenuManagement({ user }: MenuManagementProps) {
     }
   }, [user]);
 
-  // 전체 메뉴 목록 로드
-  const loadAllMenus = useCallback(async () => {
+  // 현재 로그인한 계정의 메뉴 권한 로드 (하위 파트너 설정 시 기준이 됨)
+  const loadUserMenuPermissions = useCallback(async () => {
     try {
-      let query = supabase
-        .from('menu_permissions')
-        .select('*');
-      
-      // Lv1: showHiddenMenus 옵션에 따라 필터링
-      // Lv2 이상: 항상 노출된 메뉴만
+      // Lv1: 모든 메뉴 표시 (menu_permissions가 null이어도 전체 메뉴 표시)
       if (user.level === 1) {
-        if (!showHiddenMenus) {
-          query = query.eq('is_visible', true);
-        }
-      } else {
-        query = query.eq('is_visible', true);
+        let query = supabase
+          .from('menu_permissions')
+          .select('*')
+          .eq('is_visible', true)
+          .order('display_order', { ascending: true })
+          .order('menu_name', { ascending: true });
+
+        const { data: menus, error: menuError } = await query;
+        if (menuError) throw menuError;
+        setAllMenus(menus || []);
+        return;
       }
-      
-      const { data, error } = await query
-        .order('display_order', { ascending: true })
-        .order('menu_name', { ascending: true });
+
+      // Lv2+: 현재 사용자의 menu_permissions 기준으로 메뉴 표시
+      const { data, error } = await supabase
+        .from('partners')
+        .select('menu_permissions')
+        .eq('id', user.id)
+        .single();
 
       if (error) throw error;
-      setAllMenus(data || []);
+
+      // 현재 사용자의 메뉴 권한 ID 배열
+      const userMenuPermissions = (data?.menu_permissions || []) as string[];
+      
+      // menu_permissions 테이블에서 현재 사용자에게 허용된 메뉴만 조회
+      if (userMenuPermissions.length > 0) {
+        const { data: menus, error: menuError } = await supabase
+          .from('menu_permissions')
+          .select('*')
+          .in('menu_path', userMenuPermissions)
+          .eq('is_visible', true)
+          .order('display_order', { ascending: true })
+          .order('menu_name', { ascending: true });
+
+        if (menuError) throw menuError;
+        setAllMenus(menus || []);
+      } else {
+        // 메뉴 권한이 없으면 빈 배열
+        setAllMenus([]);
+      }
     } catch (error: any) {
-      console.error('메뉴 목록 로드 실패:', error);
+      console.error('사용자 메뉴 권한 로드 실패:', error);
       toast.error('메뉴 목록을 불러오는데 실패했습니다.');
     }
-  }, [showHiddenMenus, user.level]);
+  }, [user.id, user.level]);
 
   // 선택된 파트너의 메뉴 권한 로드
   const loadPartnerMenus = useCallback(async (partnerId: string) => {
@@ -173,7 +239,7 @@ export function MenuManagement({ user }: MenuManagementProps) {
       if (error) throw error;
 
       toast.success(`메뉴가 ${visible ? '노출' : '비노출'} 상태로 변경되었습니다.`);
-      loadAllMenus();
+      loadUserMenuPermissions();
       
       // 현재 선택된 파트너 메뉴도 다시 로드
       if (selectedPartnerId) {
@@ -276,8 +342,8 @@ export function MenuManagement({ user }: MenuManagementProps) {
 
   useEffect(() => {
     loadPartners();
-    loadAllMenus();
-  }, [loadPartners, loadAllMenus]);
+    loadUserMenuPermissions();
+  }, [loadPartners, loadUserMenuPermissions]);
 
   useEffect(() => {
     if (selectedPartnerId && allMenus.length > 0) {
@@ -306,7 +372,7 @@ export function MenuManagement({ user }: MenuManagementProps) {
               <span className="text-sm">비노출 메뉴 표시</span>
             </div>
           )}
-          <Button onClick={() => { loadPartners(); loadAllMenus(); }} disabled={loading}>
+          <Button onClick={() => { loadPartners(); loadUserMenuPermissions(); }} disabled={loading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             새로고침
           </Button>
