@@ -1545,13 +1545,26 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   }
 
   // 탭별 데이터 필터링
-  const filterBySearch = (t: Transaction) => {
+  const filterBySearch = (t: any) => {
+    const searchLower = searchTerm.toLowerCase();
+    
+    // 파트너 거래 (partner_balance_logs)는 partner_nickname으로 검색
+    if (t.is_partner_transaction) {
+      return searchTerm === '' || 
+        String(t.partner_nickname || '').toLowerCase().includes(searchLower) ||
+        String(t.from_partner_nickname || '').toLowerCase().includes(searchLower) ||
+        String(t.to_partner_nickname || '').toLowerCase().includes(searchLower);
+    }
+    // 포인트 거래는 user_nickname으로 검색
+    if (t.is_point_transaction) {
+      return searchTerm === '' || String(t.user_nickname || '').toLowerCase().includes(searchLower);
+    }
     // 관리자 입출금 신청은 partner 정보로 검색
     if (t.transaction_type === 'partner_deposit' || t.transaction_type === 'partner_withdrawal') {
-      return searchTerm === '' || (t as any).partner?.nickname?.toLowerCase().includes(searchTerm.toLowerCase());
+      return searchTerm === '' || String(t.partner?.nickname || '').toLowerCase().includes(searchLower);
     }
     // 사용자 입출금 신청은 user 정보로 검색
-    return searchTerm === '' || t.user?.nickname?.toLowerCase().includes(searchTerm.toLowerCase());
+    return searchTerm === '' || String(t.user?.nickname || '').toLowerCase().includes(searchLower);
   };
 
   const depositRequests = transactions.filter(t => 

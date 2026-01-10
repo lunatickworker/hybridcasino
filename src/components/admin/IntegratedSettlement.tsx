@@ -392,7 +392,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       
       // console.log 제거
       setData(rows);
-      calculateSummary(rows);
+      await calculateSummary(rows, partnerBalanceLogs || []);
 
     } catch (error) {
       console.error('❌ 정산 데이터 조회 실패:', error);
@@ -591,9 +591,12 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     // 2️⃣ partner_balance_logs 테이블에서 파트너 강제입출금 집계 (deposit, withdrawal)
-    // relevantPartnerIdsForTransactions와 연관된 파트너만 필터링
+    // ✅ Lv2 이상: partner_id, from_partner_id, to_partner_id 중 하나라도 매칭되면 포함
+    // 모든 관련 파트너 ID를 한 번에 조회 (중복 방지)
     const relevantBalanceLogs = partnerBalanceLogs.filter(l => 
-      relevantPartnerIdsForTransactions.includes(l.partner_id)
+      relevantPartnerIdsForTransactions.includes(l.partner_id) ||
+      relevantPartnerIdsForTransactions.includes(l.from_partner_id) ||
+      relevantPartnerIdsForTransactions.includes(l.to_partner_id)
     );
     
     const adminDepositFromLogs = relevantBalanceLogs
@@ -906,31 +909,56 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     }
   };
 
-  const calculateSummary = (rows: SettlementRow[]) => {
+  const calculateSummary = async (rows: SettlementRow[], partnerBalanceLogs: any[]) => {
     const filteredRows = getFilteredRows(rows);
     
-    // ✅ 현재 로그인 사용자의 다음 레벨만 필터링하여 집계
-    // 예: Lv2 로그인 → Lv3만 집계, Lv3 로그인 → Lv4만 집계
-    const nextLevelRows = filteredRows.filter(r => r.level === user.level + 1);
+    // ✅ 매장(Lv6)은 하위 사용자들의 합계 + 본인의 정산 데이터
+    let targetRows: SettlementRow[];
+    
+    if (user.level === 6) {
+      // Lv6: 하위 회원들(level 0)의 데이터 + 본인의 데이터
+      const childRows = filteredRows.filter(r => r.level === 0);
+      
+      // 본인의 데이터 찾기 (본인의 username으로)
+      const myRow = rows.find(r => r.username === user.username && r.level === 6);
+      
+      if (myRow) {
+        // 본인의 데이터를 포함한 합계
+        targetRows = [myRow, ...childRows];
+      } else {
+        targetRows = childRows;
+      }
+    } else {
+      // 다른 레벨: 현재 로그인 사용자의 다음 레벨만 필터링하여 집계
+      // 예: Lv2 로그인 → Lv3만 집계, Lv3 로그인 → Lv4만 집계
+      targetRows = filteredRows.filter(r => r.level === user.level + 1);
+    }
+    
+    // ✅ LV6의 관리자 입출금은 상위 파트너에서 LV6로의 입출금으로
+    // 통합정산에는 포함하지 않음 (일일정산에만 표시됨)
+    // LV6 통계 카드는 하위 회원들의 데이터만 포함
+    let adminDepositFromLogs = 0;
+    let adminWithdrawalFromLogs = 0;
     
     const summary: SummaryStats = {
-      totalDeposit: nextLevelRows.reduce((sum, r) => sum + r.deposit, 0),
-      totalWithdrawal: nextLevelRows.reduce((sum, r) => sum + r.withdrawal, 0),
-      adminTotalDeposit: nextLevelRows.reduce((sum, r) => sum + r.adminDeposit, 0),
-      adminTotalWithdrawal: nextLevelRows.reduce((sum, r) => sum + r.adminWithdrawal, 0),
-      partnerRequestDeposit: nextLevelRows.reduce((sum, r) => sum + r.partnerRequestDeposit, 0),
-      partnerRequestWithdrawal: nextLevelRows.reduce((sum, r) => sum + r.partnerRequestWithdrawal, 0),
-      pointGiven: nextLevelRows.reduce((sum, r) => sum + r.pointGiven, 0),
-      pointRecovered: nextLevelRows.reduce((sum, r) => sum + r.pointRecovered, 0),
+      totalDeposit: targetRows.reduce((sum, r) => sum + r.deposit, 0),
+      totalWithdrawal: targetRows.reduce((sum, r) => sum + r.withdrawal, 0),
+      // ✅ 관리자 입금/출금: rows의 adminDeposit/adminWithdrawal + partner_balance_logs 추가
+      adminTotalDeposit: targetRows.reduce((sum, r) => sum + r.adminDeposit, 0) + adminDepositFromLogs,
+      adminTotalWithdrawal: targetRows.reduce((sum, r) => sum + r.adminWithdrawal, 0) + adminWithdrawalFromLogs,
+      partnerRequestDeposit: targetRows.reduce((sum, r) => sum + r.partnerRequestDeposit, 0),
+      partnerRequestWithdrawal: targetRows.reduce((sum, r) => sum + r.partnerRequestWithdrawal, 0),
+      pointGiven: targetRows.reduce((sum, r) => sum + r.pointGiven, 0),
+      pointRecovered: targetRows.reduce((sum, r) => sum + r.pointRecovered, 0),
       depositWithdrawalDiff: 0,
-      casinoBet: nextLevelRows.reduce((sum, r) => sum + r.casinoBet, 0),
-      casinoWin: nextLevelRows.reduce((sum, r) => sum + r.casinoWin, 0),
-      slotBet: nextLevelRows.reduce((sum, r) => sum + r.slotBet, 0),
-      slotWin: nextLevelRows.reduce((sum, r) => sum + r.slotWin, 0),
-      totalBet: nextLevelRows.reduce((sum, r) => sum + r.totalBet, 0),
-      totalWin: nextLevelRows.reduce((sum, r) => sum + r.totalWin, 0),
-      totalRolling: nextLevelRows.reduce((sum, r) => sum + r.totalIndividualRolling, 0),
-      totalSettlementProfit: nextLevelRows.reduce((sum, r) => sum + r.totalSettlement, 0),
+      casinoBet: targetRows.reduce((sum, r) => sum + r.casinoBet, 0),
+      casinoWin: targetRows.reduce((sum, r) => sum + r.casinoWin, 0),
+      slotBet: targetRows.reduce((sum, r) => sum + r.slotBet, 0),
+      slotWin: targetRows.reduce((sum, r) => sum + r.slotWin, 0),
+      totalBet: targetRows.reduce((sum, r) => sum + r.totalBet, 0),
+      totalWin: targetRows.reduce((sum, r) => sum + r.totalWin, 0),
+      totalRolling: targetRows.reduce((sum, r) => sum + r.totalIndividualRolling, 0),
+      totalSettlementProfit: targetRows.reduce((sum, r) => sum + r.totalSettlement, 0),
       errorBetAmount: bettingErrors.errorBetAmount,
       errorBetCount: bettingErrors.errorBetCount
     };
@@ -977,14 +1005,21 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       }
     };
 
-    // 최상위 파트너만 먼저 추가 (parent_id가 없거나 허용된 목록에 없는 경우)
-    const topLevelRows = filtered.filter(r => {
-      if (r.level === 0) return false; // 회원은 제외
-      if (!r.parentId) return true;
-      return !filtered.some(parent => parent.id === r.parentId);
-    });
+    // ✅ 매장(Lv6): 하위 회원들을 직접 표시 (계층 구조 없이)
+    if (user.level === 6) {
+      // 회원은 직접 추가 (계층 구조 없이 평평하게)
+      const userRows = filtered.filter(r => r.level === 0);
+      userRows.forEach(user => visible.push(user));
+    } else {
+      // 다른 레벨: 기존 방식대로 계층 구조 표시
+      const topLevelRows = filtered.filter(r => {
+        if (r.level === 0) return false; // 회원은 제외
+        if (!r.parentId) return true;
+        return !filtered.some(parent => parent.id === r.parentId);
+      });
 
-    topLevelRows.forEach(row => addRowWithChildren(row));
+      topLevelRows.forEach(row => addRowWithChildren(row));
+    }
 
     return visible;
   };
@@ -1122,7 +1157,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
           value={`${formatNumber(summary.slotBet)}원`}
           subtitle="슬롯 베팅 합계"
           icon={TrendingUp}
-          color="indigo"
+          color="sapphire"
         />
 
         <MetricCard
@@ -1130,7 +1165,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
           value={`${formatNumber(summary.slotWin)}원`}
           subtitle="슬롯 당첨 합계"
           icon={TrendingDown}
-          color="violet"
+          color="pink"
         />
 
         <MetricCard
@@ -1297,44 +1332,75 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
             </PopoverContent>
           </Popover>
 
-          {/* 단축 레벨 필터 버튼 */}
-          <div className="flex items-center gap-2 border-l border-slate-700 pl-3">
-            <Button
-              onClick={() => setLevelFilter('3')}
-              variant={levelFilter === '3' ? 'default' : 'outline'}
-              className="h-10"
-            >
-              본사
-            </Button>
-            <Button
-              onClick={() => setLevelFilter('4')}
-              variant={levelFilter === '4' ? 'default' : 'outline'}
-              className="h-10"
-            >
-              부본사
-            </Button>
-            <Button
-              onClick={() => setLevelFilter('5')}
-              variant={levelFilter === '5' ? 'default' : 'outline'}
-              className="h-10"
-            >
-              총판
-            </Button>
-            <Button
-              onClick={() => setLevelFilter('6')}
-              variant={levelFilter === '6' ? 'default' : 'outline'}
-              className="h-10"
-            >
-              매장
-            </Button>
-            <Button
-              onClick={() => setLevelFilter('user')}
-              variant={levelFilter === 'user' ? 'default' : 'outline'}
-              className="h-10"
-            >
-              회원
-            </Button>
-          </div>
+          {/* ✅ 단축 레벨 필터 버튼 - 매장(Lv6)도 "전체"만 표시 */}
+          {user.level === 6 ? (
+            <div className="flex items-center gap-2 border-l border-slate-700 pl-3">
+              <Button
+                onClick={() => setLevelFilter('all')}
+                variant={levelFilter === 'all' ? 'default' : 'outline'}
+                className="h-10"
+              >
+                전체
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 border-l border-slate-700 pl-3">
+              <Button
+                onClick={() => setLevelFilter('all')}
+                variant={levelFilter === 'all' ? 'default' : 'outline'}
+                className="h-10"
+              >
+                전체
+              </Button>
+              {/* 레벨 2 이상에게만 상위 레벨 필터 표시 */}
+              {user.level <= 2 && (
+                <Button
+                  onClick={() => setLevelFilter('3')}
+                  variant={levelFilter === '3' ? 'default' : 'outline'}
+                  className="h-10"
+                >
+                  본사
+                </Button>
+              )}
+              {user.level <= 3 && (
+                <Button
+                  onClick={() => setLevelFilter('4')}
+                  variant={levelFilter === '4' ? 'default' : 'outline'}
+                  className="h-10"
+                >
+                  부본사
+                </Button>
+              )}
+              {user.level <= 4 && (
+                <Button
+                  onClick={() => setLevelFilter('5')}
+                  variant={levelFilter === '5' ? 'default' : 'outline'}
+                  className="h-10"
+                >
+                  총판
+                </Button>
+              )}
+              {user.level <= 5 && (
+                <Button
+                  onClick={() => setLevelFilter('6')}
+                  variant={levelFilter === '6' ? 'default' : 'outline'}
+                  className="h-10"
+                >
+                  매장
+                </Button>
+              )}
+              {/* 레벨 6 미만에게만 회원 필터 표시 */}
+              {user.level < 6 && (
+                <Button
+                  onClick={() => setLevelFilter('user')}
+                  variant={levelFilter === 'user' ? 'default' : 'outline'}
+                  className="h-10"
+                >
+                  회원
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* 검색 */}
           <div className="flex-1 relative">

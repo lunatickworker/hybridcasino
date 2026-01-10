@@ -538,39 +538,69 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         return;
       }
       
-      // ⭐ Pragmatic Live
+      // ⭐ Pragmatic Live - OroPlay는 lobby 게임, HonorAPI는 5246855
       if (providerName.includes('pragmatic') || providerNameKo.includes('프라그마틱')) {
-        console.log('🎰 [BenzMain] Pragmatic Live 바로 실행 - 특정 게임 ID: 5246855');
+        console.log('🎰 [BenzMain] Pragmatic Live 실행');
         setIsProcessing(true);
         
         try {
-          // 🎯 특정 Pragmatic Play Live Lobby 게임 바로 실행 (id: 5246855)
-          const { data: pragmaticGame, error: pragmaticError } = await supabase
+          // 1️⃣ OroPlay: casino-pragmatic lobby 게임 조회 (优先)
+          console.log('🎰 [Pragmatic Live] OroPlay - casino-pragmatic lobby 조회');
+          const { data: oroplayGame, error: oroplayError } = await supabase
+            .from('games')
+            .select('id, name, name_ko, game_code, vendor_code, api_type, provider_id')
+            .eq('vendor_code', 'casino-pragmatic')
+            .eq('name', 'lobby')
+            .limit(1)
+            .maybeSingle();
+
+          if (oroplayGame && !oroplayError) {
+            console.log('✅ [Pragmatic Live] OroPlay lobby 게임 발견:', oroplayGame.name);
+            const game: Game = {
+              id: oroplayGame.id,
+              name: oroplayGame.name,
+              name_ko: oroplayGame.name_ko || oroplayGame.name,
+              game_code: oroplayGame.game_code,
+              provider_id: oroplayGame.provider_id,
+              api_type: oroplayGame.api_type || 'oroplay',
+              vendor_code: oroplayGame.vendor_code
+            };
+            
+            await handleGameClick(game);
+            return;
+          } else {
+            console.log('⚠️ [Pragmatic Live] OroPlay lobby 게임 없음, HonorAPI로 fallback');
+          }
+
+          // 2️⃣ HonorAPI: 하드코딩 ID 5246855 (fallback)
+          console.log('🎰 [Pragmatic Live] HonorAPI - 하드코딩 ID 5246855');
+          const { data: honorGame, error: honorError } = await supabase
             .from('honor_games')
             .select('id, name, name_ko, game_code, vendor_code, api_type')
             .eq('id', '5246855')
             .maybeSingle();
 
-          if (pragmaticError || !pragmaticGame) {
-            console.error('❌ [Pragmatic Live] 특정 게임(ID: 5246855)을 찾을 수 없습니다:', pragmaticError);
+          if (honorError || !honorGame) {
+            console.error('❌ [Pragmatic Live] HonorAPI 게임(ID: 5246855)을 찾을 수 없습니다:', honorError);
             toast.error('Pragmatic Live 게임을 찾을 수 없습니다.');
             setIsProcessing(false);
             return;
           }
 
+          console.log('✅ [Pragmatic Live] HonorAPI 게임 발견:', honorGame.name);
           const game: Game = {
-            id: pragmaticGame.id,
-            name: pragmaticGame.name,
-            name_ko: pragmaticGame.name_ko || pragmaticGame.name,
-            game_code: pragmaticGame.game_code,
+            id: honorGame.id,
+            name: honorGame.name,
+            name_ko: honorGame.name_ko || honorGame.name,
+            game_code: honorGame.game_code,
             provider_id: 0,
-            api_type: pragmaticGame.api_type || 'honor',
-            vendor_code: pragmaticGame.vendor_code
+            api_type: honorGame.api_type || 'honor',
+            vendor_code: honorGame.vendor_code
           };
           
           await handleGameClick(game);
         } catch (error) {
-          console.error('Pragmatic Live 게임 실행 오류:', error);
+          console.error('Pragmatic Live 실행 오류:', error);
           toast.error('Pragmatic Live 게임 실행에 실패했습니다.');
         } finally {
           setIsProcessing(false);

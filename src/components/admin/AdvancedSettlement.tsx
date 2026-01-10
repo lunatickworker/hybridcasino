@@ -20,46 +20,84 @@ interface AdvancedSettlementProps {
 
 interface DailySettlementRow {
   date: string;
+  balance: number;
+  points: number;
   deposit: number;
   withdrawal: number;
   adminDeposit: number;
   adminWithdrawal: number;
+  partnerRequestDeposit: number;
+  partnerRequestWithdrawal: number;
   pointGiven: number;
   pointRecovered: number;
   depositWithdrawalDiff: number;
   casinoBet: number;
   casinoWin: number;
   casinoWinLoss: number;
+  casinoLosing: number;
   slotBet: number;
   slotWin: number;
   slotWinLoss: number;
+  slotLosing: number;
   totalBet: number;
   totalWin: number;
   totalWinLoss: number;
-  casinoRolling: number;
-  slotRolling: number;
+  totalLosing: number;
+  ggr: number;
+  casinoTotalRolling: number;
+  slotTotalRolling: number;
   totalRolling: number;
+  casinoChildrenRolling: number;
+  slotChildrenRolling: number;
+  casinoIndividualRolling: number;
+  slotIndividualRolling: number;
+  totalIndividualRolling: number;
+  casinoChildrenLosing: number;
+  slotChildrenLosing: number;
+  casinoIndividualLosing: number;
+  slotIndividualLosing: number;
+  totalIndividualLosing: number;
+  totalSettlement: number;
   settlementProfit: number;
+  actualSettlementProfit: number;
 }
 
 interface SummaryStats {
+  totalBalance: number;
+  totalPoints: number;
   totalDeposit: number;
   totalWithdrawal: number;
   adminTotalDeposit: number;
   adminTotalWithdrawal: number;
+  partnerRequestDeposit: number;
+  partnerRequestWithdrawal: number;
   pointGiven: number;
   pointRecovered: number;
   depositWithdrawalDiff: number;
   casinoBet: number;
   casinoWin: number;
+  casinoWinLoss: number;
+  casinoLosing: number;
   slotBet: number;
   slotWin: number;
+  slotWinLoss: number;
+  slotLosing: number;
   totalBet: number;
   totalWin: number;
   totalWinLoss: number;
-  totalRolling: number;
+  totalLosing: number;
+  ggr: number;
+  casinoChildrenRolling: number;
+  slotChildrenRolling: number;
+  totalIndividualRolling: number;
+  casinoChildrenLosing: number;
+  slotChildrenLosing: number;
+  totalIndividualLosing: number;
+  totalSettlement: number;
   totalSettlementProfit: number;
   totalActualSettlementProfit: number;
+  errorBetAmount: number;
+  errorBetCount: number;
 }
 
 export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
@@ -73,23 +111,41 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [summary, setSummary] = useState<SummaryStats>({
+    totalBalance: 0,
+    totalPoints: 0,
     totalDeposit: 0,
     totalWithdrawal: 0,
     adminTotalDeposit: 0,
     adminTotalWithdrawal: 0,
+    partnerRequestDeposit: 0,
+    partnerRequestWithdrawal: 0,
     pointGiven: 0,
     pointRecovered: 0,
     depositWithdrawalDiff: 0,
     casinoBet: 0,
     casinoWin: 0,
+    casinoWinLoss: 0,
+    casinoLosing: 0,
     slotBet: 0,
     slotWin: 0,
+    slotWinLoss: 0,
+    slotLosing: 0,
     totalBet: 0,
     totalWin: 0,
     totalWinLoss: 0,
-    totalRolling: 0,
+    totalLosing: 0,
+    ggr: 0,
+    casinoChildrenRolling: 0,
+    slotChildrenRolling: 0,
+    totalIndividualRolling: 0,
+    casinoChildrenLosing: 0,
+    slotChildrenLosing: 0,
+    totalIndividualLosing: 0,
+    totalSettlement: 0,
     totalSettlementProfit: 0,
-    totalActualSettlementProfit: 0
+    totalActualSettlementProfit: 0,
+    errorBetAmount: 0,
+    errorBetCount: 0
   });
 
   useEffect(() => {
@@ -106,7 +162,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
     
     setLoading(true);
     try {
-      console.log('🔍 [일일정산] 데이터 조회 시작', {
+      console.log('🔍 [일일정산] 데이터 조회 시작 (본인 + 하위 회원)', {
         dateRange: {
           from: dateRange.from.toISOString(),
           to: dateRange.to.toISOString()
@@ -118,62 +174,114 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
       let allowedPartnerIds: string[] = [user.id];
       let allowedUserIds: string[] = [];
 
-      // 하위 파트너 조회 (재귀적으로 모든 하위)
-      const descendantPartnerIds = await getDescendantPartnerIds(user.id);
-      allowedPartnerIds.push(...descendantPartnerIds);
-      console.log('✅ 허용된 파트너:', allowedPartnerIds.length, '개');
+      // Lv6은 하위 파트너가 없으므로 하위 회원만 조회
+      if (user.level === 6) {
+        // Lv6: 바로 하위 회원들만 조회
+        const { data: users, error: usersError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('referrer_id', user.id);
 
-      // 모든 허용된 파트너들의 직속 회원 조회
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('id')
-        .in('referrer_id', allowedPartnerIds);
+        if (usersError) throw usersError;
+        allowedUserIds = users?.map(u => u.id) || [];
+        console.log('✅ Lv6 - 허용된 회원:', allowedUserIds.length, '개');
+      } else {
+        // Lv2~Lv5: 하위 파트너 조회 (재귀적으로 모든 하위)
+        const descendantPartnerIds = await getDescendantPartnerIds(user.id);
+        allowedPartnerIds.push(...descendantPartnerIds);
+        console.log('✅ 허용된 파트너:', allowedPartnerIds.length, '개');
 
-      if (usersError) throw usersError;
-      allowedUserIds = users?.map(u => u.id) || [];
-      console.log('✅ 허용된 회원:', allowedUserIds.length, '개');
+        // 모든 허용된 파트너들의 직속 회원 조회
+        const { data: users, error: usersError } = await supabase
+          .from('users')
+          .select('id')
+          .in('referrer_id', allowedPartnerIds);
 
-      // ⚠️ 허용된 회원이 없으면 빈 배열 반환
-      if (allowedUserIds.length === 0) {
-        console.log('⚠️ 허용된 회원이 없어 정산 데이터가 없습니다.');
-        setData([]);
-        calculateSummary([]);
-        setLoading(false);
-        return;
+        if (usersError) throw usersError;
+        allowedUserIds = users?.map(u => u.id) || [];
+        console.log('✅ 허용된 회원:', allowedUserIds.length, '개');
       }
 
-      // 2. 기간 내 거래 데이터 조회
-      const { data: transactions, error: transError } = await supabase
+      // 2. 거래 데이터 조회
+      let transactionsQuery = supabase
         .from('transactions')
         .select('*')
         .gte('created_at', dateRange.from.toISOString())
-        .lte('created_at', dateRange.to.toISOString())
-        .in('user_id', allowedUserIds);
+        .lte('created_at', dateRange.to.toISOString());
+
+      // Lv6: 하위 회원들(user_id)의 거래만 조회 (파트너 아님)
+      if (user.level === 6) {
+        if (allowedUserIds.length > 0) {
+          transactionsQuery = transactionsQuery.in('user_id', allowedUserIds);
+        } else {
+          transactionsQuery = transactionsQuery.eq('user_id', 'none');
+        }
+      } else {
+        // Lv2~Lv5: 본인(partner_id) 또는 하위 회원들(user_id)
+        if (allowedUserIds.length > 0) {
+          transactionsQuery = transactionsQuery.or(
+            `user_id.in.(${allowedUserIds.join(',')}),partner_id.in.(${allowedPartnerIds.join(',')})`
+          );
+        } else {
+          transactionsQuery = transactionsQuery.in('partner_id', allowedPartnerIds);
+        }
+      }
+
+      const { data: transactions, error: transError } = await transactionsQuery;
 
       if (transError) throw transError;
       console.log('✅ 거래 데이터:', transactions?.length || 0, '개');
 
+      // 3. 포인트 거래 (본인 + 하위 회원)
       const { data: pointTransactions, error: pointError } = await supabase
         .from('point_transactions')
         .select('*')
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString())
-        .in('user_id', allowedUserIds);
+        .in('user_id', allowedUserIds.length > 0 ? allowedUserIds : ['none']);
 
       if (pointError) throw pointError;
       console.log('✅ 포인트 거래:', pointTransactions?.length || 0, '개');
 
-      const { data: gameRecords, error: gameError } = await supabase
+      // 4. 게임 기록 (본인 + 하위 회원)
+      let gameRecordsQuery = supabase
         .from('game_records')
         .select('*')
         .gte('played_at', dateRange.from.toISOString())
-        .lte('played_at', dateRange.to.toISOString())
-        .in('user_id', allowedUserIds);
+        .lte('played_at', dateRange.to.toISOString());
+
+      if (allowedUserIds.length > 0) {
+        gameRecordsQuery = gameRecordsQuery.in('user_id', allowedUserIds);
+      } else {
+        gameRecordsQuery = gameRecordsQuery.eq('user_id', 'none');
+      }
+
+      const { data: gameRecords, error: gameError } = await gameRecordsQuery;
 
       if (gameError) throw gameError;
       console.log('✅ 게임 기록:', gameRecords?.length || 0, '개');
 
-      // 3. 본인 커미션 정보 조회
+      // 5. partner_balance_logs에서 본인 관련 관리자 입출금 조회
+      let partnerBalanceLogsQuery = supabase
+        .from('partner_balance_logs')
+        .select('*')
+        .gte('created_at', dateRange.from.toISOString())
+        .lte('created_at', dateRange.to.toISOString());
+
+      if (user.level > 1) {
+        partnerBalanceLogsQuery = partnerBalanceLogsQuery.or(
+          `partner_id.in.(${allowedPartnerIds.join(',')}),` +
+          `from_partner_id.in.(${allowedPartnerIds.join(',')}),` +
+          `to_partner_id.in.(${allowedPartnerIds.join(',')})`
+        );
+      }
+
+      const { data: partnerBalanceLogs, error: balanceLogsError } = await partnerBalanceLogsQuery;
+
+      if (balanceLogsError) throw balanceLogsError;
+      console.log('✅ 파트너 잔고 로그:', partnerBalanceLogs?.length || 0, '개');
+
+      // 6. 본인 커미션 정보 조회
       const myCommission = {
         casinoRolling: user.casino_rolling_commission || 0,
         casinoLosing: user.casino_losing_commission || 0,
@@ -181,13 +289,14 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         slotLosing: user.slot_losing_commission || 0
       };
 
-      // 4. 날짜별 데이터 집계
+      // 7. 날짜별 데이터 집계
       const rows = await processDailySettlementData(
         dateRange.from,
         dateRange.to,
         transactions || [],
         pointTransactions || [],
         gameRecords || [],
+        partnerBalanceLogs || [],
         myCommission
       );
       
@@ -229,6 +338,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
     transactions: any[],
     pointTransactions: any[],
     gameRecords: any[],
+    partnerBalanceLogs: any[],
     commission: any
   ): Promise<DailySettlementRow[]> => {
     const rows: DailySettlementRow[] = [];
@@ -254,22 +364,42 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         return grDate >= dayStart && grDate <= dayEnd;
       });
 
-      // 입출금 계산
+      // 해당 날짜의 partner_balance_logs
+      const dayPartnerBalanceLogs = partnerBalanceLogs.filter(l => {
+        const lDate = new Date(l.created_at);
+        return lDate >= dayStart && lDate <= dayEnd;
+      });
+
+      // 입출금 계산 - IntegratedSettlement와 동일한 조건 사용
       const deposit = dayTransactions
-        .filter(t => t.transaction_type === 'deposit' && t.status === 'approved')
+        .filter(t => (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && t.status === 'completed')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
       const withdrawal = dayTransactions
-        .filter(t => t.transaction_type === 'withdrawal' && t.status === 'approved')
+        .filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && t.status === 'completed')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-      const adminDeposit = dayTransactions
-        .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'approved')
+      // 관리자 입금/출금: transactions + partner_balance_logs - IntegratedSettlement와 동일한 조건
+      const adminDepositFromTransactions = dayTransactions
+        .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-      const adminWithdrawal = dayTransactions
-        .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'approved')
+      const adminWithdrawalFromTransactions = dayTransactions
+        .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+      // partner_balance_logs에서 본인에게 입금된 금액 (from_partner_id가 다른 사람, to_partner_id가 본인)
+      const adminDepositFromLogs = dayPartnerBalanceLogs
+        .filter(l => l.to_partner_id === user.id && l.transaction_type === 'deposit')
+        .reduce((sum, l) => sum + (l.amount || 0), 0);
+
+      // partner_balance_logs에서 본인에게서 출금된 금액 (from_partner_id가 본인, to_partner_id가 다른 사람)
+      const adminWithdrawalFromLogs = dayPartnerBalanceLogs
+        .filter(l => l.from_partner_id === user.id && l.transaction_type === 'withdrawal')
+        .reduce((sum, l) => sum + (l.amount || 0), 0);
+
+      const adminDeposit = adminDepositFromTransactions + adminDepositFromLogs;
+      const adminWithdrawal = adminWithdrawalFromTransactions + adminWithdrawalFromLogs;
 
       // 포인트 계산
       const pointGiven = dayPointTransactions
@@ -352,26 +482,46 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
 
       rows.push({
         date: format(day, 'yyyy. M. d', { locale: ko }),
+        balance: 0,
+        points: 0,
         deposit,
         withdrawal,
         adminDeposit,
         adminWithdrawal,
+        partnerRequestDeposit: 0,
+        partnerRequestWithdrawal: 0,
         pointGiven,
         pointRecovered,
         depositWithdrawalDiff: deposit - withdrawal + adminDeposit - adminWithdrawal,
         casinoBet,
         casinoWin,
         casinoWinLoss,
+        casinoLosing,
         slotBet,
         slotWin,
         slotWinLoss,
+        slotLosing,
         totalBet,
         totalWin,
         totalWinLoss,
-        casinoRolling,
-        slotRolling,
+        totalLosing,
+        ggr: totalWinLoss,
+        casinoTotalRolling: casinoRolling,
+        slotTotalRolling: slotRolling,
         totalRolling,
-        settlementProfit
+        casinoChildrenRolling: 0,
+        slotChildrenRolling: 0,
+        casinoIndividualRolling: casinoRolling,
+        slotIndividualRolling: slotRolling,
+        totalIndividualRolling: totalRolling,
+        casinoChildrenLosing: 0,
+        slotChildrenLosing: 0,
+        casinoIndividualLosing: casinoLosing,
+        slotIndividualLosing: slotLosing,
+        totalIndividualLosing: totalLosing,
+        totalSettlement: settlementProfit,
+        settlementProfit,
+        actualSettlementProfit: totalWinLoss - totalRolling - totalLosing
       });
     }
 
@@ -385,25 +535,44 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
     const adminTotalWithdrawal = rows.reduce((sum, r) => sum + r.adminWithdrawal, 0);
     const totalWinLoss = rows.reduce((sum, r) => sum + r.totalWinLoss, 0);
     const totalRolling = rows.reduce((sum, r) => sum + r.totalRolling, 0);
+    const totalLosing = rows.reduce((sum, r) => sum + r.totalLosing, 0);
     
     const summary: SummaryStats = {
+      totalBalance: 0,
+      totalPoints: 0,
       totalDeposit,
       totalWithdrawal,
       adminTotalDeposit,
       adminTotalWithdrawal,
+      partnerRequestDeposit: 0,
+      partnerRequestWithdrawal: 0,
       pointGiven: rows.reduce((sum, r) => sum + r.pointGiven, 0),
       pointRecovered: rows.reduce((sum, r) => sum + r.pointRecovered, 0),
       depositWithdrawalDiff: rows.reduce((sum, r) => sum + r.depositWithdrawalDiff, 0),
       casinoBet: rows.reduce((sum, r) => sum + r.casinoBet, 0),
       casinoWin: rows.reduce((sum, r) => sum + r.casinoWin, 0),
+      casinoWinLoss: rows.reduce((sum, r) => sum + r.casinoWinLoss, 0),
+      casinoLosing: rows.reduce((sum, r) => sum + r.casinoLosing, 0),
       slotBet: rows.reduce((sum, r) => sum + r.slotBet, 0),
       slotWin: rows.reduce((sum, r) => sum + r.slotWin, 0),
+      slotWinLoss: rows.reduce((sum, r) => sum + r.slotWinLoss, 0),
+      slotLosing: rows.reduce((sum, r) => sum + r.slotLosing, 0),
       totalBet: rows.reduce((sum, r) => sum + r.totalBet, 0),
       totalWin: rows.reduce((sum, r) => sum + r.totalWin, 0),
       totalWinLoss,
-      totalRolling,
+      totalLosing,
+      ggr: totalWinLoss,
+      casinoChildrenRolling: 0,
+      slotChildrenRolling: 0,
+      totalIndividualRolling: totalRolling,
+      casinoChildrenLosing: 0,
+      slotChildrenLosing: 0,
+      totalIndividualLosing: totalLosing,
+      totalSettlement: rows.reduce((sum, r) => sum + r.totalSettlement, 0),
       totalSettlementProfit: rows.reduce((sum, r) => sum + r.settlementProfit, 0),
-      totalActualSettlementProfit: totalWinLoss - totalRolling // 실정산수익: GGR - 롤링 (루징은 일일정산에서 집계 안 함)
+      totalActualSettlementProfit: totalWinLoss - totalRolling - totalLosing,
+      errorBetAmount: 0,
+      errorBetCount: 0
     };
 
     setSummary(summary);
@@ -548,7 +717,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
           value={`${formatNumber(summary.slotBet)}원`}
           subtitle="슬롯 베팅 합계"
           icon={TrendingUp}
-          color="indigo"
+          color="sapphire"
         />
 
         <MetricCard
@@ -556,7 +725,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
           value={`${formatNumber(summary.slotWin)}원`}
           subtitle="슬롯 당첨 합계"
           icon={TrendingDown}
-          color="violet"
+          color="pink"
         />
 
         <MetricCard
@@ -596,7 +765,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
 
         <MetricCard
           title="총 롤링금"
-          value={`${formatNumber(summary.totalRolling)}원`}
+          value={`${formatNumber(summary.totalIndividualRolling)}원`}
           subtitle="롤링 합계"
           icon={DollarSign}
           color="emerald"
@@ -611,11 +780,19 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         />
 
         <MetricCard
-          title="실정산수익"
-          value={`${formatNumber(summary.totalActualSettlementProfit)}원`}
-          subtitle="GGR - 롤링 - 루징"
-          icon={Wallet}
+          title="관리자 신청입금"
+          value={`${formatNumber(summary.partnerRequestDeposit)}원`}
+          subtitle="파트너 입금 신청"
+          icon={TrendingUp}
           color="cyan"
+        />
+
+        <MetricCard
+          title="관리자 신청출금"
+          value={`${formatNumber(summary.partnerRequestWithdrawal)}원`}
+          subtitle="파트너 출금 신청"
+          icon={TrendingDown}
+          color="orange"
         />
       </div>
 
@@ -793,9 +970,9 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
                     <td className="px-4 py-3 text-right text-cyan-400 font-asiahead whitespace-nowrap">{formatNumber(row.totalBet)}</td>
                     <td className="px-4 py-3 text-right text-purple-400 font-asiahead whitespace-nowrap">{formatNumber(row.totalWin)}</td>
                     <td className="px-4 py-3 text-right text-amber-400 font-asiahead whitespace-nowrap">{formatNumber(row.totalWinLoss)}</td>
-                    <td className="px-4 py-3 text-right text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.casinoRolling)}</td>
-                    <td className="px-4 py-3 text-right text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.slotRolling)}</td>
-                    <td className="px-4 py-3 text-right text-teal-400 font-asiahead whitespace-nowrap">{formatNumber(row.totalRolling)}</td>
+                    <td className="px-4 py-3 text-right text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.casinoIndividualRolling)}</td>
+                    <td className="px-4 py-3 text-right text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.slotIndividualRolling)}</td>
+                    <td className="px-4 py-3 text-right text-teal-400 font-asiahead whitespace-nowrap">{formatNumber(row.totalIndividualRolling)}</td>
                     <td className="px-4 py-3 text-right text-green-400 font-asiahead font-semibold whitespace-nowrap">{formatNumber(row.settlementProfit)}</td>
                   </tr>
                 ))}

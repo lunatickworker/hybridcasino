@@ -59,7 +59,7 @@ export async function checkApiActive(apiProvider: 'invest' | 'oroplay' | 'family
 
 /**
  * 파트너 ID로 API 활성화 상태 체크 (성능 최적화 버전)
- * @param partnerId - 파트너 ID (보통 Lv1)
+ * @param partnerId - 파트너 ID (어떤 레벨이든 상관없음, Lv1을 자동으로 찾음)
  * @param apiProvider - 'invest', 'oroplay', 'familyapi', 'honorapi'
  * @returns is_active 값 (true/false)
  */
@@ -68,10 +68,44 @@ export async function checkApiActiveByPartnerId(
   apiProvider: 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
 ): Promise<boolean> {
   try {
+    // 🆕 먼저 Lv1 파트너 ID 찾기 (api_configs는 Lv1에게만 저장됨)
+    let lv1PartnerId = partnerId;
+    let iterations = 0;
+    const maxIterations = 10;
+
+    while (iterations < maxIterations) {
+      const { data: partner, error: partnerError } = await supabase
+        .from('partners')
+        .select('id, level, parent_id')
+        .eq('id', lv1PartnerId)
+        .single();
+
+      if (partnerError || !partner) {
+        console.error(`❌ [API Status] 파트너 조회 실패:`, partnerError);
+        return false;
+      }
+
+      // Lv1이면 종료
+      if (partner.level === 1) {
+        break;
+      }
+
+      // 부모 파트너로 이동
+      if (partner.parent_id) {
+        lv1PartnerId = partner.parent_id;
+      } else {
+        // 부모가 없으면 현재 파트너가 최상위
+        break;
+      }
+      
+      iterations++;
+    }
+
+    // 🆕 Lv1 파트너의 API 설정 조회
     const { data: apiConfig, error } = await supabase
       .from('api_configs')
       .select('is_active')
-      .eq('partner_id', partnerId)
+      .eq('partner_id', lv1PartnerId)
       .eq('api_provider', apiProvider)
       .maybeSingle();
 
@@ -81,11 +115,14 @@ export async function checkApiActiveByPartnerId(
     }
 
     if (!apiConfig) {
-      console.warn(`⚠️ [API Status] ${apiProvider} API 설정이 존재하지 않습니다.`);
+      console.warn(`⚠️ [API Status] ${apiProvider} API 설정이 존재하지 않습니다. (partnerId: ${partnerId}, lv1: ${lv1PartnerId})`);
       return false;
     }
 
-    return apiConfig.is_active !== false; // 기본값 true
+    const isActive = apiConfig.is_active !== false;
+    console.log(`✅ [API Status] ${apiProvider} API 활성화 상태: ${isActive} (partnerId: ${partnerId}, lv1: ${lv1PartnerId})`);
+    
+    return isActive;
   } catch (error) {
     console.error(`❌ [API Status] ${apiProvider} API 상태 체크 오류:`, error);
     return false;
