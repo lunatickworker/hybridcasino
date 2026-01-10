@@ -477,6 +477,11 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         partnerData.timezone_offset = formData.timezone_offset;
       }
 
+      // ✅ LV2(대본사)인 경우 selected_apis 저장 (하위 파트너들이 상위 API를 상속받기 위함)
+      if (formData.partner_type === 'head_office' && formData.selected_apis && formData.selected_apis.length > 0) {
+        partnerData.selected_apis = formData.selected_apis;
+      }
+
       const { data: newPartner, error: createError } = await supabase
         .from('partners')
         .insert([partnerData])

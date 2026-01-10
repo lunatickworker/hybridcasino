@@ -876,10 +876,11 @@ export function UserManagement() {
       // 2. 관리자가 직접 생성하는 경우 바로 API 계정 생성 (승인 과정 없음)
       console.log('🌐 외부 API 계정 생성 시작 (Invest + OroPlay)');
       
+      // ✅ actualReferrerId를 전달 (authState.user?.id가 아닌 실제 소속 파트너)
       const apiResult = await createApiAccounts(
         newUser.id,
         userData.username,
-        authState.user?.id || '',
+        actualReferrerId || '',
         undefined // toastId 전달하지 않음 (토스트 숨김)
       );
 

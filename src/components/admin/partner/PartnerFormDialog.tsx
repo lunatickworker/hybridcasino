@@ -8,7 +8,7 @@ import { Label } from "../../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Badge } from "../../ui/badge";
 import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle } from "../AdminDialog";
-import { UserPlus, Building2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { UserPlus, Building2, AlertCircle, Eye, EyeOff, Database } from "lucide-react";
 import { Partner } from "./types";
 import { useLanguage } from "../../../contexts/LanguageContext";
 import { toast } from "sonner@2.0.3";
@@ -85,10 +85,19 @@ export function PartnerFormDialog({
     losing_commission: 0, // 통합된 루징 커미션 (카지노/슬롯 공통)
     slot_rolling_commission: 0,
     withdrawal_fee: 0,
+    selected_apis: [] as string[], // LV2 생성/수정 시 사용할 API 선택
   });
 
   const [availableParents, setAvailableParents] = useState<Partner[]>([]); // 소속 가능한 상위 파트너 목록
   const [upperLevelPartners, setUpperLevelPartners] = useState<Partner[]>([]); // 상위 레벨 파트너 목록
+
+  // 사용 가능한 API 목록
+  const availableApis = [
+    { value: 'invest', label: 'Invest API', description: '인베스트 게임 API' },
+    { value: 'oroplay', label: 'OroPlay API', description: '오로플레이 게임 API' },
+    { value: 'familyapi', label: 'Family API', description: '패밀리 게임 API' },
+    { value: 'honorapi', label: 'Honor API', description: '아너 게임 API' },
+  ];
 
   // 파트너 데이터 로드 (수정 모드)
   useEffect(() => {
@@ -108,6 +117,20 @@ export function PartnerFormDialog({
   const loadPartnerData = async () => {
     if (!partner) return;
 
+    // LV2(운영사)인 경우 selected_apis 로드
+    let selectedApis: string[] = [];
+    if (partner.level === 2) {
+      const { data: partnerData } = await supabase
+        .from('partners')
+        .select('selected_apis')
+        .eq('id', partner.id)
+        .single();
+      
+      if (partnerData?.selected_apis) {
+        selectedApis = partnerData.selected_apis as string[];
+      }
+    }
+
     setFormData({
       username: partner.username,
       nickname: partner.nickname,
@@ -120,6 +143,7 @@ export function PartnerFormDialog({
       losing_commission: partner.casino_losing_commission || 0, // 통합된 루징 커미션 (카지노/슬롯 공통)
       slot_rolling_commission: partner.slot_rolling_commission || 0,
       withdrawal_fee: partner.withdrawal_fee || 0,
+      selected_apis: selectedApis,
     });
   };
 
@@ -180,6 +204,82 @@ export function PartnerFormDialog({
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // API 선택 토글 핸들러
+  const handleApiToggle = (apiValue: string) => {
+    const currentApis = formData.selected_apis || [];
+    const newApis = currentApis.includes(apiValue)
+      ? currentApis.filter(a => a !== apiValue)
+      : [...currentApis, apiValue];
+    handleInputChange('selected_apis', newApis);
+  };
+
+  // API 설정 동기화 (LV2 수정 시)
+  const syncApiConfigs = async (partnerId: string, selectedApis: string[]) => {
+    try {
+      // 기존 API 설정 조회
+      const { data: existingConfigs } = await supabase
+        .from('api_configs')
+        .select('api_provider')
+        .eq('partner_id', partnerId);
+
+      const existingProviders = existingConfigs?.map(c => c.api_provider) || [];
+      
+      // 추가할 API
+      const apisToAdd = selectedApis.filter(api => !existingProviders.includes(api));
+      
+      // 삭제할 API (선택 해제된 것)
+      const apisToDelete = existingProviders.filter(api => !selectedApis.includes(api));
+
+      // 새 API 추가
+      if (apisToAdd.length > 0) {
+        const newConfigs = apisToAdd.map(api => ({
+          partner_id: partnerId,
+          api_provider: api,
+          balance: 0,
+          is_active: true,
+        }));
+        
+        const { error: insertError } = await supabase
+          .from('api_configs')
+          .insert(newConfigs);
+        
+        if (insertError) {
+          console.warn('⚠️ API config 추가 실패:', insertError);
+        } else {
+          console.log('✅ API config 추가 완료:', apisToAdd);
+        }
+      }
+
+      // 선택 해제된 API 삭제
+      if (apisToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('api_configs')
+          .delete()
+          .eq('partner_id', partnerId)
+          .in('api_provider', apisToDelete);
+        
+        if (deleteError) {
+          console.warn('⚠️ API config 삭제 실패:', deleteError);
+        } else {
+          console.log('✅ API config 삭제 완료:', apisToDelete);
+        }
+      }
+
+      // 기존 API의 is_active 상태 업데이트
+      for (const api of selectedApis) {
+        await supabase
+          .from('api_configs')
+          .update({ is_active: true })
+          .eq('partner_id', partnerId)
+          .eq('api_provider', api);
+      }
+
+      console.log('✅ API config 동기화 완료');
+    } catch (error) {
+      console.error('❌ API config 동기화 실패:', error);
+    }
   };
 
   const handleSubmit = async () => {
@@ -283,10 +383,20 @@ export function PartnerFormDialog({
           updateData.password_hash = formData.password;
         }
 
+        // LV2(운영사)인 경우 selected_apis 업데이트
+        if (partner.level === 2) {
+          updateData.selected_apis = formData.selected_apis;
+        }
+
         const { error } = await supabase
           .from('partners')
           .update(updateData)
           .eq('id', partner.id);
+
+        // LV2(운영사)인 경우 api_configs도 함께 업데이트
+        if (partner.level === 2 && !error) {
+          await syncApiConfigs(partner.id, formData.selected_apis);
+        }
 
         if (error) throw error;
 
@@ -630,6 +740,39 @@ export function PartnerFormDialog({
               />
             </div>
           </div>
+
+          {/* LV2(운영사) API 선택 */}
+          {((mode === 'edit' && partner?.level === 2) || (mode === 'create' && userLevel === 1)) && (
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-2">
+                <Database className="h-5 w-5 text-blue-400" />
+                <Label className="text-base font-medium">사용할 API 선택</Label>
+              </div>
+              <div className="grid grid-cols-2 gap-3 p-4 bg-slate-800/30 rounded-lg border border-slate-700">
+                {availableApis.map((api) => (
+                  <label
+                    key={api.value}
+                    className="flex items-start gap-3 p-3 rounded-md border border-slate-600 hover:border-blue-500 hover:bg-slate-700/30 cursor-pointer transition-all"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.selected_apis?.includes(api.value) || false}
+                      onChange={() => handleApiToggle(api.value)}
+                      className="mt-1 h-4 w-4 rounded border-slate-400 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-900"
+                    />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-slate-200">{api.label}</div>
+                      <div className="text-xs text-slate-400 mt-0.5">{api.description}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <p className="text-sm text-slate-400 flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <span>선택된 API만 api_configs 테이블에 추가/유지됩니다.</span>
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
