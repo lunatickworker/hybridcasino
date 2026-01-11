@@ -316,13 +316,25 @@ export function UserManagement() {
     }
   }, [authState.user?.id, authState.user?.level]);
 
-  // 모달이 열릴 때 기본값으로 본인 ID 설정
+  // 모달이 열릴 때 폼 초기화
   useEffect(() => {
-    if (showCreateDialog && authState.user?.id) {
-      setFormData(prev => ({
-        ...prev,
-        selected_referrer_id: authState.user?.id || ''
-      }));
+    if (showCreateDialog) {
+      setFormData({
+        username: '',
+        nickname: '',
+        password: '',
+        bank_name: '',
+        bank_account: '',
+        memo: '',
+        selected_referrer_id: authState.user?.id || '',
+        bulk_mode: false,
+        bulk_start: '',
+        bulk_end: '',
+        casino_rolling_commission: '',
+        casino_losing_commission: '',
+        slot_rolling_commission: '',
+        slot_losing_commission: ''
+      });
     }
   }, [showCreateDialog, authState.user?.id]);
 
@@ -2107,7 +2119,30 @@ export function UserManagement() {
             {t.userManagement.description}
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)} className="btn-premium-primary text-lg px-6 py-3 h-auto">
+        <Button 
+          onClick={() => {
+            // 모달이 열리기 **전에** 폼 초기화 (브라우저 자동 채우기 방지)
+            setFormData({
+              username: '',
+              nickname: '',
+              password: '',
+              bank_name: '',
+              bank_account: '',
+              memo: '',
+              selected_referrer_id: authState.user?.id || '',
+              bulk_mode: false,
+              bulk_start: '',
+              bulk_end: '',
+              casino_rolling_commission: '',
+              casino_losing_commission: '',
+              slot_rolling_commission: '',
+              slot_losing_commission: ''
+            });
+            // 약간 기다린 후 모달 열기
+            setTimeout(() => setShowCreateDialog(true), 10);
+          }} 
+          className="btn-premium-primary text-lg px-6 py-3 h-auto"
+        >
           <Plus className="h-6 w-6 mr-2" />
           {t.userManagement.newUser}
         </Button>
@@ -2240,7 +2275,7 @@ export function UserManagement() {
         setShowCreateDialog(open);
       }}>
         <DialogContent 
-          className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto border-slate-700/60 shadow-2xl shadow-blue-500/20" 
+          className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto border-slate-700/60 shadow-2xl shadow-blue-500/20"
           onInteractOutside={(e) => e.preventDefault()}
         >
           <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10">
@@ -2394,13 +2429,15 @@ export function UserManagement() {
                     <Label htmlFor="nickname" className="text-right text-slate-300 text-sm">
                       {t.userManagement.nickname}
                     </Label>
-                    <Input
-                      id="nickname"
-                      value={formData.nickname}
-                      onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
-                      className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
-                      placeholder={t.userManagement.enterNickname}
-                    />
+            <Input
+                    id="nickname"
+                    value={formData.nickname}
+                    onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
+                    className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
+                    placeholder={t.userManagement.enterNickname}
+                    title="닉네임을 입력해주세요 (미입력 시 아이디와 동일)"
+                    autoComplete="off"
+                  />
                   </div>
                 </>
               )}
@@ -2416,6 +2453,7 @@ export function UserManagement() {
                   onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                   className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
                   placeholder={t.userManagement.enterInitialPassword}
+                  title="로그인 비밀번호를 입력해주세요"
                 />
               </div>
               

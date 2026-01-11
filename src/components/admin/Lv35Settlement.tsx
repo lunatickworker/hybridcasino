@@ -140,6 +140,7 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       case 3: return 'rgba(59, 130, 246, 0.08)'; // 본사 - 파란색
       case 4: return 'rgba(34, 197, 94, 0.08)'; // 부본사 - 초록색
       case 5: return 'rgba(245, 158, 11, 0.08)'; // 총판 - 주황색
+      case 6: return 'rgba(236, 72, 153, 0.08)'; // 매장 - 핑크색
       default: return 'transparent';
     }
   };
@@ -149,7 +150,8 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       case 3: return '본사';
       case 4: return '부본사';
       case 5: return '총판';
-      default: return '회원';
+      case 6: return '매장';
+      default: return '운영사';
     }
   };
 
