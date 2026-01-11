@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, RefreshCw, Search, ChevronDown, ChevronRight, TrendingUp, Users } from "lucide-react";
+import { Calendar as CalendarIcon, RefreshCw, Search, ChevronDown, ChevronRight, TrendingUp, Wallet, Coins, ArrowUpRight, ArrowDownRight, Activity, DollarSign, Gift, Percent } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -23,6 +23,11 @@ interface SettlementRow {
   levelName: string;
   id: string;
   username: string;
+  // 정산률
+  casinoRollingRate: number;
+  slotRollingRate: number;
+  casinoLosingRate: number;
+  slotLosingRate: number;
   // 보유 자산
   balance: number;
   points: number;
@@ -52,6 +57,7 @@ interface SettlementRow {
   individualLosing: number;
   parentId?: string;
   hasChildren?: boolean;
+  type?: 'partner' | 'member';
 }
 
 interface SummaryStats {
@@ -145,7 +151,13 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
 
   const getLevelName = (level: number): string => {
     switch (level) {
+      case 1: return '슈퍼관리자';
+      case 2: return '운영사(대본)';
+      case 3: return '본사';
+      case 4: return '부본사';
+      case 5: return '총판';
       case 6: return '매장';
+      case 7: return '회원';
       default: return '회원';
     }
   };
@@ -214,25 +226,56 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
 
   const fetchSettlementData = async () => {
     if (!dateRange?.from || !dateRange?.to) return;
-    
+
     setLoading(true);
     try {
-      // Lv6: 하위 회원만 조회
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('referrer_id', user.id)
-        .order('username', { ascending: true });
+      // ✅ Lv6: 본인 매장과 하위 모든 레벨 조회 (조직격리 로직)
+      let allowedPartnerIds: string[] = [];
+      let visiblePartnerIdArray: string[] = [];
 
-      if (usersError) throw usersError;
+      let partners: any[] = [];
+      let users: any[] = [];
 
-      const targetUserIds = (users?.map(u => u.id) || []);
-      
+      if (user.level === 1) {
+        // Lv1: 모든 매장(Lv6)과 그 직속 회원 표시
+        const { data: allPartners, error: allPartnersError } = await supabase
+          .from('partners')
+          .select('*')
+          .eq('level', 6) // Lv6 매장만
+          .order('username', { ascending: true });
+
+        if (allPartnersError) throw allPartnersError;
+        partners = allPartners || [];
+
+        const partnerIds = partners.map(p => p.id);
+
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('*')
+          .in('referrer_id', partnerIds)
+          .order('username', { ascending: true });
+
+        if (usersError) throw usersError;
+        users = usersData || [];
+      } else {
+        // Lv6: 본인 매장 직속 회원만
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('referrer_id', user.id)
+          .order('username', { ascending: true });
+
+        if (usersError) throw usersError;
+        users = usersData || [];
+      }
+
+      const targetUserIds = users?.map(u => u.id) || [];
+
       let transactionsQuery = supabase.from('transactions').select('*').in('user_id', targetUserIds);
       transactionsQuery = transactionsQuery
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString());
-      
+
       const { data: transactionsData, error: transError } = await transactionsQuery;
       if (transError) throw transError;
 
@@ -240,7 +283,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       pointTransactionsQuery = pointTransactionsQuery
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString());
-      
+
       const { data: pointTransactions, error: pointError } = await pointTransactionsQuery;
       if (pointError) throw pointError;
 
@@ -248,11 +291,11 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       gameRecordsQuery = gameRecordsQuery
         .gte('played_at', dateRange.from.toISOString())
         .lte('played_at', dateRange.to.toISOString());
-      
+
       const { data: gameRecords, error: gameError } = await gameRecordsQuery;
       if (gameError) throw gameError;
 
-      const rows = processSettlementData(users || [], transactionsData || [], pointTransactions || [], gameRecords || []);
+      const rows = processSettlementData(partners, users || [], transactionsData || [], pointTransactions || [], gameRecords || []);
       setData(rows);
       calculateSummary(rows);
 
@@ -265,6 +308,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
   };
 
   const processSettlementData = (
+    partners: any[],
     users: any[],
     transactions: any[],
     pointTransactions: any[],
@@ -272,22 +316,35 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
   ): SettlementRow[] => {
     const rows: SettlementRow[] = [];
 
+    // ✅ 파트너 데이터 추가
+    for (const partner of partners) {
+      const hasChildren = partners.some(p => p.parent_id === partner.id) || users.some(u => u.referrer_id === partner.id);
+      const row = calculateRowData(partner.id, partner.username, partner.level, partner.balance || 0, 0,
+        partner.casino_rolling_commission || 0, partner.casino_losing_commission || 0,
+        partner.slot_rolling_commission || 0, partner.slot_losing_commission || 0,
+        transactions, pointTransactions, gameRecords);
+      rows.push({
+        ...row,
+        type: 'partner',
+        parentId: partner.parent_id,
+        hasChildren
+      });
+    }
+
+    // ✅ 등급 회원 데이터 추가 (레벨 7 = 회원)
     for (const userItem of users) {
-      const row = calculateRowData(
-        userItem.id, 
-        userItem.username, 
-        0, 
-        userItem.balance || 0, 
-        userItem.points || 0,
+      const row = calculateRowData(userItem.id, userItem.username, 7, userItem.balance || 0, userItem.points || 0,
         userItem.casino_rolling_commission || userItem.casino_rolling_rate || 0,
         userItem.casino_losing_commission || userItem.casino_losing_rate || 0,
         userItem.slot_rolling_commission || userItem.slot_rolling_rate || 0,
         userItem.slot_losing_commission || userItem.slot_losing_rate || 0,
-        transactions,
-        pointTransactions,
-        gameRecords
-      );
-      rows.push({ ...row, hasChildren: false });
+        transactions, pointTransactions, gameRecords);
+      rows.push({
+        ...row,
+        type: 'member',
+        parentId: userItem.referrer_id,
+        hasChildren: false
+      });
     }
 
     return rows;
@@ -445,6 +502,80 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
 
       {/* 필터 영역 */}
       <div className="glass-card rounded-xl p-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 mb-6">
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all shadow-lg shadow-slate-900/20">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-cyan-500/20 rounded-lg"><Wallet className="h-6 w-6 text-cyan-400" /></div><span className="text-2xl text-slate-400 font-medium">보유 머니</span></div>
+          <div className="text-3xl font-bold text-slate-100 font-asiahead ml-12">{formatNumber(summary.totalBalance)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all shadow-lg shadow-slate-900/20">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-purple-500/20 rounded-lg"><Coins className="h-6 w-6 text-purple-400" /></div><span className="text-2xl text-slate-400 font-medium">보유 포인트</span></div>
+          <div className="text-3xl font-bold text-purple-400 font-asiahead ml-12">{formatNumber(summary.totalPoints)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-emerald-900/50 to-slate-900 rounded-xl p-4 border border-emerald-700/30 hover:border-emerald-600/50 transition-all shadow-lg shadow-emerald-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-emerald-500/20 rounded-lg"><ArrowUpRight className="h-6 w-6 text-emerald-400" /></div><span className="text-2xl text-slate-400 font-medium">총 입금</span></div>
+          <div className="text-3xl font-bold text-emerald-400 font-asiahead ml-12">{formatNumber(summary.onlineDeposit)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-rose-900/50 to-slate-900 rounded-xl p-4 border border-rose-700/30 hover:border-rose-600/50 transition-all shadow-lg shadow-rose-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-rose-500/20 rounded-lg"><ArrowDownRight className="h-6 w-6 text-rose-400" /></div><span className="text-2xl text-slate-400 font-medium">총 출금</span></div>
+          <div className="text-3xl font-bold text-rose-400 font-asiahead ml-12">{formatNumber(summary.onlineWithdrawal)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-blue-900/50 to-slate-900 rounded-xl p-4 border border-blue-700/30 hover:border-blue-600/50 transition-all shadow-lg shadow-blue-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-blue-500/20 rounded-lg"><DollarSign className="h-6 w-6 text-blue-400" /></div><span className="text-2xl text-slate-400 font-medium">수동 충전</span></div>
+          <div className="text-3xl font-bold text-blue-400 font-asiahead ml-12">{formatNumber(summary.manualCharge)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-orange-900/50 to-slate-900 rounded-xl p-4 border border-orange-700/30 hover:border-orange-600/50 transition-all shadow-lg shadow-orange-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-orange-500/20 rounded-lg"><DollarSign className="h-6 w-6 text-orange-400" /></div><span className="text-2xl text-slate-400 font-medium">수동 환전</span></div>
+          <div className="text-3xl font-bold text-orange-400 font-asiahead ml-12">{formatNumber(summary.manualExchange)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-indigo-900/50 to-slate-900 rounded-xl p-4 border border-indigo-700/30 hover:border-indigo-600/50 transition-all shadow-lg shadow-indigo-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-indigo-500/20 rounded-lg"><Gift className="h-6 w-6 text-indigo-400" /></div><span className="text-2xl text-slate-400 font-medium">파트너 충전</span></div>
+          <div className="text-3xl font-bold text-indigo-400 font-asiahead ml-12">{formatNumber(summary.partnerCharge)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-amber-900/50 to-slate-900 rounded-xl p-4 border border-amber-700/30 hover:border-amber-600/50 transition-all shadow-lg shadow-amber-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-amber-500/20 rounded-lg"><Gift className="h-6 w-6 text-amber-400" /></div><span className="text-2xl text-slate-400 font-medium">파트너 환전</span></div>
+          <div className="text-3xl font-bold text-amber-400 font-asiahead ml-12">{formatNumber(summary.partnerExchange)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-cyan-900/50 to-slate-900 rounded-xl p-4 border border-cyan-700/30 hover:border-cyan-600/50 transition-all shadow-lg shadow-cyan-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-cyan-500/20 rounded-lg"><Activity className="h-6 w-6 text-cyan-400" /></div><span className="text-2xl text-slate-400 font-medium">현금정산</span></div>
+          <div className="text-3xl font-bold text-cyan-400 font-asiahead ml-12">{formatNumber(summary.cashSettlement)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-violet-900/50 to-slate-900 rounded-xl p-4 border border-violet-700/30 hover:border-violet-600/50 transition-all shadow-lg shadow-violet-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-violet-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-violet-400" /></div><span className="text-2xl text-slate-400 font-medium">카지노 베팅</span></div>
+          <div className="text-3xl font-bold text-violet-400 font-asiahead ml-12">{formatNumber(summary.casinoBet)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-fuchsia-900/50 to-slate-900 rounded-xl p-4 border border-fuchsia-700/30 hover:border-fuchsia-600/50 transition-all shadow-lg shadow-fuchsia-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-fuchsia-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-fuchsia-400" /></div><span className="text-2xl text-slate-400 font-medium">카지노 당첨</span></div>
+          <div className="text-3xl font-bold text-fuchsia-400 font-asiahead ml-12">{formatNumber(summary.casinoWin)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-teal-900/50 to-slate-900 rounded-xl p-4 border border-teal-700/30 hover:border-teal-600/50 transition-all shadow-lg shadow-teal-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-teal-500/20 rounded-lg"><Coins className="h-6 w-6 text-teal-400" /></div><span className="text-2xl text-slate-400 font-medium">슬롯 베팅</span></div>
+          <div className="text-3xl font-bold text-teal-400 font-asiahead ml-12">{formatNumber(summary.slotBet)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-lime-900/50 to-slate-900 rounded-xl p-4 border border-lime-700/30 hover:border-lime-600/50 transition-all shadow-lg shadow-lime-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-lime-500/20 rounded-lg"><Coins className="h-6 w-6 text-lime-400" /></div><span className="text-2xl text-slate-400 font-medium">슬롯 당첨</span></div>
+          <div className="text-3xl font-bold text-lime-400 font-asiahead ml-12">{formatNumber(summary.slotWin)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-amber-800/50 to-slate-900 rounded-xl p-4 border border-amber-600/30 hover:border-amber-500/50 transition-all shadow-lg shadow-amber-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-amber-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-amber-400" /></div><span className="text-2xl text-slate-400 font-medium">GGR 합산</span></div>
+          <div className="text-3xl font-bold text-amber-400 font-asiahead ml-12">{formatNumber(summary.ggr)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-sky-900/50 to-slate-900 rounded-xl p-4 border border-sky-700/30 hover:border-sky-600/50 transition-all shadow-lg shadow-sky-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-sky-500/20 rounded-lg"><Percent className="h-6 w-6 text-sky-400" /></div><span className="text-2xl text-slate-400 font-medium">총 롤링금</span></div>
+          <div className="text-3xl font-bold text-sky-400 font-asiahead ml-12">{formatNumber(summary.totalRolling)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-red-900/50 to-slate-900 rounded-xl p-4 border border-red-700/30 hover:border-red-600/50 transition-all shadow-lg shadow-red-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-red-500/20 rounded-lg"><Percent className="h-6 w-6 text-red-400" /></div><span className="text-2xl text-slate-400 font-medium">총 루징</span></div>
+          <div className="text-3xl font-bold text-red-400 font-asiahead ml-12">{formatNumber(summary.totalLosing)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-emerald-900/50 to-slate-900 rounded-xl p-4 border border-emerald-700/30 hover:border-emerald-600/50 transition-all shadow-lg shadow-emerald-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-emerald-500/20 rounded-lg"><Percent className="h-6 w-6 text-emerald-400" /></div><span className="text-2xl text-slate-400 font-medium">코드별 롤링금</span></div>
+          <div className="text-3xl font-bold text-emerald-400 font-asiahead ml-12">{formatNumber(summary.individualRolling)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-pink-900/50 to-slate-900 rounded-xl p-4 border border-pink-700/30 hover:border-pink-600/50 transition-all shadow-lg shadow-pink-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-pink-500/20 rounded-lg"><Percent className="h-6 w-6 text-pink-400" /></div><span className="text-2xl text-slate-400 font-medium">코드별 루징</span></div>
+          <div className="text-3xl font-bold text-pink-400 font-asiahead ml-12">{formatNumber(summary.individualLosing)}</div>
+        </div>
+      </div>
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <Button onClick={() => { setDateFilterType('today'); const today = new Date(); setDateRange({ from: startOfDay(today), to: endOfDay(today) }); }} variant={dateFilterType === 'today' ? 'default' : 'outline'} className="h-10">오늘</Button>
           <Button onClick={() => setQuickDateRange('yesterday')} variant={dateFilterType === 'yesterday' ? 'default' : 'outline'} className="h-10">어제</Button>
@@ -581,6 +712,13 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
                       <tr key={row.id} className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors" style={{ backgroundColor: bgColor }}>
                         <td className="px-4 py-3 text-slate-300 sticky left-0 z-10 whitespace-nowrap" style={{ backgroundColor: bgColor }}>
                           <div className="flex items-center gap-1">
+                            {row.hasChildren && (
+                              expandedRows.has(row.id) ? (
+                                <ChevronDown className="h-4 w-4 text-slate-400" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-slate-400" />
+                              )
+                            )}
                             {row.levelName}
                           </div>
                         </td>
@@ -688,65 +826,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
         )}
       </div>
 
-      {/* 요약 정보 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">보유 머니</div>
-          <div className="text-lg font-semibold text-slate-200 font-asiahead">{formatNumber(summary.totalBalance)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">보유 포인트</div>
-          <div className="text-lg font-semibold text-slate-200 font-asiahead">{formatNumber(summary.totalPoints)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">총 입금</div>
-          <div className="text-lg font-semibold text-emerald-400 font-asiahead">{formatNumber(summary.onlineDeposit)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">총 출금</div>
-          <div className="text-lg font-semibold text-rose-400 font-asiahead">{formatNumber(summary.onlineWithdrawal)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">현금정산</div>
-          <div className="text-lg font-semibold text-cyan-400 font-asiahead">{formatNumber(summary.cashSettlement)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">카지노 베팅</div>
-          <div className="text-lg font-semibold text-cyan-400 font-asiahead">{formatNumber(summary.casinoBet)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">카지노 당첨</div>
-          <div className="text-lg font-semibold text-purple-400 font-asiahead">{formatNumber(summary.casinoWin)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">슬롯 베팅</div>
-          <div className="text-lg font-semibold text-orange-400 font-asiahead">{formatNumber(summary.slotBet)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">슬롯 당첨</div>
-          <div className="text-lg font-semibold text-emerald-400 font-asiahead">{formatNumber(summary.slotWin)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">GGR 합산</div>
-          <div className="text-lg font-semibold text-amber-400 font-asiahead">{formatNumber(summary.ggr)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">총 롤링금</div>
-          <div className="text-lg font-semibold text-cyan-400 font-asiahead">{formatNumber(summary.totalRolling)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">총 루징</div>
-          <div className="text-lg font-semibold text-rose-400 font-asiahead">{formatNumber(summary.totalLosing)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">코드별 롤링금</div>
-          <div className="text-lg font-semibold text-cyan-400 font-asiahead">{formatNumber(summary.individualRolling)}</div>
-        </div>
-        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-          <div className="text-sm text-slate-400 mb-1">코드별 루징</div>
-          <div className="text-lg font-semibold text-rose-400 font-asiahead">{formatNumber(summary.individualLosing)}</div>
-        </div>
-      </div>
+
     </div>
   );
 }
