@@ -13,6 +13,9 @@ const PartnerCreation = lazy(() => import("../admin/PartnerCreation").then(m => 
 const PartnerTransactions = lazy(() => import("../admin/PartnerTransactions").then(m => ({ default: m.PartnerTransactions })));
 const CommissionSettlement = lazy(() => import("../admin/CommissionSettlement").then(m => ({ default: m.CommissionSettlement })));
 const IntegratedSettlement = lazy(() => import("../admin/IntegratedSettlement").then(m => ({ default: m.IntegratedSettlement })));
+const NewIntegratedSettlement = lazy(() => import("../admin/NewIntegratedSettlement").then(m => ({ default: m.NewIntegratedSettlement })));
+const Lv35Settlement = lazy(() => import("../admin/Lv35Settlement").then(m => ({ default: m.Lv35Settlement })));
+const Lv6Settlement = lazy(() => import("../admin/Lv6Settlement").then(m => ({ default: m.Lv6Settlement })));
 const SettlementHistory = lazy(() => import("../admin/SettlementHistory").then(m => ({ default: m.SettlementHistory })));
 const UserSettlement = lazy(() => import("../admin/UserSettlement"));
 const AdvancedSettlement = lazy(() => import("../admin/AdvancedSettlement"));
@@ -93,6 +96,17 @@ export function AdminRoutes({ currentRoute, user }: AdminRoutesProps) {
     case '/admin/integrated-settlement':
     case '/admin/settlement/integrated':
       return <IntegratedSettlement user={user} />;
+    case '/admin/new-integrated-settlement':
+    case '/admin/settlement/new':
+      return <NewIntegratedSettlement user={user} />;
+    case '/admin/lv35-settlement':
+    case '/admin/settlement/lv35':
+    case '/admin/settlement/head-office':
+      return <Lv35Settlement user={user} />;
+    case '/admin/lv6-settlement':
+    case '/admin/settlement/lv6':
+    case '/admin/settlement/store':
+      return <Lv6Settlement user={user} />;
     case '/admin/settlement-history':
     case '/admin/settlement/history':
       return <SettlementHistory user={user} />;

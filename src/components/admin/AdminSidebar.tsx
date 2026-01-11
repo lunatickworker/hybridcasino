@@ -76,6 +76,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
   '/admin/integrated-settlement': Database,
   '/admin/settlement/integrated': Database,
   '/admin/settlement-history': History,
+  '/admin/new-integrated-settlement': Database,
   '/admin/settlement/history': History,
   '/admin/transactions': CreditCard,
   '/admin/transaction-approval': CreditCard,
@@ -233,8 +234,8 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       console.log(`✅ [메뉴 로드] ${dbMenus.length}개 메뉴 조회 완료`);
       
       // ✅ 3단계: 파트너에게 허용된 메뉴만 필터링
-      // allowedMenuPaths가 비어있거나 null이면 모든 메뉴 표시 (기본값)
-      const filteredMenus = Array.isArray(allowedMenuPaths) && allowedMenuPaths.length > 0
+      // allowedMenuPaths가 null/undefined이거나 빈 배열이면 모든 메뉴 표시 (기본값)
+      const filteredMenus = allowedMenuPaths && allowedMenuPaths.length > 0
         ? dbMenus.filter(menu => allowedMenuPaths.includes(menu.menu_path))
         : dbMenus;
       

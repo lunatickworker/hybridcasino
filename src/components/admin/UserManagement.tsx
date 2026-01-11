@@ -642,8 +642,8 @@ export function UserManagement() {
               username,
               nickname,
               password_hash: hashedPassword,
-              withdrawal_password_hash: hashedWithdrawalPassword, // ✅ 출금 비밀번호 (기본값: 1234)
-              bank_name: bulkFormData.bank_name || null,
+          withdrawal_password: hashedWithdrawalPassword, // ✅ 출금 비밀번호 (기본값: 1234)
+          bank_name: bulkFormData.bank_name || null,
               bank_account: bulkFormData.bank_account || null,
               memo: bulkFormData.memo || null,
               referrer_id: actualReferrerId,
@@ -838,7 +838,7 @@ export function UserManagement() {
           username: userData.username,
           nickname: userData.nickname || userData.username,
           password_hash: hashedPassword,
-          withdrawal_password_hash: hashedWithdrawalPassword, // ✅ 출금 비밀번호 (기본값: 1234)
+          withdrawal_password: hashedWithdrawalPassword, // ✅ 출금 비밀번호 (기본값: 1234)
           bank_name: userData.bank_name || null,
           bank_account: userData.bank_account || null,
           memo: userData.memo || null,
