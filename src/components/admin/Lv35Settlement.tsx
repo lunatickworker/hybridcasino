@@ -23,6 +23,7 @@ interface SettlementRow {
   levelName: string;
   id: string;
   username: string;
+  type: 'partner' | 'member'; // ✅ 타입 구분 추가
   // 정산률
   casinoRollingRate: number;
   slotRollingRate: number;
@@ -147,6 +148,7 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
 
   const getLevelName = (level: number): string => {
     switch (level) {
+      case 0: return '회원';
       case 3: return '본사';
       case 4: return '부본사';
       case 5: return '총판';
@@ -309,13 +311,33 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
   ): SettlementRow[] => {
     const rows: SettlementRow[] = [];
 
+    // ✅ 파트너 데이터 추가
     for (const partner of partners) {
       const hasChildren = partners.some(p => p.parent_id === partner.id) || users.some(u => u.referrer_id === partner.id);
       const row = calculateRowData(partner.id, partner.username, partner.level, partner.balance || 0, 0,
         partner.casino_rolling_commission || 0, partner.casino_losing_commission || 0,
         partner.slot_rolling_commission || 0, partner.slot_losing_commission || 0,
         transactions, pointTransactions, gameRecords, partners, users);
-      rows.push({ ...row, parentId: partner.parent_id, hasChildren });
+      rows.push({ 
+        ...row, 
+        type: 'partner', // ✅ 파트너 타입
+        parentId: partner.parent_id, 
+        hasChildren 
+      });
+    }
+
+    // ✅ 등급 회원 데이터 추가 (레벨 0 = 회원)
+    for (const member of users) {
+      const row = calculateRowData(member.id, member.username, 0, member.balance || 0, member.points || 0,
+        member.casino_rolling_commission || 0, member.casino_losing_commission || 0,
+        member.slot_rolling_commission || 0, member.slot_losing_commission || 0,
+        transactions, pointTransactions, gameRecords, partners, users);
+      rows.push({ 
+        ...row, 
+        type: 'member', // ✅ 회원 타입
+        parentId: member.referrer_id, 
+        hasChildren: false 
+      });
     }
 
     return rows;
@@ -416,6 +438,7 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       levelName: getLevelName(level),
       id: entityId,
       username,
+      type: isPartner ? 'partner' : 'member', // ✅ 타입 반환
       casinoRollingRate,
       slotRollingRate,
       casinoLosingRate,

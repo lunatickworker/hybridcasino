@@ -1232,7 +1232,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           balance_before: balance,
           balance_after: balance, // 승인 전까지는 동일
           created_at: new Date().toISOString(),
-          memo: `[관리자 입금신청] ${user.nickname || user.username} → 본사`
+          memo: `[관리자 입금신청] ${user.nickname || user.username} → 본사`,
+          from_partner_id: user.id,  // ✅ 보낸사람 (신청자)
+          to_partner_id: lv2PartnerId // ✅ 받는사람 (본사/Lv2)
         })
         .select()
         .single();
@@ -1305,7 +1307,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           balance_before: balance,
           balance_after: balance, // 승인 전까지는 동일
           created_at: new Date().toISOString(),
-          memo: `[관리자 출금신청] ${user.nickname || user.username} → 본사`
+          memo: `[관리자 출금신청] ${user.nickname || user.username} → 본사`,
+          from_partner_id: lv2PartnerId, // ✅ 보낸사람 (본사/Lv2)
+          to_partner_id: user.id         // ✅ 받는사람 (신청자)
         })
         .select()
         .single();

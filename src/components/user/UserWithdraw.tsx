@@ -198,7 +198,9 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         bank_holder: accountHolder,
         memo: memo || null,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        from_partner_id: null, // ✅ 보낸사람 (관리자 승인 시 설정)
+        to_partner_id: user.referrer_id // ✅ 받는사람 (담당 파트너)
       };
 
       // 출금 신청 저장

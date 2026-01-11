@@ -190,7 +190,9 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
         bank_holder: 'GMS카지노',
         memo: memo.trim() || null,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        from_partner_id: user.referrer_id, // ✅ 보낸사람 (담당 파트너)
+        to_partner_id: null // ✅ 받는사람 (관리자 승인 시 설정)
       };
 
       console.log('💰 입금 신청 데이터:', {

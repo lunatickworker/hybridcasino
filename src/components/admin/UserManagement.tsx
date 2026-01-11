@@ -1335,7 +1335,10 @@ export function UserManagement() {
           processed_by: authState.user?.id,
           memo: data.memo || `[관리자 강제 ${data.type === 'deposit' ? '입금' : '출금'}] ${authState.user?.username}`,
           balance_before: user.balance || 0,
-          balance_after: actualBalance
+          balance_after: actualBalance,
+          // ✅ from_partner_id / to_partner_id 추가
+          from_partner_id: data.type === 'deposit' ? authState.user.id : responsiblePartnerId,
+          to_partner_id: data.type === 'deposit' ? responsiblePartnerId : authState.user.id
         });
 
       if (error) throw error;
