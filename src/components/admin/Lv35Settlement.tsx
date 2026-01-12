@@ -84,6 +84,7 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
   });
   const [dateFilterType, setDateFilterType] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom'>('today');
   const [codeSearch, setCodeSearch] = useState("");
+  const [partnerLevelFilter, setPartnerLevelFilter] = useState<'all' | 4 | 5 | 6>('all');
   const [data, setData] = useState<SettlementRow[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandAll, setExpandAll] = useState(false);
@@ -191,6 +192,9 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     let filtered = rows;
     if (codeSearch.trim()) {
       filtered = filtered.filter(r => r.username.toLowerCase().includes(codeSearch.toLowerCase()));
+    }
+    if (partnerLevelFilter !== 'all') {
+      filtered = filtered.filter(r => r.level === partnerLevelFilter);
     }
     return filtered;
   };
@@ -369,12 +373,8 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     partners: any[],
     users: any[]
   ): SettlementRow => {
-    const isPartner = level > 0;
-
-    let relevantUserIdsForTransactions: string[] = isPartner
-      ? getAllDescendantUserIds(entityId, partners, users)
-      : [entityId];
-
+    // 모든 레벨에서 본인 데이터만 계산
+    const relevantUserIdsForTransactions: string[] = [entityId];
     const userTransactions = transactions.filter(t => relevantUserIdsForTransactions.includes(t.user_id));
 
     // ✅ 온라인 입출금
@@ -395,11 +395,8 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       .filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    // ✅ 게임 기록
-    let relevantUserIds: string[] = isPartner
-      ? getAllDescendantUserIds(entityId, partners, users)
-      : [entityId];
-    const relevantGameRecords = gameRecords.filter(gr => relevantUserIds.includes(gr.user_id));
+    // ✅ 게임 기록 (본인 데이터만)
+    const relevantGameRecords = gameRecords.filter(gr => relevantUserIdsForTransactions.includes(gr.user_id));
 
     const casinoBet = Math.abs(relevantGameRecords
       .filter(gr => gr.game_type === 'casino')
@@ -438,7 +435,7 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       levelName: getLevelName(level),
       id: entityId,
       username,
-      type: isPartner ? 'partner' : 'member', // ✅ 타입 반환
+      type: level > 0 ? 'partner' : 'member', // ✅ 타입 반환
       casinoRollingRate,
       slotRollingRate,
       casinoLosingRate,
@@ -589,6 +586,12 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
             </PopoverContent>
           </Popover>
 
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setPartnerLevelFilter('all')} variant={partnerLevelFilter === 'all' ? 'default' : 'outline'} className="h-10 px-3">전체</Button>
+            <Button onClick={() => setPartnerLevelFilter(4)} variant={partnerLevelFilter === 4 ? 'default' : 'outline'} className="h-10 px-3">부본사</Button>
+            <Button onClick={() => setPartnerLevelFilter(5)} variant={partnerLevelFilter === 5 ? 'default' : 'outline'} className="h-10 px-3">총판</Button>
+            <Button onClick={() => setPartnerLevelFilter(6)} variant={partnerLevelFilter === 6 ? 'default' : 'outline'} className="h-10 px-3">매장</Button>
+          </div>
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-2.5 h-6 w-6 text-slate-400" />
             <Input placeholder="코드 검색..." className="pl-10 input-premium" value={codeSearch} onChange={(e) => setCodeSearch(e.target.value)} />

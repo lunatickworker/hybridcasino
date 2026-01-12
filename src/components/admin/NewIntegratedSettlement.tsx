@@ -38,6 +38,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
   const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: startOfDay(new Date()), to: endOfDay(new Date()) });
   const [dateFilterType, setDateFilterType] = useState<'today' | 'yesterday' | 'week' | 'month' | 'custom'>('today');
   const [codeSearch, setCodeSearch] = useState("");
+  const [partnerLevelFilter, setPartnerLevelFilter] = useState<'all' | 3 | 4 | 5 | 6>('all');
   const [data, setData] = useState<SettlementRow[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandAll, setExpandAll] = useState(false);
@@ -107,6 +108,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
   const getFilteredRows = (rows: SettlementRow[]): SettlementRow[] => {
     let filtered = rows;
     if (codeSearch.trim()) filtered = filtered.filter(r => r.username.toLowerCase().includes(codeSearch.toLowerCase()));
+    if (partnerLevelFilter !== 'all') filtered = filtered.filter(r => r.level === partnerLevelFilter);
     return filtered;
   };
 
@@ -152,11 +154,14 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     casinoRollingRate: number, casinoLosingRate: number, slotRollingRate: number, slotLosingRate: number,
     transactions: any[], pointTransactions: any[], gameRecords: any[], partners: any[], users: any[], partnerBalanceLogs: any[]
   ): SettlementRow => {
-    const isPartner = level > 0;
-    let relevantUserIdsForTransactions: string[] = isPartner ? getAllDescendantUserIds(entityId, partners, users) : [entityId];
+    // 모든 레벨에서 본인 데이터만 계산 (하위 데이터 합산 제거)
+    const relevantUserIdsForTransactions: string[] = [entityId];
     const userTransactions = transactions.filter(t => relevantUserIdsForTransactions.includes(t.user_id));
-    let relevantPartnerIdsForTransactions: string[] = isPartner ? [entityId, ...getAllDescendantPartnerIds(entityId, partners)] : [];
+
+    // 파트너의 경우 본인의 잔액 로그만 계산
+    const relevantPartnerIdsForTransactions: string[] = level > 0 ? [entityId] : [];
     const partnerTransactions = transactions.filter(t => (t.transaction_type === 'partner_deposit' || t.transaction_type === 'partner_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
+
     const onlineDeposit = userTransactions.filter(t => (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
     const onlineWithdrawal = userTransactions.filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
     const adminDepositFromTransactions = partnerTransactions.filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
@@ -169,8 +174,9 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const userPointTrans = pointTransactions.filter(pt => relevantUserIdsForTransactions.includes(pt.user_id));
     const pointGiven = userPointTrans.filter(pt => pt.type === 'commission_earned').reduce((sum, pt) => sum + (pt.amount || 0), 0);
     const pointRecovered = userPointTrans.filter(pt => pt.type === 'point_to_balance').reduce((sum, pt) => sum + (pt.amount || 0), 0);
-    let relevantUserIds: string[] = isPartner ? getAllDescendantUserIds(entityId, partners, users) : [entityId];
-    const relevantGameRecords = gameRecords.filter(gr => relevantUserIds.includes(gr.user_id));
+
+    // 본인의 게임 기록만 계산
+    const relevantGameRecords = gameRecords.filter(gr => relevantUserIdsForTransactions.includes(gr.user_id));
     const casinoBet = Math.abs(relevantGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
     const casinoWin = relevantGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
     const slotBet = Math.abs(relevantGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
@@ -294,14 +300,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       </div>
       <div className="glass-card rounded-xl p-6">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 mb-6">
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all shadow-lg shadow-slate-900/20">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-cyan-500/20 rounded-lg"><Wallet className="h-6 w-6 text-cyan-400" /></div><span className="text-2xl text-slate-400 font-medium">보유 머니</span></div>
-          <div className="text-3xl font-bold text-slate-100 font-asiahead ml-12">{formatNumber(summary.totalBalance)}</div>
-        </div>
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all shadow-lg shadow-slate-900/20">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-purple-500/20 rounded-lg"><Coins className="h-6 w-6 text-purple-400" /></div><span className="text-2xl text-slate-400 font-medium">보유 포인트</span></div>
-          <div className="text-3xl font-bold text-purple-400 font-asiahead ml-12">{formatNumber(summary.totalPoints)}</div>
-        </div>
+        {/* 1행: 총입금 / 총출금 / 수동입금 / 수동출금 */}
         <div className="bg-gradient-to-br from-emerald-900/50 to-slate-900 rounded-xl p-4 border border-emerald-700/30 hover:border-emerald-600/50 transition-all shadow-lg shadow-emerald-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-emerald-500/20 rounded-lg"><ArrowUpRight className="h-6 w-6 text-emerald-400" /></div><span className="text-2xl text-slate-400 font-medium">총 입금</span></div>
           <div className="text-3xl font-bold text-emerald-400 font-asiahead ml-12">{formatNumber(summary.onlineDeposit)}</div>
@@ -318,6 +317,16 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-orange-500/20 rounded-lg"><DollarSign className="h-6 w-6 text-orange-400" /></div><span className="text-2xl text-slate-400 font-medium">수동 출금</span></div>
           <div className="text-3xl font-bold text-orange-400 font-asiahead ml-12">{formatNumber(summary.manualWithdrawal)}</div>
         </div>
+
+        {/* 2행: 전체 머니 / 전체 포인트 / 포인트지급 / 포인트회수 */}
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all shadow-lg shadow-slate-900/20">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-cyan-500/20 rounded-lg"><Wallet className="h-6 w-6 text-cyan-400" /></div><span className="text-2xl text-slate-400 font-medium">전체 머니</span></div>
+          <div className="text-3xl font-bold text-slate-100 font-asiahead ml-12">{formatNumber(summary.totalBalance)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all shadow-lg shadow-slate-900/20">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-purple-500/20 rounded-lg"><Coins className="h-6 w-6 text-purple-400" /></div><span className="text-2xl text-slate-400 font-medium">전체 포인트</span></div>
+          <div className="text-3xl font-bold text-purple-400 font-asiahead ml-12">{formatNumber(summary.totalPoints)}</div>
+        </div>
         <div className="bg-gradient-to-br from-indigo-900/50 to-slate-900 rounded-xl p-4 border border-indigo-700/30 hover:border-indigo-600/50 transition-all shadow-lg shadow-indigo-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-indigo-500/20 rounded-lg"><Gift className="h-6 w-6 text-indigo-400" /></div><span className="text-2xl text-slate-400 font-medium">포인트 지급</span></div>
           <div className="text-3xl font-bold text-indigo-400 font-asiahead ml-12">{formatNumber(summary.pointGiven)}</div>
@@ -326,10 +335,8 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-amber-500/20 rounded-lg"><Gift className="h-6 w-6 text-amber-400" /></div><span className="text-2xl text-slate-400 font-medium">포인트 회수</span></div>
           <div className="text-3xl font-bold text-amber-400 font-asiahead ml-12">{formatNumber(summary.pointRecovered)}</div>
         </div>
-        <div className="bg-gradient-to-br from-cyan-900/50 to-slate-900 rounded-xl p-4 border border-cyan-700/30 hover:border-cyan-600/50 transition-all shadow-lg shadow-cyan-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-cyan-500/20 rounded-lg"><Activity className="h-6 w-6 text-cyan-400" /></div><span className="text-2xl text-slate-400 font-medium">입출차액</span></div>
-          <div className={cn("text-3xl font-bold font-asiahead ml-12", summary.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>{formatNumber(summary.depositWithdrawalDiff)}</div>
-        </div>
+
+        {/* 3행: 카지노베팅 / 카지노당첨 / 슬롯베팅 / 슬롯당첨 */}
         <div className="bg-gradient-to-br from-violet-900/50 to-slate-900 rounded-xl p-4 border border-violet-700/30 hover:border-violet-600/50 transition-all shadow-lg shadow-violet-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-violet-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-violet-400" /></div><span className="text-2xl text-slate-400 font-medium">카지노 베팅</span></div>
           <div className="text-3xl font-bold text-violet-400 font-asiahead ml-12">{formatNumber(summary.casinoBet)}</div>
@@ -346,6 +353,8 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-lime-500/20 rounded-lg"><Coins className="h-6 w-6 text-lime-400" /></div><span className="text-2xl text-slate-400 font-medium">슬롯 당첨</span></div>
           <div className="text-3xl font-bold text-lime-400 font-asiahead ml-12">{formatNumber(summary.slotWin)}</div>
         </div>
+
+        {/* 4행: GGR 합산 / 총 롤링금 / 입출차액 / 총루징 */}
         <div className="bg-gradient-to-br from-amber-800/50 to-slate-900 rounded-xl p-4 border border-amber-600/30 hover:border-amber-500/50 transition-all shadow-lg shadow-amber-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-amber-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-amber-400" /></div><span className="text-2xl text-slate-400 font-medium">GGR 합산</span></div>
           <div className="text-3xl font-bold text-amber-400 font-asiahead ml-12">{formatNumber(summary.ggr)}</div>
@@ -353,6 +362,10 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
         <div className="bg-gradient-to-br from-sky-900/50 to-slate-900 rounded-xl p-4 border border-sky-700/30 hover:border-sky-600/50 transition-all shadow-lg shadow-sky-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-sky-500/20 rounded-lg"><Percent className="h-6 w-6 text-sky-400" /></div><span className="text-2xl text-slate-400 font-medium">총 롤링금</span></div>
           <div className="text-3xl font-bold text-sky-400 font-asiahead ml-12">{formatNumber(summary.totalRolling)}</div>
+        </div>
+        <div className="bg-gradient-to-br from-cyan-900/50 to-slate-900 rounded-xl p-4 border border-cyan-700/30 hover:border-cyan-600/50 transition-all shadow-lg shadow-cyan-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-cyan-500/20 rounded-lg"><Activity className="h-6 w-6 text-cyan-400" /></div><span className="text-2xl text-slate-400 font-medium">입출차액</span></div>
+          <div className={cn("text-3xl font-bold font-asiahead ml-12", summary.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>{formatNumber(summary.depositWithdrawalDiff)}</div>
         </div>
         <div className="bg-gradient-to-br from-red-900/50 to-slate-900 rounded-xl p-4 border border-red-700/30 hover:border-red-600/50 transition-all shadow-lg shadow-red-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-red-500/20 rounded-lg"><Percent className="h-6 w-6 text-red-400" /></div><span className="text-2xl text-slate-400 font-medium">총 루징</span></div>
@@ -373,6 +386,13 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-slate-800 border-slate-700" align="start"><Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} locale={ko} /></PopoverContent>
           </Popover>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setPartnerLevelFilter('all')} variant={partnerLevelFilter === 'all' ? 'default' : 'outline'} className="h-10 px-3">전체</Button>
+            <Button onClick={() => setPartnerLevelFilter(3)} variant={partnerLevelFilter === 3 ? 'default' : 'outline'} className="h-10 px-3">본사</Button>
+            <Button onClick={() => setPartnerLevelFilter(4)} variant={partnerLevelFilter === 4 ? 'default' : 'outline'} className="h-10 px-3">부본사</Button>
+            <Button onClick={() => setPartnerLevelFilter(5)} variant={partnerLevelFilter === 5 ? 'default' : 'outline'} className="h-10 px-3">총판</Button>
+            <Button onClick={() => setPartnerLevelFilter(6)} variant={partnerLevelFilter === 6 ? 'default' : 'outline'} className="h-10 px-3">매장</Button>
+          </div>
           <div className="flex-1 relative"><Search className="absolute left-3 top-2.5 h-6 w-6 text-slate-400" /><Input placeholder="코드 검색..." className="pl-10 input-premium" value={codeSearch} onChange={(e) => setCodeSearch(e.target.value)} /></div>
           <Button onClick={toggleExpandAll} variant="outline" className="h-10">{expandAll ? <ChevronDown className="h-4 w-4 mr-2" /> : <ChevronRight className="h-4 w-4 mr-2" />}{expandAll ? '전체 접기' : '전체 펼치기'}</Button>
         </div>
