@@ -491,11 +491,11 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
             <TrendingUp className="h-6 w-6 text-cyan-400" />
-            본사/부본사/총판/매장 정산
+            통합 정산 관리
           </h1>
-          <p className="text-muted-foreground">
-            본사/부본사/총판/매장(Lv3~Lv6) 전용 개별 정산 페이지입니다
-          </p>
+          {/* <p className="text-muted-foreground">
+          개별 정산 페이지입니다
+          </p> */}
         </div>
         <Button onClick={fetchSettlementData} disabled={loading} className="bg-cyan-600 hover:bg-cyan-700 text-white">
           <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />

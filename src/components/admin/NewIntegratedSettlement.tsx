@@ -13,6 +13,8 @@ import { ko } from "date-fns/locale";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner";
 import { Partner } from "../../types";
+import { Lv35Settlement } from "./Lv35Settlement";
+import { Lv6Settlement } from "./Lv6Settlement";
 
 interface NewIntegratedSettlementProps { user: Partner; }
 interface SettlementRow {
@@ -274,10 +276,20 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     setDateFilterType(type);
   };
 
+  // Lv3~Lv5 사용자는 Lv35Settlement 페이지로 리다이렉트
+  if ([3, 4, 5].includes(user.level)) {
+    return <Lv35Settlement user={user} />;
+  }
+
+  // Lv6 사용자는 Lv6Settlement 페이지로 리다이렉트
+  if (user.level === 6) {
+    return <Lv6Settlement user={user} />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2"><TrendingUp className="h-6 w-6 text-cyan-400" />New 통합정산</h1>
+        <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2"><TrendingUp className="h-6 w-6 text-cyan-400" />통합 정산 관리</h1>
         <Button onClick={fetchSettlementData} disabled={loading} className="bg-cyan-600 hover:bg-cyan-700 text-white"><RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />새로고침</Button>
       </div>
       <div className="glass-card rounded-xl p-6">
