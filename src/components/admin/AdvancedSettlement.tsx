@@ -662,17 +662,17 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         />
 
         <MetricCard
-          title="관리자 입금"
+          title="수동 입금"
           value={`${formatNumber(summary.adminTotalDeposit)}원`}
-          subtitle="관리자 입금 합계"
+          subtitle="수동 입금 합계"
           icon={Wallet}
           color="blue"
         />
 
         <MetricCard
-          title="관리자 출금"
+          title="수동 출금"
           value={`${formatNumber(summary.adminTotalWithdrawal)}원`}
-          subtitle="관리자 출금 합계"
+          subtitle="수동 출금 합계"
           icon={Wallet}
           color="purple"
         />
@@ -696,6 +696,22 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
 
       {/* 통계 카드 - 베팅 (6개) */}
       <div className="grid gap-5 md:grid-cols-6">
+        <MetricCard
+          title="총 베팅"
+          value={`${formatNumber(summary.totalBet)}원`}
+          subtitle="카지노 + 슬롯"
+          icon={TrendingUp}
+          color="blue"
+        />
+
+        <MetricCard
+          title="총 당첨"
+          value={`${formatNumber(summary.totalWin)}원`}
+          subtitle="카지노 + 슬롯"
+          icon={DollarSign}
+          color="purple"
+        />
+
         <MetricCard
           title="카지노 베팅"
           value={`${formatNumber(summary.casinoBet)}원`}
@@ -727,36 +743,12 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
           icon={TrendingDown}
           color="pink"
         />
-
-        <MetricCard
-          title="총 베팅"
-          value={`${formatNumber(summary.totalBet)}원`}
-          subtitle="카지노 + 슬롯"
-          icon={TrendingUp}
-          color="blue"
-        />
-
-        <MetricCard
-          title="총 당첨"
-          value={`${formatNumber(summary.totalWin)}원`}
-          subtitle="카지노 + 슬롯"
-          icon={DollarSign}
-          color="purple"
-        />
       </div>
 
-      {/* 통계 카드 - 정산 (5개) */}
+      {/* 통계 카드 - 정산 (4개) */}
       <div className="grid gap-5 md:grid-cols-6">
         <MetricCard
-          title="입출 차액"
-          value={`${formatNumber(summary.depositWithdrawalDiff)}원`}
-          subtitle="입금 - 출금"
-          icon={DollarSign}
-          color={summary.depositWithdrawalDiff >= 0 ? "cyan" : "red"}
-        />
-
-        <MetricCard
-          title="GGR"
+          title="GGR 합산"
           value={`${formatNumber(summary.totalWinLoss)}원`}
           subtitle="베팅 - 당첨"
           icon={TrendingUp}
@@ -772,27 +764,19 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         />
 
         <MetricCard
-          title="정산 수익"
+          title="입출 차액"
+          value={`${formatNumber(summary.depositWithdrawalDiff)}원`}
+          subtitle="입금 - 출금"
+          icon={DollarSign}
+          color={summary.depositWithdrawalDiff >= 0 ? "cyan" : "red"}
+        />
+
+        <MetricCard
+          title="정산 수익(루징)"
           value={`${formatNumber(summary.totalSettlementProfit)}원`}
           subtitle="GGR - 롤링금"
           icon={DollarSign}
           color="green"
-        />
-
-        <MetricCard
-          title="관리자 신청입금"
-          value={`${formatNumber(summary.partnerRequestDeposit)}원`}
-          subtitle="파트너 입금 신청"
-          icon={TrendingUp}
-          color="cyan"
-        />
-
-        <MetricCard
-          title="관리자 신청출금"
-          value={`${formatNumber(summary.partnerRequestWithdrawal)}원`}
-          subtitle="파트너 출금 신청"
-          icon={TrendingDown}
-          color="orange"
         />
       </div>
 
@@ -920,8 +904,8 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
                   {/* 입출금 관련 - 주황색 계열 */}
                   <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">입금</th>
                   <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">출금</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">관리자입금</th>
-                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">관리자출금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">수동입금</th>
+                  <th className="px-4 py-3 text-right text-white font-normal bg-orange-950/60 whitespace-nowrap">수동출금</th>
                   
                   {/* 포인트 관련 - 초록색 계열 */}
                   <th className="px-4 py-3 text-right text-white font-normal bg-green-950/60 whitespace-nowrap">포인트지급</th>
