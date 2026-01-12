@@ -736,7 +736,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
           onClick={() => setShowGongBetModal(false)}
         >
           <div
-            className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-[70vw] max-h-[90vh] overflow-y-auto text-2xl"
+            className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-[70vw] max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
             style={{
               position: 'fixed',
@@ -773,18 +773,18 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
             >
               <div className="flex items-center gap-2">
                 <Play className="h-5 w-5 text-orange-400" />
-                <h2 className="text-lg font-semibold text-white">공베팅 설정</h2>
+                <h2 className="text-xl font-semibold text-white">공베팅 설정</h2>
               </div>
               <button
                 onClick={() => setShowGongBetModal(false)}
-                className="text-slate-400 hover:text-white transition-colors"
+                className="text-slate-400 hover:text-white transition-colors text-xl"
               >
                 ✕
               </button>
             </div>
 
             {/* 본문 */}
-            <div className="p-6 space-y-6">
+            <div className="p-8 space-y-8">
               {/* 공베팅 전체 활성화 */}
               <div className="flex items-center justify-between">
                 <Label htmlFor="gong-bet-enabled" className="text-sm font-medium text-white">
@@ -856,11 +856,11 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
               </div>
 
               {/* 공베팅 적용 레벨 선택 */}
-              <div className="space-y-3">
-                <Label className="text-sm font-medium text-white">공베팅 적용 레벨</Label>
-                <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-4">
+                <Label className="text-lg font-medium text-white">공베팅 적용 레벨</Label>
+                <div className="grid grid-cols-2 gap-4">
                   {[3, 4, 5, 6, 7].map((level) => (
-                    <div key={level} className="flex items-center space-x-2">
+                    <div key={level} className="flex items-center space-x-3 p-4 bg-slate-800/30 rounded-lg border border-slate-700/50">
                       <Switch
                         id={`level-${level}`}
                         checked={gongBetLevels[level]}
@@ -876,8 +876,9 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
                           }
                         }}
                         disabled={!gongBetEnabled}
+                        size="lg"
                       />
-                      <Label htmlFor={`level-${level}`} className="text-sm text-white">
+                      <Label htmlFor={`level-${level}`} className="text-base text-white font-medium cursor-pointer">
                         {level === 3 ? '본사' : level === 4 ? '부본사' : level === 5 ? '총판' : level === 6 ? '매장' : '특별'}
                       </Label>
                     </div>
@@ -886,52 +887,72 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
               </div>
 
               {/* 공베팅 적용 요율 설정 */}
-              <div className="space-y-2">
-                <Label htmlFor="gong-bet-rate" className="text-sm font-medium text-white">
-                  공베팅 적용 요율 (%) {gongBetEnabled ? '' : '- 전체 활성화 후 설정 가능'}
+              <div className="space-y-4">
+                <Label htmlFor="gong-bet-rate" className="text-lg font-medium text-white">
+                  공베팅 적용 요율 (%)
                 </Label>
-                <Input
-                  id="gong-bet-rate"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={gongBetRate.toString()}
-                  onChange={async (e) => {
-                    const value = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
-                    setGongBetRate(value);
-                    try {
-                      await saveGongBetSettings();
-                    } catch (error) {
-                      console.error('자동 저장 실패:', error);
-                    }
-                  }}
-                  placeholder="0"
-                  className="input-premium"
-                  disabled={!gongBetEnabled}
-                />
-                <p className="text-xs text-slate-400">
+                <div className="flex items-center gap-4">
+                  <Input
+                    id="gong-bet-rate"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={gongBetRate.toString()}
+                    onChange={async (e) => {
+                      const value = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                      setGongBetRate(value);
+                      try {
+                        await saveGongBetSettings();
+                      } catch (error) {
+                        console.error('자동 저장 실패:', error);
+                      }
+                    }}
+                    placeholder="0"
+                    className="input-premium text-lg py-3"
+                    disabled={!gongBetEnabled}
+                  />
+                  <span className="text-white text-lg">%</span>
+                </div>
+                <p className="text-sm text-slate-400">
                   예시: 5% 설정 시 정상 롤링금의 5%만큼 차감됩니다.
                 </p>
               </div>
 
               {/* 계산 예시 */}
-              <div className="p-3 bg-slate-800/50 rounded-lg space-y-2">
-                <h4 className="text-sm font-medium text-slate-300">실시간 계산 예시</h4>
-                <div className="text-xs text-slate-400 space-y-1">
-                  <div>카지노 1% 롤링률, 10,000,000원 베팅</div>
-                  <div>정상 롤링금: 100,000원</div>
-                  {(() => {
-                    const rateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
-                    return (
-                      <>
-                        <div>공베팅 {rateNum}% 적용: {formatNumber(100000 * (1 - rateNum / 100))}원</div>
-                        <div>절삭 롤링금: {formatNumber(100000 * (rateNum / 100))}원</div>
-                      </>
-                    );
-                  })()}
+              <div className="p-6 bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700/50 space-y-4">
+                <h4 className="text-lg font-medium text-white">실시간 계산 예시</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div className="space-y-2">
+                    <div className="text-slate-300">카지노 1% 롤링률, 10,000,000원 베팅</div>
+                    <div className="text-slate-300">정상 롤링금: <span className="text-cyan-400 font-semibold">100,000원</span></div>
+                    {(() => {
+                      const rateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
+                      return (
+                        <>
+                          <div className="text-slate-300">공베팅 {rateNum}% 적용: <span className="text-orange-400 font-semibold">{formatNumber(100000 * (1 - rateNum / 100))}원</span></div>
+                          <div className="text-slate-300">절삭 롤링금: <span className="text-red-400 font-semibold">{formatNumber(100000 * (rateNum / 100))}원</span></div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-slate-300">슬롯 1% 롤링률, 5,000,000원 베팅</div>
+                    <div className="text-slate-300">정상 롤링금: <span className="text-cyan-400 font-semibold">50,000원</span></div>
+                    {(() => {
+                      const rateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
+                      return (
+                        <>
+                          <div className="text-slate-300">공베팅 {rateNum}% 적용: <span className="text-orange-400 font-semibold">{formatNumber(50000 * (1 - rateNum / 100))}원</span></div>
+                          <div className="text-slate-300">절삭 롤링금: <span className="text-red-400 font-semibold">{formatNumber(50000 * (rateNum / 100))}원</span></div>
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
               </div>
+
+
             </div>
 
             {/* 푸터 */}
