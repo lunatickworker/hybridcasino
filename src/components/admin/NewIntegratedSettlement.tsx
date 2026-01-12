@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, RefreshCw, Search, ChevronDown, ChevronRight, TrendingUp, Wallet, Coins, ArrowUpRight, ArrowDownRight, Activity, DollarSign, Gift, Percent } from "lucide-react";
+import { Calendar as CalendarIcon, RefreshCw, Search, ChevronDown, ChevronRight, TrendingUp, Wallet, Coins, ArrowUpRight, ArrowDownRight, Activity, DollarSign, Gift, Percent, Play } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -7,10 +7,14 @@ import { Calendar } from "../ui/calendar";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Switch } from "../ui/switch";
+import { Label } from "../ui/label";
+import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle, AdminDialogFooter as DialogFooter } from "./AdminDialog";
 import { cn } from "../../lib/utils";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { ko } from "date-fns/locale";
 import { supabase } from "../../lib/supabase";
+import { supabaseAdmin } from "../../lib/supabaseAdmin";
 import { toast } from "sonner";
 import { Partner } from "../../types";
 import { Lv35Settlement } from "./Lv35Settlement";
@@ -24,6 +28,8 @@ interface SettlementRow {
   manualDeposit: number; manualWithdrawal: number; pointGiven: number; pointRecovered: number;
   depositWithdrawalDiff: number; casinoBet: number; casinoWin: number; slotBet: number; slotWin: number;
   ggr: number; totalRolling: number; totalLosing: number; individualRolling: number; individualLosing: number;
+  gongBetAppliedRolling: number; gongBetCutRolling: number;
+  casinoGongBetAmount: number; slotGongBetAmount: number; cutRollingAmount: number;
   parentId?: string; hasChildren?: boolean;
 }
 interface SummaryStats {
@@ -45,6 +51,169 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [summary, setSummary] = useState<SummaryStats>({ totalBalance: 0, totalPoints: 0, onlineDeposit: 0, onlineWithdrawal: 0, manualDeposit: 0, manualWithdrawal: 0, pointGiven: 0, pointRecovered: 0, depositWithdrawalDiff: 0, casinoBet: 0, casinoWin: 0, slotBet: 0, slotWin: 0, ggr: 0, totalRolling: 0, totalLosing: 0, individualRolling: 0, individualLosing: 0 });
+
+  // 공베팅 설정 상태
+  const [showGongBetModal, setShowGongBetModal] = useState(false);
+  const [gongBetEnabled, setGongBetEnabled] = useState(false);
+  const [gongBetLevels, setGongBetLevels] = useState<{ [key: number]: boolean }>({
+    3: false, 4: false, 5: false, 6: false, 7: false
+  });
+  const [gongBetRate, setGongBetRate] = useState<number>(0);
+
+  // 개별 공베팅 토글 상태 - 모달과 동기화
+  const [casinoGongBetEnabled, setCasinoGongBetEnabled] = useState(false);
+  const [slotGongBetEnabled, setSlotGongBetEnabled] = useState(false);
+  const [cutRollingEnabled, setCutRollingEnabled] = useState(false);
+
+  // 카드 토글 변경 시 자동 저장 (PartnerDashboard 로직 참고)
+  const handleCasinoGongBetToggle = async (enabled: boolean) => {
+    setCasinoGongBetEnabled(enabled);
+    try {
+      await saveGongBetSettings(enabled, null, null);
+    } catch (error) {
+      console.error('자동 저장 실패:', error);
+    }
+  };
+
+  const handleSlotGongBetToggle = async (enabled: boolean) => {
+    setSlotGongBetEnabled(enabled);
+    try {
+      await saveGongBetSettings(null, enabled, null);
+    } catch (error) {
+      console.error('자동 저장 실패:', error);
+    }
+  };
+
+  const handleCutRollingToggle = async (enabled: boolean) => {
+    setCutRollingEnabled(enabled);
+    try {
+      await saveGongBetSettings(null, null, enabled);
+    } catch (error) {
+      console.error('자동 저장 실패:', error);
+    }
+  };
+
+  const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
+
+  // 공베팅 설정 로드
+  const loadGongBetSettings = async () => {
+    try {
+      console.log('🔍 공베팅 설정 로드 시작 - 사용자 ID:', user.id);
+
+      // 먼저 테이블 존재 확인
+      const { data: tableCheck, error: tableError } = await supabase
+        .from('user_settings')
+        .select('count', { count: 'exact' })
+        .limit(1);
+
+      if (tableError) {
+        console.error('❌ user_settings 테이블 접근 실패:', tableError);
+        toast.error('데이터베이스 테이블을 찾을 수 없습니다.');
+        return;
+      }
+
+      console.log('✅ user_settings 테이블 접근 성공');
+
+      const { data: settings, error } = await supabase
+        .from('user_settings')
+        .select('gong_bet_settings')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('❌ 공베팅 설정 조회 실패:', error);
+        toast.error('설정 조회에 실패했습니다.');
+        return;
+      }
+
+      if (settings?.gong_bet_settings) {
+        const gongSettings = settings.gong_bet_settings;
+        console.log('✅ 공베팅 설정 로드됨:', gongSettings);
+
+        // 각 설정값을 안전하게 추출하고 설정
+        setGongBetEnabled(gongSettings.gongBetEnabled === true);
+        setGongBetLevels(gongSettings.gongBetLevels || { 3: false, 4: false, 5: false, 6: false, 7: false });
+        setGongBetRate(typeof gongSettings.gongBetRate === 'number' ? gongSettings.gongBetRate : 0);
+        setCasinoGongBetEnabled(gongSettings.casinoGongBetEnabled === true);
+        setSlotGongBetEnabled(gongSettings.slotGongBetEnabled === true);
+        setCutRollingEnabled(gongSettings.cutRollingEnabled === true);
+
+        console.log('✅ 공베팅 설정 적용 완료');
+    } else {
+      console.log('ℹ️ 공베팅 설정이 없어 기본값 사용 (신규 사용자)');
+      // 설정이 없으면 기본값으로 초기화
+      setGongBetEnabled(false);
+      setGongBetLevels({ 3: false, 4: false, 5: false, 6: false, 7: false });
+      setGongBetRate(0);
+      setCasinoGongBetEnabled(false);
+      setSlotGongBetEnabled(false);
+      setCutRollingEnabled(false);
+    }
+  } catch (error) {
+    console.error('❌ 공베팅 설정 로드 실패:', error);
+    toast.error('설정 로드에 실패했습니다.');
+    // 에러 시에도 기본값 설정
+    setGongBetEnabled(false);
+    setGongBetLevels({ 3: false, 4: false, 5: false, 6: false, 7: false });
+    setGongBetRate(0);
+    setCasinoGongBetEnabled(false);
+    setSlotGongBetEnabled(false);
+    setCutRollingEnabled(false);
+  }
+};
+
+  // 공베팅 설정 저장 (PartnerDashboard 로직 참고)
+  const saveGongBetSettings = async (casinoEnabled?: boolean, slotEnabled?: boolean, cutEnabled?: boolean) => {
+    try {
+      const settingsData = {
+        gongBetEnabled,
+        gongBetLevels,
+        gongBetRate,
+        casinoGongBetEnabled: casinoEnabled !== undefined ? casinoEnabled : casinoGongBetEnabled,
+        slotGongBetEnabled: slotEnabled !== undefined ? slotEnabled : slotGongBetEnabled,
+        cutRollingEnabled: cutEnabled !== undefined ? cutEnabled : cutRollingEnabled
+      };
+
+      console.log('💾 공베팅 설정 저장 시도 - 사용자 ID:', user.id);
+      console.log('💾 저장 데이터:', settingsData);
+      console.log('💾 사용자 ID 타입:', typeof user.id);
+
+      const { data, error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          gong_bet_settings: settingsData,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        })
+        .select();
+
+      if (error) {
+        console.error('❌ 공베팅 설정 저장 실패:', error);
+        console.error('❌ 에러 상세:', error.message, error.details, error.hint);
+        throw error;
+      }
+
+      console.log('✅ 공베팅 설정 저장 성공 - 반환 데이터:', data);
+      toast.success('공베팅 설정이 저장되었습니다.');
+    } catch (error) {
+      console.error('❌ 공베팅 설정 저장 실패:', error);
+      toast.error('설정 저장에 실패했습니다.');
+    }
+  };
+
+  // 초기 설정 로드
+  useEffect(() => {
+    loadGongBetSettings();
+  }, []);
+
+  // 모달 열릴 때 위치 초기화
+  useEffect(() => {
+    if (showGongBetModal) {
+      setModalPosition({ x: 0, y: 0 });
+    }
+  }, [showGongBetModal]);
 
   useEffect(() => { fetchSettlementData(); }, [dateRange]);
 
@@ -195,7 +364,27 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const individualRolling = totalRolling;
     const individualLosing = totalLosing;
     const depositWithdrawalDiff = onlineDeposit + onlineWithdrawal + manualDeposit + manualWithdrawal;
-    return { level, levelName: getLevelName(level), id: entityId, username, casinoRollingRate, slotRollingRate, casinoLosingRate, slotLosingRate, balance, points, onlineDeposit, onlineWithdrawal, manualDeposit, manualWithdrawal, pointGiven, pointRecovered, depositWithdrawalDiff, casinoBet, casinoWin, slotBet, slotWin, ggr, totalRolling, totalLosing, individualRolling, individualLosing };
+
+    // 공베팅 적용: 해당 레벨이 활성화되어 있고 공베팅이 전체 활성화된 경우
+    const gongBetRateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
+    const isGongBetApplied = gongBetEnabled && gongBetLevels[level];
+    const gongBetAppliedRolling = isGongBetApplied ? totalRolling * (1 - gongBetRateNum / 100) : totalRolling;
+    const gongBetCutRolling = isGongBetApplied ? totalRolling * (gongBetRateNum / 100) : 0;
+
+    // 개별 공베팅 계산 금액
+    const casinoGongBetAmount = casinoGongBetEnabled ? casinoBet * (gongBetRateNum / 100) : 0;
+    const slotGongBetAmount = slotGongBetEnabled ? slotBet * (gongBetRateNum / 100) : 0;
+    const cutRollingAmount = cutRollingEnabled ? totalRolling * (gongBetRateNum / 100) : 0;
+
+    return {
+      level, levelName: getLevelName(level), id: entityId, username,
+      casinoRollingRate, slotRollingRate, casinoLosingRate, slotLosingRate,
+      balance, points, onlineDeposit, onlineWithdrawal, manualDeposit, manualWithdrawal,
+      pointGiven, pointRecovered, depositWithdrawalDiff, casinoBet, casinoWin, slotBet, slotWin, ggr,
+      totalRolling, totalLosing, individualRolling, individualLosing,
+      gongBetAppliedRolling, gongBetCutRolling,
+      casinoGongBetAmount, slotGongBetAmount, cutRollingAmount
+    };
   };
 
   const processSettlementData = (partners: any[], users: any[], transactions: any[], pointTransactions: any[], gameRecords: any[], partnerBalanceLogs: any[]): SettlementRow[] => {
@@ -292,11 +481,17 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     return <Lv6Settlement user={user} />;
   }
 
+  // 공베팅 요율 계산
+  const gongBetRateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2"><TrendingUp className="h-6 w-6 text-cyan-400" />통합 정산 관리</h1>
-        <Button onClick={fetchSettlementData} disabled={loading} className="bg-cyan-600 hover:bg-cyan-700 text-white"><RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />새로고침</Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => setShowGongBetModal(true)} className="bg-orange-600 hover:bg-orange-700 text-white"><Play className="h-4 w-4 mr-2" />공베팅 실행</Button>
+          <Button onClick={fetchSettlementData} disabled={loading} className="bg-cyan-600 hover:bg-cyan-700 text-white"><RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />새로고침</Button>
+        </div>
       </div>
       <div className="glass-card rounded-xl p-6">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 mb-6">
@@ -338,16 +533,60 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
 
         {/* 3행: 카지노베팅 / 카지노당첨 / 슬롯베팅 / 슬롯당첨 */}
         <div className="bg-gradient-to-br from-violet-900/50 to-slate-900 rounded-xl p-4 border border-violet-700/30 hover:border-violet-600/50 transition-all shadow-lg shadow-violet-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-violet-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-violet-400" /></div><span className="text-2xl text-slate-400 font-medium">카지노 베팅</span></div>
-          <div className="text-3xl font-bold text-violet-400 font-asiahead ml-12">{formatNumber(summary.casinoBet)}</div>
+          <div className="flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-violet-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-violet-400" /></div><span className="text-2xl text-slate-400 font-medium">카지노 베팅</span></div>
+              <div className="text-3xl font-bold text-violet-400 font-asiahead ml-12">{formatNumber(summary.casinoBet)}</div>
+            </div>
+            <div className="flex flex-col items-end gap-3 p-3 bg-gradient-to-br from-orange-950/30 to-red-950/30 rounded-lg border border-orange-700/50 min-w-[140px] flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="text-base font-semibold text-orange-300 whitespace-nowrap flex items-center gap-1">
+                  🎯 카지노 공베팅
+                </span>
+                <Switch
+                  checked={casinoGongBetEnabled}
+                  onCheckedChange={handleCasinoGongBetToggle}
+                  disabled={!gongBetEnabled}
+                  size="sm"
+                />
+              </div>
+              {casinoGongBetEnabled && (
+                <div className="text-lg font-bold text-orange-200 bg-orange-900/40 px-3 py-1 rounded border border-orange-600/50 shadow-lg">
+                  {formatNumber(summary.casinoBet * (gongBetRateNum / 100))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
         <div className="bg-gradient-to-br from-fuchsia-900/50 to-slate-900 rounded-xl p-4 border border-fuchsia-700/30 hover:border-fuchsia-600/50 transition-all shadow-lg shadow-fuchsia-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-fuchsia-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-fuchsia-400" /></div><span className="text-2xl text-slate-400 font-medium">카지노 당첨</span></div>
           <div className="text-3xl font-bold text-fuchsia-400 font-asiahead ml-12">{formatNumber(summary.casinoWin)}</div>
         </div>
         <div className="bg-gradient-to-br from-teal-900/50 to-slate-900 rounded-xl p-4 border border-teal-700/30 hover:border-teal-600/50 transition-all shadow-lg shadow-teal-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-teal-500/20 rounded-lg"><Coins className="h-6 w-6 text-teal-400" /></div><span className="text-2xl text-slate-400 font-medium">슬롯 베팅</span></div>
-          <div className="text-3xl font-bold text-teal-400 font-asiahead ml-12">{formatNumber(summary.slotBet)}</div>
+          <div className="flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-teal-500/20 rounded-lg"><Coins className="h-6 w-6 text-teal-400" /></div><span className="text-2xl text-slate-400 font-medium">슬롯 베팅</span></div>
+              <div className="text-3xl font-bold text-teal-400 font-asiahead ml-12">{formatNumber(summary.slotBet)}</div>
+            </div>
+            <div className="flex flex-col items-end gap-3 p-3 bg-gradient-to-br from-green-950/30 to-teal-950/30 rounded-lg border border-green-700/50 min-w-[140px] flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="text-base font-semibold text-green-300 whitespace-nowrap flex items-center gap-1">
+                  🎰 슬롯 공베팅
+                </span>
+                <Switch
+                  checked={slotGongBetEnabled}
+                  onCheckedChange={handleSlotGongBetToggle}
+                  disabled={!gongBetEnabled}
+                  size="sm"
+                />
+              </div>
+              {slotGongBetEnabled && (
+                <div className="text-lg font-bold text-green-200 bg-green-900/40 px-3 py-1 rounded border border-green-600/50 shadow-lg">
+                  {formatNumber(summary.slotBet * (gongBetRateNum / 100))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
         <div className="bg-gradient-to-br from-lime-900/50 to-slate-900 rounded-xl p-4 border border-lime-700/30 hover:border-lime-600/50 transition-all shadow-lg shadow-lime-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-lime-500/20 rounded-lg"><Coins className="h-6 w-6 text-lime-400" /></div><span className="text-2xl text-slate-400 font-medium">슬롯 당첨</span></div>
@@ -360,8 +599,30 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
           <div className="text-3xl font-bold text-amber-400 font-asiahead ml-12">{formatNumber(summary.ggr)}</div>
         </div>
         <div className="bg-gradient-to-br from-sky-900/50 to-slate-900 rounded-xl p-4 border border-sky-700/30 hover:border-sky-600/50 transition-all shadow-lg shadow-sky-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-sky-500/20 rounded-lg"><Percent className="h-6 w-6 text-sky-400" /></div><span className="text-2xl text-slate-400 font-medium">총 롤링금</span></div>
-          <div className="text-3xl font-bold text-sky-400 font-asiahead ml-12">{formatNumber(summary.totalRolling)}</div>
+          <div className="flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-sky-500/20 rounded-lg"><Percent className="h-6 w-6 text-sky-400" /></div><span className="text-2xl text-slate-400 font-medium">총 롤링금</span></div>
+              <div className="text-3xl font-bold text-sky-400 font-asiahead ml-12">{formatNumber(summary.totalRolling)}</div>
+            </div>
+            <div className="flex flex-col items-end gap-3 p-3 bg-gradient-to-br from-blue-950/30 to-cyan-950/30 rounded-lg border border-blue-700/50 min-w-[140px] flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <span className="text-base font-semibold text-blue-300 whitespace-nowrap flex items-center gap-1">
+                  💰 절삭 롤링금
+                </span>
+                <Switch
+                  checked={cutRollingEnabled}
+                  onCheckedChange={handleCutRollingToggle}
+                  disabled={!gongBetEnabled}
+                  size="sm"
+                />
+              </div>
+              {cutRollingEnabled && (
+                <div className="text-lg font-bold text-blue-200 bg-blue-900/40 px-3 py-1 rounded border border-blue-600/50 shadow-lg">
+                  {formatNumber(summary.totalRolling * (gongBetRateNum / 100))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
         <div className="bg-gradient-to-br from-cyan-900/50 to-slate-900 rounded-xl p-4 border border-cyan-700/30 hover:border-cyan-600/50 transition-all shadow-lg shadow-cyan-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-cyan-500/20 rounded-lg"><Activity className="h-6 w-6 text-cyan-400" /></div><span className="text-2xl text-slate-400 font-medium">입출차액</span></div>
@@ -400,21 +661,23 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
           <div>
             <div className="overflow-x-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#9FA8DA #E8EAF6' }}>
               <style dangerouslySetInnerHTML={{ __html: `.overflow-x-auto::-webkit-scrollbar { height: 8px; } .overflow-x-auto::-webkit-scrollbar-track { background: #E8EAF6; } .overflow-x-auto::-webkit-scrollbar-thumb { background: #9FA8DA; border-radius: 4px; }` }} />
-              <table className="w-full">
+              <table className="w-full" style={{ tableLayout: 'auto' }}>
                 <thead>
                   <tr className="border-b border-slate-700">
                     <th className="px-4 py-3 text-center text-white font-normal sticky left-0 bg-slate-900 z-10 whitespace-nowrap">등급</th>
                     <th className="px-4 py-3 text-center text-white font-normal bg-slate-900 whitespace-nowrap">아이디</th>
-                    <th className="px-4 py-0 text-center text-white font-normal bg-slate-800/70"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50">정산 기준</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50">카지노</div><div className="flex-1 py-2 border-r border-slate-700/50">슬롯</div><div className="flex-1 py-2">루징</div></div></div></th>
-                    <th className="px-4 py-0 text-center text-white font-normal bg-indigo-950/60"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50">보유자산</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50">머니</div><div className="flex-1 py-2">포인트</div></div></div></th>
-                    <th className="px-4 py-0 text-center text-white font-normal bg-orange-950/60"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50">온라인 입출금</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50">입금</div><div className="flex-1 py-2">출금</div></div></div></th>
-                    <th className="px-4 py-0 text-center text-white font-normal bg-rose-950/60"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50">수동 입출금</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50">수동 입금</div><div className="flex-1 py-2">수동 출금</div></div></div></th>
-                    <th className="px-4 py-0 text-center text-white font-normal bg-green-950/60"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50">포인트 관리</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50">지급</div><div className="flex-1 py-2">회수</div></div></div></th>
-                    <th className="px-4 py-3 text-center text-white font-normal bg-cyan-950/60 whitespace-nowrap">입출차액</th>
-                    <th className="px-4 py-0 text-center text-white font-normal bg-blue-950/60"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50">게임 실적</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50">카지노 Bet</div><div className="flex-1 py-2 border-r border-slate-700/50">카지노 Win</div><div className="flex-1 py-2 border-r border-slate-700/50">슬롯 Bet</div><div className="flex-1 py-2">슬롯 Win</div></div></div></th>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-slate-800/70 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">정산 기준</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">카지노</div><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">슬롯</div><div className="flex-1 py-2 whitespace-nowrap">루징</div></div></div></th>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-indigo-950/60 whitespace-nowrap" style={{ minWidth: '160px' }}><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">보유자산</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">머니</div><div className="flex-1 py-2 whitespace-nowrap">포인트</div></div></div></th>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-orange-950/60 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">온라인 입출금</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">입금</div><div className="flex-1 py-2 whitespace-nowrap">출금</div></div></div></th>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-rose-950/60 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">수동 입출금</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">수동 입금</div><div className="flex-1 py-2 whitespace-nowrap">수동 출금</div></div></div></th>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-green-950/60 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">포인트 관리</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">지급</div><div className="flex-1 py-2 whitespace-nowrap">회수</div></div></div></th>
+                    <th className="px-4 py-3 text-center text-white font-normal bg-cyan-950/60 whitespace-nowrap" style={{ minWidth: '120px' }}>입출차액</th>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-blue-950/60"><div className="flex flex-col"><div className="py-1 border-b border-slate-700/50 whitespace-nowrap">게임 실적</div><div className="flex"><div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>카지노 베팅</div>{casinoGongBetEnabled && <div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>카지노 공베팅</div>}<div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>카지노 당첨</div><div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>슬롯 베팅</div>{slotGongBetEnabled && <div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>슬롯 공베팅</div>}<div className="py-1 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>슬롯 당첨</div></div></div></th>
                     <th className="px-4 py-3 text-center text-white font-normal bg-amber-950/60 whitespace-nowrap">GGR</th>
-                    <th className="px-4 py-0 text-center text-white font-normal bg-teal-950/60"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50">실정산</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50">총 롤링</div><div className="flex-1 py-2">총 루징</div></div></div></th>
-                    <th className="px-4 py-0 text-center text-white font-normal bg-emerald-950/70"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50">코드별 실정산</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50">롤링</div><div className="flex-1 py-2">루징</div></div></div></th>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-teal-950/60 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">실정산</div><div className="flex"><div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>총 롤링</div>{cutRollingEnabled && <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>절삭 롤링금</div>}<div className="py-2 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>총 루징</div></div></div></th>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-emerald-950/70 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">코드별 실정산</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">롤링</div><div className="flex-1 py-2 whitespace-nowrap">루징</div></div></div></th>
+
+
                   </tr>
                 </thead>
                 <tbody>
@@ -432,10 +695,12 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
                         <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-emerald-400 font-asiahead">{formatNumber(row.manualDeposit)}</div><div className="flex-1 text-rose-400 font-asiahead">{formatNumber(row.manualWithdrawal)}</div></div></td>
                         <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-blue-400 font-asiahead">{formatNumber(row.pointGiven)}</div><div className="flex-1 text-orange-400 font-asiahead">{formatNumber(row.pointRecovered)}</div></div></td>
                         <td className={cn("px-4 py-3 text-center font-asiahead whitespace-nowrap", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>{formatNumber(row.depositWithdrawalDiff)}</td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-cyan-400 font-asiahead">{formatNumber(row.casinoBet)}</div><div className="flex-1 text-purple-400 font-asiahead">{formatNumber(row.casinoWin)}</div><div className="flex-1 text-cyan-400 font-asiahead">{formatNumber(row.slotBet)}</div><div className="flex-1 text-purple-400 font-asiahead">{formatNumber(row.slotWin)}</div></div></td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex"><div className="text-center text-cyan-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.casinoBet)}</div>{casinoGongBetEnabled && <div className="text-center text-orange-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.casinoGongBetAmount)}</div>}<div className="text-center text-purple-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.casinoWin)}</div><div className="text-center text-cyan-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.slotBet)}</div>{slotGongBetEnabled && <div className="text-center text-green-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.slotGongBetAmount)}</div>}<div className="text-center text-purple-400 font-asiahead py-1 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.slotWin)}</div></div></td>
                         <td className="px-4 py-3 text-center text-amber-400 font-asiahead whitespace-nowrap">{formatNumber(row.ggr)}</td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-teal-400 font-asiahead">{formatNumber(row.totalRolling)}</div><div className="flex-1 text-teal-400 font-asiahead">{formatNumber(row.totalLosing)}</div></div></td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex divide-x divide-slate-700/50"><div className="text-teal-400 font-asiahead" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.totalRolling)}</div>{cutRollingEnabled && <div className="text-teal-400 font-asiahead" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.cutRollingAmount)}</div>}<div className="text-teal-400 font-asiahead" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.totalLosing)}</div></div></td>
                         <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-green-400 font-asiahead font-semibold">{formatNumber(row.individualRolling)}</div><div className="flex-1 text-green-400 font-asiahead font-semibold">{formatNumber(row.individualLosing)}</div></div></td>
+
+
                       </tr>
                     );
                   })}
@@ -463,6 +728,230 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
           </div>
         )}
       </div>
+
+      {/* 공베팅 설정 모달 - 커스텀 모달 */}
+      {showGongBetModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setShowGongBetModal(false)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-700 rounded-lg shadow-xl w-[70vw] max-h-[90vh] overflow-y-auto text-2xl"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)'
+            }}
+          >
+            {/* 헤더 - 드래그 가능 */}
+            <div
+              className="bg-slate-800/50 border-b border-slate-700/50 p-6 pb-4 cursor-move select-none flex items-center justify-between"
+              onMouseDown={(e) => {
+                const modal = e.currentTarget.parentElement;
+                if (!modal) return;
+
+                const startX = e.clientX - modal.offsetLeft;
+                const startY = e.clientY - modal.offsetTop;
+
+                const handleMouseMove = (e: MouseEvent) => {
+                  if (modal) {
+                    modal.style.left = `${e.clientX - startX}px`;
+                    modal.style.top = `${e.clientY - startY}px`;
+                  }
+                };
+
+                const handleMouseUp = () => {
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                };
+
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <Play className="h-5 w-5 text-orange-400" />
+                <h2 className="text-lg font-semibold text-white">공베팅 설정</h2>
+              </div>
+              <button
+                onClick={() => setShowGongBetModal(false)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 본문 */}
+            <div className="p-6 space-y-6">
+              {/* 공베팅 전체 활성화 */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="gong-bet-enabled" className="text-sm font-medium text-white">
+                  공베팅 전체 활성화
+                </Label>
+                <Switch
+                  id="gong-bet-enabled"
+                  checked={gongBetEnabled}
+                  onCheckedChange={async (enabled: boolean) => {
+                    setGongBetEnabled(enabled);
+                    try {
+                      await saveGongBetSettings();
+                    } catch (error) {
+                      console.error('자동 저장 실패:', error);
+                    }
+                  }}
+                />
+              </div>
+
+              {/* 개별 공베팅 기능 토글 */}
+              <div className="space-y-4">
+                <Label className="text-sm font-medium text-white">공베팅 기능 설정</Label>
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg border border-slate-700/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                      <div>
+                        <div className="text-white font-medium">카지노 공베팅</div>
+                        <div className="text-sm text-slate-400">카지노 베팅에 대한 공베팅 적용</div>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={casinoGongBetEnabled}
+                      onCheckedChange={handleCasinoGongBetToggle}
+                      disabled={!gongBetEnabled}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg border border-slate-700/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <div>
+                        <div className="text-white font-medium">슬롯 공베팅</div>
+                        <div className="text-sm text-slate-400">슬롯 베팅에 대한 공베팅 적용</div>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={slotGongBetEnabled}
+                      onCheckedChange={handleSlotGongBetToggle}
+                      disabled={!gongBetEnabled}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg border border-slate-700/50">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <div>
+                        <div className="text-white font-medium">절삭 롤링금</div>
+                        <div className="text-sm text-slate-400">롤링금에서 일정 비율 차감</div>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={cutRollingEnabled}
+                      onCheckedChange={handleCutRollingToggle}
+                      disabled={!gongBetEnabled}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 공베팅 적용 레벨 선택 */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-white">공베팅 적용 레벨</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[3, 4, 5, 6, 7].map((level) => (
+                    <div key={level} className="flex items-center space-x-2">
+                      <Switch
+                        id={`level-${level}`}
+                        checked={gongBetLevels[level]}
+                        onCheckedChange={async (checked) => {
+                          setGongBetLevels(prev => ({
+                            ...prev,
+                            [level]: checked
+                          }));
+                          try {
+                            await saveGongBetSettings();
+                          } catch (error) {
+                            console.error('자동 저장 실패:', error);
+                          }
+                        }}
+                        disabled={!gongBetEnabled}
+                      />
+                      <Label htmlFor={`level-${level}`} className="text-sm text-white">
+                        {level === 3 ? '본사' : level === 4 ? '부본사' : level === 5 ? '총판' : level === 6 ? '매장' : '특별'}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 공베팅 적용 요율 설정 */}
+              <div className="space-y-2">
+                <Label htmlFor="gong-bet-rate" className="text-sm font-medium text-white">
+                  공베팅 적용 요율 (%) {gongBetEnabled ? '' : '- 전체 활성화 후 설정 가능'}
+                </Label>
+                <Input
+                  id="gong-bet-rate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={gongBetRate.toString()}
+                  onChange={async (e) => {
+                    const value = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                    setGongBetRate(value);
+                    try {
+                      await saveGongBetSettings();
+                    } catch (error) {
+                      console.error('자동 저장 실패:', error);
+                    }
+                  }}
+                  placeholder="0"
+                  className="input-premium"
+                  disabled={!gongBetEnabled}
+                />
+                <p className="text-xs text-slate-400">
+                  예시: 5% 설정 시 정상 롤링금의 5%만큼 차감됩니다.
+                </p>
+              </div>
+
+              {/* 계산 예시 */}
+              <div className="p-3 bg-slate-800/50 rounded-lg space-y-2">
+                <h4 className="text-sm font-medium text-slate-300">실시간 계산 예시</h4>
+                <div className="text-xs text-slate-400 space-y-1">
+                  <div>카지노 1% 롤링률, 10,000,000원 베팅</div>
+                  <div>정상 롤링금: 100,000원</div>
+                  {(() => {
+                    const rateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
+                    return (
+                      <>
+                        <div>공베팅 {rateNum}% 적용: {formatNumber(100000 * (1 - rateNum / 100))}원</div>
+                        <div>절삭 롤링금: {formatNumber(100000 * (rateNum / 100))}원</div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* 푸터 */}
+            <div className="border-t border-slate-700/50 p-6 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowGongBetModal(false)}>
+                취소
+              </Button>
+              <Button
+                onClick={async () => {
+                  await saveGongBetSettings();
+                  setShowGongBetModal(false);
+                }}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                설정 저장
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

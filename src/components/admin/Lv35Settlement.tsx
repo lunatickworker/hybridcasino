@@ -601,87 +601,87 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
                     <th className="px-4 py-3 text-center text-white font-normal bg-slate-900 whitespace-nowrap">아이디</th>
                     
                     {/* 정산 기준 설정 (카지노/슬롯/루징) - 2단 */}
-                    <th className="px-4 py-0 text-center text-white font-normal bg-slate-800/70" rowSpan={1}>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-slate-800/70" rowSpan={1} style={{ minWidth: '120px' }}>
                       <div className="flex flex-col">
-                        <div className="py-2 border-b border-slate-700/50">정산 기준 설정</div>
+                        <div className="py-2 border-b border-slate-700/50 whitespace-nowrap">정산 기준 설정</div>
                         <div className="flex">
-                          <div className="flex-1 py-2 border-r border-slate-700/50">카지노</div>
-                          <div className="flex-1 py-2 border-r border-slate-700/50">슬롯</div>
-                          <div className="flex-1 py-2">루징</div>
+                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '40px', flexShrink: 0 }}>카지노</div>
+                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '40px', flexShrink: 0 }}>슬롯</div>
+                          <div className="py-2 whitespace-nowrap" style={{ flexBasis: '40px', flexShrink: 0 }}>루징</div>
                         </div>
                       </div>
                     </th>
-                    
+
                     {/* 보유 자산 (머니/포인트) - 2단 */}
-                    <th className="px-4 py-0 text-center text-white font-normal bg-indigo-950/60" rowSpan={1}>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-indigo-950/60" rowSpan={1} style={{ minWidth: '160px' }}>
                       <div className="flex flex-col">
-                        <div className="py-2 border-b border-slate-700/50">보유 자산</div>
+                        <div className="py-2 border-b border-slate-700/50 whitespace-nowrap">보유 자산</div>
                         <div className="flex">
-                          <div className="flex-1 py-2 border-r border-slate-700/50">머니</div>
-                          <div className="flex-1 py-2">포인트</div>
+                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>머니</div>
+                          <div className="py-2 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>포인트</div>
                         </div>
                       </div>
                     </th>
-                    
+
                     {/* 온라인 입출금 (입금/출금) - 2단 */}
-                    <th className="px-4 py-0 text-center text-white font-normal bg-orange-950/60" rowSpan={1}>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-orange-950/60" rowSpan={1} style={{ minWidth: '160px' }}>
                       <div className="flex flex-col">
-                        <div className="py-2 border-b border-slate-700/50">온라인 입출금</div>
+                        <div className="py-2 border-b border-slate-700/50 whitespace-nowrap">온라인 입출금</div>
                         <div className="flex">
-                          <div className="flex-1 py-2 border-r border-slate-700/50">입금</div>
-                          <div className="flex-1 py-2">출금</div>
+                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>입금</div>
+                          <div className="py-2 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>출금</div>
                         </div>
                       </div>
                     </th>
-                    
+
                     {/* 관리자 지급/회수 (지급/회수) - 2단 */}
-                    <th className="px-4 py-0 text-center text-white font-normal bg-rose-950/60" rowSpan={1}>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-rose-950/60" rowSpan={1} style={{ minWidth: '160px' }}>
                       <div className="flex flex-col">
-                        <div className="py-2 border-b border-slate-700/50">관리자 지급/회수</div>
+                        <div className="py-2 border-b border-slate-700/50 whitespace-nowrap">관리자 지급/회수</div>
                         <div className="flex">
-                          <div className="flex-1 py-2 border-r border-slate-700/50">지급</div>
-                          <div className="flex-1 py-2">회수</div>
+                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>지급</div>
+                          <div className="py-2 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>회수</div>
                         </div>
                       </div>
                     </th>
                     
                     {/* 입출 차액 */}
-                    <th className="px-4 py-3 text-center text-white font-normal bg-cyan-950/60 whitespace-nowrap">입출 차액</th>
-                    
+                    <th className="px-4 py-3 text-center text-white font-normal bg-cyan-950/60 whitespace-nowrap" style={{ minWidth: '120px' }}>입출 차액</th>
+
                     {/* 게임 실적 (카지노 베팅/카지노 당첨/슬롯베팅/슬롯당첨) - 2단 */}
                     <th className="px-4 py-0 text-center text-white font-normal bg-blue-950/60" rowSpan={1}>
                       <div className="flex flex-col">
-                        <div className="py-2 border-b border-slate-700/50">게임 실적</div>
+                        <div className="py-2 border-b border-slate-700/50 whitespace-nowrap">게임 실적</div>
                         <div className="flex">
-                          <div className="flex-1 py-2 border-r border-slate-700/50">카지노 베팅</div>
-                          <div className="flex-1 py-2 border-r border-slate-700/50">카지노 당첨</div>
-                          <div className="flex-1 py-2 border-r border-slate-700/50">슬롯베팅</div>
-                          <div className="flex-1 py-2">슬롯당첨</div>
+                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>카지노 베팅</div>
+                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>카지노 당첨</div>
+                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>슬롯베팅</div>
+                          <div className="py-2 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>슬롯당첨</div>
                         </div>
                       </div>
                     </th>
-                    
+
                     {/* GGR 합산 */}
-                    <th className="px-4 py-3 text-center text-white font-normal bg-amber-950/60 whitespace-nowrap">GGR 합산</th>
+                    <th className="px-4 py-3 text-center text-white font-normal bg-amber-950/60 whitespace-nowrap" style={{ minWidth: '140px' }}>GGR 합산</th>
                     
                     {/* 실정산 (총 롤링금/총 루징) - 2단 */}
-                    <th className="px-4 py-0 text-center text-white font-normal bg-teal-950/60" rowSpan={1}>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-teal-950/60" rowSpan={1} style={{ minWidth: '160px' }}>
                       <div className="flex flex-col">
-                        <div className="py-2 border-b border-slate-700/50">실정산</div>
+                        <div className="py-2 border-b border-slate-700/50 whitespace-nowrap">실정산</div>
                         <div className="flex">
-                          <div className="flex-1 py-2 border-r border-slate-700/50">총 롤링금</div>
-                          <div className="flex-1 py-2">총 루징</div>
+                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>총 롤링금</div>
+                          <div className="py-2 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>총 루징</div>
                         </div>
                       </div>
                     </th>
-                    
+
                     {/* 코드별 실정산 (롤링금/루징) - 2단 */}
-                    <th className="px-4 py-0 text-center text-white font-normal bg-emerald-950/70" rowSpan={1}>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-emerald-950/70" rowSpan={1} style={{ minWidth: '160px' }}>
                       <div className="flex flex-col">
-                        <div className="py-2 border-b border-slate-700/50">코드별 실정산</div>
+                        <div className="py-2 border-b border-slate-700/50 whitespace-nowrap">코드별 실정산</div>
                         <div className="flex">
-                          <div className="flex-1 py-2 border-r border-slate-700/50">롤링금</div>
-                          <div className="flex-1 py-2">루징</div>
+                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>롤링금</div>
+                          <div className="py-2 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>루징</div>
                         </div>
                       </div>
                     </th>

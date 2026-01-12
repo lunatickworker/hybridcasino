@@ -16,6 +16,7 @@ const IntegratedSettlement = lazy(() => import("../admin/IntegratedSettlement").
 const NewIntegratedSettlement = lazy(() => import("../admin/NewIntegratedSettlement").then(m => ({ default: m.NewIntegratedSettlement })));
 const Lv35Settlement = lazy(() => import("../admin/Lv35Settlement").then(m => ({ default: m.Lv35Settlement })));
 const Lv6Settlement = lazy(() => import("../admin/Lv6Settlement").then(m => ({ default: m.Lv6Settlement })));
+const PartnerDashboard = lazy(() => import("../admin/PartnerDashboard").then(m => ({ default: m.PartnerDashboard })));
 const SettlementHistory = lazy(() => import("../admin/SettlementHistory").then(m => ({ default: m.SettlementHistory })));
 const UserSettlement = lazy(() => import("../admin/UserSettlement"));
 const AdvancedSettlement = lazy(() => import("../admin/AdvancedSettlement"));
@@ -84,7 +85,7 @@ export function AdminRoutes({ currentRoute, user }: AdminRoutesProps) {
       return <PartnerConnectionStatus user={user} />;
     case '/admin/partner-dashboard':
     case '/admin/partners/dashboard':
-      return <Dashboard user={user} />;
+      return <PartnerDashboard user={user} />;
 
     // 정산 및 거래
     case '/admin/settlement':
