@@ -71,9 +71,7 @@ interface SummaryStats {
   slotWin: number;
   ggr: number;
   totalRolling: number;
-  totalLosing: number;
-  individualRolling: number;
-  individualLosing: number;
+  rollingProfit: number;
 }
 
 export function Lv35Settlement({ user }: Lv35SettlementProps) {
@@ -104,9 +102,7 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     slotWin: 0,
     ggr: 0,
     totalRolling: 0,
-    totalLosing: 0,
-    individualRolling: 0,
-    individualLosing: 0
+    rollingProfit: 0
   });
 
   // ✅ 모든 레벨 접근 가능 (Lv1~Lv6)
@@ -181,9 +177,7 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       slotWin: filtered.reduce((sum, r) => sum + r.slotWin, 0),
       ggr: filtered.reduce((sum, r) => sum + r.ggr, 0),
       totalRolling: filtered.reduce((sum, r) => sum + r.totalRolling, 0),
-      totalLosing: filtered.reduce((sum, r) => sum + r.totalLosing, 0),
-      individualRolling: filtered.reduce((sum, r) => sum + r.individualRolling, 0),
-      individualLosing: filtered.reduce((sum, r) => sum + r.individualLosing, 0)
+      rollingProfit: filtered.reduce((sum, r) => sum + r.totalRolling - r.totalLosing, 0)
     };
     setSummary(s);
   };
@@ -503,36 +497,27 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       {/* 필터 영역 */}
       <div className="glass-card rounded-xl p-6">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 mb-6">
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all shadow-lg shadow-slate-900/20">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-cyan-500/20 rounded-lg"><Wallet className="h-6 w-6 text-cyan-400" /></div><span className="text-2xl text-slate-400 font-medium">보유 머니</span></div>
-          <div className="text-3xl font-bold text-slate-100 font-asiahead ml-12">{formatNumber(summary.totalBalance)}</div>
-        </div>
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-4 border border-slate-700/50 hover:border-slate-600/50 transition-all shadow-lg shadow-slate-900/20">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-purple-500/20 rounded-lg"><Coins className="h-6 w-6 text-purple-400" /></div><span className="text-2xl text-slate-400 font-medium">보유 포인트</span></div>
-          <div className="text-3xl font-bold text-purple-400 font-asiahead ml-12">{formatNumber(summary.totalPoints)}</div>
-        </div>
+        {/* 첫 번째 행: 입금 / 출금 / 관리자지급 / 관리자 회수 */}
         <div className="bg-gradient-to-br from-emerald-900/50 to-slate-900 rounded-xl p-4 border border-emerald-700/30 hover:border-emerald-600/50 transition-all shadow-lg shadow-emerald-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-emerald-500/20 rounded-lg"><ArrowUpRight className="h-6 w-6 text-emerald-400" /></div><span className="text-2xl text-slate-400 font-medium">총 입금</span></div>
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-emerald-500/20 rounded-lg"><ArrowUpRight className="h-6 w-6 text-emerald-400" /></div><span className="text-2xl text-slate-400 font-medium">입금</span></div>
           <div className="text-3xl font-bold text-emerald-400 font-asiahead ml-12">{formatNumber(summary.onlineDeposit)}</div>
         </div>
         <div className="bg-gradient-to-br from-rose-900/50 to-slate-900 rounded-xl p-4 border border-rose-700/30 hover:border-rose-600/50 transition-all shadow-lg shadow-rose-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-rose-500/20 rounded-lg"><ArrowDownRight className="h-6 w-6 text-rose-400" /></div><span className="text-2xl text-slate-400 font-medium">총 출금</span></div>
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-rose-500/20 rounded-lg"><ArrowDownRight className="h-6 w-6 text-rose-400" /></div><span className="text-2xl text-slate-400 font-medium">출금</span></div>
           <div className="text-3xl font-bold text-rose-400 font-asiahead ml-12">{formatNumber(summary.onlineWithdrawal)}</div>
         </div>
         <div className="bg-gradient-to-br from-blue-900/50 to-slate-900 rounded-xl p-4 border border-blue-700/30 hover:border-blue-600/50 transition-all shadow-lg shadow-blue-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-blue-500/20 rounded-lg"><DollarSign className="h-6 w-6 text-blue-400" /></div><span className="text-2xl text-slate-400 font-medium">관리자 지급</span></div>
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-blue-500/20 rounded-lg"><DollarSign className="h-6 w-6 text-blue-400" /></div><span className="text-2xl text-slate-400 font-medium">관리자지급</span></div>
           <div className="text-3xl font-bold text-blue-400 font-asiahead ml-12">{formatNumber(summary.adminGiven)}</div>
         </div>
         <div className="bg-gradient-to-br from-orange-900/50 to-slate-900 rounded-xl p-4 border border-orange-700/30 hover:border-orange-600/50 transition-all shadow-lg shadow-orange-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-orange-500/20 rounded-lg"><DollarSign className="h-6 w-6 text-orange-400" /></div><span className="text-2xl text-slate-400 font-medium">관리자 회수</span></div>
           <div className="text-3xl font-bold text-orange-400 font-asiahead ml-12">{formatNumber(summary.adminTaken)}</div>
         </div>
-        <div className="bg-gradient-to-br from-cyan-900/50 to-slate-900 rounded-xl p-4 border border-cyan-700/30 hover:border-cyan-600/50 transition-all shadow-lg shadow-cyan-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-cyan-500/20 rounded-lg"><Activity className="h-6 w-6 text-cyan-400" /></div><span className="text-2xl text-slate-400 font-medium">입출차액</span></div>
-          <div className={cn("text-3xl font-bold font-asiahead ml-12", summary.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>{formatNumber(summary.depositWithdrawalDiff)}</div>
-        </div>
+
+        {/* 두 번째 행: 카지노베팅 / 카지노 당첨 / 슬롯 베팅 / 슬롯 당첨 */}
         <div className="bg-gradient-to-br from-violet-900/50 to-slate-900 rounded-xl p-4 border border-violet-700/30 hover:border-violet-600/50 transition-all shadow-lg shadow-violet-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-violet-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-violet-400" /></div><span className="text-2xl text-slate-400 font-medium">카지노 베팅</span></div>
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-violet-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-violet-400" /></div><span className="text-2xl text-slate-400 font-medium">카지노베팅</span></div>
           <div className="text-3xl font-bold text-violet-400 font-asiahead ml-12">{formatNumber(summary.casinoBet)}</div>
         </div>
         <div className="bg-gradient-to-br from-fuchsia-900/50 to-slate-900 rounded-xl p-4 border border-fuchsia-700/30 hover:border-fuchsia-600/50 transition-all shadow-lg shadow-fuchsia-900/10">
@@ -547,25 +532,23 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-lime-500/20 rounded-lg"><Coins className="h-6 w-6 text-lime-400" /></div><span className="text-2xl text-slate-400 font-medium">슬롯 당첨</span></div>
           <div className="text-3xl font-bold text-lime-400 font-asiahead ml-12">{formatNumber(summary.slotWin)}</div>
         </div>
+
+        {/* 세 번째 행: 입출 차액 / GGR / 총 롤링금 / 롤링수익 */}
+        <div className="bg-gradient-to-br from-cyan-900/50 to-slate-900 rounded-xl p-4 border border-cyan-700/30 hover:border-cyan-600/50 transition-all shadow-lg shadow-cyan-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-cyan-500/20 rounded-lg"><Activity className="h-6 w-6 text-cyan-400" /></div><span className="text-2xl text-slate-400 font-medium">입출 차액</span></div>
+          <div className={cn("text-3xl font-bold font-asiahead ml-12", summary.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>{formatNumber(summary.depositWithdrawalDiff)}</div>
+        </div>
         <div className="bg-gradient-to-br from-amber-800/50 to-slate-900 rounded-xl p-4 border border-amber-600/30 hover:border-amber-500/50 transition-all shadow-lg shadow-amber-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-amber-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-amber-400" /></div><span className="text-2xl text-slate-400 font-medium">GGR 합산</span></div>
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-amber-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-amber-400" /></div><span className="text-2xl text-slate-400 font-medium">GGR</span></div>
           <div className="text-3xl font-bold text-amber-400 font-asiahead ml-12">{formatNumber(summary.ggr)}</div>
         </div>
         <div className="bg-gradient-to-br from-sky-900/50 to-slate-900 rounded-xl p-4 border border-sky-700/30 hover:border-sky-600/50 transition-all shadow-lg shadow-sky-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-sky-500/20 rounded-lg"><Percent className="h-6 w-6 text-sky-400" /></div><span className="text-2xl text-slate-400 font-medium">총 롤링금</span></div>
           <div className="text-3xl font-bold text-sky-400 font-asiahead ml-12">{formatNumber(summary.totalRolling)}</div>
         </div>
-        <div className="bg-gradient-to-br from-red-900/50 to-slate-900 rounded-xl p-4 border border-red-700/30 hover:border-red-600/50 transition-all shadow-lg shadow-red-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-red-500/20 rounded-lg"><Percent className="h-6 w-6 text-red-400" /></div><span className="text-2xl text-slate-400 font-medium">총 루징</span></div>
-          <div className="text-3xl font-bold text-red-400 font-asiahead ml-12">{formatNumber(summary.totalLosing)}</div>
-        </div>
-        <div className="bg-gradient-to-br from-emerald-900/50 to-slate-900 rounded-xl p-4 border border-emerald-700/30 hover:border-emerald-600/50 transition-all shadow-lg shadow-emerald-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-emerald-500/20 rounded-lg"><Percent className="h-6 w-6 text-emerald-400" /></div><span className="text-2xl text-slate-400 font-medium">코드별 롤링금</span></div>
-          <div className="text-3xl font-bold text-emerald-400 font-asiahead ml-12">{formatNumber(summary.individualRolling)}</div>
-        </div>
-        <div className="bg-gradient-to-br from-pink-900/50 to-slate-900 rounded-xl p-4 border border-pink-700/30 hover:border-pink-600/50 transition-all shadow-lg shadow-pink-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-pink-500/20 rounded-lg"><Percent className="h-6 w-6 text-pink-400" /></div><span className="text-2xl text-slate-400 font-medium">코드별 루징</span></div>
-          <div className="text-3xl font-bold text-pink-400 font-asiahead ml-12">{formatNumber(summary.individualLosing)}</div>
+        <div className="bg-gradient-to-br from-green-900/50 to-slate-900 rounded-xl p-4 border border-green-700/30 hover:border-green-600/50 transition-all shadow-lg shadow-green-900/10">
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-green-500/20 rounded-lg"><Gift className="h-6 w-6 text-green-400" /></div><span className="text-2xl text-slate-400 font-medium">롤링수익</span></div>
+          <div className="text-3xl font-bold text-green-400 font-asiahead ml-12">{formatNumber(summary.rollingProfit)}</div>
         </div>
       </div>
         <div className="flex items-center gap-3 mb-4 flex-wrap">

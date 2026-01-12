@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Send, Trash2 } from "lucide-react";
+import { Send, Trash2, X } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
 import { Textarea } from "../../ui/textarea";
-import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle, AdminDialogFooter as DialogFooter, AdminDialogDescription as DialogDescription } from "../AdminDialog";
+import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle, AdminDialogFooter as DialogFooter, AdminDialogDescription as DialogDescription, AdminDialogClose as DialogClose } from "../AdminDialog";
 import { useLanguage } from "../../../contexts/LanguageContext";
 import { useBalance } from "../../../contexts/BalanceContext"; // ✅ API 활성화 상태 확인
 import { toast } from "sonner@2.0.3";
@@ -30,6 +30,7 @@ interface PartnerTransferDialogProps {
   currentUserBalance?: number; // ✅ 현재 사용자 보유금
   currentUserInvestBalance?: number; // ✅ Lv2 Invest balance
   currentUserOroplayBalance?: number; // ✅ Lv2 OroPlay balance
+  currentUserFamilyapiBalance?: number; // ✅ Lv2 Family API balance
 }
 
 export function PartnerTransferDialog({
@@ -48,11 +49,13 @@ export function PartnerTransferDialog({
   onWebSocketUpdate,
   currentUserBalance = 0,
   currentUserInvestBalance = 0,
-  currentUserOroplayBalance = 0
+  currentUserOroplayBalance = 0,
+  currentUserFamilyapiBalance = 0
 }: PartnerTransferDialogProps) {
   const { t } = useLanguage();
-  const { useInvestApi, useOroplayApi } = useBalance(); // ✅ API 활성화 상태
+  const { useInvestApi, useOroplayApi, investBalance, oroplayBalance, familyapiBalance, honorapiBalance } = useBalance(); // ✅ API 활성화 상태 및 모든 잔고
   const [currentUserLevel, setCurrentUserLevel] = useState<number | null>(null);
+  const [currentUserSelectedApis, setCurrentUserSelectedApis] = useState<string[]>([]); // ✅ 활성화된 API 목록
   const [apiType, setApiType] = useState<'invest' | 'oroplay'>('oroplay'); // ✅ Lv2용 API 선택 (기본값: oroplay)
 
   // 금액 단축 버튼
@@ -62,20 +65,21 @@ export function PartnerTransferDialog({
     500000, 1000000
   ];
 
-  // ✅ 현재 사용자 레벨 조회
+  // ✅ 현재 사용자 레벨 및 활성화된 API 조회
   useEffect(() => {
     if (!currentUserId) return;
 
-    const fetchUserLevel = async () => {
+    const fetchUserInfo = async () => {
       const { data, error } = await supabase
         .from('partners')
-        .select('level')
+        .select('level, selected_apis')
         .eq('id', currentUserId)
         .single();
 
       if (!error && data) {
         setCurrentUserLevel(data.level);
-        
+        setCurrentUserSelectedApis(data.selected_apis || []);
+
         // ✅ Lv2가 아니면 API 선택 불필요
         if (data.level !== 2) {
           setApiType('oroplay'); // 기본값 유지
@@ -83,11 +87,11 @@ export function PartnerTransferDialog({
       }
     };
 
-    fetchUserLevel();
+    fetchUserInfo();
   }, [currentUserId]);
 
-  // ✅ API 선택 표시 조건 (Lv2만)
-  const showApiSelector = currentUserLevel === 2;
+  // ✅ API 선택 기능 제거 - 완전히 숨김
+  const showApiSelector = false;
 
   // 금액 단축 버튼 클릭 (누적 더하기)
   const handleAmountShortcut = (value: number) => {
@@ -231,6 +235,10 @@ export function PartnerTransferDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
+          <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10">
+            <X className="h-8 w-8 text-slate-400 hover:text-slate-100" />
+            <span className="sr-only">닫기</span>
+          </DialogClose>
           <DialogTitle>
             <div className="flex items-center gap-2">
               <Send className="h-5 w-5" />
@@ -288,36 +296,23 @@ export function PartnerTransferDialog({
                 </div>
                 {currentUserLevel === 2 ? (
                   <div className="space-y-1.5">
-                    {/* ✅ Lv2: 노출된 게임사의 보유금 표시 */}
-                    {useInvestApi && currentUserInvestBalance > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-400">Invest API:</span>
-                        <span className="font-mono text-sm text-emerald-400">
-                          {currentUserInvestBalance.toLocaleString()}원
-                        </span>
-                      </div>
-                    )}
-                    {useOroplayApi && currentUserOroplayBalance > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-400">OroPlay API:</span>
-                        <span className="font-mono text-sm text-emerald-400">
-                          {currentUserOroplayBalance.toLocaleString()}원
-                        </span>
-                      </div>
-                    )}
-                    <div className="pt-1.5 mt-1.5 border-t border-emerald-700/30 flex items-center justify-between">
-                      <span className="text-sm text-emerald-400">입금 가능:</span>
-                      <span className="font-mono text-emerald-400 font-bold">
+                    {/* ✅ Lv2: 활성화된 API 총합 표시 */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-base text-emerald-400">활성화된 API 총합:</span>
+                      <span className="font-mono text-emerald-400 font-bold text-base">
                         {(() => {
-                          const balances = [];
-                          if (useInvestApi && currentUserInvestBalance > 0) balances.push(currentUserInvestBalance);
-                          if (useOroplayApi && currentUserOroplayBalance > 0) balances.push(currentUserOroplayBalance);
-                          return balances.length > 0 ? Math.min(...balances).toLocaleString() : '계산 없음';
+                          let total = 0;
+                          // selected_apis에 포함된 API들의 잔고만 합산
+                          if (currentUserSelectedApis.includes('invest')) total += investBalance;
+                          if (currentUserSelectedApis.includes('oroplay')) total += oroplayBalance;
+                          if (currentUserSelectedApis.includes('familyapi')) total += familyapiBalance;
+                          if (currentUserSelectedApis.includes('honorapi')) total += honorapiBalance;
+                          return total.toLocaleString();
                         })()}원
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-2">
-                      ※ Lv2 입금 시 Lv2 불용금을 활용합니다.
+                    <p className="text-xs text-slate-500 mt-1.5">
+                      {/* ※ 운영사는 외부 API와 자동 동기화되어 무제한 입금 가능합니다. */}
                     </p>
                   </div>
                 ) : (
@@ -435,7 +430,7 @@ export function PartnerTransferDialog({
             disabled={transferLoading || !transferAmount || parseFloat(transferAmount.replace(/,/g, '') || '0') <= 0}
             className={`w-full ${transferMode === 'deposit' ? 'btn-premium-warning' : 'btn-premium-danger'}`}
           >
-            {transferLoading ? t.partnerManagement.processing : t.partnerManagement.confirm}
+            {transferLoading ? '처리 중...' : transferMode === 'deposit' ? '파트너 입금' : '파트너 출금'}
           </Button>
         </DialogFooter>
       </DialogContent>

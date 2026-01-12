@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Trash2, TrendingUp, TrendingDown, Check, ChevronsUpDown } from "lucide-react";
+import { Search, Trash2, TrendingUp, TrendingDown, Check, ChevronsUpDown, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Textarea } from "../ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "../ui/command";
-import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle } from "./AdminDialog";
+import { AdminDialog as Dialog, AdminDialogContent as DialogContent, AdminDialogDescription as DialogDescription, AdminDialogFooter as DialogFooter, AdminDialogHeader as DialogHeader, AdminDialogTitle as DialogTitle, AdminDialogClose as DialogClose } from "./AdminDialog";
 import { toast } from "sonner@2.0.3";
 import { useBalance } from "../../contexts/BalanceContext"; // ✅ API 설정 조회
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -94,14 +94,8 @@ export function ForceTransactionModal({
   const currentBalance = selectedTarget ? parseFloat(selectedTarget.balance?.toString() || '0') : 0;
   const isTargetFixed = !!propSelectedTarget;
   
-  // ✅ Lv1 → Lv2 입출금 시에만 API 선택 표시
-  // Lv2 → Lv3+는 무조건 oroplay_balance 사용 (UserManagement와 동일)
-  // useGmsMoney가 true면 API 선택 숨김
-  const showApiSelector = !useGmsMoney && targetType === 'partner' && 
-                          (
-                            // Lv1 → Lv2: 입금/출금 모두 API 선택
-                            (currentUserLevel === 1 && selectedTarget?.level === 2)
-                          );
+  // ✅ API 선택 기능 제거 - 완전히 숨김
+  const showApiSelector = false;
 
   // 금액 단축 버튼 클릭 (누적 더하기)
   const handleAmountShortcut = (value: number) => {
@@ -242,17 +236,21 @@ export function ForceTransactionModal({
       onOpenChange(o);
     }}>
       <DialogContent className="sm:max-w-[600px]">
+        <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10">
+          <X className="h-8 w-8 text-slate-400 hover:text-slate-100" />
+          <span className="sr-only">닫기</span>
+        </DialogClose>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-2xl">
             {type === 'deposit' ? (
               <>
                 <TrendingUp className="h-6 w-6 text-emerald-500" />
-                강제 입금
+                파트너 입금
               </>
             ) : (
               <>
                 <TrendingDown className="h-6 w-6 text-rose-500" />
-                강제 출금
+                파트너 출금
               </>
             )}
           </DialogTitle>
@@ -415,11 +413,39 @@ export function ForceTransactionModal({
                 </div>
               ) : currentUserLevel === 2 ? (
                 <div className="space-y-1.5">
-                  {/* ✅ Lv2: API 동기화 안내 메시지 */}
+                  {/* ✅ Lv2: 활성화된 모든 API 보유금 총합 표시 */}
+                  {useInvestApi && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-400">Invest API:</span>
+                      <span className="font-mono text-base text-emerald-400/60">
+                        {currentUserInvestBalance.toLocaleString()}원
+                      </span>
+                    </div>
+                  )}
+                  {useOroplayApi && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-400">OroPlay API:</span>
+                      <span className="font-mono text-base text-emerald-400/60">
+                        {currentUserOroplayBalance.toLocaleString()}원
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
-                    <span className="text-base text-emerald-400">총 보유금:</span>
+                    <span className="text-sm text-slate-400">Family API:</span>
+                    <span className="font-mono text-base text-emerald-400/60">
+                      {currentUserFamilyapiBalance.toLocaleString()}원
+                    </span>
+                  </div>
+                  <div className="pt-1.5 mt-1.5 border-t border-emerald-700/30 flex items-center justify-between">
+                    <span className="text-base text-emerald-400">활성화된 API 총합:</span>
                     <span className="font-mono text-emerald-400 font-bold text-base">
-                      {(currentUserInvestBalance + currentUserOroplayBalance + currentUserFamilyapiBalance).toLocaleString()}원
+                      {(() => {
+                        let total = 0;
+                        if (useInvestApi) total += currentUserInvestBalance;
+                        if (useOroplayApi) total += currentUserOroplayBalance;
+                        total += currentUserFamilyapiBalance; // Family는 항상 포함
+                        return total.toLocaleString();
+                      })()}원
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-1.5">
