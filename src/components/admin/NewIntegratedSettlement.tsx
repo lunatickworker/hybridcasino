@@ -350,8 +350,8 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const casinoWin = relevantGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
     const slotBet = Math.abs(relevantGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
     const slotWin = relevantGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
-    const casinoWinLoss = casinoBet + casinoWin;
-    const slotWinLoss = slotBet + slotWin;
+    const casinoWinLoss = casinoBet - casinoWin;
+    const slotWinLoss = slotBet - slotWin;
     const ggr = casinoWinLoss + slotWinLoss;
     const casinoTotalRolling = casinoBet * (casinoRollingRate / 100);
     const slotTotalRolling = slotBet * (slotRollingRate / 100);
@@ -363,7 +363,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const totalLosing = casinoTotalLosing + slotTotalLosing;
     const individualRolling = totalRolling;
     const individualLosing = totalLosing;
-    const depositWithdrawalDiff = onlineDeposit + onlineWithdrawal + manualDeposit + manualWithdrawal;
+    const depositWithdrawalDiff = onlineDeposit - onlineWithdrawal + manualDeposit - manualWithdrawal;
 
     // 공베팅 적용: 해당 레벨이 활성화되어 있고 공베팅이 전체 활성화된 경우
     const gongBetRateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;

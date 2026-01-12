@@ -405,8 +405,8 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       .filter(gr => gr.game_type === 'slot')
       .reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
 
-    const casinoWinLoss = casinoBet + casinoWin;
-    const slotWinLoss = slotBet + slotWin;
+    const casinoWinLoss = casinoBet - casinoWin;
+    const slotWinLoss = slotBet - slotWin;
     const ggr = casinoWinLoss + slotWinLoss;
 
     const casinoTotalRolling = casinoBet * (casinoRollingRate / 100);
@@ -422,7 +422,7 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     const individualRolling = totalRolling;
     const individualLosing = totalLosing;
 
-    const depositWithdrawalDiff = onlineDeposit + onlineWithdrawal + adminGiven + adminTaken;
+    const depositWithdrawalDiff = onlineDeposit + adminGiven - onlineWithdrawal - adminTaken;
 
     return {
       level,
