@@ -379,13 +379,19 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       
       const processedPartnerTransactions = partnerTransactionsData.map(pt => {
         const partnerInfo = partnerInfoMap.get(pt.partner_id);
+        const fromPartnerInfo = partnerInfoMap.get(pt.from_partner_id);
+        const toPartnerInfo = partnerInfoMap.get(pt.to_partner_id);
+        
         return {
           ...pt,
           partner_nickname: partnerInfo?.nickname || '',
           partner_username: partnerInfo?.username || '',
-          from_partner_nickname: partnerInfoMap.get(pt.from_partner_id)?.nickname || '',
-          to_partner_nickname: partnerInfoMap.get(pt.to_partner_id)?.nickname || '',
+          from_partner_nickname: fromPartnerInfo?.nickname || '',
+          to_partner_nickname: toPartnerInfo?.nickname || '',
           processed_by_nickname: partnerInfoMap.get(pt.processed_by)?.nickname || '',
+          // ✅ 파트너 레벨 정보 추가 (Lv2 거래 필터링용)
+          from_partner_level: fromPartnerInfo?.level || 0,
+          to_partner_level: toPartnerInfo?.level || 0,
           // ✅ Lv2인 경우 총 보유금(4개 지갑 합계) 표시, 그 외는 balance 사용
           balance_after_total: partnerInfo ? calculateTotalBalance(partnerInfo) : parseFloat(pt.balance_after?.toString() || '0')
         };
@@ -1725,6 +1731,16 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                                        transactionTypeFilter === 'partner_withdrawal')
       ? partnerTransactions
         .filter(pt => {
+          // ✅ Lv2가 출금하고 다른 레벨이 입금하는 경우 제외
+          // from_partner_level이 2(Lv2)이고 to_partner_level이 2가 아닌 경우 제외
+          if (pt.from_partner_level === 2 && pt.to_partner_level !== 2 && pt.transaction_type === 'withdrawal') {
+            return false; // Lv2 출금 제외
+          }
+          // to_partner_level이 2(Lv2)이고 from_partner_level이 2가 아닌 경우 제외
+          if (pt.to_partner_level === 2 && pt.from_partner_level !== 2 && pt.transaction_type === 'deposit') {
+            return false; // Lv2 입금 제외
+          }
+          
           // 날짜 필터 (created_at이 null인 경우 포함)
           const dateMatch = !pt.created_at || (
             new Date(pt.created_at) >= new Date(dateRange.start) && 
