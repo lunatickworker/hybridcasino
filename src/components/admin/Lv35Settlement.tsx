@@ -367,8 +367,20 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     partners: any[],
     users: any[]
   ): SettlementRow => {
-    // 모든 레벨에서 본인 데이터만 계산
-    const relevantUserIdsForTransactions: string[] = [entityId];
+    // Lv3~Lv6: 본인 + 하위 파트너 + 회원들의 데이터를 합산하여 정산 계산
+    let relevantUserIdsForTransactions: string[] = [];
+
+    if (level >= 3 && level <= 6) {
+      // 본인 추가
+      relevantUserIdsForTransactions.push(entityId);
+
+      // 하위 파트너들의 모든 회원들 추가
+      const descendantUserIds = getAllDescendantUserIds(entityId, partners, users);
+      relevantUserIdsForTransactions = relevantUserIdsForTransactions.concat(descendantUserIds);
+    } else {
+      // Lv1, Lv2: 본인 데이터만 계산
+      relevantUserIdsForTransactions = [entityId];
+    }
     const userTransactions = transactions.filter(t => relevantUserIdsForTransactions.includes(t.user_id));
 
     // ✅ 온라인 입출금

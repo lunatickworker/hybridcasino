@@ -307,6 +307,16 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     }
   };
 
+  const getAllDescendantUserIds = (partnerId: string, allPartners: any[], allUsers: any[]): string[] => {
+    const directUsers = allUsers.filter(u => u.referrer_id === partnerId).map(u => u.id);
+    const childPartners = allPartners.filter(p => p.parent_id === partnerId);
+    let allUsers_ids = [...directUsers];
+    for (const childPartner of childPartners) {
+      allUsers_ids = allUsers_ids.concat(getAllDescendantUserIds(childPartner.id, allPartners, allUsers));
+    }
+    return allUsers_ids;
+  };
+
   const processSettlementData = (
     partners: any[],
     users: any[],
@@ -364,7 +374,22 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     pointTransactions: any[],
     gameRecords: any[]
   ): SettlementRow => {
-    const userTransactions = transactions.filter(t => t.user_id === entityId);
+    // Lv6: 본인 + 하위 회원들의 데이터를 합산하여 정산 계산
+    let relevantUserIdsForTransactions: string[] = [];
+
+    if (level === 6) {
+      // 본인 추가
+      relevantUserIdsForTransactions.push(entityId);
+
+      // 하위 회원들의 모든 데이터 추가 (Lv7 회원들)
+      const descendantUserIds = getAllDescendantUserIds(entityId, [], []);
+      relevantUserIdsForTransactions = relevantUserIdsForTransactions.concat(descendantUserIds);
+    } else {
+      // Lv7 회원: 본인 데이터만 계산
+      relevantUserIdsForTransactions = [entityId];
+    }
+
+    const userTransactions = transactions.filter(t => relevantUserIdsForTransactions.includes(t.user_id));
 
     // ✅ 온라인 입출금
     const onlineDeposit = userTransactions
