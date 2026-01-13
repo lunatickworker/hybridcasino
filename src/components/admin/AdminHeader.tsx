@@ -573,7 +573,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           console.error('❌ 출금 조회 실패:', withdrawalError);
         }
 
-        const dailyWithdrawal = withdrawalData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+        const dailyWithdrawal = withdrawalData?.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0) || 0;
 
         // 3️⃣ 게임중인 사용자 수 - game_launch_sessions 테이블에서 status='active'인 세션만
         const { count: onlineCount, error: onlineError } = await supabase
@@ -1460,27 +1460,21 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
     setIsChangingPassword(true);
     try {
-      // 현재 비밀번호 확인
-      const { data: partnerData, error: fetchError } = await supabase
-        .from('partners')
-        .select('password')
-        .eq('id', user.id)
-        .single();
+      // 현재 비밀번호 확인 (partner_login RPC 사용)
+      const { data: loginResult, error: loginError } = await supabase.rpc('partner_login', {
+        p_username: user.username,
+        p_password: passwordForm.currentPassword
+      });
 
-      if (fetchError || !partnerData) {
-        throw new Error('사용자 정보를 불러올 수 없습니다.');
-      }
-
-      // 현재 비밀번호 검증
-      if (partnerData.password !== passwordForm.currentPassword) {
+      if (loginError || !loginResult) {
         throw new Error('현재 비밀번호가 올바르지 않습니다.');
       }
 
-      // 비밀번호 업데이트
+      // 비밀번호 업데이트 (직접 업데이트 - password_hash 컬럼 사용)
       const { error: updateError } = await supabase
         .from('partners')
         .update({
-          password: passwordForm.newPassword,
+          password_hash: passwordForm.newPassword, // 임시: 평문 저장 (나중에 crypt 함수로 변경)
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);

@@ -377,7 +377,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
 
       const withdrawal = dayTransactions
         .filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && t.status === 'completed')
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
+        .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
       // 관리자 입금/출금: transactions + partner_balance_logs - IntegratedSettlement와 동일한 조건
       const adminDepositFromTransactions = dayTransactions
@@ -386,7 +386,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
 
       const adminWithdrawalFromTransactions = dayTransactions
         .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed')
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
+        .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
       // partner_balance_logs에서 본인에게 입금된 금액 (from_partner_id가 다른 사람, to_partner_id가 본인)
       const adminDepositFromLogs = dayPartnerBalanceLogs
@@ -396,7 +396,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
       // partner_balance_logs에서 본인에게서 출금된 금액 (from_partner_id가 본인, to_partner_id가 다른 사람)
       const adminWithdrawalFromLogs = dayPartnerBalanceLogs
         .filter(l => l.from_partner_id === user.id && l.transaction_type === 'withdrawal')
-        .reduce((sum, l) => sum + (l.amount || 0), 0);
+        .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
 
       const adminDeposit = adminDepositFromTransactions + adminDepositFromLogs;
       const adminWithdrawal = adminWithdrawalFromTransactions + adminWithdrawalFromLogs;

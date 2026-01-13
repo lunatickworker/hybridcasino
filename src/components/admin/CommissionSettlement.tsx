@@ -195,7 +195,7 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
 
         const withdrawal = transactions
           .filter(t => t.transaction_type === 'withdrawal' && t.status === 'approved')
-          .reduce((sum, t) => sum + (t.amount || 0), 0);
+          .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
         const adminDeposit = transactions
           .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'approved')
@@ -203,7 +203,7 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
 
         const adminWithdrawal = transactions
           .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'approved')
-          .reduce((sum, t) => sum + (t.amount || 0), 0);
+          .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
         const pointGiven = pointTransactions
           .filter(pt => pt.type === 'admin_give')

@@ -342,12 +342,12 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const partnerTransactions = transactions.filter(t => (t.transaction_type === 'partner_deposit' || t.transaction_type === 'partner_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
 
     const onlineDeposit = userTransactions.filter(t => (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
-    const onlineWithdrawal = userTransactions.filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const onlineWithdrawal = userTransactions.filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
     const adminDepositFromTransactions = partnerTransactions.filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
-    const adminWithdrawalFromTransactions = partnerTransactions.filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const adminWithdrawalFromTransactions = partnerTransactions.filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
     const relevantBalanceLogs = partnerBalanceLogs.filter(l => relevantPartnerIdsForTransactions.includes(l.partner_id) || relevantPartnerIdsForTransactions.includes(l.from_partner_id) || relevantPartnerIdsForTransactions.includes(l.to_partner_id));
     const manualDepositFromLogs = relevantBalanceLogs.filter(l => l.transaction_type === 'deposit').reduce((sum, l) => sum + (l.amount || 0), 0);
-    const manualWithdrawalFromLogs = relevantBalanceLogs.filter(l => l.transaction_type === 'withdrawal').reduce((sum, l) => sum + (l.amount || 0), 0);
+    const manualWithdrawalFromLogs = relevantBalanceLogs.filter(l => l.transaction_type === 'withdrawal').reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
     const manualDeposit = adminDepositFromTransactions + manualDepositFromLogs;
     const manualWithdrawal = adminWithdrawalFromTransactions + manualWithdrawalFromLogs;
     const userPointTrans = pointTransactions.filter(pt => relevantUserIdsForTransactions.includes(pt.user_id));
@@ -373,10 +373,9 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const totalLosing = casinoTotalLosing + slotTotalLosing;
     const individualRolling = totalRolling;
     const individualLosing = totalLosing;
-    // ✅ 버그 수정: 출금이 이미 음수로 저장되어 있으므로 더하기만 하면 됨
-    // (입금 1000000) + (출금 -1000000) = 0 (올바름)
-    // (입금 1000000) - (출금 -1000000) = 2000000 (잘못됨)
-    const depositWithdrawalDiff = onlineDeposit + onlineWithdrawal + manualDeposit + manualWithdrawal;
+    // ✅ 수정: 출금은 양수로 저장되어 있으므로 뺄셈 처리
+    // (입금 10000) - (출금 10000) = 0 (올바름)
+    const depositWithdrawalDiff = onlineDeposit - onlineWithdrawal + manualDeposit - manualWithdrawal;
 
     // 공베팅 적용: 해당 레벨이 활성화되어 있고 공베팅이 전체 활성화된 경우
     const gongBetRateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;

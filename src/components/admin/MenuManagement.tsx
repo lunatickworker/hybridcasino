@@ -155,21 +155,22 @@ export function MenuManagement({ user }: MenuManagementProps) {
       const userMenuPermissions = (data?.menu_permissions || []) as string[];
       
       // menu_permissions 테이블에서 현재 사용자에게 허용된 메뉴만 조회
-      if (userMenuPermissions.length > 0) {
-        const { data: menus, error: menuError } = await supabase
-          .from('menu_permissions')
-          .select('*')
-          .in('menu_path', userMenuPermissions)
-          .eq('is_visible', true)
-          .order('display_order', { ascending: true })
-          .order('menu_name', { ascending: true });
+      // ✅ 수정: menu_permissions가 null이거나 빈 배열이면 모든 메뉴 표시 (AdminSidebar 로직과 동일)
+      let query = supabase
+        .from('menu_permissions')
+        .select('*')
+        .eq('is_visible', true)
+        .order('display_order', { ascending: true })
+        .order('menu_name', { ascending: true });
 
-        if (menuError) throw menuError;
-        setAllMenus(menus || []);
-      } else {
-        // 메뉴 권한이 없으면 빈 배열
-        setAllMenus([]);
+      // menu_permissions가 있으면 필터링, 없으면 전체 메뉴 표시
+      if (userMenuPermissions.length > 0) {
+        query = query.in('menu_path', userMenuPermissions);
       }
+
+      const { data: menus, error: menuError } = await query;
+      if (menuError) throw menuError;
+      setAllMenus(menus || []);
     } catch (error: any) {
       console.error('사용자 메뉴 권한 로드 실패:', error);
       toast.error('메뉴 목록을 불러오는데 실패했습니다.');
@@ -289,11 +290,23 @@ export function MenuManagement({ user }: MenuManagementProps) {
       return;
     }
 
+    if (!selectedPartner) {
+      toast.error('파트너 정보가 없습니다.');
+      return;
+    }
+
     try {
       setSaving(true);
 
+      console.log('🔄 [메뉴 저장] 시작:', {
+        partnerId: selectedPartnerId,
+        partnerLevel: selectedPartner.level,
+        menuCount: enabledMenuPaths.length,
+        currentUserLevel: user.level
+      });
+
       // partners 테이블의 menu_permissions JSONB 컬럼 업데이트
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('partners')
         .update({ 
           menu_permissions: enabledMenuPaths,
@@ -301,13 +314,38 @@ export function MenuManagement({ user }: MenuManagementProps) {
         })
         .eq('id', selectedPartnerId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [메뉴 저장] DB 에러:', {
+          error,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
+        throw error;
+      }
 
-      toast.success('메뉴 권한이 저장되었습니다.');
+      console.log('✅ [메뉴 저장] 성공:', {
+        partnerId: selectedPartnerId,
+        partnerName: selectedPartner.nickname,
+        menuCount: enabledMenuPaths.length
+      });
+
+      toast.success(`${selectedPartner.nickname}의 메뉴 권한이 저장되었습니다.`);
       setHasChanges(false);
     } catch (error: any) {
-      console.error('메뉴 권한 저장 실패:', error);
-      toast.error('메뉴 권한 저장에 실패했습니다.');
+      console.error('❌ [메뉴 저장] 실패:', error);
+      
+      // 상세한 에러 메시지 표시
+      let errorMessage = '메뉴 권한 저장에 실패했습니다.';
+      if (error.message) {
+        errorMessage += ` (${error.message})`;
+      }
+      if (error.code) {
+        errorMessage += ` [${error.code}]`;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }

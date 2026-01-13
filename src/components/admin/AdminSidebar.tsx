@@ -167,7 +167,26 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
   useEffect(() => {
     loadMenusFromDB();
 
-    // ✅ Realtime 구독 1: 메뉴 권한 변경 감지
+    // ✅ Realtime 구독 1: partners 테이블의 menu_permissions 변경 감지 (가장 중요!)
+    const partnersChannel = supabase
+      .channel('partners_menu_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'partners',
+          filter: `id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('🔄 [AdminSidebar] 본인 파트너 정보 변경 감지:', payload);
+          // 메뉴 다시 로드
+          loadMenusFromDB();
+        }
+      )
+      .subscribe();
+
+    // ✅ Realtime 구독 2: 메뉴 권한 변경 감지 (legacy)
     const permissionsChannel = supabase
       .channel('menu_permissions_changes')
       .on(
@@ -186,7 +205,7 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       )
       .subscribe();
 
-    // ✅ Realtime 구독 2: 메뉴 마스터 데이터 변경 감지
+    // ✅ Realtime 구독 3: 메뉴 마스터 데이터 변경 감지
     const menuMasterChannel = supabase
       .channel('menu_master_changes')
       .on(
@@ -205,6 +224,7 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       .subscribe();
 
     return () => {
+      supabase.removeChannel(partnersChannel);
       supabase.removeChannel(permissionsChannel);
       supabase.removeChannel(menuMasterChannel);
     };
@@ -216,7 +236,12 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
     setLoadingMenus(true);
     try {
       // ✅ 1단계: 해당 파트너의 menu_permissions JSONB 조회
-      console.log('📋 [메뉴 로드] 파트너의 메뉴 권한 조회:', user.id);
+      console.log('📋 [메뉴 로드] 시작:', {
+        userId: user.id,
+        userLevel: user.level,
+        username: user.username,
+        nickname: user.nickname
+      });
       
       const { data: partnerData, error: partnerError } = await supabase
         .from('partners')
@@ -228,8 +253,20 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
         console.error('❌ 파트너 메뉴 권한 조회 실패:', partnerError);
       }
       
+      console.log('📋 [메뉴 로드] DB 조회 결과:', {
+        partnerData,
+        menu_permissions_type: typeof partnerData?.menu_permissions,
+        menu_permissions_isArray: Array.isArray(partnerData?.menu_permissions),
+        menu_permissions_value: partnerData?.menu_permissions
+      });
+      
       const allowedMenuPaths = partnerData?.menu_permissions || [];
-      console.log('✅ [메뉴 로드] 허용된 메뉴 경로:', allowedMenuPaths);
+      console.log('✅ [메뉴 로드] 허용된 메뉴 경로:', {
+        allowedMenuPaths,
+        count: allowedMenuPaths.length,
+        isArray: Array.isArray(allowedMenuPaths),
+        isEmpty: allowedMenuPaths.length === 0
+      });
       
       // ✅ 2단계: DB에서 메뉴 데이터 조회 (is_visible = true인 메뉴만)
       console.log('📋 [메뉴 로드] DB에서 메뉴 조회 시작');
@@ -261,12 +298,23 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       console.log(`✅ [메뉴 로드] ${dbMenus.length}개 메뉴 조회 완료`);
       
       // ✅ 3단계: 파트너에게 허용된 메뉴만 필터링
+      console.log('📋 [메뉴 로드] 필터링 조건 체크:', {
+        hasAllowedMenuPaths: !!allowedMenuPaths,
+        allowedMenuPathsLength: allowedMenuPaths.length,
+        willFilter: allowedMenuPaths && allowedMenuPaths.length > 0
+      });
+      
       // allowedMenuPaths가 null/undefined이거나 빈 배열이면 모든 메뉴 표시 (기본값)
       const filteredMenus = allowedMenuPaths && allowedMenuPaths.length > 0
         ? dbMenus.filter(menu => allowedMenuPaths.includes(menu.menu_path))
         : dbMenus;
       
-      console.log(`✅ [메뉴 로드] 필터링 후 ${filteredMenus.length}개 메뉴`);
+      console.log('✅ [메뉴 로드] 필터링 결과:', {
+        원본메뉴개수: dbMenus.length,
+        필터링후메뉴개수: filteredMenus.length,
+        필터링됨: dbMenus.length !== filteredMenus.length,
+        필터링된메뉴들: filteredMenus.map(m => m.menu_path)
+      });
       
       const converted = convertDbMenusToMenuItems(filteredMenus);
       const hasDashboard = converted.some(m => m.path === '/admin/dashboard');

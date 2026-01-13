@@ -712,7 +712,7 @@ export function Dashboard({ user }: DashboardProps) {
           .in('user_id', directUserIds)
           .gte('created_at', todayStartISO);
         
-        directWithdrawal = withdrawalData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+        directWithdrawal = withdrawalData?.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0) || 0;
       }
 
       // 3️⃣ 하위 파트너 회원 입금
@@ -740,7 +740,7 @@ export function Dashboard({ user }: DashboardProps) {
           .in('user_id', subPartnerUserIds)
           .gte('created_at', todayStartISO);
         
-        subPartnerWithdrawal = withdrawalData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+        subPartnerWithdrawal = withdrawalData?.reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0) || 0;
       }
 
       // 3️⃣ 사용자 수
