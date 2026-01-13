@@ -367,16 +367,17 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     partners: any[],
     users: any[]
   ): SettlementRow => {
-    // Lv3~Lv6: 본인 + 하위 파트너 + 회원들의 데이터를 합산하여 정산 계산
+    // ✅ 수정: 직속 회원 데이터 합산
+    // 각 파트너 행은 "해당 파트너의 직속 회원들"의 게임 데이터를 기반으로 계산
     let relevantUserIdsForTransactions: string[] = [];
 
     if (level >= 3 && level <= 6) {
-      // 본인 추가
-      relevantUserIdsForTransactions.push(entityId);
-
-      // 하위 파트너들의 모든 회원들 추가
-      const descendantUserIds = getAllDescendantUserIds(entityId, partners, users);
-      relevantUserIdsForTransactions = relevantUserIdsForTransactions.concat(descendantUserIds);
+      // ✅ 해당 파트너의 직속 회원들의 데이터만 합산
+      const directUserIds = users.filter(u => u.referrer_id === entityId).map(u => u.id);
+      relevantUserIdsForTransactions = directUserIds;
+    } else if (level === 0) {
+      // 회원: 본인 데이터만 계산
+      relevantUserIdsForTransactions = [entityId];
     } else {
       // Lv1, Lv2: 본인 데이터만 계산
       relevantUserIdsForTransactions = [entityId];

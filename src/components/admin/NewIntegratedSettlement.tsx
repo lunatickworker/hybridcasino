@@ -323,8 +323,18 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     casinoRollingRate: number, casinoLosingRate: number, slotRollingRate: number, slotLosingRate: number,
     transactions: any[], pointTransactions: any[], gameRecords: any[], partners: any[], users: any[], partnerBalanceLogs: any[]
   ): SettlementRow => {
-    // 모든 레벨에서 본인 데이터만 계산 (하위 데이터 합산 제거)
-    const relevantUserIdsForTransactions: string[] = [entityId];
+    // ✅ 수정: 직속 회원 데이터 합산
+    // 각 파트너 행은 "해당 파트너의 직속 회원들"의 게임 데이터를 기반으로 계산
+    let relevantUserIdsForTransactions: string[] = [];
+
+    if (level >= 3 && level <= 6) {
+      // ✅ 파트너 (Lv3-6): 직속 회원 데이터만 합산 (본인 제외)
+      const directUserIds = users.filter(u => u.referrer_id === entityId).map(u => u.id);
+      relevantUserIdsForTransactions = directUserIds;
+    } else {
+      // Lv1, Lv2, 회원(Lv0): 본인 데이터만 계산
+      relevantUserIdsForTransactions = [entityId];
+    }
     const userTransactions = transactions.filter(t => relevantUserIdsForTransactions.includes(t.user_id));
 
     // 파트너의 경우 본인의 잔액 로그만 계산

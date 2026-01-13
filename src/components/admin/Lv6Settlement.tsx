@@ -332,7 +332,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       const row = calculateRowData(partner.id, partner.username, partner.level, partner.balance || 0, 0,
         partner.casino_rolling_commission || 0, partner.casino_losing_commission || 0,
         partner.slot_rolling_commission || 0, partner.slot_losing_commission || 0,
-        transactions, pointTransactions, gameRecords);
+        transactions, pointTransactions, gameRecords, partners, users);
       rows.push({
         ...row,
         type: 'partner',
@@ -348,7 +348,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
         userItem.casino_losing_commission || userItem.casino_losing_rate || 0,
         userItem.slot_rolling_commission || userItem.slot_rolling_rate || 0,
         userItem.slot_losing_commission || userItem.slot_losing_rate || 0,
-        transactions, pointTransactions, gameRecords);
+        transactions, pointTransactions, gameRecords, partners, users);
       rows.push({
         ...row,
         type: 'member',
@@ -372,18 +372,18 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     slotLosingRate: number,
     transactions: any[],
     pointTransactions: any[],
-    gameRecords: any[]
+    gameRecords: any[],
+    partners: any[],
+    users: any[]
   ): SettlementRow => {
-    // Lv6: 본인 + 하위 회원들의 데이터를 합산하여 정산 계산
+    // ✅ 수정: 직속 회원 데이터 합산
+    // 각 파트너 행은 "해당 파트너의 직속 회원들"의 게임 데이터를 기반으로 계산
     let relevantUserIdsForTransactions: string[] = [];
 
     if (level === 6) {
-      // 본인 추가
-      relevantUserIdsForTransactions.push(entityId);
-
-      // 하위 회원들의 모든 데이터 추가 (Lv7 회원들)
-      const descendantUserIds = getAllDescendantUserIds(entityId, [], []);
-      relevantUserIdsForTransactions = relevantUserIdsForTransactions.concat(descendantUserIds);
+      // ✅ Lv6 파트너: 직속 회원들의 데이터만 합산 (본인 제외)
+      const directUserIds = users.filter(u => u.referrer_id === entityId).map(u => u.id);
+      relevantUserIdsForTransactions = directUserIds;
     } else {
       // Lv7 회원: 본인 데이터만 계산
       relevantUserIdsForTransactions = [entityId];
@@ -421,8 +421,8 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     // ✅ 현금정산
     const cashSettlement = manualCharge + manualExchange + partnerCharge + partnerExchange;
 
-    // ✅ 게임 기록
-    const relevantGameRecords = gameRecords.filter(gr => gr.user_id === entityId);
+    // ✅ 게임 기록 (직속 회원 데이터 합산)
+    const relevantGameRecords = gameRecords.filter(gr => relevantUserIdsForTransactions.includes(gr.user_id));
 
     const casinoBet = Math.abs(relevantGameRecords
       .filter(gr => gr.game_type === 'casino')
