@@ -252,6 +252,10 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
 
   const calculateSummary = (rows: SettlementRow[]) => {
     const filtered = getFilteredRows(rows);
+    // ✅ 베팅 금액: Lv0 회원만 (39800)
+    // ✅ 롤링금: 모든 행 합산 (회원롤링 + 매장롤링 + ...)
+    const membersOnly = filtered.filter(r => r.level === 0);
+    
     setSummary({
       totalBalance: filtered.reduce((sum, r) => sum + r.balance, 0),
       totalPoints: filtered.reduce((sum, r) => sum + r.points, 0),
@@ -262,9 +266,9 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       pointGiven: filtered.reduce((sum, r) => sum + r.pointGiven, 0),
       pointRecovered: filtered.reduce((sum, r) => sum + r.pointRecovered, 0),
       depositWithdrawalDiff: filtered.reduce((sum, r) => sum + r.depositWithdrawalDiff, 0),
-      casinoBet: filtered.reduce((sum, r) => sum + r.casinoBet, 0),
+      casinoBet: membersOnly.reduce((sum, r) => sum + r.casinoBet, 0),
       casinoWin: filtered.reduce((sum, r) => sum + r.casinoWin, 0),
-      slotBet: filtered.reduce((sum, r) => sum + r.slotBet, 0),
+      slotBet: membersOnly.reduce((sum, r) => sum + r.slotBet, 0),
       slotWin: filtered.reduce((sum, r) => sum + r.slotWin, 0),
       ggr: filtered.reduce((sum, r) => sum + r.ggr, 0),
       totalRolling: filtered.reduce((sum, r) => sum + r.totalRolling, 0),
@@ -331,8 +335,16 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       // ✅ 파트너 (Lv3-6): 직속 회원 데이터만 합산 (본인 제외)
       const directUserIds = users.filter(u => u.referrer_id === entityId).map(u => u.id);
       relevantUserIdsForTransactions = directUserIds;
+    } else if (level === 2) {
+      // ✅ Lv2 (운영사): 자신의 직속 파트너들(Lv3-6)의 직속 회원들을 합산
+      const directPartnerIds = partners.filter(p => p.parent_id === entityId).map(p => p.id);
+      const directUserIds = users.filter(u => directPartnerIds.includes(u.referrer_id)).map(u => u.id);
+      relevantUserIdsForTransactions = directUserIds;
+    } else if (level === 1) {
+      // ✅ Lv1 (시스템관리자): 모든 회원들을 합산
+      relevantUserIdsForTransactions = users.map(u => u.id);
     } else {
-      // Lv1, Lv2, 회원(Lv0): 본인 데이터만 계산
+      // Lv0 회원: 본인 데이터만 계산
       relevantUserIdsForTransactions = [entityId];
     }
     const userTransactions = transactions.filter(t => relevantUserIdsForTransactions.includes(t.user_id));
@@ -383,10 +395,19 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const gongBetAppliedRolling = isGongBetApplied ? totalRolling * (1 - gongBetRateNum / 100) : totalRolling;
     const gongBetCutRolling = isGongBetApplied ? totalRolling * (gongBetRateNum / 100) : 0;
 
-    // 개별 공베팅 계산 금액
-    const casinoGongBetAmount = casinoGongBetEnabled ? casinoBet * (gongBetRateNum / 100) : 0;
-    const slotGongBetAmount = slotGongBetEnabled ? slotBet * (gongBetRateNum / 100) : 0;
-    const cutRollingAmount = cutRollingEnabled ? totalRolling * (gongBetRateNum / 100) : 0;
+    // ✅ 게임타입별 절삭 롤링금 계산 (공베팅 적용 시 각 게임별로 절삭)
+    const casinoGongBetCutRolling = isGongBetApplied ? casinoTotalRolling * (gongBetRateNum / 100) : 0;
+    const slotGongBetCutRolling = isGongBetApplied ? slotTotalRolling * (gongBetRateNum / 100) : 0;
+
+    // ✅ 공베팅차 = 절삭 롤링금을 각 게임의 롤링률로 역산
+    // (절삭 롤링금이 원래 어느 정도 베팅에서 나왔는지 계산)
+    const casinoGongBetAmount = casinoGongBetEnabled && casinoRollingRate > 0 
+      ? casinoGongBetCutRolling / (casinoRollingRate / 100)
+      : 0;
+    const slotGongBetAmount = slotGongBetEnabled && slotRollingRate > 0 
+      ? slotGongBetCutRolling / (slotRollingRate / 100)
+      : 0;
+    const cutRollingAmount = cutRollingEnabled ? gongBetCutRolling : 0;
 
     return {
       level, levelName: getLevelName(level), id: entityId, username,
