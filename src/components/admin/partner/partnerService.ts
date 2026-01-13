@@ -38,11 +38,11 @@ export const fetchPartners = async (currentUserId: string, userLevel: number) =>
     if (error) throw error;
     allPartners = data || [];
   } else {
-    // 일반 파트너: 직접 재귀적으로 모든 하위 파트너 조회 (RPC 사용 안 함)
-    const allPartnerIds: string[] = [currentUserId];
+    // 일반 파트너: 직접 재귀적으로 모든 하위 파트너 조회 (본인 제외)
+    const allPartnerIds: string[] = [];
     let currentLevelIds = [currentUserId];
     
-    // 최대 6단계까지 재귀 조회 (Lv2 -> Lv7)
+    // 최대 6단계까지 재귀 조회 (Lv2 -> Lv3,4,5,6 / Lv3 -> Lv4,5,6)
     for (let level = 0; level < 6; level++) {
       if (currentLevelIds.length === 0) break;
       
@@ -62,11 +62,8 @@ export const fetchPartners = async (currentUserId: string, userLevel: number) =>
       }
     }
     
-    // 모든 하위 파트너의 전체 정보 조회 (커미션 필드 포함)
-    if (allPartnerIds.length > 1) {
-      // 자기 자신 제외
-      const childIds = allPartnerIds.filter(id => id !== currentUserId);
-      
+    // 모든 하위 파트너의 전체 정보 조회 (본인 제외, 커미션 필드 포함)
+    if (allPartnerIds.length > 0) {
       const { data, error } = await supabase
         .from('partners')
         .select(`
@@ -90,7 +87,7 @@ export const fetchPartners = async (currentUserId: string, userLevel: number) =>
           created_at,
           last_login_at
         `)
-        .in('id', childIds);
+        .in('id', allPartnerIds);
       
       if (error) throw error;
       allPartners = data || [];

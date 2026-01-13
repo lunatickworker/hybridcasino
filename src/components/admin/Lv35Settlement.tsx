@@ -217,20 +217,20 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
 
   const fetchSettlementData = async () => {
     if (!dateRange?.from || !dateRange?.to) return;
-    
+
     setLoading(true);
     try {
       // ✅ Lv3~Lv5: 하위 파트너만 조회
       let allowedPartnerIds: string[] = [];
-      
+
       // get_hierarchical_partners RPC 사용
       const { data: hierarchicalPartners } = await supabase
         .rpc('get_hierarchical_partners', { p_partner_id: user.id });
-      
+
       if (hierarchicalPartners) {
         allowedPartnerIds = hierarchicalPartners.map((p: any) => p.id);
       }
-      
+
       // 본인 제외
       allowedPartnerIds = allowedPartnerIds.filter(id => id !== user.id);
 

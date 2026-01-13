@@ -56,7 +56,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
   const [showGongBetModal, setShowGongBetModal] = useState(false);
   const [gongBetEnabled, setGongBetEnabled] = useState(false);
   const [gongBetLevels, setGongBetLevels] = useState<{ [key: number]: boolean }>({
-    3: false, 4: false, 5: false, 6: false, 7: false
+    3: false, 4: false, 5: false, 6: false
   });
   const [gongBetRate, setGongBetRate] = useState<number>(0);
 
@@ -132,7 +132,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
 
         // 각 설정값을 안전하게 추출하고 설정
         setGongBetEnabled(gongSettings.gongBetEnabled === true);
-        setGongBetLevels(gongSettings.gongBetLevels || { 3: false, 4: false, 5: false, 6: false, 7: false });
+        setGongBetLevels(gongSettings.gongBetLevels || { 3: false, 4: false, 5: false, 6: false });
         setGongBetRate(typeof gongSettings.gongBetRate === 'number' ? gongSettings.gongBetRate : 0);
         setCasinoGongBetEnabled(gongSettings.casinoGongBetEnabled === true);
         setSlotGongBetEnabled(gongSettings.slotGongBetEnabled === true);
@@ -143,7 +143,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       console.log('ℹ️ 공베팅 설정이 없어 기본값 사용 (신규 사용자)');
       // 설정이 없으면 기본값으로 초기화
       setGongBetEnabled(false);
-      setGongBetLevels({ 3: false, 4: false, 5: false, 6: false, 7: false });
+      setGongBetLevels({ 3: false, 4: false, 5: false, 6: false });
       setGongBetRate(0);
       setCasinoGongBetEnabled(false);
       setSlotGongBetEnabled(false);
@@ -154,7 +154,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     toast.error('설정 로드에 실패했습니다.');
     // 에러 시에도 기본값 설정
     setGongBetEnabled(false);
-    setGongBetLevels({ 3: false, 4: false, 5: false, 6: false, 7: false });
+    setGongBetLevels({ 3: false, 4: false, 5: false, 6: false });
     setGongBetRate(0);
     setCasinoGongBetEnabled(false);
     setSlotGongBetEnabled(false);
@@ -373,7 +373,10 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const totalLosing = casinoTotalLosing + slotTotalLosing;
     const individualRolling = totalRolling;
     const individualLosing = totalLosing;
-    const depositWithdrawalDiff = onlineDeposit - onlineWithdrawal + manualDeposit - manualWithdrawal;
+    // ✅ 버그 수정: 출금이 이미 음수로 저장되어 있으므로 더하기만 하면 됨
+    // (입금 1000000) + (출금 -1000000) = 0 (올바름)
+    // (입금 1000000) - (출금 -1000000) = 2000000 (잘못됨)
+    const depositWithdrawalDiff = onlineDeposit + onlineWithdrawal + manualDeposit + manualWithdrawal;
 
     // 공베팅 적용: 해당 레벨이 활성화되어 있고 공베팅이 전체 활성화된 경우
     const gongBetRateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
@@ -869,7 +872,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
               <div className="space-y-4">
                 <Label className="text-lg font-medium text-white">공베팅 적용 레벨</Label>
                 <div className="grid grid-cols-2 gap-4">
-                  {[3, 4, 5, 6, 7].map((level) => (
+                  {[3, 4, 5, 6].map((level) => (
                     <div key={level} className="flex items-center space-x-3 p-4 bg-slate-800/30 rounded-lg border border-slate-700/50">
                       <Switch
                         id={`level-${level}`}
@@ -889,7 +892,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
                         size="lg"
                       />
                       <Label htmlFor={`level-${level}`} className="text-base text-white font-medium cursor-pointer">
-                        {level === 3 ? '본사' : level === 4 ? '부본사' : level === 5 ? '총판' : level === 6 ? '매장' : '특별'}
+                        {level === 3 ? '본사' : level === 4 ? '부본사' : level === 5 ? '총판' : level === 6 ? '매장' : ''}
                       </Label>
                     </div>
                   ))}

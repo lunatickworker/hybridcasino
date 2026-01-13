@@ -50,7 +50,7 @@ export function PartnerDashboard({ user }: PartnerDashboardProps) {
   const [showGongBetModal, setShowGongBetModal] = useState(false);
   const [gongBetEnabled, setGongBetEnabled] = useState(false);
   const [gongBetLevels, setGongBetLevels] = useState<{ [key: number]: boolean }>({
-    3: false, 4: false, 5: false, 6: false, 7: false
+    3: false, 4: false, 5: false, 6: false
   });
   const [gongBetRate, setGongBetRate] = useState<number | ''>('');
 
@@ -82,7 +82,7 @@ export function PartnerDashboard({ user }: PartnerDashboardProps) {
         console.log('✅ 파트너 공베팅 보드 - 공베팅 설정 로드됨:', gongSettings);
 
         setGongBetEnabled(gongSettings.gongBetEnabled === true);
-        setGongBetLevels(gongSettings.gongBetLevels || { 3: false, 4: false, 5: false, 6: false, 7: false });
+        setGongBetLevels(gongSettings.gongBetLevels || { 3: false, 4: false, 5: false, 6: false });
         setGongBetRate(typeof gongSettings.gongBetRate === 'number' ? gongSettings.gongBetRate : '');
         setCasinoGongBetEnabled(gongSettings.casinoGongBetEnabled === true);
         setSlotGongBetEnabled(gongSettings.slotGongBetEnabled === true);
@@ -92,7 +92,7 @@ export function PartnerDashboard({ user }: PartnerDashboardProps) {
       } else {
         console.log('ℹ️ 파트너 공베팅 보드 - 공베팅 설정이 없어 기본값 사용');
         setGongBetEnabled(false);
-        setGongBetLevels({ 3: false, 4: false, 5: false, 6: false, 7: false });
+        setGongBetLevels({ 3: false, 4: false, 5: false, 6: false });
         setGongBetRate('');
         setCasinoGongBetEnabled(false);
         setSlotGongBetEnabled(false);
@@ -101,7 +101,7 @@ export function PartnerDashboard({ user }: PartnerDashboardProps) {
     } catch (error) {
       console.error('❌ 파트너 공베팅 보드 - 공베팅 설정 로드 실패:', error);
       setGongBetEnabled(false);
-      setGongBetLevels({ 3: false, 4: false, 5: false, 6: false, 7: false });
+      setGongBetLevels({ 3: false, 4: false, 5: false, 6: false });
       setGongBetRate('');
       setCasinoGongBetEnabled(false);
       setSlotGongBetEnabled(false);
@@ -678,7 +678,7 @@ export function PartnerDashboard({ user }: PartnerDashboardProps) {
               <div className="space-y-4">
                 <Label className="text-lg font-medium text-white">공베팅 적용 레벨</Label>
                 <div className="grid grid-cols-2 gap-4">
-                  {[3, 4, 5, 6, 7].map((level) => (
+                  {[3, 4, 5, 6].map((level) => (
                     <div key={level} className="flex items-center space-x-3 p-4 bg-slate-800/30 rounded-lg border border-slate-700/50">
                       <Switch
                         id={`level-${level}`}
@@ -698,7 +698,7 @@ export function PartnerDashboard({ user }: PartnerDashboardProps) {
                         size="lg"
                       />
                       <Label htmlFor={`level-${level}`} className="text-base text-white font-medium cursor-pointer">
-                        {level === 3 ? '본사' : level === 4 ? '부본사' : level === 5 ? '총판' : level === 6 ? '매장' : '특별'}
+                        {level === 3 ? '본사' : level === 4 ? '부본사' : level === 5 ? '총판' : level === 6 ? '매장' : ''}
                       </Label>
                     </div>
                   ))}

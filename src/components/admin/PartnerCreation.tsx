@@ -174,28 +174,60 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
   const loadPartners = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('partners')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let allPartners: any[] = [];
 
-      // 🎯 모든 사용자: 본인과 하위 파트너 조회
       if (user.level === 1) {
-        // 시스템 관리자는 모든 파트너 조회 (제한 없음)
+        // 시스템 관리자: 모든 파트너 직접 조회
+        const { data, error } = await supabase
+          .from('partners')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        allPartners = data || [];
       } else {
-        // 다른 레벨은 본인 + 하위 파트너만 조회
-        query = query.or(`parent_id.eq.${user.id},id.eq.${user.id}`);
+        // 일반 파트너: 재귀적으로 모든 하위 파트너 조회
+        const allPartnerIds: string[] = [];
+        let currentLevelIds = [user.id];
+        
+        // 최대 6단계까지 재귀 조회 (Lv2 -> Lv3,4,5,6 / Lv3 -> Lv4,5,6)
+        for (let level = 0; level < 6; level++) {
+          if (currentLevelIds.length === 0) break;
+          
+          const { data: nextLevelPartners, error } = await supabase
+            .from('partners')
+            .select('id')
+            .in('parent_id', currentLevelIds);
+          
+          if (error) throw error;
+          
+          if (nextLevelPartners && nextLevelPartners.length > 0) {
+            const nextIds = nextLevelPartners.map(p => p.id);
+            allPartnerIds.push(...nextIds);
+            currentLevelIds = nextIds;
+          } else {
+            break;
+          }
+        }
+        
+        // 모든 하위 파트너의 전체 정보 조회
+        if (allPartnerIds.length > 0) {
+          const { data, error } = await supabase
+            .from('partners')
+            .select('*')
+            .in('id', allPartnerIds)
+            .order('created_at', { ascending: false });
+          
+          if (error) throw error;
+          allPartners = data || [];
+        }
       }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
       
-      console.log('✅ [파트너생성관리] 로드된 파트너 수:', data?.length, '현재 사용자 ID:', user.id);
-      console.log('✅ [파트너생성관리] 파트너 목록:', data);
+      console.log('✅ [파트너생성관리] 로드된 파트너 수:', allPartners.length, '현재 사용자 ID:', user.id);
+      console.log('✅ [파트너생성관리] 파트너 목록:', allPartners);
       
       // ✅ 중복 제거: ID 기준으로 유니크한 파트너만 유지
-      const uniquePartners = data?.reduce((acc, current) => {
+      const uniquePartners = allPartners.reduce((acc, current) => {
         const exists = acc.find(p => p.id === current.id);
         if (!exists) {
           acc.push(current);
@@ -203,7 +235,7 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
           console.warn('⚠️ [loadPartners] 중복된 파트너 ID 발견:', current.id, current.username);
         }
         return acc;
-      }, [] as typeof data) || [];
+      }, [] as typeof allPartners);
       
       setPartners(uniquePartners);
     } catch (error) {
