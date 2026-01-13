@@ -611,17 +611,17 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
 const syncHonorApiBettingHistory = async (partnerId: string) => {
   try {
     console.log('🎮 [HONORAPI-SYNC] Betting history sync started');
-    
-    // 베팅 내역 동기화 실행
-    const result = await honorApiModule.syncHonorApiBettingHistory();
-    
+
+    // 베팅 내역 동기화 실행 (partnerId 전달)
+    const result = await honorApiModule.syncHonorApiBettingHistory(partnerId);
+
     if (!result.success) {
       console.error('❌ [HONORAPI-SYNC] 동기화 실패:', result.error);
       return;
     }
-    
+
     console.log(`✅ [HONORAPI-SYNC] 완료: ${result.recordsSaved}/${result.recordsProcessed}건 저장`);
-    
+
   } catch (error) {
     console.error('❌ [HONORAPI-SYNC] 오류:', error);
   }

@@ -396,13 +396,13 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
       toast.error(t.partnerCreation.enterPassword);
       return false;
     }
-    
-    // 상위 파트너 선택 필수
-    if (!formData.parent_id || formData.parent_id.trim() === '') {
-      toast.error('상위 파트너를 선택해주세요.');
+
+    // Lv3~Lv6 생성 시 상위 파트너 선택 필수
+    if (formData.level >= 3 && (!formData.parent_id || formData.parent_id.trim() === '')) {
+      toast.error('파트너 생성 시 상위 파트너를 반드시 선택해야 합니다.');
       return false;
     }
-    
+
     return true;
   };
 

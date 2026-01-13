@@ -279,8 +279,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           .maybeSingle(); // ⭐ single() → maybeSingle()
         
         if (!lv1Partner) {
-          console.warn('⚠️ Lv1 파트너를 찾을 수 없습니다 (OroPlay 동기화)');
-          toast.error('Lv1 파트너가 존재하지 않습니다. 시스템 관리자에게 문의하세요.');
+          console.warn('⚠️ 시스템 파트너를 찾을 수 없습니다 (OroPlay 동기화)');
+          toast.error('시스템 파트너가 존재하지 않습니다. 시스템 관리자에게 문의하세요.');
           return;
         }
         partnerId = lv1Partner.id;
@@ -483,25 +483,27 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
   // ✅ 실제 데이터 로드 (사용자 + 관리자 입출금 포함) - 계층 구조 필터링
   useEffect(() => {
-    const fetchHeaderStats = async () => {
+    const fetchHeaderStats = async (forceReload = false) => {
       try {
         // 시스템 타임존 기준 오늘 0시
         const todayStartISO = getTodayStartUTC();
-        
+
         // 🔍 Hierarchical filtering: self + child partners' users
         let allowedUserIds: string[] = [];
-        
+        let allowedPartnerIds: string[] = [];
+
         if (user.level === 1) {
-          // System admin: all users
+          // System admin: all users, all partners
           const { data: allUsers } = await supabase
             .from('users')
             .select('id');
           allowedUserIds = allUsers?.map(u => u.id).filter(id => id != null) || [];
+          allowedPartnerIds = []; // 빈 배열 = 모든 파트너
         } else {
           // Partner: child partners + own users
           const { data: hierarchicalPartners, error: hierarchyError } = await supabase
             .rpc('get_hierarchical_partners', { p_partner_id: user.id });
-          
+
           if (hierarchyError) {
             // Supabase 연결 안 됨 - 조용히 실패
             if (hierarchyError?.message?.includes('Failed to fetch')) {
@@ -509,19 +511,20 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             }
             console.error('❌ Child partners fetch failed:', hierarchyError);
           }
-          
+
           const partnerIds = [user.id, ...(hierarchicalPartners?.map((p: any) => p.id) || [])];
-          
+          allowedPartnerIds = partnerIds;
+
           // Get users with these partners as referrer_id
           const { data: partnerUsers, error: usersError } = await supabase
             .from('users')
             .select('id, username, referrer_id')
             .in('referrer_id', partnerIds);
-          
+
           if (usersError) {
             console.error('❌ Partner users fetch failed:', usersError);
           }
-          
+
           allowedUserIds = partnerUsers?.map(u => u.id).filter(id => id != null) || [];
         }
 
@@ -604,39 +607,95 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           .eq('receiver_type', 'partner')
           .is('parent_id', null);
 
-        // 🔔 7️⃣ 입금요청 대기 수 - 사용자 입금 + 관리자 입금
-        const { count: userDepositCount } = await supabase
-          .from('transactions')
-          .select('id', { count: 'exact', head: true })
-          .eq('transaction_type', 'deposit')
-          .eq('status', 'pending')
-          .in('user_id', allowedUserIds);
-        
-        const { count: adminDepositCount } = await supabase
-          .from('transactions')
-          .select('id', { count: 'exact', head: true })
-          .eq('transaction_type', 'partner_deposit')
-          .eq('status', 'pending')
-          .neq('partner_id', user.id); // 본인이 신청한 것은 제외
-        
-        const pendingDepositsCount = (userDepositCount || 0) + (adminDepositCount || 0);
+        // 🔔 7️⃣ 입금요청 대기 수 - 사용자 입금 + 관리자 입금 (조직격리 적용)
+        let pendingDepositsCount = 0;
+        try {
+          const { count: userDepositCount, error: userDepositError } = await supabase
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .eq('transaction_type', 'deposit')
+            .eq('status', 'pending')
+            .in('user_id', allowedUserIds);
 
-        // 🔔 8️⃣ 출금요청 대기 수 - 사용자 출금 + 관리자 출금
-        const { count: userWithdrawalCount } = await supabase
-          .from('transactions')
-          .select('id', { count: 'exact', head: true })
-          .eq('transaction_type', 'withdrawal')
-          .eq('status', 'pending')
-          .in('user_id', allowedUserIds);
-        
-        const { count: adminWithdrawalCount } = await supabase
-          .from('transactions')
-          .select('id', { count: 'exact', head: true })
-          .eq('transaction_type', 'partner_withdrawal')
-          .eq('status', 'pending')
-          .neq('partner_id', user.id); // 본인이 신청한 것은 제외
-        
-        const pendingWithdrawalsCount = (userWithdrawalCount || 0) + (adminWithdrawalCount || 0);
+          if (userDepositError) {
+            console.error('❌ 사용자 입금 대기 수 조회 실패:', userDepositError);
+          }
+
+          // 관리자 입금 신청도 조직격리 적용
+          let adminDepositQuery = supabase
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .eq('transaction_type', 'partner_deposit')
+            .eq('status', 'pending')
+            .neq('partner_id', user.id); // 본인이 신청한 것은 제외
+
+          // Lv1이 아닌 경우 하위 조직만
+          if (user.level !== 1) {
+            adminDepositQuery = adminDepositQuery.in('partner_id', allowedPartnerIds);
+          }
+
+          const { count: adminDepositCount, error: adminDepositError } = await adminDepositQuery;
+
+          if (adminDepositError) {
+            console.error('❌ 관리자 입금 대기 수 조회 실패:', adminDepositError);
+          }
+
+          pendingDepositsCount = (userDepositCount || 0) + (adminDepositCount || 0);
+          console.log('🔔 입금요청 대기 수 (조직격리 적용):', {
+            userDepositCount,
+            adminDepositCount,
+            allowedPartnerIds: user.level === 1 ? 'all' : allowedPartnerIds,
+            total: pendingDepositsCount
+          });
+        } catch (error) {
+          console.error('❌ 입금요청 대기 수 조회 실패:', error);
+          pendingDepositsCount = 0;
+        }
+
+        // 🔔 8️⃣ 출금요청 대기 수 - 사용자 출금 + 관리자 출금 (조직격리 적용)
+        let pendingWithdrawalsCount = 0;
+        try {
+          const { count: userWithdrawalCount, error: userWithdrawalError } = await supabase
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .eq('transaction_type', 'withdrawal')
+            .eq('status', 'pending')
+            .in('user_id', allowedUserIds);
+
+          if (userWithdrawalError) {
+            console.error('❌ 사용자 출금 대기 수 조회 실패:', userWithdrawalError);
+          }
+
+          // 관리자 출금 신청도 조직격리 적용
+          let adminWithdrawalQuery = supabase
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .eq('transaction_type', 'partner_withdrawal')
+            .eq('status', 'pending')
+            .neq('partner_id', user.id); // 본인이 신청한 것은 제외
+
+          // Lv1이 아닌 경우 하위 조직만
+          if (user.level !== 1) {
+            adminWithdrawalQuery = adminWithdrawalQuery.in('partner_id', allowedPartnerIds);
+          }
+
+          const { count: adminWithdrawalCount, error: adminWithdrawalError } = await adminWithdrawalQuery;
+
+          if (adminWithdrawalError) {
+            console.error('❌ 관리자 출금 대기 수 조회 실패:', adminWithdrawalError);
+          }
+
+          pendingWithdrawalsCount = (userWithdrawalCount || 0) + (adminWithdrawalCount || 0);
+          console.log('🔔 출금요청 대기 수 (조직격리 적용):', {
+            userWithdrawalCount,
+            adminWithdrawalCount,
+            allowedPartnerIds: user.level === 1 ? 'all' : allowedPartnerIds,
+            total: pendingWithdrawalsCount
+          });
+        } catch (error) {
+          console.error('❌ 출금요청 대기 수 조회 실패:', error);
+          pendingWithdrawalsCount = 0;
+        }
 
         // 💰 9️⃣ 총 잔고 (소속 사용자들의 balance 합계)
         const { data: usersBalanceData } = await supabase
@@ -747,39 +806,49 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             if (transaction.status === 'pending') {
               // ✅ 관리자 입출금 신청 처리 (partner_deposit, partner_withdrawal)
               if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_withdrawal') {
-                // ✅ 신청자 본인에게는 알람 표시 안 함
-                // Lv2만 알림 받기 (단, 본인이 아닌 경우만)
-                if (user.level === 2 && transaction.partner_id !== user.id) {
-                  const memo = transaction.memo || '';
-                  
-                  if (transaction.transaction_type === 'partner_deposit') {
-                    toast.info('새로운 관리자 입금 신청이 있습니다.', {
-                      description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
-                      duration: 10000,
-                      position: 'bottom-left',
-                      action: {
-                        label: '확인',
-                        onClick: () => {
-                          if (onRouteChange) {
-                            onRouteChange('/admin/transactions#deposit-request');
+                // ✅ 신청자 본인에게는 알람 표시 안 함 + 조직격리 적용
+                if (transaction.partner_id !== user.id) {
+                  // Lv1: 모든 관리자 신청 알림, Lv2+: 자신의 하위 조직만
+                  let shouldNotify = false;
+                  if (user.level === 1) {
+                    shouldNotify = true;
+                  } else {
+                    // 신청한 파트너가 자신의 하위 조직인지 확인
+                    shouldNotify = allowedPartnerIds.includes(transaction.partner_id);
+                  }
+
+                  if (shouldNotify) {
+                    const memo = transaction.memo || '';
+
+                    if (transaction.transaction_type === 'partner_deposit') {
+                      toast.info('새로운 관리자 입금 신청이 있습니다.', {
+                        description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
+                        duration: 10000,
+                        position: 'bottom-left',
+                        action: {
+                          label: '확인',
+                          onClick: () => {
+                            if (onRouteChange) {
+                              onRouteChange('/admin/transactions#deposit-request');
+                            }
                           }
                         }
-                      }
-                    });
-                  } else if (transaction.transaction_type === 'partner_withdrawal') {
-                    toast.warning('새로운 관리자 출금 신청이 있습니다.', {
-                      description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
-                      duration: 10000,
-                      position: 'bottom-left',
-                      action: {
-                        label: '확인',
-                        onClick: () => {
-                          if (onRouteChange) {
-                            onRouteChange('/admin/transactions#withdrawal-request');
+                      });
+                    } else if (transaction.transaction_type === 'partner_withdrawal') {
+                      toast.warning('새로운 관리자 출금 신청이 있습니다.', {
+                        description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
+                        duration: 10000,
+                        position: 'bottom-left',
+                        action: {
+                          label: '확인',
+                          onClick: () => {
+                            if (onRouteChange) {
+                              onRouteChange('/admin/transactions#withdrawal-request');
+                            }
                           }
                         }
-                      }
-                    });
+                      });
+                    }
                   }
                 }
                 return; // 관리자 신청은 여기서 처리 완료

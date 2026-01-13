@@ -137,9 +137,36 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loadingMenus, setLoadingMenus] = useState(true);
 
+  // ✅ 현재 경로의 메뉴가 속한 그룹을 자동으로 펼치기
+  useEffect(() => {
+    if (currentRoute && menuItems.length > 0) {
+      const routeWithoutHash = currentRoute.split('#')[0];
+
+      // 현재 경로와 일치하는 메뉴의 부모 그룹 찾기
+      const findParentGroup = (items: MenuItem[]): string | null => {
+        for (const item of items) {
+          if (item.children && item.children.length > 0) {
+            // 그룹 메뉴인 경우 자식들 중에 일치하는 메뉴가 있는지 확인
+            const hasMatchingChild = item.children.some(child => child.path === routeWithoutHash);
+            if (hasMatchingChild) {
+              return item.id;
+            }
+          }
+        }
+        return null;
+      };
+
+      const parentGroupId = findParentGroup(menuItems);
+      if (parentGroupId && !expandedItems.includes(parentGroupId)) {
+        console.log('🔄 알림 카드 클릭으로 인한 자동 메뉴 펼침:', parentGroupId);
+        setExpandedItems(prev => [...prev, parentGroupId]);
+      }
+    }
+  }, [currentRoute, menuItems]);
+
   useEffect(() => {
     loadMenusFromDB();
-    
+
     // ✅ Realtime 구독 1: 메뉴 권한 변경 감지
     const permissionsChannel = supabase
       .channel('menu_permissions_changes')
@@ -365,7 +392,9 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
   const renderMenuItem = (item: MenuItem, depth: number = 0) => {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedItems.includes(item.id);
-    const isActive = currentRoute === item.path;
+    // ✅ URL 해시 제거 후 경로 매칭 (예: /admin/transactions#deposit-request -> /admin/transactions)
+    const routeWithoutHash = currentRoute?.split('#')[0];
+    const isActive = routeWithoutHash === item.path;
     const Icon = item.icon;
 
     return (

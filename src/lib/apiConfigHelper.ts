@@ -355,7 +355,7 @@ export async function updateInvestBalance(partnerId: string, balance: number): P
           })
           .eq('id', lv2.id);
       }
-      console.log(`✅ [API Config] Lv2 invest_balance 동기화 완료: ${balance.toLocaleString()}`);
+      console.log(`✅ [API Config] 운영사 invest_balance 동기화 완료: ${balance.toLocaleString()}`);
     }
 
     return true;
@@ -403,7 +403,7 @@ export async function updateOroplayBalance(partnerId: string, balance: number): 
           })
           .eq('id', lv2.id);
       }
-      console.log(`✅ [API Config] Lv2 oroplay_balance 동기화 완료: ${balance.toLocaleString()}`);
+      console.log(`✅ [API Config] 운영사 oroplay_balance 동기화 완료: ${balance.toLocaleString()}`);
     }
 
     return true;
@@ -590,7 +590,7 @@ export async function updateHonorApiBalance(partnerId: string, balance: number):
           })
           .eq('id', lv2.id);
       }
-      console.log(`✅ [API Config] Lv2 honorapi_balance 동기화 완료: ${balance.toLocaleString()}`);
+      console.log(`✅ [API Config]  운영사 honorapi_balance 동기화 완료: ${balance.toLocaleString()}`);
     }
 
     return true;

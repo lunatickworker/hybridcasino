@@ -41,9 +41,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   
   // URL 해시에서 탭 정보 읽기
   const getInitialTab = () => {
-    const hash = window.location.hash.substring(1);
-    if (hash === 'deposit-request' || hash === 'withdrawal-request' || hash === 'completed-history') {
-      return hash;
+    const fullHash = window.location.hash; // #/admin/transactions#deposit-request
+    const anchorIndex = fullHash.indexOf('#', 1); // 두 번째 # 찾기
+
+    if (anchorIndex !== -1) {
+      const anchor = fullHash.substring(anchorIndex + 1); // deposit-request
+      if (anchor === 'deposit-request' || anchor === 'withdrawal-request' || anchor === 'completed-history') {
+        return anchor;
+      }
     }
     return "completed-history";
   };
@@ -55,9 +60,36 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   const [pointTransactions, setPointTransactions] = useState<any[]>([]);
   const [partnerTransactions, setPartnerTransactions] = useState<any[]>([]); // 파트너 거래 추가
   const [users, setUsers] = useState<User[]>([]);
-  
+
+  // ✅ 조직 관리: 허용된 파트너 ID 리스트 (자신 + 하위 조직)
+  const [allowedPartnerIds, setAllowedPartnerIds] = useState<string[]>([]);
+
+  // ✅ 허용된 파트너 ID 로드
+  useEffect(() => {
+    const loadAllowedPartners = async () => {
+      if (user.level === 1) {
+        // Lv1: 모든 파트너 허용 (빈 배열 = 필터링 없음)
+        setAllowedPartnerIds([]);
+      } else {
+        // 자신과 하위 파트너 조회
+        const { data } = await supabase.rpc('get_hierarchical_partners', { p_partner_id: user.id });
+        const partnerIds = [user.id, ...(data?.map((p: any) => p.id) || [])];
+        setAllowedPartnerIds(partnerIds);
+        console.log('🗂️ [TransactionManagement] 허용 파트너 ID 로드 완료:', partnerIds);
+
+        // ✅ 파트너 ID 로드 완료 후 데이터 리로드 (출금신청 탭 문제 해결)
+        if (!initialLoading) {
+          console.log('🔄 [TransactionManagement] 파트너 ID 로드 후 데이터 리로드');
+          loadData(false);
+        }
+      }
+    };
+
+    loadAllowedPartners();
+  }, [user.id, user.level]);
+
   // 필터 상태
-  const [periodFilter, setPeriodFilter] = useState("today");
+  const [periodFilter, setPeriodFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [transactionTypeFilter, setTransactionTypeFilter] = useState("all"); // all, user, admin, point
   
@@ -112,11 +144,24 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     const checkHash = () => {
       const fullHash = window.location.hash; // #/admin/transactions#deposit-request
       const anchorIndex = fullHash.indexOf('#', 1); // 두 번째 # 찾기
-      
+
       if (anchorIndex !== -1) {
         const anchor = fullHash.substring(anchorIndex + 1); // deposit-request
+        console.log('🔄 [TransactionManagement] 해시 변경 감지:', { fullHash, anchor, anchorIndex });
+
         if (anchor === 'deposit-request' || anchor === 'withdrawal-request' || anchor === 'deposit-history' || anchor === 'withdrawal-history') {
+          console.log('✅ [TransactionManagement] 탭 변경 및 데이터 로드:', anchor);
           setActiveTab(anchor);
+          // ✅ 초기 로딩 중이더라도 탭 변경 시 즉시 데이터 로드
+          // 출금신청 탭의 경우 특별히 강제로 로드하여 버그 방지
+          if (anchor === 'withdrawal-request') {
+            console.log('🔄 [TransactionManagement] 출금신청 탭 강제 데이터 로드');
+            setTimeout(() => loadData(false), 50); // 약간의 지연 후 로드
+          } else {
+            loadData(false);
+          }
+        } else {
+          console.log('❌ [TransactionManagement] 지원하지 않는 탭:', anchor);
         }
       }
     };
@@ -124,75 +169,110 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     checkHash(); // 마운트 시 즉시 실행
 
     const handleHashChange = () => {
+      console.log('🎯 [TransactionManagement] hashchange 이벤트 발생');
       checkHash();
     };
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
+  }, []); // ✅ initialLoading 의존성 제거
 
   // ⚡ 데이터 로드 최적화 (병렬 쿼리)
-  const loadData = async (isInitial = false) => {
-    console.log('🔄 loadData 호출됨, isInitial:', isInitial, 'periodFilter:', periodFilter);
-    
+  const loadData = async (isInitial = false, skipSetRefreshing = false) => {
+    // Determine current tab from URL hash to ensure correct date range
+    const fullHash = window.location.hash;
+    const anchorIndex = fullHash.indexOf('#', 1);
+    const currentTab = anchorIndex !== -1 ? fullHash.substring(anchorIndex + 1) : 'completed-history';
+
+    console.log('🔄 loadData 호출됨, isInitial:', isInitial, 'periodFilter:', periodFilter, 'activeTab:', activeTab, 'currentTab:', currentTab);
+
     try {
       if (!isInitial) {
         setRefreshing(true);
       }
-      
+
+      // 날짜 필터 적용 (모든 탭에서 동일하게 적용)
       const dateRange = getDateRange(periodFilter);
-      
+
+      // ✅ 파트너 ID 직접 계산 (allowedPartnerIds 의존성 제거)
+      let allowedPartnerIdsForQuery: string[] = [];
+
+      if (user.level === 1) {
+        // Lv1: 빈 배열 = 모든 파트너 허용
+        allowedPartnerIdsForQuery = [];
+      } else {
+        // Lv2+: 자신의 하위 파트너 ID 조회
+        const { data } = await supabase.rpc('get_hierarchical_partners', { p_partner_id: user.id });
+        allowedPartnerIdsForQuery = [user.id, ...(data?.map((p: any) => p.id) || [])];
+        console.log('🗂️ [loadData] 실시간 파트너 ID 조회:', allowedPartnerIdsForQuery);
+      }
+
       // ⚡ 1단계: 계층 정보를 먼저 조회 (중복 제거)
       let hierarchicalPartners: any[] = [];
       let partnerIds: string[] = [user.id];
-      
+
       if (user.level === 1) {
         // Lv1: 전체 파트너 조회 (모든 하위 조직)
         const { data } = await supabase
           .from('partners')
           .select('id, level, nickname, username')
           .neq('level', 1); // Lv1 제외 (본인 제외)
-        
+
         hierarchicalPartners = data || [];
         partnerIds = [user.id, ...hierarchicalPartners.map((p: any) => p.id)];
       } else if (user.level > 1) {
-        const { data } = await supabase.rpc('get_hierarchical_partners', { p_partner_id: user.id });
-        hierarchicalPartners = data || [];
-        const childPartnerIds = hierarchicalPartners
-          .filter((p: any) => p.level > user.level)
-          .map((p: any) => p.id);
-        partnerIds = [user.id, ...childPartnerIds];
+        // 재사용: 이미 위에서 조회한 데이터 사용
+        partnerIds = allowedPartnerIdsForQuery;
       }
-      
+
       // ⚡ 2단계: 회원 ID 목록 조회
       let targetUserIds: string[] = [];
-      
-      if (user.level > 1) {
+
+      // ✅ Lv1: 모든 회원 조회, Lv2+: 자신의 하위 조직 회원만 조회
+      if (user.level === 1) {
+        // Lv1: 모든 회원 조회
+        const { data: allUsers } = await supabase
+          .from('users')
+          .select('id');
+        targetUserIds = allUsers?.map(u => u.id).filter(id => id != null) || [];
+      } else if (user.level > 1) {
+        // Lv2+: 자신의 하위 조직 회원만 조회
         const { data: userList } = await supabase
           .from('users')
           .select('id')
           .in('referrer_id', partnerIds);
-        
+
         targetUserIds = userList?.map(u => u.id) || [];
-        
-        // ✅ 사용자가 없어도 관리자 거래(partner_deposit/partner_withdrawal)는 있을 수 있으므로 계속 진행
-        // if (targetUserIds.length === 0) {
-        //   setTransactions([]);
-        //   setUsers([]);
-        //   setStats({ totalDeposit: 0, totalWithdrawal: 0, pendingDepositCount: 0, pendingWithdrawalCount: 0 });
-        //   return;
-        // }
       }
+
+      // ✅ 사용자가 없어도 관리자 거래(partner_deposit/partner_withdrawal)는 있을 수 있으므로 계속 진행
+      // if (targetUserIds.length === 0) {
+      //   setTransactions([]);
+      //   setUsers([]);
+      //   setStats({ totalDeposit: 0, totalWithdrawal: 0, pendingDepositCount: 0, pendingWithdrawalCount: 0 });
+      //   return;
+      // }
       
       // ⚡ 3단계: 거래 데이터 + 포인트 거래 데이터 + 활성 사용자 목록 병렬 조회
-      // ✅ "내가 한 거래만" 필터링 (processed_by = 내 ID)
+      // ✅ Lv1: 모든 거래 조회 (대기중 + 처리한 거래), Lv1이하: 자신이 처리한 거래 + 자신의 하부 조직의 pending 요청
       let transactionQuery = supabase
         .from('transactions')
         .select('*')
-        .eq('processed_by', user.id)  // ✅ 내가 처리한 거래만
         .gte('created_at', dateRange.start)
         .lte('created_at', dateRange.end)
         .order('created_at', { ascending: false });
+
+      // ✅ Lv1은 모든 거래 조회, Lv1이하는 자신이 처리한 거래 + 자신의 하부 조직의 pending 요청
+      if (user.level !== 1) {
+        // Lv2+의 경우: 자신이 처리한 거래 OR 자신의 하부 조직의 pending 요청
+        const conditions = [
+          `processed_by.eq.${user.id}`, // 자신이 처리한 거래
+          `and(status.eq.pending,transaction_type.in.(deposit,withdrawal),user_id.in.(${targetUserIds.join(',')}))`, // 하부 조직 회원들의 deposit/withdrawal
+          `and(status.eq.pending,transaction_type.in.(partner_deposit,partner_withdrawal),partner_id.in.(${allowedPartnerIdsForQuery.join(',')}))` // 하부 조직 파트너들의 partner_deposit/partner_withdrawal
+        ];
+        transactionQuery = transactionQuery.or(conditions.join(','));
+      }
+      // Lv1은 processed_by 필터 없이 모든 거래 조회 (대기중 + 처리완료 모두)
       
       // 포인트 거래 조회
       // ✅ "내가 처리한" 포인트 거래만 (partner_id = 내 ID)
@@ -209,8 +289,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         .select('id, nickname, username, balance, bank_name, bank_account, bank_holder')
         .eq('status', 'active')
         .order('nickname');
-        
-      if (user.level > 1) {
+
+      // ✅ Lv1: 모든 하부 레벨의 회원 목록 조회 가능하도록 수정
+      if (user.level === 1 || user.level > 1) {
         userListQuery = userListQuery.in('referrer_id', partnerIds);
       }
       
@@ -223,12 +304,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     .gte('created_at', dateRange.start)
     .lte('created_at', dateRange.end)
     .order('created_at', { ascending: false });
-    
+
   if (user.level > 1) {
-    // ✅ 조직격리: 현재 사용자가 **보낸** 거래만 조회
-    // - from_partner_id = 현재 사용자 (내가 보낸 거래만)
-    const currentPartnerId = user.id;
-    partnerTransactionQuery = partnerTransactionQuery.eq('from_partner_id', currentPartnerId);
+    // ✅ 조직격리: Lv2+ 관리자는 자신의 하부 조직 파트너들의 거래만 조회
+    partnerTransactionQuery = partnerTransactionQuery.in('partner_id', allowedPartnerIds);
   }
   // ⚠️ Lv1 시스템 관리자도 전체 파트너 거래 조회 (통계 표시를 위해) - 별도 처리
       
@@ -601,6 +680,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       loadData(false);
     }
   }, [periodFilter, reloadTrigger]);
+
+
 
   // Realtime 구독: transactions 테이블 변경 감지
   useEffect(() => {
@@ -1820,7 +1901,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (row.transaction_type === 'partner_deposit' || row.transaction_type === 'partner_withdrawal') {
           return (
             <span className="text-purple-400" style={{ fontSize: '15px' }}>
-              {row.partner?.username || '-'}
+              {row.partner?.nickname || '[관리자]'}
             </span>
           );
         }
@@ -1873,7 +1954,16 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             </span>
           );
         }
-        
+
+        // ✅ partner_deposit/partner_withdrawal: 신청자 파트너 표시
+        if (row.transaction_type === 'partner_deposit' || row.transaction_type === 'partner_withdrawal') {
+          return (
+            <span className="text-blue-400" style={{ fontSize: '15px' }}>
+              {row.partner?.nickname || '[신청자]'}
+            </span>
+          );
+        }
+
         // ✅ admin_deposit/withdrawal 거래: from_partner_id/to_partner_id 표시
         if (row.transaction_type === 'admin_deposit' || row.transaction_type === 'admin_withdrawal') {
           // admin_deposit: 보낸사람 = 관리자 (user.id가 아닌 from_partner_id)
@@ -1899,7 +1989,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             }
           }
         }
-        
+
         // 일반 회원 거래에서 소속 표시 (deposit/withdrawal)
         if (row.user?.referrer) {
           return (
@@ -1908,7 +1998,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             </span>
           );
         }
-        
+
         return <span className="text-slate-500" style={{ fontSize: '15px' }}>-</span>;
       }
     },
@@ -1924,6 +2014,15 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           );
         }
         
+        // ✅ partner_deposit/partner_withdrawal: 승인자 파트너 표시
+        if (row.transaction_type === 'partner_deposit' || row.transaction_type === 'partner_withdrawal') {
+          return (
+            <span className="text-pink-400" style={{ fontSize: '15px' }}>
+              {row.partner?.nickname || '[승인자]'}
+            </span>
+          );
+        }
+
         // ✅ admin_deposit/withdrawal 거래: 받는 사람 표시
         if (row.transaction_type === 'admin_deposit' || row.transaction_type === 'admin_withdrawal') {
           // admin_deposit: 받는사람 = 회원 (user.username)
@@ -2100,7 +2199,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       header: t.transactionManagement.memo,
       cell: (row: any) => {
         let displayMemo = '-';
-        
+
         if (!row.memo) {
           return (
             <div className="max-w-xs">
@@ -2108,19 +2207,23 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             </div>
           );
         }
-        
-        // ✅ 거절 사유는 그대로 표시
-        if (row.status === 'rejected') {
+
+        // ✅ partner_deposit/partner_withdrawal: 승인시 입력한 메모는 항상 표시
+        if (row.transaction_type === 'partner_deposit' || row.transaction_type === 'partner_withdrawal') {
           displayMemo = row.memo;
-        } 
+        }
+        // ✅ 거절 사유는 그대로 표시
+        else if (row.status === 'rejected') {
+          displayMemo = row.memo;
+        }
         // ✅ UUID 패턴 (거래 ID)는 숨김
         else if (row.memo.match(/^[0-9a-f-]{8,}/)) {
           displayMemo = '-';
         }
         // ✅ 시스템 메모로 시작하는 패턴은 모두 숨김
         else if (
-          row.memo.startsWith('[관리자') || 
-          row.memo.startsWith('[강제') || 
+          row.memo.startsWith('[관리자') ||
+          row.memo.startsWith('[강제') ||
           row.memo.startsWith('[회원급') ||
           row.memo.startsWith('회원 ') ||
           row.memo.includes('승인') ||
@@ -2148,7 +2251,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         else {
           displayMemo = row.memo;
         }
-        
+
         return (
           <div className="max-w-xs">
             <span className="text-base text-slate-400 block truncate" title={displayMemo}>
@@ -2164,7 +2267,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       cell: (row: any) => {
         // ✅ 처리자: 입출금을 처리하는 액션하는 계정의 닉네임 표시
         let processorNickname = '-';
-        
+
         // 파트너 거래인 경우
         if (row.is_partner_transaction) {
           processorNickname = row.processed_by_nickname || '-';
@@ -2177,7 +2280,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         else {
           processorNickname = row.processed_partner?.nickname || '-';
         }
-        
+
         return (
           <span className="text-base text-slate-400">
             {processorNickname}
@@ -2187,27 +2290,79 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     },
     ...(showActions ? [{
       header: t.transactionManagement.actions,
-      cell: (row: Transaction) => (
-        <div className="flex items-center gap-2">
-          <Button
-            size="default"
-            onClick={() => openActionDialog(row, 'approve')}
-            disabled={refreshing}
-            className="h-10 px-5 text-base bg-green-600 hover:bg-green-700"
-          >
-            {t.transactionManagement.approve}
-          </Button>
-          <Button
-            size="default"
-            variant="outline"
-            onClick={() => openActionDialog(row, 'reject')}
-            disabled={refreshing}
-            className="h-10 px-5 text-base border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
-          >
-            {t.transactionManagement.reject}
-          </Button>
-        </div>
-      )
+      cell: (row: Transaction) => {
+        // ✅ partner_deposit/partner_withdrawal 승인 대기 중인 경우
+        if ((row.transaction_type === 'partner_deposit' || row.transaction_type === 'partner_withdrawal') &&
+            row.status === 'pending') {
+
+          // ✅ 승인 권한 확인: Lv1은 모두, Lv2+는 자신의 하부 조직만 (단, 자신의 신청은 승인 불가)
+          const canApprove = (() => {
+            if (user.level === 1) return true; // Lv1: 모든 파트너 입출금 승인 가능
+
+            // Lv2+: 자신의 하부 조직 파트너의 신청만 승인 가능 (자신의 신청은 승인 불가)
+            const partnerId = (row as any).partner_id;
+            if (!partnerId || partnerId === user.id) return false; // 자신의 신청은 승인 불가
+
+            // allowedPartnerIds에 포함되어 있는지 확인
+            return allowedPartnerIds.includes(partnerId);
+          })();
+
+          if (canApprove) {
+            // ✅ 승인 권한이 있는 경우: 승인/거절 버튼 표시
+            return (
+              <div className="flex items-center gap-2">
+                <Button
+                  size="default"
+                  onClick={() => openActionDialog(row, 'approve')}
+                  disabled={refreshing}
+                  className="h-10 px-5 text-base bg-green-600 hover:bg-green-700"
+                >
+                  {t.transactionManagement.approve}
+                </Button>
+                <Button
+                  size="default"
+                  variant="outline"
+                  onClick={() => openActionDialog(row, 'reject')}
+                  disabled={refreshing}
+                  className="h-10 px-5 text-base border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
+                >
+                  {t.transactionManagement.reject}
+                </Button>
+              </div>
+            );
+          } else {
+            // ✅ 승인 권한이 없는 경우: "승인대기중" 텍스트 표시
+            return (
+              <span className="text-amber-400 font-medium text-base">
+                승인대기중
+              </span>
+            );
+          }
+        }
+
+        // 일반 승인/거절 버튼 (사용자 입출금)
+        return (
+          <div className="flex items-center gap-2">
+            <Button
+              size="default"
+              onClick={() => openActionDialog(row, 'approve')}
+              disabled={refreshing}
+              className="h-10 px-5 text-base bg-green-600 hover:bg-green-700"
+            >
+              {t.transactionManagement.approve}
+            </Button>
+            <Button
+              size="default"
+              variant="outline"
+              onClick={() => openActionDialog(row, 'reject')}
+              disabled={refreshing}
+              className="h-10 px-5 text-base border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
+            >
+              {t.transactionManagement.reject}
+            </Button>
+          </div>
+        );
+      }
     }] : [])
   ];
 
@@ -2276,7 +2431,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       {/* 탭 컨텐츠 */}
       <div className="glass-card rounded-xl p-5">
         {/* 탭 리스트 */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs value={activeTab} onValueChange={(value) => {
+          setActiveTab(value);
+          if (!initialLoading) {
+            loadData(false);
+          }
+        }} className="space-y-4">
           <div className="bg-slate-800/30 rounded-xl p-1.5 border border-slate-700/40">
             <TabsList className="bg-transparent h-auto p-0 border-0 gap-2 w-full grid grid-cols-3">
               <TabsTrigger 

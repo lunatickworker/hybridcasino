@@ -707,9 +707,9 @@ export async function getUserList(
 
 /**
  * HonorAPI 베팅 내역 동기화
- * 최근 1시간 내 트랜잭션을 조회하여 game_records에 저장
+ * 최근 24시간 내 트랜잭션을 조회하여 game_records에 저장
  */
-export async function syncHonorApiBettingHistory(): Promise<{
+export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
   success: boolean;
   recordsProcessed: number;
   recordsSaved: number;
@@ -718,9 +718,9 @@ export async function syncHonorApiBettingHistory(): Promise<{
   console.log('🔄 [HonorAPI] 베팅 내역 동기화 시작');
 
   try {
-    // Lv1 HonorAPI credentials 조회
-    const { getLv1HonorApiCredentials } = await import('./apiConfigHelper');
-    const credentials = await getLv1HonorApiCredentials();
+    // HonorAPI credentials 조회 (계층 탐색)
+    const { getHonorApiCredentialsHierarchical } = await import('./apiConfigHelper');
+    const credentials = await getHonorApiCredentialsHierarchical(partnerId);
 
     if (!credentials) {
       console.error('❌ [HonorAPI] credentials를 찾을 수 없습니다.');
@@ -931,7 +931,7 @@ export function generateUUID(): string {
  * HonorAPI 게임 제공사 및 게임 목록 동기화
  * honor_game_providers와 honor_games 테이블에 저장
  */
-export async function syncHonorApiGames(): Promise<{
+export async function syncHonorApiGames(partnerId: string): Promise<{
   newProviders: number;
   updatedProviders: number;
   newGames: number;
@@ -939,9 +939,9 @@ export async function syncHonorApiGames(): Promise<{
 }> {
   console.log('🔄 [HonorAPI] 게임 동기화 시작');
 
-  // Lv1 HonorAPI credentials 조회
-  const { getLv1HonorApiCredentials } = await import('./apiConfigHelper');
-  const credentials = await getLv1HonorApiCredentials();
+  // HonorAPI credentials 조회 (계층 탐색)
+  const { getHonorApiCredentialsHierarchical } = await import('./apiConfigHelper');
+  const credentials = await getHonorApiCredentialsHierarchical(partnerId);
 
   if (!credentials) {
     throw new Error('HonorAPI credentials를 찾을 수 없습니다.');
@@ -1442,18 +1442,26 @@ export function extractBalanceFromResponse(response: any, username: string): num
 }
 
 /**
- * Agent 잔고 조회 (OroPlay getAgentBalance와 동일한 시그니처)
- * @param apiKey - HonorAPI API Key
+ * Agent 잔고 조회 (계층 탐색을 통한 credentials 자동 조회)
+ * @param partnerId - 파트너 ID
  * @returns Agent 잔고
  */
-export async function getAgentBalance(apiKey: string): Promise<number> {
+export async function getAgentBalance(partnerId: string): Promise<number> {
   console.log('📊 [HonorAPI] Agent 잔고 조회 API 호출');
-  
-  const agentInfo = await getAgentInfo(apiKey);
+
+  // HonorAPI credentials 조회 (계층 탐색)
+  const { getHonorApiCredentialsHierarchical } = await import('./apiConfigHelper');
+  const credentials = await getHonorApiCredentialsHierarchical(partnerId);
+
+  if (!credentials?.api_key) {
+    throw new Error('HonorAPI credentials를 찾을 수 없습니다.');
+  }
+
+  const agentInfo = await getAgentInfo(credentials.api_key);
   const balance = parseFloat(agentInfo.balance) || 0;
-  
+
   console.log(`✅ [HonorAPI] Agent 잔고: ${balance}`);
-  
+
   return balance;
 }
 
