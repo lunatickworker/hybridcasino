@@ -608,8 +608,7 @@ export async function getTransactions(
     params.append('withDetails', '1');
   }
 
-  console.log(`🔍 [HonorAPI] API URL: ${HONORAPI_BASE_URL}/transactions?${params.toString()}`);
-  console.log(`🔑 [HonorAPI] API Key: ${apiKey.substring(0, 10)}...`);
+  // ✅ API Key는 로그에서 제거 (보안)
 
   const result = await proxyCall<{ data: Transaction[] }>({
     url: `${HONORAPI_BASE_URL}/transactions?${params.toString()}`,

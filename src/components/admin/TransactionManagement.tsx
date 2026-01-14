@@ -1355,41 +1355,28 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         ? opcodeInfo.opcodes[0] 
         : opcodeInfo;
 
-      console.log('🔑 OPCODE 설정:', {
+    // ✅ OPCODE 설정 로그에서 민감한 정보 제거 (보안)
+    if (import.meta.env.DEV) {
+      console.log('🔑 OPCODE 설정 (개발 모드):', {
         opcode: config.opcode,
         token: '***' + config.token.slice(-4),
         secretKey: '***' + config.secretKey.slice(-4)
       });
+    }
 
-      // Invest API를 통한 실제 입출금 처리
-      let apiResult;
-      if (type === 'deposit') {
-        console.log('📥 입금 API 호출 중...');
-        apiResult = await depositBalance(
-          selectedUser.username,
-          amountNum,
-          config.opcode,
-          config.token,
-          config.secretKey
-        );
-      } else {
-        console.log('📤 출금 API 호출 중...');
-        apiResult = await withdrawBalance(
-          selectedUser.username,
-          amountNum,
-          config.opcode,
-          config.token,
-          config.secretKey
-        );
-      }
-
-      // API 호출 실패 시
-      if (!apiResult.success || apiResult.error) {
-        throw new Error(apiResult.error || 'Invest API 호출 실패');
-      }
-
-      console.log('✅ Invest API 강제 입출금 완료:', apiResult);
-
+    // Invest API를 통한 실제 입출금 처리
+    let apiResult;
+    if (type === 'deposit') {
+      console.log('📥 입금 API 호출 중...', { user: selectedUser.username, amount: amountNum });
+      apiResult = await depositBalance(
+        selectedUser.username,
+        amountNum,
+        config.opcode,
+        config.token,
+        config.secretKey
+      );
+    } else {
+      console.log('📤 출금 API 호출 중...', { user: selectedUser.username, amount: amountNum });
       // API 응답에서 balance_after 파싱 (리소스 재사용: extractBalanceFromResponse 사용)
       const balanceAfter = extractBalanceFromResponse(apiResult.data, selectedUser.username);
       console.log('💰 실제 잔고:', balanceAfter);

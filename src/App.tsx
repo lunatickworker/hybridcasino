@@ -24,6 +24,10 @@ import { LanguageProvider } from './contexts/LanguageContext';
 import { supabase } from './lib/supabase';
 import { initFavicon } from './utils/favicon';
 import { gameApi } from './lib/gameApi';
+import { setupNetworkLogging } from './lib/networkLoggingInterceptor';
+
+// ✅ 앱 시작 시 네트워크 로깅 초기화 (민감한 정보 마스킹)
+setupNetworkLogging();
 
 function AppContent() {
   const { authState, logout } = useAuth();
