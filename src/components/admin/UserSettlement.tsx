@@ -152,11 +152,11 @@ export default function UserSettlement({ user }: UserSettlementProps) {
           .reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
 
         const adminDeposit = transactions
-          ?.filter(t => t.transaction_type === 'admin_deposit' && t.status === 'approved')
+          ?.filter(t => (t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && t.status === 'approved')
           .reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
 
         const adminWithdrawal = transactions
-          ?.filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'approved')
+          ?.filter(t => (t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send') && t.status === 'approved')
           .reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
 
         // 포인트 데이터

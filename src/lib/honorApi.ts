@@ -707,7 +707,7 @@ export async function getUserList(
 
 /**
  * HonorAPI 베팅 내역 동기화
- * 최근 24시간 내 트랜잭션을 조회하여 game_records에 저장
+ * 최근 1시간 내 트랜잭션을 조회하여 game_records에 저장
  */
 export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
   success: boolean;
@@ -715,16 +715,29 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
   recordsSaved: number;
   error?: string;
 }> {
-  console.log('🔄 [HonorAPI] 베팅 내역 동기화 시작');
+  console.log('🔄 [HonorAPI] 베팅 내역 동기화 시작', { partnerId });
 
   try {
-    // HonorAPI credentials 조회 (계층 탐색)
-    const { getHonorApiCredentialsHierarchical } = await import('./apiConfigHelper');
-    const credentials = await getHonorApiCredentialsHierarchical(partnerId);
+    // ✅ OroPlay 방식과 동일: 직접 partner_id로 api_configs 조회
+    const { data: credentials, error: credError } = await supabase
+      .from('api_configs')
+      .select('api_key, is_active')
+      .eq('partner_id', partnerId)
+      .eq('api_provider', 'honorapi')
+      .maybeSingle();
 
-    if (!credentials) {
-      console.error('❌ [HonorAPI] credentials를 찾을 수 없습니다.');
+    if (credError || !credentials) {
+      console.error('❌ [HonorAPI] credentials를 찾을 수 없습니다.', { partnerId, credError });
       throw new Error('HonorAPI credentials를 찾을 수 없습니다.');
+    }
+
+    if (credentials.is_active === false) {
+      console.warn('⚠️ [HonorAPI] API가 비활성화되어 있습니다.');
+      return {
+        success: true,
+        recordsProcessed: 0,
+        recordsSaved: 0
+      };
     }
 
     const { api_key } = credentials;
@@ -736,14 +749,20 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
     
     console.log('✅ [HonorAPI] Credentials 확인 완료');
 
-    // ✅ 24시간 전부터 현재까지 조회 (OroPlay와 동일)
+    // ✅ OroPlay와 동일: 마지막 동기화 시간 확인 (없으면 24시간 전부터)
+    const lastSyncKey = `honorapi_last_sync_${partnerId}`;
+    const lastSyncTime = typeof window !== 'undefined' ? localStorage.getItem(lastSyncKey) : null;
+    
     const now = new Date();
-    const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24시간 전
+    const startDate = lastSyncTime || new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
-    const startTime = formatUTC(dayAgo);
+    const startTime = formatUTC(new Date(startDate));
     const endTime = formatUTC(now);
 
-    console.log(`📅 [HonorAPI] 조회 기간: ${startTime} ~ ${endTime} (UTC, 최근 24시간)`);
+    console.log(`📅 [HonorAPI] 조회 기간: ${startTime} ~ ${endTime}`, { 
+      isFirstSync: !lastSyncTime,
+      lastSyncTime 
+    });
 
     // 트랜잭션 조회
     let transactions: Transaction[] = [];
@@ -765,10 +784,45 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
       };
     }
 
+    // ✅ 이미 저장된 트랜잭션 조회 (중복 제거) - CRITICAL: api_type도 함께 확인
+    const { data: existingRecords } = await supabase
+      .from('game_records')
+      .select('external_txid')
+      .eq('partner_id', partnerId)
+      .eq('api_type', 'honorapi')
+      .gte('played_at', new Date(now.getTime() - 300000).toISOString()); // 최근 5분 데이터만
+
+    // ✅ 타입 변환: 모든 ID를 문자열로 통일하여 비교 (BigInt 안전성)
+    const existingTxIds = new Set(
+      existingRecords?.map((r: any) => String(r.external_txid)) || []
+    );
+    console.log(`📋 [HonorAPI] 기존 저장 건수: ${existingTxIds.size}건`);
+    if (existingTxIds.size > 0) {
+      const sampleIds = Array.from(existingTxIds).slice(0, 3);
+      console.log(`📋 [HonorAPI] 샘플 ID: ${sampleIds.join(', ')} (최대 3개)`);
+    }
+
+    // ✅ 새로운 트랜잭션만 필터링 (타입 안전하게)
+    const newTransactions = transactions.filter((tx: Transaction) => {
+      const txId = String(tx.id);
+      return !existingTxIds.has(txId);
+    });
+    const skippedCount = transactions.length - newTransactions.length;
+    console.log(`🆕 [HonorAPI] 신규 트랜잭션: ${newTransactions.length}건, 건너뜀: ${skippedCount}건`);
+
+    if (newTransactions.length === 0) {
+      console.log('ℹ️ [HonorAPI] 신규 트랜잭션이 없습니다 (모두 기존 데이터).');
+      return {
+        success: true,
+        recordsProcessed: 0,
+        recordsSaved: 0
+      };
+    }
+
     let recordsSaved = 0;
 
     // 각 트랜잭션을 game_records에 저장
-    for (const tx of transactions) {
+    for (const tx of newTransactions) {
       // bet 타입만 처리 (win, cancel 등은 제외)
       if (tx.type !== 'bet') {
         continue;
@@ -781,6 +835,18 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
       }
 
       try {
+        // ⚠️ CRITICAL: INSERT 직전에 한 번 더 중복 체크 (경쟁 조건 방지)
+        const { data: alreadyExists } = await supabase
+          .from('game_records')
+          .select('id')
+          .eq('external_txid', tx.id)
+          .eq('api_type', 'honorapi')
+          .maybeSingle();
+
+        if (alreadyExists) {
+          continue;  // 조용히 건너뜀 (로그 제거)
+        }
+
         // 사용자 정보 조회 (username으로)
         const { data: user } = await supabase
           .from('users')
@@ -881,11 +947,11 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
       }
     }
 
-    console.log(`✅ [HonorAPI] 베팅 내역 동기화 완료: ${recordsSaved}/${transactions.length}건 저장`);
+    console.log(`✅ [HonorAPI] 베팅 내역 동기화 완료: ${recordsSaved}/${newTransactions.length}건 저장`);
 
     return {
       success: true,
-      recordsProcessed: transactions.length,
+      recordsProcessed: newTransactions.length,
       recordsSaved
     };
 
@@ -931,7 +997,7 @@ export function generateUUID(): string {
  * HonorAPI 게임 제공사 및 게임 목록 동기화
  * honor_game_providers와 honor_games 테이블에 저장
  */
-export async function syncHonorApiGames(partnerId: string): Promise<{
+export async function syncHonorApiGames(): Promise<{
   newProviders: number;
   updatedProviders: number;
   newGames: number;
@@ -939,9 +1005,9 @@ export async function syncHonorApiGames(partnerId: string): Promise<{
 }> {
   console.log('🔄 [HonorAPI] 게임 동기화 시작');
 
-  // HonorAPI credentials 조회 (계층 탐색)
-  const { getHonorApiCredentialsHierarchical } = await import('./apiConfigHelper');
-  const credentials = await getHonorApiCredentialsHierarchical(partnerId);
+  // Lv1 HonorAPI credentials 조회
+  const { getLv1HonorApiCredentials } = await import('./apiConfigHelper');
+  const credentials = await getLv1HonorApiCredentials();
 
   if (!credentials) {
     throw new Error('HonorAPI credentials를 찾을 수 없습니다.');
@@ -1442,26 +1508,18 @@ export function extractBalanceFromResponse(response: any, username: string): num
 }
 
 /**
- * Agent 잔고 조회 (계층 탐색을 통한 credentials 자동 조회)
- * @param partnerId - 파트너 ID
+ * Agent 잔고 조회 (OroPlay getAgentBalance와 동일한 시그니처)
+ * @param apiKey - HonorAPI API Key
  * @returns Agent 잔고
  */
-export async function getAgentBalance(partnerId: string): Promise<number> {
+export async function getAgentBalance(apiKey: string): Promise<number> {
   console.log('📊 [HonorAPI] Agent 잔고 조회 API 호출');
-
-  // HonorAPI credentials 조회 (계층 탐색)
-  const { getHonorApiCredentialsHierarchical } = await import('./apiConfigHelper');
-  const credentials = await getHonorApiCredentialsHierarchical(partnerId);
-
-  if (!credentials?.api_key) {
-    throw new Error('HonorAPI credentials를 찾을 수 없습니다.');
-  }
-
-  const agentInfo = await getAgentInfo(credentials.api_key);
+  
+  const agentInfo = await getAgentInfo(apiKey);
   const balance = parseFloat(agentInfo.balance) || 0;
-
+  
   console.log(`✅ [HonorAPI] Agent 잔고: ${balance}`);
-
+  
   return balance;
 }
 

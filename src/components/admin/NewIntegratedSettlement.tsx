@@ -70,6 +70,8 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     setCasinoGongBetEnabled(enabled);
     try {
       await saveGongBetSettings(enabled, null, null);
+      // ✅ 토글 변경 후 테이블 데이터 다시 계산 (동기화)
+      recalculateSettlementData();
     } catch (error) {
       console.error('자동 저장 실패:', error);
     }
@@ -79,6 +81,8 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     setSlotGongBetEnabled(enabled);
     try {
       await saveGongBetSettings(null, enabled, null);
+      // ✅ 토글 변경 후 테이블 데이터 다시 계산 (동기화)
+      recalculateSettlementData();
     } catch (error) {
       console.error('자동 저장 실패:', error);
     }
@@ -88,6 +92,8 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     setCutRollingEnabled(enabled);
     try {
       await saveGongBetSettings(null, null, enabled);
+      // ✅ 토글 변경 후 테이블 데이터 다시 계산 (동기화)
+      recalculateSettlementData();
     } catch (error) {
       console.error('자동 저장 실패:', error);
     }
@@ -278,6 +284,45 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     });
   };
 
+  // ✅ 토글 상태가 변경되면 테이블 데이터를 다시 계산해서 동기화
+  const recalculateSettlementData = () => {
+    if (data.length === 0) return;
+    
+    const updatedRows = data.map(row => {
+      const gongBetRateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
+      const isGongBetApplied = gongBetEnabled && gongBetLevels[row.level];
+      
+      // 절삭 롤링금 재계산
+      const gongBetCutRolling = isGongBetApplied ? row.totalRolling * (gongBetRateNum / 100) : 0;
+      
+      // 게임타입별 절삭 롤링금 재계산
+      const casinoTotalRolling = row.casinoBet * (row.casinoRollingRate / 100);
+      const slotTotalRolling = row.slotBet * (row.slotRollingRate / 100);
+      
+      const casinoGongBetCutRolling = isGongBetApplied ? casinoTotalRolling * (gongBetRateNum / 100) : 0;
+      const slotGongBetCutRolling = isGongBetApplied ? slotTotalRolling * (gongBetRateNum / 100) : 0;
+      
+      // 공베팅차 재계산 (현재 토글 상태 반영)
+      const casinoGongBetAmount = casinoGongBetEnabled && row.casinoRollingRate > 0 
+        ? casinoGongBetCutRolling / (row.casinoRollingRate / 100)
+        : 0;
+      const slotGongBetAmount = slotGongBetEnabled && row.slotRollingRate > 0 
+        ? slotGongBetCutRolling / (row.slotRollingRate / 100)
+        : 0;
+      const cutRollingAmount = cutRollingEnabled ? gongBetCutRolling : 0;
+      
+      return {
+        ...row,
+        casinoGongBetAmount,
+        slotGongBetAmount,
+        cutRollingAmount
+      };
+    });
+    
+    setData(updatedRows);
+    calculateSummary(updatedRows);
+  };
+
   const getFilteredRows = (rows: SettlementRow[]): SettlementRow[] => {
     let filtered = rows;
     if (codeSearch.trim()) filtered = filtered.filter(r => r.username.toLowerCase().includes(codeSearch.toLowerCase()));
@@ -353,25 +398,48 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const relevantPartnerIdsForTransactions: string[] = level > 0 ? [entityId] : [];
     const partnerTransactions = transactions.filter(t => (t.transaction_type === 'partner_deposit' || t.transaction_type === 'partner_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
 
-    const onlineDeposit = userTransactions.filter(t => (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
-    const onlineWithdrawal = userTransactions.filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
-    const adminDepositFromTransactions = partnerTransactions.filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
-    const adminWithdrawalFromTransactions = partnerTransactions.filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+    // ✅ 온라인 입금/출금: 사용자 직접 입금/출금만 (deposit/withdrawal)
+    const onlineDeposit = userTransactions.filter(t => t.transaction_type === 'deposit' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const onlineWithdrawal = userTransactions.filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+    
+    // ✅ 파트너 충환전: 파트너 입금/출금 신청
+    const partnerChargeFromRequests = partnerTransactions.filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const partnerExchangeFromRequests = partnerTransactions.filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+    
+    // ✅ 수동 입금/출금: 파트너 간 거래 (admin_deposit_initial/send, admin_withdrawal_initial/send) + partner_balance_logs
+    const adminDepositTransactions = userTransactions.filter(t => (t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
+    const adminWithdrawalTransactions = userTransactions.filter(t => (t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send') && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+    
     const relevantBalanceLogs = partnerBalanceLogs.filter(l => relevantPartnerIdsForTransactions.includes(l.partner_id) || relevantPartnerIdsForTransactions.includes(l.from_partner_id) || relevantPartnerIdsForTransactions.includes(l.to_partner_id));
     const manualDepositFromLogs = relevantBalanceLogs.filter(l => l.transaction_type === 'deposit').reduce((sum, l) => sum + (l.amount || 0), 0);
     const manualWithdrawalFromLogs = relevantBalanceLogs.filter(l => l.transaction_type === 'withdrawal').reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
-    const manualDeposit = adminDepositFromTransactions + manualDepositFromLogs;
-    const manualWithdrawal = adminWithdrawalFromTransactions + manualWithdrawalFromLogs;
+    
+    // ✅ 수동 입금/출금 = 파트너 간 거래 + 파트너 요청 + 수동 처리
+    const manualDeposit = adminDepositTransactions + partnerChargeFromRequests + manualDepositFromLogs;
+    const manualWithdrawal = adminWithdrawalTransactions + partnerExchangeFromRequests + manualWithdrawalFromLogs;
     const userPointTrans = pointTransactions.filter(pt => relevantUserIdsForTransactions.includes(pt.user_id));
     const pointGiven = userPointTrans.filter(pt => pt.type === 'commission_earned').reduce((sum, pt) => sum + (pt.amount || 0), 0);
     const pointRecovered = userPointTrans.filter(pt => pt.type === 'point_to_balance').reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
     // 본인의 게임 기록만 계산
     const relevantGameRecords = gameRecords.filter(gr => relevantUserIdsForTransactions.includes(gr.user_id));
-    const casinoBet = Math.abs(relevantGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
-    const casinoWin = relevantGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
-    const slotBet = Math.abs(relevantGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
-    const slotWin = relevantGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+    const casinoBetRecords = relevantGameRecords.filter(gr => gr.game_type === 'casino');
+    const slotBetRecords = relevantGameRecords.filter(gr => gr.game_type === 'slot');
+    const casinoBet = Math.abs(casinoBetRecords.reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
+    const casinoWin = casinoBetRecords.reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+    const slotBet = Math.abs(slotBetRecords.reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
+    const slotWin = slotBetRecords.reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+    
+    // ✅ 게임 데이터 로드 확인 (디버깅)
+    if (casinoBet > 0 || slotBet > 0) {
+      console.log(`[정산계산] ${username}:`, {
+        relevantUserCount: relevantUserIdsForTransactions.length,
+        totalGameRecords: relevantGameRecords.length,
+        casinoBets: casinoBetRecords.length,
+        slotBets: slotBetRecords.length,
+        casinoBet, casinoWin, slotBet, slotWin
+      });
+    }
     const casinoWinLoss = casinoBet - casinoWin;
     const slotWinLoss = slotBet - slotWin;
     const ggr = casinoWinLoss + slotWinLoss;
@@ -420,39 +488,85 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     };
   };
 
-  const processSettlementData = (partners: any[], users: any[], transactions: any[], pointTransactions: any[], gameRecords: any[], partnerBalanceLogs: any[]): SettlementRow[] => {
+  const processSettlementData = (partners: any[], users: any[], completedTransactions: any[], allPointTransactions: any[], gameRecords: any[]): SettlementRow[] => {
+    // ✅ completedTransactions에서 입출금 트랜잭션만 분리
+    const depositWithdrawalTransactions = completedTransactions.filter(t => 
+      !t.is_point_transaction && (t.transaction_type || t.user_id)
+    );
+    
+    // ✅ 포인트 트랜잭션만 필터링
+    const pointTransactions = completedTransactions.filter(t => t.is_point_transaction) || allPointTransactions || [];
+    
+    // ✅ partner_balance_logs 분리
+    const partnerBalanceLogs = completedTransactions.filter(t => t.is_partner_transaction) || [];
+    
     const rows: SettlementRow[] = [];
     for (const partner of partners) {
       const hasChildren = partners.some(p => p.parent_id === partner.id) || users.some(u => u.referrer_id === partner.id);
-      const row = calculateRowData(partner.id, partner.username, partner.level, partner.balance || 0, 0, partner.casino_rolling_commission || 0, partner.casino_losing_commission || 0, partner.slot_rolling_commission || 0, partner.slot_losing_commission || 0, transactions, pointTransactions, gameRecords, partners, users, partnerBalanceLogs);
+      const row = calculateRowData(partner.id, partner.username, partner.level, partner.balance || 0, 0, partner.casino_rolling_commission || 0, partner.casino_losing_commission || 0, partner.slot_rolling_commission || 0, partner.slot_losing_commission || 0, depositWithdrawalTransactions, pointTransactions, gameRecords, partners, users, partnerBalanceLogs);
       rows.push({ ...row, parentId: partner.parent_id, hasChildren });
     }
     for (const userItem of users) {
-      const row = calculateRowData(userItem.id, userItem.username, 0, userItem.balance || 0, userItem.points || 0, userItem.casino_rolling_commission || userItem.casino_rolling_rate || 0, userItem.casino_losing_commission || userItem.casino_losing_rate || 0, userItem.slot_rolling_commission || userItem.slot_rolling_rate || 0, userItem.slot_losing_commission || userItem.slot_losing_rate || 0, transactions, pointTransactions, gameRecords, partners, users, partnerBalanceLogs);
+      const row = calculateRowData(userItem.id, userItem.username, 0, userItem.balance || 0, userItem.points || 0, userItem.casino_rolling_commission || userItem.casino_rolling_rate || 0, userItem.casino_losing_commission || userItem.casino_losing_rate || 0, userItem.slot_rolling_commission || userItem.slot_rolling_rate || 0, userItem.slot_losing_commission || userItem.slot_losing_rate || 0, depositWithdrawalTransactions, pointTransactions, gameRecords, partners, users, partnerBalanceLogs);
       rows.push({ ...row, parentId: userItem.referrer_id, hasChildren: false });
     }
     return rows;
+  };
+
+  // ✅ TransactionManagement와 동일한 completedTransactions 구성 (입출금 + 포인트)
+  const getCompletedTransactionsForSettlement = (transactions: any[], partnerBalanceLogs: any[], pointTransactions: any[]) => {
+    // 완성된 입출금만 필터링
+    const filteredTransactions = transactions.filter(t => t.status === 'completed' || t.status === 'rejected');
+    
+    // partner_balance_logs 변환 (deposit/withdrawal만)
+    const mappedPartnerTransactions = partnerBalanceLogs
+      .filter(pt => pt.transaction_type === 'deposit' || pt.transaction_type === 'withdrawal')
+      .map(pt => ({
+        ...pt,
+        status: 'completed',
+        is_partner_transaction: true
+      }));
+    
+    // point_transactions 변환
+    const mappedPointTransactions = pointTransactions
+      .map(pt => ({
+        ...pt,
+        status: 'completed',
+        is_point_transaction: true
+      }));
+    
+    // 입출금 + 포인트 합쳐서 시간순 정렬
+    return [...filteredTransactions, ...mappedPartnerTransactions, ...mappedPointTransactions].sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
   };
 
   const fetchSettlementData = async () => {
     if (!dateRange?.from || !dateRange?.to) return;
     setLoading(true);
     try {
+      // ✅ 정산 대상 파트너/사용자 조회
       const { data: allPartners, error: allPartnersError } = await supabase.from('partners').select('*').order('level', { ascending: true }).order('username', { ascending: true });
       if (allPartnersError) throw allPartnersError;
+      
       const userLevel = user.level;
       const visiblePartnerIds = new Set<string>([user.id]);
       const descendantIds = getDescendantPartnerIds(user.id, allPartners || []);
       descendantIds.forEach(id => visiblePartnerIds.add(id));
       const visiblePartners = (allPartners || []).filter(p => p.level > userLevel && visiblePartnerIds.has(p.id));
       const visiblePartnerIdArray = Array.from(visiblePartnerIds);
+      
       const { data: users, error: usersError } = await supabase.from('users').select('*').in('referrer_id', visiblePartnerIdArray).order('username', { ascending: true });
       if (usersError) throw usersError;
+      
       const partners = visiblePartners;
       const targetUserIds = [...(users?.map(u => u.id) || []), ...(partners?.map(p => p.id) || [])];
+      
+      // ✅ 모든 데이터 조회
       let transactionsQuery = supabase.from('transactions').select('*');
       const userOnlyIds = users?.map(u => u.id) || [];
       const partnerOnlyIds = partners?.map(p => p.id) || [];
+      
       if (userOnlyIds.length > 0 && partnerOnlyIds.length > 0) {
         transactionsQuery = transactionsQuery.or(`user_id.in.(${userOnlyIds.join(',')}),partner_id.in.(${partnerOnlyIds.join(',')})`);
       } else if (userOnlyIds.length > 0) {
@@ -460,9 +574,11 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       } else if (partnerOnlyIds.length > 0) {
         transactionsQuery = transactionsQuery.in('partner_id', partnerOnlyIds);
       }
+      
       transactionsQuery = transactionsQuery.gte('created_at', dateRange.from.toISOString()).lte('created_at', dateRange.to.toISOString());
       const { data: transactionsData, error: transError } = await transactionsQuery;
       if (transError) throw transError;
+      
       let partnerBalanceLogsQuery = supabase.from('partner_balance_logs').select('*').in('transaction_type', ['deposit', 'withdrawal']);
       if (user.level > 1) {
         partnerBalanceLogsQuery = partnerBalanceLogsQuery.or(`partner_id.in.(${visiblePartnerIdArray.join(',')}),from_partner_id.in.(${visiblePartnerIdArray.join(',')}),to_partner_id.in.(${visiblePartnerIdArray.join(',')})`);
@@ -470,17 +586,45 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       partnerBalanceLogsQuery = partnerBalanceLogsQuery.gte('created_at', dateRange.from.toISOString()).lte('created_at', dateRange.to.toISOString());
       const { data: partnerBalanceLogs, error: balanceLogsError } = await partnerBalanceLogsQuery;
       if (balanceLogsError) throw balanceLogsError;
+      
       let pointTransactionsQuery = supabase.from('point_transactions').select('*').in('user_id', targetUserIds);
       pointTransactionsQuery = pointTransactionsQuery.gte('created_at', dateRange.from.toISOString()).lte('created_at', dateRange.to.toISOString());
       const { data: pointTransactions, error: pointError } = await pointTransactionsQuery;
       if (pointError) throw pointError;
+      
       let gameRecordsQuery = supabase.from('game_records').select('*').in('user_id', targetUserIds);
       gameRecordsQuery = gameRecordsQuery.gte('played_at', dateRange.from.toISOString()).lte('played_at', dateRange.to.toISOString());
       const { data: gameRecords, error: gameError } = await gameRecordsQuery;
       if (gameError) throw gameError;
-      const rows = processSettlementData(partners || [], users || [], transactionsData || [], pointTransactions || [], gameRecords || [], partnerBalanceLogs || []);
+      
+      // ✅ 베팅 데이터 로드 확인 (디버깅)
+      console.log('[정산 페이지] 베팅 데이터 로드:', {
+        targetUserIds: targetUserIds.length,
+        gameRecordsCount: gameRecords?.length || 0,
+        casinoBets: gameRecords?.filter(gr => gr.game_type === 'casino').length || 0,
+        slotBets: gameRecords?.filter(gr => gr.game_type === 'slot').length || 0,
+        dateRange: { from: dateRange.from.toISOString(), to: dateRange.to.toISOString() }
+      });
+      
+      // ✅ TransactionManagement와 동일한 completedTransactions 생성 (입출금 + 포인트)
+      const completedTransactions = getCompletedTransactionsForSettlement(
+        transactionsData || [], 
+        partnerBalanceLogs || [],
+        pointTransactions || []
+      );
+      
+      // ✅ 정산 계산 (completedTransactions 기반)
+      const rows = processSettlementData(partners || [], users || [], completedTransactions, pointTransactions || [], gameRecords || []);
       setData(rows);
       calculateSummary(rows);
+      
+      // ✅ 정산 결과 확인 (디버깅)
+      console.log('[정산 페이지] 계산 완료:', {
+        totalRows: rows.length,
+        totalCasinoBet: rows.reduce((sum, r) => sum + r.casinoBet, 0),
+        totalSlotBet: rows.reduce((sum, r) => sum + r.slotBet, 0),
+        totalGGR: rows.reduce((sum, r) => sum + r.ggr, 0)
+      });
     } catch (error) {
       console.error('정산 데이터 조회 실패:', error);
       toast.error('정산 데이터를 불러오는데 실패했습니다.');
@@ -996,6 +1140,8 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
               <Button
                 onClick={async () => {
                   await saveGongBetSettings();
+                  // ✅ 모달에서 공베팅 설정 저장 후 테이블 동기화
+                  recalculateSettlementData();
                   setShowGongBetModal(false);
                 }}
                 className="bg-orange-600 hover:bg-orange-700"

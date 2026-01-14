@@ -278,20 +278,20 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       const { data: usersData } = await userQuery.order('nickname');
       setUsers(usersData || []);
 
-      // 통계 계산 - 모든 입출금 타입 포함 (deposit, admin_deposit, withdrawal, admin_withdrawal)
+      // 통계 계산 - 모든 입출금 타입 포함 (deposit, admin_deposit_initial, admin_deposit_send, withdrawal, admin_withdrawal_initial, admin_withdrawal_send)
       if (transactionsData) {
-        // 입금: deposit + admin_deposit (completed만)
+        // 입금: deposit + admin_deposit_initial + admin_deposit_send (completed만)
         const depositSum = transactionsData
           .filter(t => 
-            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && 
+            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && 
             t.status === 'completed'
           )
           .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
         
-        // 출금: withdrawal + admin_withdrawal (completed만)
+        // 출금: withdrawal + admin_withdrawal_initial + admin_withdrawal_send (completed만)
         const withdrawalSum = transactionsData
           .filter(t => 
-            (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && 
+            (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send') && 
             t.status === 'completed'
           )
           .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
@@ -310,11 +310,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           depositSum,
           withdrawalSum,
           depositCount: transactionsData.filter(t => 
-            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && 
+            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && 
             t.status === 'completed'
           ).length,
           withdrawalCount: transactionsData.filter(t => 
-            (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && 
+            (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send') && 
             t.status === 'completed'
           ).length
         });

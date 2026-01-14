@@ -387,8 +387,8 @@ async function syncOroplayBets(): Promise<any> {
         continue;
       }
 
-      // 2. 최근 동기화 시간 확인 (1초 전부터 조회)
-      const startDate = new Date(Date.now() - 1000).toISOString();
+      // 2. 최근 동기화 시간 확인 (4초 전부터 조회)
+      const startDate = new Date(Date.now() - 4000).toISOString();
 
       // 3. 배팅 내역 조회
       const result = await getBettingHistory(token, startDate, 1000);
@@ -404,6 +404,32 @@ async function syncOroplayBets(): Promise<any> {
       const completedBets = result.histories.filter((bet: any) => bet.status === 1);
       console.log(`   ✅ 완료된 배팅: ${completedBets.length}건`);
 
+      // 5. 이미 저장된 트랜잭션 ID 조회 (중복 제거) - CRITICAL: api_type도 함께 확인
+      const { data: existingOroplayRecords } = await supabase
+        .from('game_records')
+        .select('external_txid')
+        .eq('partner_id', partner.id)
+        .eq('api_type', 'oroplay');
+
+      // ✅ 타입 변환: 모든 ID를 문자열로 통일하여 비교 (BigInt 안전성)
+      const existingOroplayTxIds = new Set(
+        existingOroplayRecords?.map((r: any) => String(r.external_txid)) || []
+      );
+      console.log(`   📋 기존 저장 건수: ${existingOroplayTxIds.size}건`);
+
+      // 6. 새로운 베팅만 필터링 (이미 저장된 것 제외)
+      const newCompletedBets = completedBets.filter((bet: any) => {
+        const txId = String(bet.id);
+        return !existingOroplayTxIds.has(txId);
+      });
+      const skippedOroplayCount = completedBets.length - newCompletedBets.length;
+      console.log(`   🆕 신규 베팅: ${newCompletedBets.length}건, 건너뜀: ${skippedOroplayCount}건`);
+
+      if (newCompletedBets.length === 0) {
+        console.log(`ℹ️ Partner ${partner.id}: 신규 베팅 기록 없음 (모두 기존 데이터)`);
+        continue;
+      }
+
       // 5. 사용자 매핑
       const { data: allUsers } = await supabase
         .from('users')
@@ -417,11 +443,23 @@ async function syncOroplayBets(): Promise<any> {
       }
 
       // 6. game_records에 저장
-      for (const bet of completedBets) {
+      for (const bet of newCompletedBets) {
         try {
           const userId = userMap.get(bet.userCode);
           if (!userId) {
             continue;
+          }
+
+          // ⚠️ CRITICAL: INSERT 직전에 한 번 더 중복 체크 (경쟁 조건 방지)
+          const { data: oroplayAlreadyExists } = await supabase
+            .from('game_records')
+            .select('id')
+            .eq('external_txid', bet.id)
+            .eq('api_type', 'oroplay')
+            .maybeSingle();
+
+          if (oroplayAlreadyExists) {
+            continue;  // 조용히 건너뜀
           }
 
           console.log(`   📦 OroPlay bet: vendor=${bet.vendorCode}, game=${bet.gameCode}`);
@@ -720,16 +758,32 @@ async function syncHonorapiBets(): Promise<any> {
         continue;
       }
 
-      // 2. 최근 동기화 시간 확인 (34초 전부터 조회)
-      const now = new Date();
-      const thirtyFourSecondsAgo = new Date(now.getTime() - 34000);
+      // 2. 마지막 동기화된 external_txid 조회 (새로운 데이터만 처리하기 위함)
+      const { data: lastRecord } = await supabase
+        .from('game_records')
+        .select('external_txid, played_at')
+        .eq('partner_id', partner.id)
+        .eq('api_type', 'honorapi')
+        .order('external_txid', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      const startTime = formatUTC(thirtyFourSecondsAgo);
+      const lastExternalTxid = lastRecord?.external_txid || 0;
+      const lastPlayedAt = lastRecord?.played_at ? new Date(lastRecord.played_at) : new Date(0);
+
+      console.log(`📍 Partner ${partner.id}: 마지막 external_txid=${lastExternalTxid}, played_at=${lastPlayedAt.toISOString()}`);
+
+      // 3. 조회 기간 설정: 마지막 played_at 기준으로 1분 전부터 현재까지
+      // (네트워크 지연, 클라이언트 타임 차이 등 고려하여 1분 여유)
+      const now = new Date();
+      const oneMinuteBeforeLastTime = new Date(lastPlayedAt.getTime() - 60000);
+
+      const startTime = formatUTC(oneMinuteBeforeLastTime);
       const endTime = formatUTC(now);
 
       console.log(`📅 조회 기간: ${startTime} ~ ${endTime}`);
 
-      // 3. 트랜잭션 조회
+      // 4. 트랜잭션 조회
       const result = await getHonorApiTransactions(
         honorConfig.api_key,
         startTime,
@@ -751,7 +805,38 @@ async function syncHonorapiBets(): Promise<any> {
       const betTransactions = transactions.filter((tx: any) => tx.type === 'bet' && tx.details?.game);
       console.log(`   ✅ 베팅 트랜잭션: ${betTransactions.length}건`);
 
-      // 5. 사용자 매핑
+      // 5. 이미 저장된 트랜잭션 ID 조회 (중복 제거) - CRITICAL: api_type도 함께 확인
+      const { data: existingRecords } = await supabase
+        .from('game_records')
+        .select('external_txid')
+        .eq('partner_id', partner.id)
+        .eq('api_type', 'honorapi')
+        .gte('played_at', new Date(lastPlayedAt.getTime() - 300000).toISOString()); // 최근 5분 데이터만
+
+      // ✅ 타입 변환: 모든 ID를 문자열로 통일하여 비교 (BigInt 안전성)
+      const existingTxIds = new Set(
+        existingRecords?.map((r: any) => String(r.external_txid)) || []
+      );
+      console.log(`   📋 기존 저장 건수: ${existingTxIds.size}건`);
+      if (existingTxIds.size > 0) {
+        const existingIds = Array.from(existingTxIds).slice(0, 5);
+        console.log(`   📋 샘플 ID: ${existingIds.join(', ')} (최대 5개)`);
+      }
+
+      // 6. 새로운 트랜잭션만 필터링 (이미 저장된 것 제외)
+      const newBetTransactions = betTransactions.filter((tx: any) => {
+        const txId = String(tx.id);
+        return !existingTxIds.has(txId);
+      });
+      const skippedCount = betTransactions.length - newBetTransactions.length;
+      console.log(`   🆕 신규 베팅 트랜잭션: ${newBetTransactions.length}건, 건너뜀: ${skippedCount}건`);
+
+      if (newBetTransactions.length === 0) {
+        console.log(`ℹ️ Partner ${partner.id}: 신규 베팅 기록 없음 (모두 기존 데이터)`);
+        continue;
+      }
+
+      // 7. 사용자 매핑
       const { data: allUsers } = await supabase
         .from('users')
         .select('id, username, referrer_id');
@@ -763,12 +848,24 @@ async function syncHonorapiBets(): Promise<any> {
         });
       }
 
-      // 6. game_records에 저장
-      for (const tx of betTransactions) {
+      // 8. game_records에 저장
+      for (const tx of newBetTransactions) {
         try {
           const userInfo = userMap.get(tx.user.username);
           if (!userInfo) {
             continue;
+          }
+
+          // ⚠️ CRITICAL: INSERT 직전에 한 번 더 중복 체크 (경쟁 조건 방지)
+          const { data: alreadyExists } = await supabase
+            .from('game_records')
+            .select('id')
+            .eq('external_txid', tx.id)
+            .eq('api_type', 'honorapi')
+            .maybeSingle();
+
+          if (alreadyExists) {
+            continue;  // 조용히 건너뜀 (로그 제거)
           }
 
           // 게임 정보 조회
@@ -850,7 +947,8 @@ async function syncHonorapiBets(): Promise<any> {
         }
       }
 
-      console.log(`✅ Partner ${partner.id}: 동기화 완료`);
+      console.log(`✅ Partner ${partner.id}: 동기화 완료 (신규: ${newBetTransactions.length}, 저장: ${totalSynced})`);
+
 
     } catch (error) {
       console.error(`❌ Partner ${partner.id} HonorAPI 동기화 에러:`, error);
@@ -869,10 +967,10 @@ async function syncHonorapiBets(): Promise<any> {
 }
 
 // =====================================================
-// Lv2 파트너 OroPlay 보유금 동기화
+// Lv2 파트너 보유금 동기화
 // =====================================================
 async function syncLv2Balances(): Promise<any> {
-  console.log('💰 [Lv2 Balance Sync] 보유금 동기화 시작 (Invest, OroPlay, FamilyAPI)');
+  console.log('⏰ [Lv2 Balance Sync] 3초 주기로 시작됨 -', new Date().toISOString());
 
   // Lv2 파트너 목록 조회
   const { data: lv2Partners, error: partnersError } = await supabase

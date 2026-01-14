@@ -1685,8 +1685,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (transactionTypeFilter === 'all') {
           return t.transaction_type === 'deposit' || 
                  t.transaction_type === 'withdrawal' ||
-                 t.transaction_type === 'admin_deposit' || 
-                 t.transaction_type === 'admin_withdrawal' || 
+                 t.transaction_type === 'admin_deposit_initial' || 
+                 t.transaction_type === 'admin_deposit_send' ||
+                 t.transaction_type === 'admin_withdrawal_initial' || 
+                 t.transaction_type === 'admin_withdrawal_send' ||
                  t.transaction_type === 'partner_deposit' ||
                  t.transaction_type === 'partner_withdrawal' ||
                  t.transaction_type === 'admin_adjustment';
@@ -1694,10 +1696,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         
         // 사용자 입출금: 사용자 요청 + 관리자 강제 입출금
         if (transactionTypeFilter === 'user_deposit') {
-          return t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit';
+          return t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send';
         }
         if (transactionTypeFilter === 'user_withdrawal') {
-          return t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal';
+          return t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send';
         }
         
         // 관리자 입출금: 파트너 요청만 (파트너 처리는 partner_balance_logs)
@@ -1891,8 +1893,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     totalCount: adminDepositTransactions.length
   });
 
-  // 거래 테이블 컬럼
+  // 거래 테이블 컬럼 - 순서: 거래일시|아이디|보낸사람|받는사람|거래유형|보유금|신청금액|변경후 금액|상태|메모|처리자
   const getColumns = (showActions = false) => [
+    // 1. 거래일시
     {
       header: t.transactionManagement.transactionDate,
       cell: (row: any) => (
@@ -1901,6 +1904,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         </span>
       )
     },
+    // 2. 아이디
     {
       header: '아이디',
       cell: (row: any) => {
@@ -1930,35 +1934,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         );
       }
     },
-    {
-      header: '닉네임',
-      cell: (row: any) => {
-        // 파트너 거래인 경우
-        if (row.is_partner_transaction) {
-          return (
-            <span className="font-medium text-purple-300" style={{ fontSize: '15px' }}>
-              {row.partner_nickname || '-'}
-            </span>
-          );
-        }
-        
-        // ✅ 관리자 입출금 신청인 경우 (partner_deposit, partner_withdrawal)
-        if (row.transaction_type === 'partner_deposit' || row.transaction_type === 'partner_withdrawal') {
-          return (
-            <span className="font-medium text-purple-300" style={{ fontSize: '15px' }}>
-              {row.partner?.nickname || '[관리자]'}
-            </span>
-          );
-        }
-        
-        // 일반 회원 거래
-        return (
-          <span className="font-medium text-slate-200" style={{ fontSize: '15px' }}>
-            {row.user?.nickname || row.user_nickname || '-'}
-          </span>
-        );
-      }
-    },
+    // 3. 보낸사람
     {
       header: '보낸사람',
       cell: (row: any) => {
@@ -1980,29 +1956,18 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           );
         }
 
-        // ✅ admin_deposit/withdrawal 거래: from_partner_id/to_partner_id 표시
-        if (row.transaction_type === 'admin_deposit' || row.transaction_type === 'admin_withdrawal') {
-          // admin_deposit: 보낸사람 = 관리자 (user.id가 아닌 from_partner_id)
-          if (row.transaction_type === 'admin_deposit') {
-            // 일반 회원 거래에서 관리자 입금: user.referrer가 담당 파트너
-            if (row.user?.referrer) {
-              return (
-                <span className="text-blue-400" style={{ fontSize: '15px' }}>
-                  {row.user.referrer.nickname}
-                </span>
-              );
-            }
-          }
-          // admin_withdrawal: 보낸사람 = 담당 파트너
-          if (row.transaction_type === 'admin_withdrawal') {
-            // 일반 회원 거래에서 관리자 출금: user.referrer가 담당 파트너
-            if (row.user?.referrer) {
-              return (
-                <span className="text-blue-400" style={{ fontSize: '15px' }}>
-                  {row.user.referrer.nickname}
-                </span>
-              );
-            }
+        // ✅ 관리자 입금/출금 거래: from_partner_id/to_partner_id 표시
+        const isAdminDepositType = row.transaction_type === 'admin_deposit_initial' || row.transaction_type === 'admin_deposit_send';
+        const isAdminWithdrawalType = row.transaction_type === 'admin_withdrawal_initial' || row.transaction_type === 'admin_withdrawal_send';
+        
+        if (isAdminDepositType || isAdminWithdrawalType) {
+          // 관리자 입금/출금: 보낸사람 = 담당 파트너
+          if (row.user?.referrer) {
+            return (
+              <span className="text-blue-400" style={{ fontSize: '15px' }}>
+                {row.user.referrer.nickname}
+              </span>
+            );
           }
         }
 
@@ -2018,6 +1983,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         return <span className="text-slate-500" style={{ fontSize: '15px' }}>-</span>;
       }
     },
+    // 4. 받는사람
     {
       header: '받는사람',
       cell: (row: any) => {
@@ -2039,32 +2005,34 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           );
         }
 
-        // ✅ admin_deposit/withdrawal 거래: 받는 사람 표시
-        if (row.transaction_type === 'admin_deposit' || row.transaction_type === 'admin_withdrawal') {
-          // admin_deposit: 받는사람 = 회원 (user.username)
-          if (row.transaction_type === 'admin_deposit') {
+        // ✅ 관리자 입금/출금 거래: 받는 사람 표시
+        const isAdminDepositType = row.transaction_type === 'admin_deposit_initial' || row.transaction_type === 'admin_deposit_send';
+        const isAdminWithdrawalType = row.transaction_type === 'admin_withdrawal_initial' || row.transaction_type === 'admin_withdrawal_send';
+        
+        if (isAdminDepositType) {
+          // 관리자 입금: 받는사람 = 회원 (user.username)
+          return (
+            <span className="text-pink-400" style={{ fontSize: '15px' }}>
+              {row.user?.username || '-'}
+            </span>
+          );
+        }
+        
+        if (isAdminWithdrawalType) {
+          // 관리자 출금: 받는사람 = 담당 파트너
+          if (row.user?.referrer) {
             return (
               <span className="text-pink-400" style={{ fontSize: '15px' }}>
-                {row.user?.username || '-'}
+                {row.user.referrer.nickname}
               </span>
             );
-          }
-          // admin_withdrawal: 받는사람 = 관리자 (user.referrer)
-          if (row.transaction_type === 'admin_withdrawal') {
-            // 일반 회원 거래에서 관리자 출금: user.referrer가 담당 파트너
-            if (row.user?.referrer) {
-              return (
-                <span className="text-pink-400" style={{ fontSize: '15px' }}>
-                  {row.user.referrer.nickname}
-                </span>
-              );
-            }
           }
         }
         
         return <span className="text-slate-500" style={{ fontSize: '15px' }}>-</span>;
       }
     },
+    // 5. 거래유형
     {
       header: t.transactionManagement.transactionType,
       cell: (row: any) => {
@@ -2086,8 +2054,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         const typeMap: any = {
           deposit: { text: t.transactionManagement.deposit, color: 'bg-emerald-600' },
           withdrawal: { text: t.transactionManagement.withdrawal, color: 'bg-orange-600' },
-          admin_deposit: { text: t.transactionManagement.adminDeposit, color: 'bg-teal-600' },
-          admin_withdrawal: { text: t.transactionManagement.adminWithdrawal, color: 'bg-rose-600' },
+          admin_deposit_initial: { text: '관리자입금(운영)', color: 'bg-cyan-600' },
+          admin_deposit_send: { text: '관리자입금(파트너환전)', color: 'bg-cyan-500' },
+          admin_deposit_receive: { text: '관리자입금(파트너충전)', color: 'bg-cyan-400' },
+          admin_withdrawal_initial: { text: '관리자출금(수동출금)', color: 'bg-pink-600' },
+          admin_withdrawal_send: { text: '관리자출금(파트너환전)', color: 'bg-pink-500' },
+          admin_withdrawal_receive: { text: '관리자출금(파트너충전)', color: 'bg-pink-400' },
           partner_deposit: { text: '관리자입금신청', color: 'bg-cyan-600' },
           partner_withdrawal: { text: '관리자출금신청', color: 'bg-pink-600' },
           admin_adjustment: { 
@@ -2112,6 +2084,44 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         return <Badge className={`${type.color} text-white text-sm px-3 py-1`}>{type.text}</Badge>;
       }
     },
+    // 6. 보유금 (거래 전 잔액)
+    {
+      header: '보유금',
+      cell: (row: any) => {
+        // 금액 포맷팅 (원화 표시 없이 숫자만)
+        const formatNumberOnly = (num: number) => new Intl.NumberFormat('ko-KR').format(num);
+        
+        // 파트너 거래인 경우: Lv2는 총 보유금(4개 지갑 합계), 그 외는 balance_before
+        if (row.is_partner_transaction) {
+          const balanceValue = row.balance_before_total !== undefined 
+            ? row.balance_before_total 
+            : parseFloat(row.balance_before?.toString() || '0');
+          return (
+            <span className="font-asiahead text-cyan-300" style={{ fontSize: '15px' }}>
+              {formatNumberOnly(balanceValue)}
+            </span>
+          );
+        }
+        
+        // 포인트 거래인 경우
+        if (row.points_before !== undefined) {
+          return (
+            <span className="font-asiahead text-amber-300" style={{ fontSize: '15px' }}>
+              {row.points_before.toLocaleString()}P
+            </span>
+          );
+        }
+        
+        // 일반 입출금 거래
+        return (
+          <span className="font-asiahead text-cyan-300" style={{ fontSize: '15px' }}>
+            {formatNumberOnly(parseFloat(row.balance_before?.toString() || '0'))}
+          </span>
+        );
+      },
+      className: "text-right"
+    },
+    // 7. 신청금액
     {
       header: t.transactionManagement.amount,
       cell: (row: any) => {
@@ -2163,8 +2173,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       },
       className: "text-right"
     },
+    // 8. 변경후 금액
     {
-      header: t.transactionManagement.balanceAfter,
+      header: '변경후 금액',
       cell: (row: any) => {
         // 금액 포맷팅 (원화 표시 없이 숫자만)
         const formatNumberOnly = (num: number) => new Intl.NumberFormat('ko-KR').format(num);
@@ -2199,6 +2210,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       },
       className: "text-right"
     },
+    // 9. 상태
     {
       header: t.transactionManagement.status,
       cell: (row: any) => {
@@ -2211,6 +2223,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         return <Badge className={`${status.color} text-white text-sm px-3 py-1`}>{status.text}</Badge>;
       }
     },
+    // 10. 메모
     {
       header: t.transactionManagement.memo,
       cell: (row: any) => {
@@ -2278,6 +2291,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       },
       className: "text-left pl-8"
     },
+    // 11. 처리자
     {
       header: t.transactionManagement.processor,
       cell: (row: any) => {

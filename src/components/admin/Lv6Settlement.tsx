@@ -40,8 +40,8 @@ interface SettlementRow {
   // 파트너 충환전
   partnerCharge: number;
   partnerExchange: number;
-  // 현금정산
-  cashSettlement: number;
+  // 입출차액
+  depositWithdrawalDiff: number;
   // 게임 실적
   casinoBet: number;
   casinoWin: number;
@@ -69,7 +69,7 @@ interface SummaryStats {
   manualExchange: number;
   partnerCharge: number;
   partnerExchange: number;
-  cashSettlement: number;
+  depositWithdrawalDiff: number;
   casinoBet: number;
   casinoWin: number;
   slotBet: number;
@@ -103,7 +103,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     manualExchange: 0,
     partnerCharge: 0,
     partnerExchange: 0,
-    cashSettlement: 0,
+    depositWithdrawalDiff: 0,
     casinoBet: 0,
     casinoWin: 0,
     slotBet: 0,
@@ -180,7 +180,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       manualExchange: filtered.reduce((sum, r) => sum + r.manualExchange, 0),
       partnerCharge: filtered.reduce((sum, r) => sum + r.partnerCharge, 0),
       partnerExchange: filtered.reduce((sum, r) => sum + r.partnerExchange, 0),
-      cashSettlement: filtered.reduce((sum, r) => sum + r.cashSettlement, 0),
+      depositWithdrawalDiff: filtered.reduce((sum, r) => sum + r.depositWithdrawalDiff, 0),
       casinoBet: filtered.reduce((sum, r) => sum + r.casinoBet, 0),
       casinoWin: filtered.reduce((sum, r) => sum + r.casinoWin, 0),
       slotBet: filtered.reduce((sum, r) => sum + r.slotBet, 0),
@@ -295,9 +295,51 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       const { data: gameRecords, error: gameError } = await gameRecordsQuery;
       if (gameError) throw gameError;
 
-      const rows = processSettlementData(partners, users || [], transactionsData || [], pointTransactions || [], gameRecords || []);
+      // ✅ 베팅 데이터 로드 확인 (디버깅)
+      console.log('[Lv6 정산 페이지] 베팅 데이터 로드:', {
+        targetUserIds: targetUserIds.length,
+        gameRecordsCount: gameRecords?.length || 0,
+        casinoBets: gameRecords?.filter(gr => gr.game_type === 'casino').length || 0,
+        slotBets: gameRecords?.filter(gr => gr.game_type === 'slot').length || 0,
+        dateRange: { from: dateRange.from.toISOString(), to: dateRange.to.toISOString() }
+      });
+
+      // ✅ partner_balance_logs 조회 - 전체입출금내역과 동일한 방식
+      let partnerBalanceLogsQuery = supabase
+        .from('partner_balance_logs')
+        .select('*')
+        .in('transaction_type', ['deposit', 'withdrawal']);
+      
+      if (user.level === 6) {
+        partnerBalanceLogsQuery = partnerBalanceLogsQuery.eq('partner_id', user.id);
+      }
+      
+      partnerBalanceLogsQuery = partnerBalanceLogsQuery
+        .gte('created_at', dateRange.from.toISOString())
+        .lte('created_at', dateRange.to.toISOString());
+      
+      const { data: partnerBalanceLogs, error: partnerBalanceError } = await partnerBalanceLogsQuery;
+      if (partnerBalanceError) throw partnerBalanceError;
+
+      // ✅ TransactionManagement와 동일한 completedTransactions 생성 (입출금 + 포인트)
+      const completedTransactions = getCompletedTransactionsForSettlement(
+        transactionsData || [], 
+        partnerBalanceLogs || [],
+        pointTransactions || []
+      );
+      
+      // ✅ 정산 계산 (completedTransactions 기반)
+      const rows = processSettlementData(partners, users || [], completedTransactions, pointTransactions || [], gameRecords || []);
       setData(rows);
       calculateSummary(rows);
+      
+      // ✅ 정산 결과 확인 (디버깅)
+      console.log('[Lv6 정산 페이지] 계산 완료:', {
+        totalRows: rows.length,
+        totalCasinoBet: rows.reduce((sum, r) => sum + r.casinoBet, 0),
+        totalSlotBet: rows.reduce((sum, r) => sum + r.slotBet, 0),
+        totalGGR: rows.reduce((sum, r) => sum + r.ggr, 0)
+      });
 
     } catch (error) {
       console.error('❌ 정산 데이터 조회 실패:', error);
@@ -317,13 +359,49 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     return allUsers_ids;
   };
 
+  // ✅ TransactionManagement와 동일한 completedTransactions 구성 (입출금 + 포인트)
+  const getCompletedTransactionsForSettlement = (transactions: any[], partnerBalanceLogs: any[], pointTransactions: any[]) => {
+    // 완성된 입출금만 필터링
+    const filteredTransactions = transactions.filter(t => t.status === 'completed' || t.status === 'rejected');
+    
+    // partner_balance_logs 변환 (deposit/withdrawal만)
+    const mappedPartnerTransactions = partnerBalanceLogs
+      .filter(pt => pt.transaction_type === 'deposit' || pt.transaction_type === 'withdrawal')
+      .map(pt => ({
+        ...pt,
+        status: 'completed',
+        is_partner_transaction: true
+      }));
+    
+    // point_transactions 변환
+    const mappedPointTransactions = pointTransactions
+      .map(pt => ({
+        ...pt,
+        status: 'completed',
+        is_point_transaction: true
+      }));
+    
+    // 입출금 + 포인트 합쳐서 시간순 정렬
+    return [...filteredTransactions, ...mappedPartnerTransactions, ...mappedPointTransactions].sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  };
+
   const processSettlementData = (
     partners: any[],
     users: any[],
-    transactions: any[],
-    pointTransactions: any[],
+    completedTransactions: any[],
+    allPointTransactions: any[],
     gameRecords: any[]
   ): SettlementRow[] => {
+    // ✅ completedTransactions에서 입출금 트랜잭션만 분리
+    const depositWithdrawalTransactions = completedTransactions.filter(t => 
+      !t.is_point_transaction && (t.transaction_type || t.user_id)
+    );
+    
+    // ✅ 포인트 트랜잭션만 필터링
+    const pointTransactions = completedTransactions.filter(t => t.is_point_transaction) || allPointTransactions || [];
+    
     const rows: SettlementRow[] = [];
 
     // ✅ 파트너 데이터 추가
@@ -332,7 +410,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       const row = calculateRowData(partner.id, partner.username, partner.level, partner.balance || 0, 0,
         partner.casino_rolling_commission || 0, partner.casino_losing_commission || 0,
         partner.slot_rolling_commission || 0, partner.slot_losing_commission || 0,
-        transactions, pointTransactions, gameRecords, partners, users);
+        depositWithdrawalTransactions, pointTransactions, gameRecords, partners, users);
       rows.push({
         ...row,
         type: 'partner',
@@ -348,7 +426,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
         userItem.casino_losing_commission || userItem.casino_losing_rate || 0,
         userItem.slot_rolling_commission || userItem.slot_rolling_rate || 0,
         userItem.slot_losing_commission || userItem.slot_losing_rate || 0,
-        transactions, pointTransactions, gameRecords, partners, users);
+        depositWithdrawalTransactions, pointTransactions, gameRecords, partners, users);
       rows.push({
         ...row,
         type: 'member',
@@ -391,14 +469,23 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
 
     const userTransactions = transactions.filter(t => relevantUserIdsForTransactions.includes(t.user_id));
 
-    // ✅ 온라인 입출금
+    // ✅ 온라인 입출금: 사용자 직접 입금/출금만 (deposit/withdrawal)
     const onlineDeposit = userTransactions
-      .filter(t => (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && t.status === 'completed')
+      .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const onlineWithdrawal = userTransactions
-      .filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && t.status === 'completed')
+      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+
+    // ✅ 파트너 충환전: 사용자 입금/출금 + 수동 충환전 + 파트너 간 거래
+    const userCharge = userTransactions
+      .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    const userExchange = userTransactions
+      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
     // ✅ 수동 충환전
     const manualCharge = userTransactions
@@ -409,33 +496,43 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       .filter(t => t.transaction_type === 'manual_exchange' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    // ✅ 파트너 충환전
-    const partnerCharge = userTransactions
-      .filter(t => t.transaction_type === 'partner_charge' && t.status === 'completed')
+    // ✅ 파트너 간 거래 (수동입금/출금)
+    const adminDepositTransactions = userTransactions
+      .filter(t => (t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    const partnerExchange = userTransactions
-      .filter(t => t.transaction_type === 'partner_exchange' && t.status === 'completed')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
+    const adminWithdrawalTransactions = userTransactions
+      .filter(t => (t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send') && t.status === 'completed')
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ 현금정산
-    const cashSettlement = manualCharge + manualExchange + partnerCharge + partnerExchange;
+    // ✅ 파트너 충환전 (사용자 입금/출금 + 수동 + 파트너 간 거래)
+    const partnerCharge = userCharge + manualCharge + adminDepositTransactions;
+
+    const partnerExchange = userExchange + manualExchange + adminWithdrawalTransactions;
+
+    // ✅ 입출차액
+    const depositWithdrawalDiff = onlineDeposit - onlineWithdrawal + (userCharge - userExchange) + (manualCharge - manualExchange) + (adminDepositTransactions - adminWithdrawalTransactions);
 
     // ✅ 게임 기록 (직속 회원 데이터 합산)
     const relevantGameRecords = gameRecords.filter(gr => relevantUserIdsForTransactions.includes(gr.user_id));
+    const casinoBetRecords = relevantGameRecords.filter(gr => gr.game_type === 'casino');
+    const slotBetRecords = relevantGameRecords.filter(gr => gr.game_type === 'slot');
 
-    const casinoBet = Math.abs(relevantGameRecords
-      .filter(gr => gr.game_type === 'casino')
-      .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
-    const casinoWin = relevantGameRecords
-      .filter(gr => gr.game_type === 'casino')
-      .reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
-    const slotBet = Math.abs(relevantGameRecords
-      .filter(gr => gr.game_type === 'slot')
-      .reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
-    const slotWin = relevantGameRecords
-      .filter(gr => gr.game_type === 'slot')
-      .reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+    const casinoBet = Math.abs(casinoBetRecords.reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
+    const casinoWin = casinoBetRecords.reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+    const slotBet = Math.abs(slotBetRecords.reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
+    const slotWin = slotBetRecords.reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+    
+    // ✅ 게임 데이터 로드 확인 (디버깅)
+    if (casinoBet > 0 || slotBet > 0) {
+      console.log(`[Lv6 정산계산] ${username}:`, {
+        relevantUserCount: relevantUserIdsForTransactions.length,
+        totalGameRecords: relevantGameRecords.length,
+        casinoBets: casinoBetRecords.length,
+        slotBets: slotBetRecords.length,
+        casinoBet, casinoWin, slotBet, slotWin
+      });
+    }
 
     const casinoWinLoss = casinoBet + casinoWin;
     const slotWinLoss = slotBet + slotWin;
@@ -471,7 +568,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       manualExchange,
       partnerCharge,
       partnerExchange,
-      cashSettlement,
+      depositWithdrawalDiff,
       casinoBet,
       casinoWin,
       slotBet,
@@ -562,7 +659,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
         </div>
         <div className="bg-gradient-to-br from-cyan-900/50 to-slate-900 rounded-xl p-4 border border-cyan-700/30 hover:border-cyan-600/50 transition-all shadow-lg shadow-cyan-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-cyan-500/20 rounded-lg"><Activity className="h-6 w-6 text-cyan-400" /></div><span className="text-2xl text-slate-400 font-medium">현금정산</span></div>
-          <div className="text-3xl font-bold text-cyan-400 font-asiahead ml-12">{formatNumber(summary.cashSettlement)}</div>
+          <div className="text-3xl font-bold text-cyan-400 font-asiahead ml-12">{formatNumber(summary.depositWithdrawalDiff)}</div>
         </div>
         <div className="bg-gradient-to-br from-violet-900/50 to-slate-900 rounded-xl p-4 border border-violet-700/30 hover:border-violet-600/50 transition-all shadow-lg shadow-violet-900/10">
           <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-violet-500/20 rounded-lg"><TrendingUp className="h-6 w-6 text-violet-400" /></div><span className="text-2xl text-slate-400 font-medium">카지노 베팅</span></div>
@@ -783,7 +880,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
                         
                         {/* 현금정산 */}
                         <td className="px-4 py-3 text-center whitespace-nowrap">
-                          <div className="text-cyan-400 font-asiahead">{formatNumber(row.cashSettlement)}</div>
+                          <div className="text-cyan-400 font-asiahead">{formatNumber(row.depositWithdrawalDiff)}</div>
                         </td>
                         
                         {/* 게임 실적 */}

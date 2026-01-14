@@ -153,29 +153,6 @@ const processSingleOpcode = async (
     
     console.log(`   👥 전체 회원 수: ${userMap.size}명`);
 
-    // ✅ 게임/제공사 정보 배치 조회 (매핑용)
-    const gameIds = [...new Set(bettingRecords.map(r => r.game_id).filter(Boolean))];
-    const providerIds = [...new Set(bettingRecords.map(r => r.provider_id || Math.floor((r.game_id || 0) / 1000)).filter(Boolean))];
-
-    const gameMap = new Map<number, { name: string; type: string }>();
-    const providerMap = new Map<number, string>();
-
-    if (gameIds.length > 0) {
-      const { data: games } = await supabase.from('games').select('id, name, name_ko, game_type').in('id', gameIds);
-      const { data: honorGames } = await supabase.from('honor_games').select('id, name, name_ko, type').in('id', gameIds);
-      games?.forEach(g => gameMap.set(g.id, { name: g.name_ko || g.name, type: g.game_type }));
-      honorGames?.forEach(g => { if (!gameMap.has(g.id)) gameMap.set(g.id, { name: g.name_ko || g.name, type: g.type }); });
-    }
-
-    if (providerIds.length > 0) {
-      const { data: providers } = await supabase.from('game_providers').select('id, name, name_ko').in('id', providerIds);
-      const { data: honorProviders } = await supabase.from('honor_game_providers').select('id, name, name_ko').in('id', providerIds);
-      providers?.forEach(p => providerMap.set(p.id, p.name_ko || p.name));
-      honorProviders?.forEach(p => { if (!providerMap.has(p.id)) providerMap.set(p.id, p.name_ko || p.name); });
-    }
-
-    console.log(`   🎮 매핑된 게임: ${gameMap.size}개, 제공사: ${providerMap.size}개`);
-
     // 4. 개별 INSERT (가장 간단하고 확실한 방법)
     let successCount = 0;
     let skipCount = 0;
@@ -228,18 +205,9 @@ const processSingleOpcode = async (
         const playedAtRaw = record.create_at || record.played_at || record.created_at || new Date().toISOString();
 
         // ✅ API 시간: UTC를 +09로 잘못 표시 → 타임존 제거 후 시스템 타임존으로 변환
-        const playedAtUTC = playedAtRaw.replace(/[+-]\d{2}:\d{2}$/, '').replace('Z', '');
-        const playedAt = new Date(playedAtUTC).toISOString();
-
-        // ✅ 게임 ID와 제공사 ID
-        const gameId = record.game_id || record.game;
-        const providerId = record.provider_id || Math.floor((gameId || 410000) / 1000);
-
-        // ✅ 매핑된 게임명/제공사명 사용
-        const gameInfo = gameId ? gameMap.get(gameId) : null;
-        const providerName = providerMap.get(providerId) || null;
-        const gameTitle = gameInfo?.name || `Game ${gameId}` || 'Unknown Game';
-        const gameType = gameInfo?.type || 'casino';
+        // 예: API "2025-10-31T07:59:38+09:00" → UTC 07:59:38 → 시스템 타임존 적용
+        const playedAtUTC = playedAtRaw.replace(/[+-]\d{2}:\d{2}$/, '').replace('Z', ''); // 타임존 제거
+        const playedAt = new Date(playedAtUTC).toISOString(); // UTC 표준 형식으로 저장
 
         // ✅ 개별 INSERT (에러는 조용히 무시)
         const { error } = await supabase
@@ -249,11 +217,10 @@ const processSingleOpcode = async (
             external_txid: externalTxidNum,
             username: username,
             user_id: userData.id,
-            game_id: gameId,
-            provider_id: providerId,
-            game_title: gameTitle,
-            provider_name: providerName,
-            game_type: gameType,
+            game_id: record.game_id || record.game,
+            provider_id: record.provider_id || Math.floor((record.game_id || record.game || 410000) / 1000),
+            game_title: record.game_title || null,
+            provider_name: record.provider_name || null,
             bet_amount: betAmount,
             win_amount: winAmount,
             balance_before: balanceBefore,
@@ -291,7 +258,7 @@ const processSingleOpcode = async (
       console.log(`   💾 신규 베팅 ${successCount}건이 DB에 저장되었습니다.`);
       
       // ✅ Lv2에서 api_configs credentials 사용하여 사용자 보유금 실시간 동기화
-      const uniqueUsernames = Array.from(new Set(sortedRecords.map(r => r.username).filter(Boolean)));
+      const uniqueUsernames = [...new Set(sortedRecords.map(r => r.username).filter(Boolean))];
       console.log(`   👥 보유금 동기화 대상: ${uniqueUsernames.length}명`);
 
       // ✅ 토큰 조회 (api_configs에서)
@@ -610,18 +577,18 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
  */
 const syncHonorApiBettingHistory = async (partnerId: string) => {
   try {
-    console.log('🎮 [HONORAPI-SYNC] Betting history sync started');
-
+    console.log('🎮 [HONORAPI-SYNC] Betting history sync started', { partnerId });
+    
     // 베팅 내역 동기화 실행 (partnerId 전달)
     const result = await honorApiModule.syncHonorApiBettingHistory(partnerId);
-
+    
     if (!result.success) {
       console.error('❌ [HONORAPI-SYNC] 동기화 실패:', result.error);
       return;
     }
-
+    
     console.log(`✅ [HONORAPI-SYNC] 완료: ${result.recordsSaved}/${result.recordsProcessed}건 저장`);
-
+    
   } catch (error) {
     console.error('❌ [HONORAPI-SYNC] 오류:', error);
   }

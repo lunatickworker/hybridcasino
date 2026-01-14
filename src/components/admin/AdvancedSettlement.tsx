@@ -370,21 +370,29 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         return lDate >= dayStart && lDate <= dayEnd;
       });
 
-      // 입출금 계산 - IntegratedSettlement와 동일한 조건 사용
+      // 입출금 계산 - 사용자 직접 입금/출금만 (deposit/withdrawal)
       const deposit = dayTransactions
-        .filter(t => (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit') && t.status === 'completed')
+        .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
       const withdrawal = dayTransactions
-        .filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && t.status === 'completed')
+        .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-      // 관리자 입금/출금: transactions + partner_balance_logs - IntegratedSettlement와 동일한 조건
-      const adminDepositFromTransactions = dayTransactions
+      // 관리자 입금/출금: 파트너 간 거래 + 파트너 요청 + partner_balance_logs
+      const adminDepositFromPartnerTransactions = dayTransactions
+        .filter(t => (t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && t.status === 'completed')
+        .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+      const adminWithdrawalFromPartnerTransactions = dayTransactions
+        .filter(t => (t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send') && t.status === 'completed')
+        .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+
+      const adminDepositFromRequests = dayTransactions
         .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-      const adminWithdrawalFromTransactions = dayTransactions
+      const adminWithdrawalFromRequests = dayTransactions
         .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed')
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
@@ -398,8 +406,8 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         .filter(l => l.from_partner_id === user.id && l.transaction_type === 'withdrawal')
         .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
 
-      const adminDeposit = adminDepositFromTransactions + adminDepositFromLogs;
-      const adminWithdrawal = adminWithdrawalFromTransactions + adminWithdrawalFromLogs;
+      const adminDeposit = adminDepositFromPartnerTransactions + adminDepositFromRequests + adminDepositFromLogs;
+      const adminWithdrawal = adminWithdrawalFromPartnerTransactions + adminWithdrawalFromRequests + adminWithdrawalFromLogs;
 
       // 포인트 계산
       const pointGiven = dayPointTransactions

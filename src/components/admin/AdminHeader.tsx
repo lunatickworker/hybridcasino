@@ -621,11 +621,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             console.error('❌ 사용자 입금 대기 수 조회 실패:', userDepositError);
           }
 
-          // 관리자 입금 신청도 조직격리 적용
+          // 관리자 입금 신청도 조직격리 적용 (3가지 유형: initial, send, receive)
           let adminDepositQuery = supabase
             .from('transactions')
             .select('id', { count: 'exact', head: true })
-            .eq('transaction_type', 'partner_deposit')
+            .in('transaction_type', ['admin_deposit_initial', 'admin_deposit_send', 'admin_deposit_receive'])
             .eq('status', 'pending')
             .neq('partner_id', user.id); // 본인이 신청한 것은 제외
 
@@ -666,11 +666,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             console.error('❌ 사용자 출금 대기 수 조회 실패:', userWithdrawalError);
           }
 
-          // 관리자 출금 신청도 조직격리 적용
+          // 관리자 출금 신청도 조직격리 적용 (3가지 유형: initial, send, receive)
           let adminWithdrawalQuery = supabase
             .from('transactions')
             .select('id', { count: 'exact', head: true })
-            .eq('transaction_type', 'partner_withdrawal')
+            .in('transaction_type', ['admin_withdrawal_initial', 'admin_withdrawal_send', 'admin_withdrawal_receive'])
             .eq('status', 'pending')
             .neq('partner_id', user.id); // 본인이 신청한 것은 제외
 
@@ -804,8 +804,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             const transaction = payload.new as any;
             
             if (transaction.status === 'pending') {
-              // ✅ 관리자 입출금 신청 처리 (partner_deposit, partner_withdrawal)
-              if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_withdrawal') {
+              // ✅ 관리자 입출금 신청 처리 (6가지 유형)
+              const isAdminDeposit = ['admin_deposit_initial', 'admin_deposit_send', 'admin_deposit_receive'].includes(transaction.transaction_type);
+              const isAdminWithdrawal = ['admin_withdrawal_initial', 'admin_withdrawal_send', 'admin_withdrawal_receive'].includes(transaction.transaction_type);
+              
+              if (isAdminDeposit || isAdminWithdrawal) {
                 // ✅ 신청자 본인에게는 알람 표시 안 함 + 조직격리 적용
                 if (transaction.partner_id !== user.id) {
                   // Lv1: 모든 관리자 신청 알림, Lv2+: 자신의 하위 조직만
@@ -820,7 +823,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                   if (shouldNotify) {
                     const memo = transaction.memo || '';
 
-                    if (transaction.transaction_type === 'partner_deposit') {
+                    if (isAdminDeposit) {
                       toast.info('새로운 관리자 입금 신청이 있습니다.', {
                         description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
                         duration: 10000,
@@ -834,7 +837,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                           }
                         }
                       });
-                    } else if (transaction.transaction_type === 'partner_withdrawal') {
+                    } else if (isAdminWithdrawal) {
                       toast.warning('새로운 관리자 출금 신청이 있습니다.', {
                         description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
                         duration: 10000,

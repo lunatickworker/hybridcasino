@@ -52,6 +52,7 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
       )}
       
       {/* ✅ Lv1, Lv2만 베팅내역 동기화 (시스템관리자, 대본사) - active 세션 있을 때만 */}
+      {/* ✅ 거래 기록 동기화 */}
       {(user.level === 1 || user.level === 2) && (
         <BettingHistorySync user={user} />
       )}
@@ -61,8 +62,8 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
         <Lv2AutoSync user={user} />
       )}
 
-      {/* ✅ 관리자 페이지 열려있을 때 자동 게임 기록 동기화 (모든 레벨) */}
-      <AdminGameRecordsSync user={user} />
+      {/* ✅ 자동 게임 기록 동기화 */}
+      {<AdminGameRecordsSync user={user} />}
       
       <div className="h-screen flex w-full overflow-hidden bg-[#0a0e1a] min-w-[1200px]">
         <div className={cn(

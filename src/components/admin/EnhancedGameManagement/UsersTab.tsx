@@ -17,6 +17,12 @@ interface UsersTabProps {
 }
 
 export function UsersTab({ user }: UsersTabProps) {
+  // 🆕 매장 관리
+  const [stores, setStores] = useState<Partner[]>([]);
+  const [selectedStore, setSelectedStore] = useState<Partner | null>(null);
+  const [loadingStores, setLoadingStores] = useState(false);
+  const [storeSearchTerm, setStoreSearchTerm] = useState("");
+  
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -46,9 +52,17 @@ export function UsersTab({ user }: UsersTabProps) {
   const debouncedSearchTerm = useDebounce(searchTerm, DEBOUNCE_DELAY);
 
   useEffect(() => {
-    loadUsers();
+    loadStores();
     loadProvidersAndGames();
   }, []);
+
+  // 🆕 매장 선택 시 사용자 로드
+  useEffect(() => {
+    if (selectedStore) {
+      loadUsers();
+      setSelectedUser(null);
+    }
+  }, [selectedStore]);
 
   useEffect(() => {
     if (selectedUser) {
@@ -71,10 +85,15 @@ export function UsersTab({ user }: UsersTabProps) {
     try {
       setLoadingUsers(true);
       
+      // 🆕 선택된 매장이 없으면 반환
+      if (!selectedStore) {
+        setUsers([]);
+        return;
+      }
+      
       console.log('🔍 [UsersTab] 사용자 조회 시작');
-      console.log('  - user.id:', user.id);
-      console.log('  - user.username:', user.username);
-      console.log('  - user.level:', user.level);
+      console.log('  - selectedStore.id:', selectedStore.id);
+      console.log('  - selectedStore.name:', selectedStore.name);
       
       // ✅ 조직격리: 재귀적으로 하위 조직의 모든 사용자 조회
       const getAllDescendantUsers = async (partnerId: string): Promise<User[]> => {
@@ -106,35 +125,96 @@ export function UsersTab({ user }: UsersTabProps) {
         return allDescendantUsers;
       };
 
-      // Lv1: 모든 사용자 조회
-      if (user.level === 1) {
-        const { data: allUsersData, error } = await supabase
-          .from('users')
-          .select('*')
-          .order('created_at', { ascending: false });
+      // 🆕 선택된 매장의 직속 사용자만 조회 (재귀 없음)
+      const { data: storeUsers, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('referrer_id', selectedStore.id)
+        .order('created_at', { ascending: false });
 
-        if (error) {
-          console.error('❌ 사용자 목록 조회 실패:', error);
-          throw error;
-        }
-
-        console.log(`✅ [Lv1] 전체 사용자: ${allUsersData?.length || 0}명`);
-        setUsers(allUsersData || []);
-        return;
+      if (error) {
+        console.error('❌ 사용자 목록 조회 실패:', error);
+        throw error;
       }
 
-      // Lv2~Lv6: 하위 조직의 모든 사용자 조회
-      const descendantUsers = await getAllDescendantUsers(user.id);
-      
-      console.log(`✅ [Lv${user.level}] 하위 사용자: ${descendantUsers.length}명`);
-      console.log('📋 사용자 데이터:', descendantUsers);
-      
-      setUsers(descendantUsers);
+      console.log(`✅ [매장] 사용자: ${storeUsers?.length || 0}명`);
+      setUsers(storeUsers || []);
     } catch (error) {
       console.error("❌ 사용자 목록 로드 실패:", error);
       toast.error("사용자 목록 로드에 실패했습니다.");
     } finally {
       setLoadingUsers(false);
+    }
+  };
+
+  // 🆕 매장 목록 로드
+  const loadStores = async () => {
+    try {
+      setLoadingStores(true);
+
+      console.log('🔍 [UsersTab] 매장 조회 시작');
+      console.log('  - user.id:', user.id);
+      console.log('  - user.level:', user.level);
+
+      // Lv1: 모든 매장 조회
+      if (user.level === 1) {
+        const { data: allStoresData, error } = await supabase
+          .from('partners')
+          .select('*')
+          .eq('status', 'active')
+          .gt('level', 1)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('❌ 매장 목록 조회 실패:', error);
+          throw error;
+        }
+
+        console.log(`✅ [Lv1] 전체 매장: ${allStoresData?.length || 0}개`);
+        setStores(allStoresData || []);
+        // 첫 번째 매장 자동 선택
+        if (allStoresData && allStoresData.length > 0) {
+          setSelectedStore(allStoresData[0]);
+        }
+        return;
+      }
+
+      // Lv2~Lv6: 하위 매장 재귀 조회
+      const getAllDescendantStores = async (partnerId: string): Promise<Partner[]> => {
+        const { data: directStores } = await supabase
+          .from('partners')
+          .select('*')
+          .eq('parent_id', partnerId)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false });
+
+        if (!directStores || directStores.length === 0) {
+          return [];
+        }
+
+        const allStores = [...directStores];
+        for (const store of directStores) {
+          const childStores = await getAllDescendantStores(store.id);
+          allStores.push(...childStores);
+        }
+
+        return allStores;
+      };
+
+      const descendantStores = await getAllDescendantStores(user.id);
+
+      console.log(`✅ [Lv${user.level}] 하위 매장: ${descendantStores.length}개`);
+      setStores(descendantStores);
+
+      // 첫 번째 매장 자동 선택
+      if (descendantStores.length > 0) {
+        setSelectedStore(descendantStores[0]);
+      }
+    } catch (error) {
+      console.error("❌ 매장 목록 로드 실패:", error);
+      toast.error("매장 목록 로드에 실패했습니다.");
+    } finally {
+      setLoadingStores(false);
     }
   };
 
@@ -725,9 +805,83 @@ export function UsersTab({ user }: UsersTabProps) {
   );
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-      {/* 왼쪽: 사용자 목록 */}
-      <Card className="bg-slate-800/30 border-slate-700 lg:col-span-1">
+    <div className="grid grid-cols-6 gap-4">
+      {/* 왼쪽: 매장 목록 */}
+      <Card className="bg-slate-800/30 border-slate-700 col-span-1">
+        <CardContent className="p-3">
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-xl font-bold text-white mb-1">매장 목록</h3>
+              <p className="text-base text-slate-300">매장을 선택하세요</p>
+            </div>
+
+            {/* 매장 검색 */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="매장 검색..."
+                value={storeSearchTerm}
+                onChange={(e) => setStoreSearchTerm(e.target.value)}
+                className="pl-10 pr-9 text-sm bg-slate-800/50 border-slate-700/50 text-white"
+              />
+              {storeSearchTerm && (
+                <button
+                  onClick={() => setStoreSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {loadingStores ? (
+              <div className="text-center py-8">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-400" />
+                <p className="text-base text-slate-400">로딩 중...</p>
+              </div>
+            ) : stores.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">
+                <UserIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p className="text-base">매장이 없습니다</p>
+              </div>
+            ) : (
+              <ScrollArea>
+                <div className="space-y-2">
+                  {stores
+                    .filter(s => s.username.toLowerCase().includes(storeSearchTerm.toLowerCase()))
+                    .map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => setSelectedStore(s)}
+                        className={`w-full p-4 rounded-lg text-left transition-all ${
+                          selectedStore?.id === s.id
+                            ? "bg-blue-600/30 border-2 border-blue-400 shadow-lg shadow-blue-500/20"
+                            : "bg-slate-700/40 border-2 border-slate-600 hover:bg-slate-700/60 hover:border-slate-500"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <UserIcon className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-base font-bold text-white truncate">
+                              {s.username}
+                            </p>
+                            <p className="text-sm text-slate-400">
+                              {s.name || "이름 없음"}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 중간: 사용자 목록 */}
+      <Card className="bg-slate-800/30 border-slate-700 col-span-1">
         <CardContent className="p-3">
           <div className="space-y-3">
             <div>
@@ -735,7 +889,7 @@ export function UsersTab({ user }: UsersTabProps) {
               <p className="text-base text-slate-300">사용자를 선택하세요</p>
             </div>
 
-            {/* 검색 */}
+            {/* 사용자 검색 */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
@@ -766,7 +920,7 @@ export function UsersTab({ user }: UsersTabProps) {
                 <p className="text-base">사용자가 없습니다</p>
               </div>
             ) : (
-              <ScrollArea className="h-[700px]">
+              <ScrollArea>
                 <div className="space-y-2">
                   {filteredUsers.map((u) => (
                     <button
@@ -799,9 +953,14 @@ export function UsersTab({ user }: UsersTabProps) {
       </Card>
 
       {/* 오른쪽: 사용자 게임 관리 */}
-      <Card className="bg-slate-800/30 border-slate-700 lg:col-span-4">
+      <Card className="bg-slate-800/30 border-slate-700 col-span-4">
         <CardContent className="p-6">
-          {!selectedUser ? (
+          {!selectedStore ? (
+            <div className="text-center py-12 text-slate-400">
+              <UserIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg">매장을 선택하세요</p>
+            </div>
+          ) : !selectedUser ? (
             <div className="text-center py-12 text-slate-400">
               <UserIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
               <p className="text-lg">사용자를 선택하세요</p>
@@ -812,7 +971,7 @@ export function UsersTab({ user }: UsersTabProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xl font-bold text-white">
-                    {selectedUser.username} - 게임 관리
+                    {selectedStore.username} - {selectedUser.username} - 게임 관리
                   </h3>
                   <p className="text-sm text-slate-400 mt-1">
                     차단된 게임은 해당 사용자가 플레이할 수 없습니다

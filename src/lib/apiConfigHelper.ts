@@ -268,6 +268,8 @@ export async function getHonorApiCredentials(partnerId: string): Promise<HonorAp
  */
 export async function getHonorApiCredentialsHierarchical(startPartnerId: string): Promise<HonorApiCredentials> {
   try {
+    console.log('🔍 [API Config] HonorAPI 계층 탐색 시작:', startPartnerId);
+    
     // ⚡ 계층 순서대로 파트너 ID 목록 조회
     const hierarchy: string[] = [];
     let currentId: string | null = startPartnerId;
@@ -283,17 +285,20 @@ export async function getHonorApiCredentialsHierarchical(startPartnerId: string)
         .single();
       
       if (!partner || partner.level === 1 || !partner.parent_id) {
+        console.log('🛑 [API Config] 계층 탐색 종료 (Lv1 도달 또는 parent_id 없음):', { partner, level: partner?.level });
         break;
       }
       
       currentId = partner.parent_id;
     }
 
-    console.log('🔗 [API Config] HonorAPI 검색할 파트너 계층:', hierarchy);
+    console.log('🔗 [API Config] HonorAPI 검색할 파트너 계층 (총', hierarchy.length, '명):', hierarchy);
 
     // ⚡ 계층 순서대로 credentials 검색
     for (const pid of hierarchy) {
+      console.log('🔎 [API Config] 파트너 확인 중:', pid);
       const credentials = await getHonorApiCredentials(pid);
+      console.log('   → api_key:', credentials.api_key ? '✅ 있음' : '❌ 없음');
       if (credentials.api_key) {
         console.log(`✅ [API Config] HonorAPI Credentials 발견: partner_id=${pid}`);
         return credentials;
