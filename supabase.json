@@ -1,0 +1,9 @@
+{
+  "project_id": "your_project_id",
+  "functions": [
+    {
+      "slug": "server",
+      "importmap_path": "_shared/import_map.json"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "tasks": {
+    "start": "deno run --allow-all --allow-env supabase/functions/server/index.ts"
+  },
+  "imports": {
+    "jsr:@supabase/supabase-js@2.49.8": "https://jsr.io/@supabase/supabase-js/2.49.8/"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "jsxFactory": "React.createElement",
+    "jsxFragmentFactory": "React.Fragment",
+    "lib": ["deno.window"]
+  }
+}
