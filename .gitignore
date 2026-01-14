@@ -6,4 +6,5 @@ node_modules
 comparefile
 dist
 jobtasks
+.env
 

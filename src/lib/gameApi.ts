@@ -1923,7 +1923,7 @@ async function getHonorApiGames(filters?: {
             type
           )
         `)
-        .order('priority', { ascending: false })
+        .order('priority', { ascending: true })
         .order('name', { ascending: true })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
