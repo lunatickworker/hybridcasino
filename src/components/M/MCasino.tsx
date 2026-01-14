@@ -4,7 +4,7 @@ import { gameApi } from "../../lib/gameApi";
 import { toast } from "sonner@2.0.3";
 import { Loader2, Play } from "lucide-react";
 import { Button } from "../ui/button";
-import { Sample1GameLoadingPopup } from "./Sample1GameLoadingPopup";
+import { Sample1GameLoadingPopup } from "./MGameLoadingPopup";
 
 interface Sample1CasinoProps {
   user: any;

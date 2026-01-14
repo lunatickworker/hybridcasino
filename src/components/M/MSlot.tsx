@@ -5,9 +5,9 @@ import { toast } from "sonner@2.0.3";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "../ui/button";
 import { ImageWithFallback } from "@figma/ImageWithFallback";
-import { Sample1GameLoadingPopup } from "./Sample1GameLoadingPopup";
+import { Sample1GameLoadingPopup } from "./MGameLoadingPopup";
 
-interface Sample1MiniGameProps {
+interface Sample1SlotProps {
   user: any;
 }
 
@@ -32,7 +32,7 @@ interface Game {
   api_type?: string;
 }
 
-export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
+export function Sample1Slot({ user }: Sample1SlotProps) {
   const [loading, setLoading] = useState(false);
   const [launchingGameId, setLaunchingGameId] = useState<number | null>(null);
   const [showLoadingPopup, setShowLoadingPopup] = useState(false);
@@ -50,9 +50,15 @@ export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
     try {
       setLoading(true);
       
-      // ✅ 노출된 제공사만 가져오기
-      const providersData = await gameApi.getUserVisibleProviders({ type: 'minigame' });
-      setProviders(providersData);
+      // ✅ /user와 동일한 로직: getUserVisibleProviders 사용
+      const providersData = await gameApi.getUserVisibleProviders({ type: 'slot' });
+      
+      // ✅ status가 'visible'인 제공사만 필터링 (GameProviderSelector와 동일)
+      const visibleProviders = providersData.filter(p => 
+        p.status === 'visible'
+      );
+      
+      setProviders(visibleProviders);
       
     } catch (error) {
       console.error('제공사 로드 오류:', error);
@@ -68,7 +74,7 @@ export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
       
       // ✅ gameApi.getUserVisibleGames 사용 (HonorAPI 지원)
       const gamesData = await gameApi.getUserVisibleGames({
-        type: 'minigame',
+        type: 'slot',
         provider_id: providerId
       });
 
@@ -140,7 +146,7 @@ export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
         const gameWindow = window.open(
           result.launchUrl,
           '_blank',
-          'width=1280,height=720,scrollbars=yes,resizable=yes'
+          'width=1920,height=1080,scrollbars=yes,resizable=yes,fullscreen=yes'
         );
 
         if (!gameWindow) {
@@ -166,8 +172,6 @@ export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
               if (isProcessing) return;
               isProcessing = true;
               
-              console.log('🎮 [미니게임창 닫힘 감지] 세션:', sessionId);
-              
               setLoadingStage('withdraw');
               setShowLoadingPopup(true);
               
@@ -178,13 +182,7 @@ export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
               }
               
               (window as any).gameWindows?.delete(sessionId);
-              
-              console.log('🔄 [미니게임창 닫힘] syncBalanceAfterGame 호출 시작');
-              if ((window as any).syncBalanceAfterGame) {
-                await (window as any).syncBalanceAfterGame(sessionId);
-              } else {
-                console.error('❌ syncBalanceAfterGame 함수가 등록되지 않음!');
-              }
+              await (window as any).syncBalanceAfterGame?.(sessionId);
               
               setTimeout(() => {
                 setShowLoadingPopup(false);
@@ -193,20 +191,15 @@ export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
             
             const checkGameWindow = setInterval(() => {
               try {
-                // ⭐ gameWindows에서 참조 가져오기 (클로저 문제 해결)
-                const currentGameWindow = (window as any).gameWindows?.get(sessionId);
-                if (currentGameWindow && currentGameWindow.closed) {
-                  console.log('🚪 [미니게임창 닫힘] 팝업창 closed 감지, sessionId:', sessionId);
+                if (gameWindow.closed) {
                   handleGameWindowClose();
-                  clearInterval(checkGameWindow);
                 }
               } catch (error) {
-                console.error('❌ [게임창 체크 에러]:', error);
+                // 무시
               }
             }, 1000);
             
             (window as any).gameWindowCheckers.set(sessionId, checkGameWindow);
-            console.log('✅ [미니게임창 모니터링 시작] sessionId:', sessionId);
           }
         }
       } else {
@@ -360,7 +353,7 @@ export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
               MARVEL
             </span>
             <span className="text-white mx-2">•</span>
-            <span className="text-yellow-400">미니게임</span>
+            <span className="text-yellow-400">슬롯게임</span>
           </div>
           <div className="flex-1 h-px bg-gradient-to-r from-yellow-600 via-yellow-600 to-transparent" />
         </div>
@@ -373,7 +366,7 @@ export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
         </div>
       ) : providers.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
-          <p>현재 이용 가능한 미니게임 제공사가 없습니다.</p>
+          <p>현재 이용 가능한 슬롯 제공사가 없습니다.</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">

@@ -3,11 +3,11 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { LogOut, User, Wallet, Bell, MessageSquare, Gift } from "lucide-react";
 import { UserMessagePopup } from "../user/UserMessagePopup";
-import { Sample1Signup } from "./Sample1Signup";
+import { Sample1Signup } from "./MSignup";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 
-interface Sample1LayoutProps {
+interface MLayoutProps {
   user: any;
   currentRoute: string;
   onRouteChange: (route: string) => void;
@@ -16,14 +16,14 @@ interface Sample1LayoutProps {
   children: ReactNode;
 }
 
-export function Sample1Layout({ 
+export function MLayout({ 
   user, 
   currentRoute, 
   onRouteChange, 
   onLogout,
   onLogin, 
   children 
-}: Sample1LayoutProps) {
+}: MLayoutProps) {
   const [showMessagePopup, setShowMessagePopup] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [loginUsername, setLoginUsername] = useState("");

@@ -8,8 +8,8 @@ import { AdminRoutes } from './components/common/AdminRoutes';
 import { UserLogin } from './components/user/UserLogin';
 import { UserLayout } from './components/user/UserLayout';
 import { UserRoutes } from './components/common/UserRoutes';
-import { Sample1Layout } from './components/sample1/Sample1Layout';
-import { Sample1Routes } from './components/sample1/Sample1Routes';
+import { MLayout } from './components/M/MLayout';
+import { MRoutes } from './components/M/MRoutes';
 import { BenzLayout } from './components/benz/BenzLayout';
 import { BenzRoutes } from './components/benz/BenzRoutes';
 import { BenzLoginModal } from './components/benz/BenzLoginModal';
@@ -88,6 +88,7 @@ function AppContent() {
 
   const isBenzPage = currentPath.startsWith('/benz');
   const isUserPage = currentPath.startsWith('/user');
+  const isMPage = currentPath.startsWith('/m');
   const isSample1Page = currentPath.startsWith('/sample1');
   const isAdminPage = currentPath.startsWith('/admin');
 
@@ -417,7 +418,6 @@ function AppContent() {
       }
     };
 
-    // 로그인 여부와 관계없이 동일한 레이아웃 표시
     return (
       <>
         <WebSocketProvider>
@@ -451,6 +451,107 @@ function AppContent() {
                 onRouteChange={handleNavigate}
               />
             </Sample1Layout>
+          )}
+        </WebSocketProvider>
+        <Toaster position="top-right" />
+      </>
+    );
+  }
+
+  // M 페이지 라우팅
+  if (isMPage) {
+    const currentRoute = currentPath;
+
+    // 사용자 세션 확인
+    const userSessionString = localStorage.getItem('user_session');
+    let userSession = null;
+    
+    try {
+      if (userSessionString) {
+        userSession = JSON.parse(userSessionString);
+      }
+    } catch (error) {
+      console.error('사용자 세션 파싱 오류:', error);
+      localStorage.removeItem('user_session');
+    }
+
+    // 로그인 처리
+    const handleUserLogin = (user: any) => {
+      localStorage.setItem('user_session', JSON.stringify(user));
+      forceUpdate({});
+    };
+
+    // 로그아웃 처리
+    const handleUserLogout = async () => {
+      if (!userSession?.id) {
+        localStorage.removeItem('user_session');
+        forceUpdate({});
+        return;
+      }
+
+      try {
+        await supabase
+          .from('users')
+          .update({ is_online: false, updated_at: new Date().toISOString() })
+          .eq('id', userSession.id);
+
+        await supabase
+          .from('user_sessions')
+          .update({ is_active: false, logout_at: new Date().toISOString() })
+          .eq('user_id', userSession.id)
+          .eq('is_active', true);
+
+        await supabase
+          .from('activity_logs')
+          .insert([{
+            actor_type: 'user',
+            actor_id: userSession.id,
+            action: 'logout',
+            details: { username: userSession.username, logout_time: new Date().toISOString() }
+          }]);
+
+      } catch (error) {
+        console.error('로그아웃 처리 오류:', error);
+      } finally {
+        localStorage.removeItem('user_session');
+        forceUpdate({});
+      }
+    };
+
+    // 로그인 여부와 관계없이 동일한 레이아웃 표시
+    return (
+      <>
+        <WebSocketProvider>
+          {userSession ? (
+            <MessageQueueProvider userType="user" userId={userSession.id}>
+              <MLayout 
+                user={userSession}
+                currentRoute={currentRoute}
+                onRouteChange={handleNavigate}
+                onLogout={handleUserLogout}
+                onLogin={handleUserLogin}
+              >
+                <MRoutes 
+                  currentRoute={currentRoute} 
+                  user={userSession}
+                  onRouteChange={handleNavigate}
+                />
+              </MLayout>
+            </MessageQueueProvider>
+          ) : (
+            <MLayout 
+              user={null}
+              currentRoute={currentRoute}
+              onRouteChange={handleNavigate}
+              onLogout={handleUserLogout}
+              onLogin={handleUserLogin}
+            >
+              <MRoutes 
+                currentRoute={currentRoute} 
+                user={null}
+                onRouteChange={handleNavigate}
+              />
+            </MLayout>
           )}
         </WebSocketProvider>
         <Toaster position="top-right" />
