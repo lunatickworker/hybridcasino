@@ -1697,27 +1697,41 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         }
         
         // 사용자 입출금: 사용자 요청 + 관리자 강제 입출금
-        if (transactionTypeFilter === 'user_deposit') {
-          return t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit' || t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send';
+        if (transactionTypeFilter === 'manual_deposit') {
+          return t.transaction_type === 'admin_deposit_initial';
         }
-        if (transactionTypeFilter === 'user_withdrawal') {
-          return t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal' || t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send';
-        }
-        
-        // 관리자 입출금: 파트너 요청만 (파트너 처리는 partner_balance_logs)
-        if (transactionTypeFilter === 'admin_deposit') {
-          return t.transaction_type === 'partner_deposit';
-        }
-        if (transactionTypeFilter === 'admin_withdrawal') {
-          return t.transaction_type === 'partner_withdrawal';
+        if (transactionTypeFilter === 'manual_withdrawal') {
+          return t.transaction_type === 'admin_withdrawal_initial';
         }
         
-        // 파트너 입출금 신청
+        // 파트너 충전: 현재 사용자가 수신자인 파트너 거래
         if (transactionTypeFilter === 'partner_deposit') {
+          return t.is_partner_transaction && (t.transaction_type === 'deposit' || t.transaction_type === 'withdrawal') && t.to_partner_id === user.id;
+        }
+        
+        // 파트너 환전: 현재 사용자가 송금자인 파트너 거래
+        if (transactionTypeFilter === 'partner_withdrawal') {
+          return t.is_partner_transaction && (t.transaction_type === 'deposit' || t.transaction_type === 'withdrawal') && t.from_partner_id === user.id;
+        }
+        
+        // 관리자 입금요청: partner_deposit
+        if (transactionTypeFilter === 'admin_request_deposit') {
           return t.transaction_type === 'partner_deposit';
         }
-        if (transactionTypeFilter === 'partner_withdrawal') {
+        
+        // 관리자 출금요청: partner_withdrawal
+        if (transactionTypeFilter === 'admin_request_withdrawal') {
           return t.transaction_type === 'partner_withdrawal';
+        }
+        
+        // 포인트 지급
+        if (transactionTypeFilter === 'point_give') {
+          return t.transaction_type === 'admin_adjustment' && t.amount > 0 && t.points_before !== undefined;
+        }
+        
+        // 포인트 회수
+        if (transactionTypeFilter === 'point_recover') {
+          return t.transaction_type === 'admin_adjustment' && t.amount < 0 && t.points_before !== undefined;
         }
         
         return false;
@@ -1729,9 +1743,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     // console.log 제거
     
     const mappedPartnerTransactions = (transactionTypeFilter === 'all' || 
-                                       transactionTypeFilter === 'admin_deposit' || 
-                                       transactionTypeFilter === 'admin_withdrawal' ||
-                                       transactionTypeFilter === 'partner_deposit' ||
+                                       transactionTypeFilter === 'partner_deposit' || 
                                        transactionTypeFilter === 'partner_withdrawal')
       ? partnerTransactions
         .filter(pt => {
@@ -1759,21 +1771,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           // 필터별 파트너 거래 타입 매칭
           const typeMatch = (() => {
             if (transactionTypeFilter === 'all') return true;
-            // 관리자입금: deposit만 (파트너 처리 입금)
-            if (transactionTypeFilter === 'admin_deposit') {
-              return pt.transaction_type === 'deposit';
-            }
-            // 관리자출금: withdrawal만 (파트너 처리 출금)
-            if (transactionTypeFilter === 'admin_withdrawal') {
-              return pt.transaction_type === 'withdrawal';
-            }
-            // 관리자 신청입금: admin_deposit만 (partner_balance_logs의 admin_deposit 타입)
+            // 파트너 충전: 현재 사용자가 수신자 (to_partner_id)
             if (transactionTypeFilter === 'partner_deposit') {
-              return pt.transaction_type === 'admin_deposit';
+              return pt.to_partner_id === user.id && (pt.transaction_type === 'deposit' || pt.transaction_type === 'withdrawal');
             }
-            // 관리자 신청출금: admin_withdrawal만 (partner_balance_logs의 admin_withdrawal 타입)
+            // 파트너 환전: 현재 사용자가 송금자 (from_partner_id)
             if (transactionTypeFilter === 'partner_withdrawal') {
-              return pt.transaction_type === 'admin_withdrawal';
+              return pt.from_partner_id === user.id && (pt.transaction_type === 'deposit' || pt.transaction_type === 'withdrawal');
             }
             return false;
           })();
@@ -2579,116 +2583,116 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               />
             </div>
 
-            {/* 거래 유형 필터 버튼 (전체입출금내역 탭에서만 표시) - 오른쪽 정렬 */}
+            {/* 거래 유형 필터 버튼 (전체입출금내역 탭에서만 표시) - Glass Morphism 디자인 */}
             {activeTab === 'completed-history' && (
-              <div className="flex gap-2 ml-auto">
+              <div className="flex gap-2 ml-auto flex-wrap">
                 <Button
                   onClick={() => setTransactionTypeFilter('all')}
                   variant={transactionTypeFilter === 'all' ? 'default' : 'outline'}
                   className={cn(
-                    "h-11 px-4 text-sm",
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
                     transactionTypeFilter === 'all' 
-                      ? "bg-slate-600 hover:bg-slate-700 text-white" 
-                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                      ? "bg-white/20 border border-white/30 hover:bg-white/30 text-white shadow-lg" 
+                      : "bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300"
                   )}
                 >
                   전체
                 </Button>
                 <Button
-                  onClick={() => setTransactionTypeFilter('user_deposit')}
-                  variant={transactionTypeFilter === 'user_deposit' ? 'default' : 'outline'}
+                  onClick={() => setTransactionTypeFilter('manual_deposit')}
+                  variant={transactionTypeFilter === 'manual_deposit' ? 'default' : 'outline'}
                   className={cn(
-                    "h-11 px-4 text-sm",
-                    transactionTypeFilter === 'user_deposit' 
-                      ? "bg-green-600 hover:bg-green-700 text-white" 
-                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'manual_deposit' 
+                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
+                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
                   )}
                 >
-                  사용자입금
+                  수동 입금
                 </Button>
                 <Button
-                  onClick={() => setTransactionTypeFilter('user_withdrawal')}
-                  variant={transactionTypeFilter === 'user_withdrawal' ? 'default' : 'outline'}
+                  onClick={() => setTransactionTypeFilter('manual_withdrawal')}
+                  variant={transactionTypeFilter === 'manual_withdrawal' ? 'default' : 'outline'}
                   className={cn(
-                    "h-11 px-4 text-sm",
-                    transactionTypeFilter === 'user_withdrawal' 
-                      ? "bg-red-600 hover:bg-red-700 text-white" 
-                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'manual_withdrawal' 
+                      ? "bg-orange-500/30 border border-orange-400/50 hover:bg-orange-500/40 text-orange-100 shadow-lg" 
+                      : "bg-orange-500/10 border border-orange-400/20 hover:bg-orange-500/20 text-slate-300"
                   )}
                 >
-                  사용자출금
-                </Button>
-                <Button
-                  onClick={() => setTransactionTypeFilter('admin_deposit')}
-                  variant={transactionTypeFilter === 'admin_deposit' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-11 px-4 text-sm",
-                    transactionTypeFilter === 'admin_deposit' 
-                      ? "bg-cyan-600 hover:bg-cyan-700 text-white" 
-                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
-                  )}
-                >
-                  관리자입금
-                </Button>
-                <Button
-                  onClick={() => setTransactionTypeFilter('admin_withdrawal')}
-                  variant={transactionTypeFilter === 'admin_withdrawal' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-11 px-4 text-sm",
-                    transactionTypeFilter === 'admin_withdrawal' 
-                      ? "bg-orange-600 hover:bg-orange-700 text-white" 
-                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
-                  )}
-                >
-                  관리자출금
+                  수동 출금
                 </Button>
                 <Button
                   onClick={() => setTransactionTypeFilter('partner_deposit')}
                   variant={transactionTypeFilter === 'partner_deposit' ? 'default' : 'outline'}
                   className={cn(
-                    "h-11 px-4 text-sm",
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
                     transactionTypeFilter === 'partner_deposit' 
-                      ? "bg-indigo-600 hover:bg-indigo-700 text-white" 
-                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
+                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
                   )}
                 >
-                  관리자 신청입금
+                  파트너 충전
                 </Button>
                 <Button
                   onClick={() => setTransactionTypeFilter('partner_withdrawal')}
                   variant={transactionTypeFilter === 'partner_withdrawal' ? 'default' : 'outline'}
                   className={cn(
-                    "h-11 px-4 text-sm",
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
                     transactionTypeFilter === 'partner_withdrawal' 
-                      ? "bg-rose-600 hover:bg-rose-700 text-white" 
-                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                      ? "bg-pink-500/30 border border-pink-400/50 hover:bg-pink-500/40 text-pink-100 shadow-lg" 
+                      : "bg-pink-500/10 border border-pink-400/20 hover:bg-pink-500/20 text-slate-300"
                   )}
                 >
-                  관리자 신청출금
+                  파트너 환전
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('admin_request_deposit')}
+                  variant={transactionTypeFilter === 'admin_request_deposit' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'admin_request_deposit' 
+                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
+                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
+                  )}
+                >
+                  관리자 입금요청
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('admin_request_withdrawal')}
+                  variant={transactionTypeFilter === 'admin_request_withdrawal' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'admin_request_withdrawal' 
+                      ? "bg-pink-500/30 border border-pink-400/50 hover:bg-pink-500/40 text-pink-100 shadow-lg" 
+                      : "bg-pink-500/10 border border-pink-400/20 hover:bg-pink-500/20 text-slate-300"
+                  )}
+                >
+                  관리자 출금요청
                 </Button>
                 <Button
                   onClick={() => setTransactionTypeFilter('point_give')}
                   variant={transactionTypeFilter === 'point_give' ? 'default' : 'outline'}
                   className={cn(
-                    "h-11 px-4 text-sm",
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
                     transactionTypeFilter === 'point_give' 
-                      ? "bg-amber-600 hover:bg-amber-700 text-white" 
-                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                      ? "bg-amber-500/30 border border-amber-400/50 hover:bg-amber-500/40 text-amber-100 shadow-lg" 
+                      : "bg-amber-500/10 border border-amber-400/20 hover:bg-amber-500/20 text-slate-300"
                   )}
                 >
-                  포인트지급
+                  포인트 지급
                 </Button>
                 <Button
                   onClick={() => setTransactionTypeFilter('point_recover')}
                   variant={transactionTypeFilter === 'point_recover' ? 'default' : 'outline'}
                   className={cn(
-                    "h-11 px-4 text-sm",
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
                     transactionTypeFilter === 'point_recover' 
-                      ? "bg-purple-600 hover:bg-purple-700 text-white" 
-                      : "bg-slate-800/50 border-slate-600 hover:bg-slate-700 text-slate-300"
+                      ? "bg-purple-500/30 border border-purple-400/50 hover:bg-purple-500/40 text-purple-100 shadow-lg" 
+                      : "bg-purple-500/10 border border-purple-400/20 hover:bg-purple-500/20 text-slate-300"
                   )}
                 >
-                  포인트회수
+                  포인트 회수
                 </Button>
               </div>
             )}
