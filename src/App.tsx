@@ -52,6 +52,15 @@ function AppContent() {
     // route가 이미 #으로 시작하면 그대로 사용, 아니면 #을 추가
     const hashRoute = route.startsWith('#') ? route : `#${route}`;
     
+    // ✅ Benz 페이지에서는 주소창에 #/benz만 표시 (라우트 숨김)
+    if (hashRoute.startsWith('#/benz')) {
+      // 내부 상태는 유지하고, 주소창은 #/benz만 표시
+      window.history.replaceState({ benz_route: hashRoute }, '', window.location.pathname + '#/benz');
+      sessionStorage.setItem('benz_internal_route', hashRoute);
+      forceUpdate({});
+      return;
+    }
+    
     // ✅ /admin/transactions#deposit-request 같은 형식의 URL에서 앵커 추출
     const anchorMatch = hashRoute.match(/#(.*)#(.*)$/);
     if (anchorMatch) {
@@ -80,7 +89,8 @@ function AppContent() {
 
   // Benz 페이지 라우팅 (기본 도메인)
   if (isBenzPage) {
-    const currentRoute = currentPath;
+    // 주소창에는 #/benz만 표시되지만, 내부적으로는 sessionStorage에서 실제 라우트 가져오기
+    const currentRoute = sessionStorage.getItem('benz_internal_route') || currentPath;
 
     // 사용자 세션 확인
     const userSessionString = localStorage.getItem('user_session');

@@ -113,7 +113,7 @@ async function main() {
   
   console.log(`✅ 프라그마틱 게임 ${pragmaticGames.length}개 조회 완료\n`);
   
-  // 3️⃣ name_ko로 매칭 및 priority 결정
+  // 3️⃣ name_ko로 매칭 및 priority 결정 (정확한 매칭 + 앞 2자 매칭)
   console.log('🔄 게임 매칭 중...\n');
   
   const updates: Array<{ id: number; priority: number }> = [];
@@ -123,7 +123,19 @@ async function main() {
   // 시퀀스 게임과 매칭
   for (const entry of Array.from(sequenceMap)) {
     const [seqName, seqPriority] = entry;
-    const game = pragmaticGames.find(g => g.name_ko === seqName);
+    
+    // 1. 정확한 이름으로 먼저 매칭
+    let game = pragmaticGames.find(g => g.name_ko === seqName);
+    
+    // 2. 정확한 매칭 실패 시 앞 2자로 매칭
+    if (!game && seqName.length >= 2) {
+      const first2Chars = seqName.substring(0, 2);
+      game = pragmaticGames.find(g => 
+        !matched.has(g.id) && 
+        g.name_ko.length >= 2 && 
+        g.name_ko.substring(0, 2) === first2Chars
+      );
+    }
     
     if (game) {
       updates.push({ id: game.id, priority: seqPriority });
