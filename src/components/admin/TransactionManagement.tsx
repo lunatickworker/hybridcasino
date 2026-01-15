@@ -1833,9 +1833,18 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       : [];
     
     // 입출금 거래와 파트너 거래와 포인트 거래 병합 후 시간순 정렬
-    return [...filteredTransactions, ...mappedPartnerTransactions, ...filteredPointTransactions].sort((a, b) => 
+    const result = [...filteredTransactions, ...mappedPartnerTransactions, ...filteredPointTransactions].sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
+    
+    // ✅ 디버그: balance_after 필드 확인
+    if (result.length > 0) {
+      console.log('🔍 [DEBUG] completedTransactions 샘플 데이터:');
+      console.log('  첫 번째 거래:', result[0]);
+      console.log('  balance_after 존재?:', 'balance_after' in result[0], '값:', result[0].balance_after);
+    }
+    
+    return result;
   })();
   
   // ✅ 관리자 입금 로그만 출력
