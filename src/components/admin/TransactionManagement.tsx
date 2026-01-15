@@ -1377,98 +1377,107 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       );
     } else {
       console.log('📤 출금 API 호출 중...', { user: selectedUser.username, amount: amountNum });
-      // API 응답에서 balance_after 파싱 (리소스 재사용: extractBalanceFromResponse 사용)
-      const balanceAfter = extractBalanceFromResponse(apiResult.data, selectedUser.username);
-      console.log('💰 실제 잔고:', balanceAfter);
+      apiResult = await withdrawalBalance(
+        selectedUser.username,
+        amountNum,
+        config.opcode,
+        config.token,
+        config.secretKey
+      );
+    }
 
-      // 거래 기록 생성 (관리자 강제 입출금 타입 사용)
-      const now = new Date().toISOString();
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          id: crypto.randomUUID(), // ✅ id 명시적 설정
-          user_id: userId,
-          partner_id: user.id,
-          transaction_type: type === 'deposit' ? 'admin_deposit' : 'admin_withdrawal',
-          amount: amountNum,
-          status: 'completed',
-          balance_before: balanceBefore,
-          balance_after: balanceAfter,
-          memo: memo || `[관리자 강제 ${type === 'deposit' ? '입금' : '출금'}]`,
-          processed_by: user.id,
-          processed_at: now,
-          created_at: now, // ✅ created_at 명시적 설정
-          updated_at: now, // ✅ updated_at도 설정
-          external_response: apiResult.data,
-          from_partner_id: type === 'deposit' ? user.id : userId,  // ✅ 입금: 관리자가 보냄, 출금: 회원이 보냄
-          to_partner_id: type === 'deposit' ? userId : user.id     // ✅ 입금:会员가 받음, 출금: 관리자가 받음
-        });
+    // API 응답에서 balance_after 파싱 (리소스 재사용: extractBalanceFromResponse 사용)
+    const balanceAfter = extractBalanceFromResponse(apiResult.data, selectedUser.username);
+    console.log('💰 실제 잔고:', balanceAfter);
 
-      if (transactionError) throw transactionError;
+    // 거래 기록 생성 (관리자 강제 입출금 타입 사용)
+    const now = new Date().toISOString();
+    const { error: transactionError } = await supabase
+      .from('transactions')
+      .insert({
+        id: crypto.randomUUID(), // ✅ id 명시적 설정
+        user_id: userId,
+        partner_id: user.id,
+        transaction_type: type === 'deposit' ? 'admin_deposit' : 'admin_withdrawal',
+        amount: amountNum,
+        status: 'completed',
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        memo: memo || `[관리자 강제 ${type === 'deposit' ? '입금' : '출금'}]`,
+        processed_by: user.id,
+        processed_at: now,
+        created_at: now, // ✅ created_at 명시적 설정
+        updated_at: now, // ✅ updated_at도 설정
+        external_response: apiResult.data,
+        from_partner_id: type === 'deposit' ? user.id : userId,  // ✅ 입금: 관리자가 보냄, 출금: 회원이 보냄
+        to_partner_id: type === 'deposit' ? userId : user.id     // ✅ 입금:会员가 받음, 출금: 관리자가 받음
+      });
 
-      // ✅ 트리거가 자동으로 users.balance 업데이트 (251번 SQL)
-      // ✅ Realtime 이벤트 자동 발생 → UserHeader 즉시 업데이트
-      console.log('✅ transactions INSERT 완료 → 트리거가 users.balance 자동 업데이트');
+    if (transactionError) throw transactionError;
 
-      // ✅ Lv2~Lv6 관리자가 사용자에게 입출금하는 경우: GMS 머니(balance) 차감/증가
-      if (user.level >= 2 && user.level <= 6) {
-        const { data: adminPartner, error: adminPartnerError } = await supabase
+    // ✅ 트리거가 자동으로 users.balance 업데이트 (251번 SQL)
+    // ✅ Realtime 이벤트 자동 발생 → UserHeader 즉시 업데이트
+    console.log('✅ transactions INSERT 완료 → 트리거가 users.balance 자동 업데이트');
+
+    // ✅ Lv2~Lv6 관리자가 사용자에게 입출금하는 경우: GMS 머니(balance) 차감/증가
+    if (user.level >= 2 && user.level <= 6) {
+      const { data: adminPartner, error: adminPartnerError } = await supabase
+        .from('partners')
+        .select('balance')
+        .eq('id', user.id)
+        .single();
+
+      if (adminPartnerError || !adminPartner) {
+        console.warn(`⚠️ Lv${user.level} 관리자의 partners 정보를 찾을 수 없습니다.`);
+      } else {
+        const currentBalance = adminPartner.balance || 0;
+        const newBalance = type === 'deposit' 
+          ? currentBalance - amountNum 
+          : currentBalance + amountNum;
+
+        const { error: updateBalanceError } = await supabase
           .from('partners')
-          .select('balance')
-          .eq('id', user.id)
-          .single();
+          .update({ 
+            balance: newBalance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', user.id);
 
-        if (adminPartnerError || !adminPartner) {
-          console.warn(`⚠️ Lv${user.level} 관리자의 partners 정보를 찾을 수 없습니다.`);
+        if (updateBalanceError) {
+          console.error(`❌ Lv${user.level} balance 업데이트 실패:`, updateBalanceError);
         } else {
-          const currentBalance = adminPartner.balance || 0;
-          const newBalance = type === 'deposit' 
-            ? currentBalance - amountNum 
-            : currentBalance + amountNum;
-
-          const { error: updateBalanceError } = await supabase
-            .from('partners')
-            .update({ 
-              balance: newBalance,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', user.id);
-
-          if (updateBalanceError) {
-            console.error(`❌ Lv${user.level} balance 업데이트 실패:`, updateBalanceError);
-          } else {
-            console.log(`✅ Lv${user.level} balance 업데이트: ${currentBalance} → ${newBalance}`);
-            
-            // 관리자 잔고 변경 로그 기록
-            await supabase
-              .from('partner_balance_logs')
-              .insert({
-                partner_id: user.id,
-                balance_before: currentBalance,
-                balance_after: newBalance,
-                amount: type === 'deposit' ? -amountNum : amountNum,
-                transaction_type: type === 'deposit' ? 'withdrawal' : 'deposit',
-                from_partner_id: type === 'deposit' ? user.id : userId,
-                to_partner_id: type === 'deposit' ? userId : user.id,
-                processed_by: user.id,
-                memo: `[강제${type === 'deposit' ? '입금' : '출금'}] ${selectedUser.username}에게 ${amountNum.toLocaleString()}원 ${type === 'deposit' ? '입금' : '회수'}${memo ? `: ${memo}` : ''}`
-              });
-          }
+          console.log(`✅ Lv${user.level} balance 업데이트: ${currentBalance} → ${newBalance}`);
+          
+          // 관리자 잔고 변경 로그 기록
+          await supabase
+            .from('partner_balance_logs')
+            .insert({
+              partner_id: user.id,
+              balance_before: currentBalance,
+              balance_after: newBalance,
+              amount: type === 'deposit' ? -amountNum : amountNum,
+              transaction_type: type === 'deposit' ? 'withdrawal' : 'deposit',
+              from_partner_id: type === 'deposit' ? user.id : userId,
+              to_partner_id: type === 'deposit' ? userId : user.id,
+              processed_by: user.id,
+              memo: `[강제${type === 'deposit' ? '입금' : '출금'}] ${selectedUser.username}에게 ${amountNum.toLocaleString()}원 ${type === 'deposit' ? '입금' : '회수'}${memo ? `: ${memo}` : ''}`
+            });
         }
       }
+    }
 
-      const successMsg = type === 'deposit' 
-        ? t.transactionManagement.forceDepositSuccess.replace('{{balance}}', balanceAfter.toLocaleString())
-        : t.transactionManagement.forceWithdrawalSuccess.replace('{{balance}}', balanceAfter.toLocaleString());
-      toast.success(successMsg);
-      
-      // WebSocket으로 실시간 알림
-      sendMessage({
-        type: 'admin_force_transaction',
-        data: { 
-          userId, 
-          type, 
-          amount: amountNum,
+    const successMsg = type === 'deposit' 
+      ? t.transactionManagement.forceDepositSuccess.replace('{{balance}}', balanceAfter.toLocaleString())
+      : t.transactionManagement.forceWithdrawalSuccess.replace('{{balance}}', balanceAfter.toLocaleString());
+    toast.success(successMsg);
+    
+    // WebSocket으로 실시간 알림
+    sendMessage({
+      type: 'admin_force_transaction',
+      data: { 
+        userId, 
+        type, 
+        amount: amountNum,
           balanceAfter,
           processedBy: user.nickname
         }

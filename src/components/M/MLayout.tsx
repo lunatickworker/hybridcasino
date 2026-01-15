@@ -460,7 +460,7 @@ export function MLayout({
                 제재 없이 모든 리그, 모든 경기를 즐기실 수 있습니다 1분 빠른 입출금 / 고액 당첨, 규정 위반 시 환전 제한 가능 ※
               </p>
               <p className="text-gray-600">
-                COPYRIGHT © 2022, ALL RIGHTS RESERVED
+                COPYRIGHT © 2026, ALL RIGHTS RESERVED
               </p>
             </div>
           </div>
