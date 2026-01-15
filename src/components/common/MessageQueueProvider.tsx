@@ -260,9 +260,6 @@ export const MessageQueueProvider = React.memo(({ children, userType, userId }: 
       return;
     }
 
-    // 디버깅용 로그
-    console.log('📨 WebSocket 메시지 수신 (정규화됨):', { type: messageType, data: messageData });
-    
     // 실시간 알림 처리
     if (messageType.includes('request') || messageType.includes('approved') || messageType.includes('rejected') || messageType.includes('processed') || messageType.includes('completed')) {
       // 사용자별 메시지 필터링
