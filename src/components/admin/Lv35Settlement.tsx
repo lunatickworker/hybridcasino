@@ -35,9 +35,9 @@ interface SettlementRow {
   // 온라인 입출금
   onlineDeposit: number;
   onlineWithdrawal: number;
-  // 관리자 지급/회수
-  adminGiven: number;
-  adminTaken: number;
+  // 파트너 충전/환전 (partner_balance_logs)
+  partnerDeposit: number;
+  partnerWithdrawal: number;
   // 입출차액
   depositWithdrawalDiff: number;
   // 게임 실적
@@ -62,8 +62,8 @@ interface SummaryStats {
   totalPoints: number;
   onlineDeposit: number;
   onlineWithdrawal: number;
-  adminGiven: number;
-  adminTaken: number;
+  partnerDeposit: number;
+  partnerWithdrawal: number;
   depositWithdrawalDiff: number;
   casinoBet: number;
   casinoWin: number;
@@ -93,8 +93,8 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     totalPoints: 0,
     onlineDeposit: 0,
     onlineWithdrawal: 0,
-    adminGiven: 0,
-    adminTaken: 0,
+    partnerDeposit: 0,
+    partnerWithdrawal: 0,
     depositWithdrawalDiff: 0,
     casinoBet: 0,
     casinoWin: 0,
@@ -168,8 +168,8 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       totalPoints: filtered.reduce((sum, r) => sum + r.points, 0),
       onlineDeposit: filtered.reduce((sum, r) => sum + r.onlineDeposit, 0),
       onlineWithdrawal: filtered.reduce((sum, r) => sum + r.onlineWithdrawal, 0),
-      adminGiven: filtered.reduce((sum, r) => sum + r.adminGiven, 0),
-      adminTaken: filtered.reduce((sum, r) => sum + r.adminTaken, 0),
+      partnerDeposit: filtered.reduce((sum, r) => sum + r.partnerDeposit, 0),
+      partnerWithdrawal: filtered.reduce((sum, r) => sum + r.partnerWithdrawal, 0),
       depositWithdrawalDiff: filtered.reduce((sum, r) => sum + r.depositWithdrawalDiff, 0),
       casinoBet: filtered.reduce((sum, r) => sum + r.casinoBet, 0),
       casinoWin: filtered.reduce((sum, r) => sum + r.casinoWin, 0),
@@ -472,14 +472,17 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ 관리자 지급/회수: 파트너 간 거래 (admin_deposit_initial/send + admin_withdrawal_initial/send)
-    const adminGiven = userTransactions
-      .filter(t => (t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && t.status === 'completed')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
+    // ✅ 파트너 충전/환전 (partner_balance_logs 기준)
+    // 데이터 소스: partner_balance_logs 테이블
+    // 파트너 충전: to_partner_id = 본인, transaction_type = 'deposit'
+    const partnerDeposit = partnerBalanceLogs
+      .filter(l => l.to_partner_id === entityId && l.transaction_type === 'deposit')
+      .reduce((sum, l) => sum + (l.amount || 0), 0);
 
-    const adminTaken = userTransactions
-      .filter(t => (t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send') && t.status === 'completed')
-      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+    // 파트너 환전: from_partner_id = 본인, transaction_type = 'withdrawal'
+    const partnerWithdrawal = partnerBalanceLogs
+      .filter(l => l.from_partner_id === entityId && l.transaction_type === 'withdrawal')
+      .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
 
     // ✅ 게임 기록 (본인 데이터만)
     const relevantGameRecords = gameRecords.filter(gr => relevantUserIdsForTransactions.includes(gr.user_id));
@@ -519,16 +522,8 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     const individualRolling = totalRolling;
     const individualLosing = totalLosing;
 
-    // ✅ partner_balance_logs에서 파트너 입출금 데이터 추가 (입출차액에 반영)
-    const partnerDepositFromLogs = partnerBalanceLogs
-      .filter(l => l.to_partner_id === entityId && l.transaction_type === 'deposit')
-      .reduce((sum, l) => sum + (l.amount || 0), 0);
-
-    const partnerWithdrawalFromLogs = partnerBalanceLogs
-      .filter(l => l.from_partner_id === entityId && l.transaction_type === 'withdrawal')
-      .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
-
-    const depositWithdrawalDiff = onlineDeposit + adminGiven + partnerDepositFromLogs - onlineWithdrawal - adminTaken - partnerWithdrawalFromLogs;
+    // ✅ 입출차액 = (온라인 입금 + 파트너 충전) - (온라인 출금 + 파트너 환전)
+    const depositWithdrawalDiff = onlineDeposit + partnerDeposit - onlineWithdrawal - partnerWithdrawal;
 
     return {
       level,
@@ -544,8 +539,8 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       points,
       onlineDeposit,
       onlineWithdrawal,
-      adminGiven,
-      adminTaken,
+      partnerDeposit,
+      partnerWithdrawal,
       depositWithdrawalDiff,
       casinoBet,
       casinoWin,
@@ -603,22 +598,22 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       {/* 필터 영역 */}
       <div className="glass-card rounded-xl p-6">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 mb-6">
-        {/* 첫 번째 행: 입금 / 출금 / 관리자지급 / 관리자 회수 */}
+        {/* 첫 번째 행: 총입금 / 총출금 / 파트너충전 / 파트너환전 */}
         <div className="bg-gradient-to-br from-emerald-900/50 to-slate-900 rounded-xl p-4 border border-emerald-700/30 hover:border-emerald-600/50 transition-all shadow-lg shadow-emerald-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-emerald-500/20 rounded-lg"><ArrowUpRight className="h-6 w-6 text-emerald-400" /></div><span className="text-2xl text-slate-400 font-medium">입금</span></div>
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-emerald-500/20 rounded-lg"><ArrowUpRight className="h-6 w-6 text-emerald-400" /></div><span className="text-2xl text-slate-400 font-medium">총 입금</span></div>
           <div className="text-3xl font-bold text-emerald-400 font-asiahead ml-12">{formatNumber(summary.onlineDeposit)}</div>
         </div>
         <div className="bg-gradient-to-br from-rose-900/50 to-slate-900 rounded-xl p-4 border border-rose-700/30 hover:border-rose-600/50 transition-all shadow-lg shadow-rose-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-rose-500/20 rounded-lg"><ArrowDownRight className="h-6 w-6 text-rose-400" /></div><span className="text-2xl text-slate-400 font-medium">출금</span></div>
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-rose-500/20 rounded-lg"><ArrowDownRight className="h-6 w-6 text-rose-400" /></div><span className="text-2xl text-slate-400 font-medium">총 출금</span></div>
           <div className="text-3xl font-bold text-rose-400 font-asiahead ml-12">{formatNumber(summary.onlineWithdrawal)}</div>
         </div>
         <div className="bg-gradient-to-br from-blue-900/50 to-slate-900 rounded-xl p-4 border border-blue-700/30 hover:border-blue-600/50 transition-all shadow-lg shadow-blue-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-blue-500/20 rounded-lg"><DollarSign className="h-6 w-6 text-blue-400" /></div><span className="text-2xl text-slate-400 font-medium">관리자지급</span></div>
-          <div className="text-3xl font-bold text-blue-400 font-asiahead ml-12">{formatNumber(summary.adminGiven)}</div>
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-blue-500/20 rounded-lg"><DollarSign className="h-6 w-6 text-blue-400" /></div><span className="text-2xl text-slate-400 font-medium">파트너 충전</span></div>
+          <div className="text-3xl font-bold text-blue-400 font-asiahead ml-12">{formatNumber(summary.partnerDeposit)}</div>
         </div>
         <div className="bg-gradient-to-br from-orange-900/50 to-slate-900 rounded-xl p-4 border border-orange-700/30 hover:border-orange-600/50 transition-all shadow-lg shadow-orange-900/10">
-          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-orange-500/20 rounded-lg"><DollarSign className="h-6 w-6 text-orange-400" /></div><span className="text-2xl text-slate-400 font-medium">관리자 회수</span></div>
-          <div className="text-3xl font-bold text-orange-400 font-asiahead ml-12">{formatNumber(summary.adminTaken)}</div>
+          <div className="flex items-center gap-3 mb-2"><div className="p-3 bg-orange-500/20 rounded-lg"><DollarSign className="h-6 w-6 text-orange-400" /></div><span className="text-2xl text-slate-400 font-medium">파트너 환전</span></div>
+          <div className="text-3xl font-bold text-orange-400 font-asiahead ml-12">{formatNumber(summary.partnerWithdrawal)}</div>
         </div>
 
         {/* 두 번째 행: 카지노베팅 / 카지노 당첨 / 슬롯 베팅 / 슬롯 당첨 */}
@@ -740,13 +735,13 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
                       </div>
                     </th>
 
-                    {/* 관리자 지급/회수 (지급/회수) - 2단 */}
+                    {/* 파트너 충전/환전 (충전/환전) - 2단 */}
                     <th className="px-4 py-0 text-center text-white font-normal bg-rose-950/60" rowSpan={1} style={{ minWidth: '160px' }}>
                       <div className="flex flex-col">
-                        <div className="py-2 border-b border-slate-700/50 whitespace-nowrap">관리자 지급/회수</div>
+                        <div className="py-2 border-b border-slate-700/50 whitespace-nowrap">파트너 충전/환전</div>
                         <div className="flex">
-                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>지급</div>
-                          <div className="py-2 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>회수</div>
+                          <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>충전</div>
+                          <div className="py-2 whitespace-nowrap" style={{ flexBasis: '80px', flexShrink: 0 }}>환전</div>
                         </div>
                       </div>
                     </th>
@@ -831,11 +826,11 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
                           </div>
                         </td>
                         
-                        {/* 관리자 지급/회수 (지급/회수) */}
+                        {/* 파트너 충전/환전 (충전/환전) */}
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-emerald-400 font-asiahead">{formatNumber(row.adminGiven)}</div>
-                            <div className="flex-1 text-rose-400 font-asiahead">{formatNumber(row.adminTaken)}</div>
+                            <div className="flex-1 text-emerald-400 font-asiahead">{formatNumber(row.partnerDeposit)}</div>
+                            <div className="flex-1 text-rose-400 font-asiahead">{formatNumber(row.partnerWithdrawal)}</div>
                           </div>
                         </td>
                         

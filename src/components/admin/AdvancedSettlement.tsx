@@ -379,35 +379,21 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-      // 관리자 입금/출금: 파트너 간 거래 + 파트너 요청 + partner_balance_logs
-      const adminDepositFromPartnerTransactions = dayTransactions
-        .filter(t => (t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && t.status === 'completed')
+      // ✅ 수동 입금 (Guidelines.md 기준)
+      // 📊 데이터 소스: transactions 테이블
+      // 🎯 조건: transaction_type = 'admin_deposit_send' AND status = 'completed'
+      // 💰 계산식: SUM(amount)
+      const adminDeposit = dayTransactions
+        .filter(t => t.transaction_type === 'admin_deposit_send' && t.status === 'completed')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-      const adminWithdrawalFromPartnerTransactions = dayTransactions
-        .filter(t => (t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send') && t.status === 'completed')
+      // ✅ 수동 출금 (Guidelines.md 기준)
+      // 📊 데이터 소스: transactions 테이블
+      // 🎯 조건: transaction_type = 'admin_withdrawal_send' AND status = 'completed'
+      // 💰 계산식: SUM(|amount|) // 절대값
+      const adminWithdrawal = dayTransactions
+        .filter(t => t.transaction_type === 'admin_withdrawal_send' && t.status === 'completed')
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
-
-      const adminDepositFromRequests = dayTransactions
-        .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed')
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
-
-      const adminWithdrawalFromRequests = dayTransactions
-        .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed')
-        .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
-
-      // partner_balance_logs에서 본인에게 입금된 금액 (from_partner_id가 다른 사람, to_partner_id가 본인)
-      const adminDepositFromLogs = dayPartnerBalanceLogs
-        .filter(l => l.to_partner_id === user.id && l.transaction_type === 'deposit')
-        .reduce((sum, l) => sum + (l.amount || 0), 0);
-
-      // partner_balance_logs에서 본인에게서 출금된 금액 (from_partner_id가 본인, to_partner_id가 다른 사람)
-      const adminWithdrawalFromLogs = dayPartnerBalanceLogs
-        .filter(l => l.from_partner_id === user.id && l.transaction_type === 'withdrawal')
-        .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
-
-      const adminDeposit = adminDepositFromPartnerTransactions + adminDepositFromRequests + adminDepositFromLogs;
-      const adminWithdrawal = adminWithdrawalFromPartnerTransactions + adminWithdrawalFromRequests + adminWithdrawalFromLogs;
 
       // 포인트 계산
       const pointGiven = dayPointTransactions

@@ -398,25 +398,31 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const relevantPartnerIdsForTransactions: string[] = level > 0 ? [entityId] : [];
     const partnerTransactions = transactions.filter(t => (t.transaction_type === 'partner_deposit' || t.transaction_type === 'partner_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
 
-    // ✅ 온라인 입금/출금: 사용자 직접 입금/출금만 (deposit/withdrawal)
+    // ✅ 4️⃣ 온라인 입금 (Guidelines.md 기준)
+    // 데이터 소스: transactions 테이블
+    // 조건: transaction_type = 'deposit' AND status = 'completed'
     const onlineDeposit = userTransactions.filter(t => t.transaction_type === 'deposit' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
+    
+    // ✅ 온라인 출금 (Guidelines.md 기준)
+    // 데이터 소스: transactions 테이블
+    // 조건: transaction_type = 'withdrawal' AND status = 'completed'
     const onlineWithdrawal = userTransactions.filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
     
-    // ✅ 파트너 충환전: 파트너 입금/출금 신청
-    const partnerChargeFromRequests = partnerTransactions.filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
-    const partnerExchangeFromRequests = partnerTransactions.filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+    // ✅ 5️⃣ 수동 충전 (Guidelines.md 기준)
+    // 데이터 소스: transactions 테이블
+    // 조건: transaction_type = 'admin_deposit_send' AND status = 'completed'
+    const manualDepositTransactions = userTransactions.filter(t => t.transaction_type === 'admin_deposit_send' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
     
-    // ✅ 수동 입금/출금: 파트너 간 거래 (admin_deposit_initial/send, admin_withdrawal_initial/send) + partner_balance_logs
-    const adminDepositTransactions = userTransactions.filter(t => (t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
-    const adminWithdrawalTransactions = userTransactions.filter(t => (t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send') && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+    // ✅ 수동 환전 (Guidelines.md 기준)
+    // 데이터 소스: transactions 테이블
+    // 조건: transaction_type = 'admin_withdrawal_send' AND status = 'completed'
+    const manualWithdrawalTransactions = userTransactions.filter(t => t.transaction_type === 'admin_withdrawal_send' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
     
-    const relevantBalanceLogs = partnerBalanceLogs.filter(l => relevantPartnerIdsForTransactions.includes(l.partner_id) || relevantPartnerIdsForTransactions.includes(l.from_partner_id) || relevantPartnerIdsForTransactions.includes(l.to_partner_id));
-    const manualDepositFromLogs = relevantBalanceLogs.filter(l => l.transaction_type === 'deposit').reduce((sum, l) => sum + (l.amount || 0), 0);
-    const manualWithdrawalFromLogs = relevantBalanceLogs.filter(l => l.transaction_type === 'withdrawal').reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
+    // ✅ 수동 입금 = 수동 충전 (admin_deposit_send)
+    const manualDeposit = manualDepositTransactions;
     
-    // ✅ 수동 입금/출금 = 파트너 간 거래 + 파트너 요청 + 수동 처리
-    const manualDeposit = adminDepositTransactions + partnerChargeFromRequests + manualDepositFromLogs;
-    const manualWithdrawal = adminWithdrawalTransactions + partnerExchangeFromRequests + manualWithdrawalFromLogs;
+    // ✅ 수동 출금 = 수동 환전 (admin_withdrawal_send)
+    const manualWithdrawal = manualWithdrawalTransactions;
     const userPointTrans = pointTransactions.filter(pt => relevantUserIdsForTransactions.includes(pt.user_id));
     const pointGiven = userPointTrans.filter(pt => pt.type === 'commission_earned').reduce((sum, pt) => sum + (pt.amount || 0), 0);
     const pointRecovered = userPointTrans.filter(pt => pt.type === 'point_to_balance').reduce((sum, pt) => sum + (pt.amount || 0), 0);

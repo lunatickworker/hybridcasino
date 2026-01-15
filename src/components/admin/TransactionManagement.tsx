@@ -387,7 +387,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           partner_nickname: partnerInfo?.nickname || '',
           partner_username: partnerInfo?.username || '',
           from_partner_nickname: fromPartnerInfo?.nickname || '',
+          from_partner_username: fromPartnerInfo?.username || '',
           to_partner_nickname: toPartnerInfo?.nickname || '',
+          to_partner_username: toPartnerInfo?.username || '',
           processed_by_nickname: partnerInfoMap.get(pt.processed_by)?.nickname || '',
           // ✅ 파트너 레벨 정보 추가 (Lv2 거래 필터링용)
           from_partner_level: fromPartnerInfo?.level || 0,
@@ -1681,43 +1683,39 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (transactionTypeFilter === 'all') {
           return t.transaction_type === 'deposit' || 
                  t.transaction_type === 'withdrawal' ||
-                 t.transaction_type === 'admin_deposit' ||
-                 t.transaction_type === 'admin_deposit_initial' || 
                  t.transaction_type === 'admin_deposit_send' ||
-                 t.transaction_type === 'admin_withdrawal' ||
-                 t.transaction_type === 'admin_withdrawal_initial' || 
                  t.transaction_type === 'admin_withdrawal_send' ||
-                 t.transaction_type === 'partner_deposit' ||
-                 t.transaction_type === 'partner_withdrawal' ||
                  t.transaction_type === 'admin_adjustment';
         }
         
-        // 사용자 입출금: 사용자 요청 + 관리자 강제 입출금
-        if (transactionTypeFilter === 'manual_deposit') {
-          return t.transaction_type === 'admin_deposit_initial';
+        // 온라인 입금
+        if (transactionTypeFilter === 'online_deposit') {
+          return t.transaction_type === 'deposit';
         }
+        
+        // 온라인 출금
+        if (transactionTypeFilter === 'online_withdrawal') {
+          return t.transaction_type === 'withdrawal';
+        }
+        
+        // 수동 충전 (manual_charge)
+        if (transactionTypeFilter === 'manual_charge') {
+          return t.transaction_type === 'admin_deposit_send';
+        }
+        
+        // 수동 환전 (manual_withdrawal)
         if (transactionTypeFilter === 'manual_withdrawal') {
-          return t.transaction_type === 'admin_withdrawal_initial';
+          return t.transaction_type === 'admin_withdrawal_send';
         }
         
         // 파트너 충전: 현재 사용자가 수신자인 파트너 거래
-        if (transactionTypeFilter === 'partner_deposit') {
-          return t.is_partner_transaction && (t.transaction_type === 'deposit' || t.transaction_type === 'withdrawal') && t.to_partner_id === user.id;
+        if (transactionTypeFilter === 'partner_charge') {
+          return t.is_partner_transaction && t.transaction_type === 'deposit' && t.to_partner_id === user.id;
         }
         
         // 파트너 환전: 현재 사용자가 송금자인 파트너 거래
         if (transactionTypeFilter === 'partner_withdrawal') {
-          return t.is_partner_transaction && (t.transaction_type === 'deposit' || t.transaction_type === 'withdrawal') && t.from_partner_id === user.id;
-        }
-        
-        // 관리자 입금요청: partner_deposit
-        if (transactionTypeFilter === 'admin_request_deposit') {
-          return t.transaction_type === 'partner_deposit';
-        }
-        
-        // 관리자 출금요청: partner_withdrawal
-        if (transactionTypeFilter === 'admin_request_withdrawal') {
-          return t.transaction_type === 'partner_withdrawal';
+          return t.is_partner_transaction && t.transaction_type === 'withdrawal' && t.from_partner_id === user.id;
         }
         
         // 포인트 지급
@@ -1739,7 +1737,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     // console.log 제거
     
     const mappedPartnerTransactions = (transactionTypeFilter === 'all' || 
-                                       transactionTypeFilter === 'partner_deposit' || 
+                                       transactionTypeFilter === 'partner_charge' || 
                                        transactionTypeFilter === 'partner_withdrawal')
       ? partnerTransactions
         .filter(pt => {
@@ -1767,13 +1765,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           // 필터별 파트너 거래 타입 매칭
           const typeMatch = (() => {
             if (transactionTypeFilter === 'all') return true;
-            // 파트너 충전: 현재 사용자가 수신자 (to_partner_id)
-            if (transactionTypeFilter === 'partner_deposit') {
-              return pt.to_partner_id === user.id && (pt.transaction_type === 'deposit' || pt.transaction_type === 'withdrawal');
+            // 파트너 충전: 현재 사용자가 수신자 (to_partner_id) + deposit 거래만
+            if (transactionTypeFilter === 'partner_charge') {
+              return pt.to_partner_id === user.id && pt.transaction_type === 'deposit';
             }
-            // 파트너 환전: 현재 사용자가 송금자 (from_partner_id)
+            // 파트너 환전: 현재 사용자가 송금자 (from_partner_id) + withdrawal 거래만
             if (transactionTypeFilter === 'partner_withdrawal') {
-              return pt.from_partner_id === user.id && (pt.transaction_type === 'deposit' || pt.transaction_type === 'withdrawal');
+              return pt.from_partner_id === user.id && pt.transaction_type === 'withdrawal';
             }
             return false;
           })();
@@ -1914,7 +1912,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (row.is_partner_transaction) {
           return (
             <span className="text-purple-400" style={{ fontSize: '15px' }}>
-              {row.partner_username || '-'}
+              {row.from_partner_username || row.to_partner_username || row.partner_username || '-'}
             </span>
           );
         }
@@ -1923,7 +1921,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (row.transaction_type === 'partner_deposit' || row.transaction_type === 'partner_withdrawal') {
           return (
             <span className="text-purple-400" style={{ fontSize: '15px' }}>
-              {row.partner?.nickname || '[관리자]'}
+              {row.partner?.username || row.from_partner_username || row.to_partner_username || '-'}
             </span>
           );
         }
@@ -1941,10 +1939,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       header: '보낸사람',
       cell: (row: any) => {
         // 파트너 거래인 경우
-        if (row.is_partner_transaction && row.from_partner_nickname) {
+        if (row.is_partner_transaction && row.from_partner_username) {
           return (
             <span className="text-blue-400" style={{ fontSize: '15px' }}>
-              {row.from_partner_nickname}
+              {row.from_partner_username}
             </span>
           );
         }
@@ -1990,10 +1988,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       header: '받는사람',
       cell: (row: any) => {
         // 파트너 거래인 경우
-        if (row.is_partner_transaction && row.to_partner_nickname) {
+        if (row.is_partner_transaction && row.to_partner_username) {
           return (
             <span className="text-pink-400" style={{ fontSize: '15px' }}>
-              {row.to_partner_nickname}
+              {row.to_partner_username}
             </span>
           );
         }
@@ -2043,12 +2041,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           // deposit/withdrawal 거래: 현재 사용자 기준으로 파트너 환전/충전 판단
           if (row.transaction_type === 'deposit' || row.transaction_type === 'withdrawal') {
             // 현재 사용자가 송금자(from_partner_id)인 경우 → 파트너 환전 (출금)
-            if (row.from_partner_id === user.id) {
+            if (row.from_partner_id === user.id && row.transaction_type === 'withdrawal') {
               return <Badge className="bg-pink-600 text-white text-sm px-3 py-1">파트너 환전</Badge>;
             }
             // 현재 사용자가 수신자(to_partner_id)인 경우 → 파트너 충전 (입금)
-            if (row.to_partner_id === user.id) {
-              return <Badge className="bg-cyan-600 text-white text-sm px-3 py-1">파트너 충전</Badge>;
+            if (row.to_partner_id === user.id && row.transaction_type === 'deposit') {
+              return <Badge className="bg-purple-600 text-white text-sm px-3 py-1">파트너 충전</Badge>;
             }
           }
           
@@ -2056,91 +2054,30 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           const partnerTypeMap: any = {
             admin_adjustment: { text: '파트너조정', color: 'bg-indigo-600' },
             commission: { text: '파트너수수료', color: 'bg-violet-600' },
-            refund: { text: '파트너환급', color: 'bg-sky-600' },
-            deposit_to_user: { text: '→회원입금', color: 'bg-teal-600' },
-            withdrawal_from_user: { text: '←회원출금', color: 'bg-rose-600' }
+            refund: { text: '파트너환급', color: 'bg-sky-600' }
           };
           const type = partnerTypeMap[row.transaction_type] || { text: row.transaction_type, color: 'bg-slate-600' };
           return <Badge className={`${type.color} text-white text-sm px-3 py-1`}>{type.text}</Badge>;
         }
         
-        // ✅ admin_deposit / admin_withdrawal: 현재 로그인 사용자 기준으로 자신의 거래 유형만 표시
-        if (row.transaction_type === 'admin_deposit') {
-          const fromLevel = row.from_partner_level || 1;
-          const toLevel = row.to_partner_level || 1;
-          
-          const levelNames: any = { 1: '운영사', 2: '본사', 3: '부본사', 4: '총판', 5: '매장', 6: '매장' };
-          
-          // 현재 사용자가 송금자인 경우 (from_partner_id)
-          if (row.from_partner_id === user.id) {
-            const typeText = fromLevel === 1 ? '수동입금' : '파트너환전';
-            return <Badge className="bg-cyan-600 text-white text-sm px-3 py-1">{typeText}</Badge>;
-          }
-          
-          // 현재 사용자가 수신자인 경우 (to_partner_id)
-          if (row.to_partner_id === user.id) {
-            return <Badge className="bg-cyan-600 text-white text-sm px-3 py-1">파트너 충전</Badge>;
-          }
-          
-          // 둘 다 아닌 경우 전체 표시
-          const fromName = levelNames[fromLevel] || `Lv${fromLevel}`;
-          const toName = levelNames[toLevel] || `Lv${toLevel}`;
-          const text = `${fromName}는 ${fromLevel === 1 ? '수동입금' : '파트너환전'}, ${toName}는 파트너 충전`;
-          return <Badge className="bg-cyan-600 text-white text-sm px-3 py-1">{text}</Badge>;
-        }
-        
-        if (row.transaction_type === 'admin_withdrawal') {
-          const fromLevel = row.from_partner_level || 2;
-          const toLevel = row.to_partner_level || 1;
-          
-          const levelNames: any = { 1: '운영사', 2: '본사', 3: '부본사', 4: '총판', 5: '매장', 6: '매장' };
-          
-          // 현재 사용자가 회수자인 경우 (from_partner_id)
-          if (row.from_partner_id === user.id) {
-            return <Badge className="bg-pink-600 text-white text-sm px-3 py-1">파트너 환전</Badge>;
-          }
-          
-          // 현재 사용자가 지급자인 경우 (to_partner_id)
-          if (row.to_partner_id === user.id) {
-            const typeText = toLevel === 1 ? '수동출금' : '파트너 충전';
-            return <Badge className="bg-pink-600 text-white text-sm px-3 py-1">{typeText}</Badge>;
-          }
-          
-          // 둘 다 아닌 경우 전체 표시
-          const fromName = levelNames[fromLevel] || `Lv${fromLevel}`;
-          const toName = levelNames[toLevel] || `Lv${toLevel}`;
-          const text = `${fromName}는 파트너 환전, ${toName}는 ${toLevel === 1 ? '수동출금' : '파트너 충전'}`;
-          return <Badge className="bg-pink-600 text-white text-sm px-3 py-1">{text}</Badge>;
-        }
-        
         const typeMap: any = {
-          deposit: { text: t.transactionManagement.deposit, color: 'bg-emerald-600' },
-          withdrawal: { text: t.transactionManagement.withdrawal, color: 'bg-orange-600' },
-          admin_deposit_initial: { text: '수동입금', color: 'bg-cyan-600' },
-          admin_deposit_send: { text: '파트너 환전', color: 'bg-pink-600' },
-          admin_deposit_receive: { text: '파트너 충전', color: 'bg-cyan-600' },
-          admin_withdrawal_initial: { text: '수동출금', color: 'bg-orange-600' },
-          admin_withdrawal_send: { text: '파트너 환전', color: 'bg-pink-600' },
-          admin_withdrawal_receive: { text: '파트너 충전', color: 'bg-cyan-600' },
-          partner_deposit: { text: '관리자입금신청', color: 'bg-cyan-600' },
-          partner_withdrawal: { text: '관리자출금신청', color: 'bg-pink-600' },
+          // 온라인 입출금
+          deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
+          withdrawal: { text: '온라인 출금', color: 'bg-orange-600' },
+          // 수동 충전/환전
+          admin_deposit_send: { text: '수동 충전', color: 'bg-blue-600' },
+          admin_withdrawal_send: { text: '수동 환전', color: 'bg-red-600' },
+          // 포인트 거래
           admin_adjustment: { 
-            text: row.memo?.includes('강제 출금') ? t.transactionManagement.withdrawal : t.transactionManagement.deposit, 
-            color: row.memo?.includes('강제 출금') ? 'bg-rose-600' : 'bg-teal-600'
+            text: row.amount > 0 && row.points_before !== undefined ? '포인트 지급' : '포인트 회수', 
+            color: row.amount > 0 && row.points_before !== undefined ? 'bg-amber-600' : 'bg-purple-600'
           },
-          // 포인트 거래 타입
-          earn: { text: '포인트획득', color: 'bg-amber-600' },
-          use: { text: '포인트사용', color: 'bg-purple-600' },
-          convert_to_balance: { text: '머니전환', color: 'bg-blue-600' }
+          // 레거시 타입 (호환성)
+          admin_deposit_initial: { text: '수동 충전', color: 'bg-blue-600' },
+          admin_withdrawal_initial: { text: '수동 환전', color: 'bg-red-600' },
+          partner_deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
+          partner_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' }
         };
-        
-        // admin_adjustment for points
-        if (row.transaction_type === 'admin_adjustment' && row.points_before !== undefined) {
-          const isGive = row.amount > 0;
-          return <Badge className={`${isGive ? 'bg-amber-600' : 'bg-purple-600'} text-white text-sm px-3 py-1`}>
-            {isGive ? '포인트지급' : '포인트회수'}
-          </Badge>;
-        }
         
         const type = typeMap[row.transaction_type] || { text: row.transaction_type, color: 'bg-slate-600' };
         return <Badge className={`${type.color} text-white text-sm px-3 py-1`}>{type.text}</Badge>;
@@ -2595,16 +2532,40 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   전체
                 </Button>
                 <Button
-                  onClick={() => setTransactionTypeFilter('manual_deposit')}
-                  variant={transactionTypeFilter === 'manual_deposit' ? 'default' : 'outline'}
+                  onClick={() => setTransactionTypeFilter('online_deposit')}
+                  variant={transactionTypeFilter === 'online_deposit' ? 'default' : 'outline'}
                   className={cn(
                     "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'manual_deposit' 
-                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
-                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
+                    transactionTypeFilter === 'online_deposit' 
+                      ? "bg-emerald-500/30 border border-emerald-400/50 hover:bg-emerald-500/40 text-emerald-100 shadow-lg" 
+                      : "bg-emerald-500/10 border border-emerald-400/20 hover:bg-emerald-500/20 text-slate-300"
                   )}
                 >
-                  수동 입금
+                  온라인 입금
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('online_withdrawal')}
+                  variant={transactionTypeFilter === 'online_withdrawal' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'online_withdrawal' 
+                      ? "bg-orange-500/30 border border-orange-400/50 hover:bg-orange-500/40 text-orange-100 shadow-lg" 
+                      : "bg-orange-500/10 border border-orange-400/20 hover:bg-orange-500/20 text-slate-300"
+                  )}
+                >
+                  온라인 출금
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('manual_charge')}
+                  variant={transactionTypeFilter === 'manual_charge' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'manual_charge' 
+                      ? "bg-blue-500/30 border border-blue-400/50 hover:bg-blue-500/40 text-blue-100 shadow-lg" 
+                      : "bg-blue-500/10 border border-blue-400/20 hover:bg-blue-500/20 text-slate-300"
+                  )}
+                >
+                  수동 충전
                 </Button>
                 <Button
                   onClick={() => setTransactionTypeFilter('manual_withdrawal')}
@@ -2612,20 +2573,20 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   className={cn(
                     "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
                     transactionTypeFilter === 'manual_withdrawal' 
-                      ? "bg-orange-500/30 border border-orange-400/50 hover:bg-orange-500/40 text-orange-100 shadow-lg" 
-                      : "bg-orange-500/10 border border-orange-400/20 hover:bg-orange-500/20 text-slate-300"
+                      ? "bg-red-500/30 border border-red-400/50 hover:bg-red-500/40 text-red-100 shadow-lg" 
+                      : "bg-red-500/10 border border-red-400/20 hover:bg-red-500/20 text-slate-300"
                   )}
                 >
-                  수동 출금
+                  수동 환전
                 </Button>
                 <Button
-                  onClick={() => setTransactionTypeFilter('partner_deposit')}
-                  variant={transactionTypeFilter === 'partner_deposit' ? 'default' : 'outline'}
+                  onClick={() => setTransactionTypeFilter('partner_charge')}
+                  variant={transactionTypeFilter === 'partner_charge' ? 'default' : 'outline'}
                   className={cn(
                     "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'partner_deposit' 
-                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
-                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
+                    transactionTypeFilter === 'partner_charge' 
+                      ? "bg-purple-500/30 border border-purple-400/50 hover:bg-purple-500/40 text-purple-100 shadow-lg" 
+                      : "bg-purple-500/10 border border-purple-400/20 hover:bg-purple-500/20 text-slate-300"
                   )}
                 >
                   파트너 충전
@@ -2641,30 +2602,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   )}
                 >
                   파트너 환전
-                </Button>
-                <Button
-                  onClick={() => setTransactionTypeFilter('admin_request_deposit')}
-                  variant={transactionTypeFilter === 'admin_request_deposit' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'admin_request_deposit' 
-                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
-                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
-                  )}
-                >
-                  관리자 입금요청
-                </Button>
-                <Button
-                  onClick={() => setTransactionTypeFilter('admin_request_withdrawal')}
-                  variant={transactionTypeFilter === 'admin_request_withdrawal' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'admin_request_withdrawal' 
-                      ? "bg-pink-500/30 border border-pink-400/50 hover:bg-pink-500/40 text-pink-100 shadow-lg" 
-                      : "bg-pink-500/10 border border-pink-400/20 hover:bg-pink-500/20 text-slate-300"
-                  )}
-                >
-                  관리자 출금요청
                 </Button>
                 <Button
                   onClick={() => setTransactionTypeFilter('point_give')}
