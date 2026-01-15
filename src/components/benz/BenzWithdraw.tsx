@@ -414,7 +414,8 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
   };
 
   useEffect(() => {
-    checkAndSyncBalance();
+    // ⚠️ checkAndSyncBalance() 제거 - 출금 페이지 진입 시 자동 출금 방지 (2026-01-15)
+    // checkAndSyncBalance();
     checkWithdrawStatus();
     loadUserBalance();
     loadWithdrawRecords();

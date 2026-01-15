@@ -496,41 +496,41 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   // }, [user?.id, onLogout]);
 
   // ==========================================================================
-  // 온라인 상태 모니터링 (Realtime)
+  // 온라인 상태 모니터링 (Realtime) - 임시 비활성화 (출금 API 호출 방지)
   // ==========================================================================
-  useEffect(() => {
-    if (!user?.id) return;
+  // useEffect(() => {
+  //   if (!user?.id) return;
 
-    onlineChannelRef.current = supabase
-      .channel(`benz_online_status_${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'users',
-          filter: `id=eq.${user.id}`
-        },
-        async (payload) => {
-          const { new: newUser } = payload as any;
-          
-          if (!newUser.is_online) {
-            // toast.error('다른 기기에서 로그인되어 로그아웃됩니다.'); // ✅ 토스트 메시지 제거
-            setTimeout(() => {
-              onLogout();
-            }, 1000);
-          }
-        }
-      )
-      .subscribe();
+  //   onlineChannelRef.current = supabase
+  //     .channel(`benz_online_status_${user.id}`)
+  //     .on(
+  //       'postgres_changes',
+  //       {
+  //         event: 'UPDATE',
+  //         schema: 'public',
+  //         table: 'users',
+  //         filter: `id=eq.${user.id}`
+  //       },
+  //       async (payload) => {
+  //         const { new: newUser } = payload as any;
+  //         
+  //         if (!newUser.is_online) {
+  //           // toast.error('다른 기기에서 로그인되어 로그아웃됩니다.'); // ✅ 토스트 메시지 제거
+  //           setTimeout(() => {
+  //             onLogout();
+  //           }, 1000);
+  //         }
+  //       }
+  //     )
+  //     .subscribe();
 
-    return () => {
-      if (onlineChannelRef.current) {
-        supabase.removeChannel(onlineChannelRef.current);
-        onlineChannelRef.current = null;
-      }
-    };
-  }, [user?.id, onLogout]);
+  //   return () => {
+  //     if (onlineChannelRef.current) {
+  //       supabase.removeChannel(onlineChannelRef.current);
+  //       onlineChannelRef.current = null;
+  //     }
+  //   };
+  // }, [user?.id, onLogout]);
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#141414' }}>
