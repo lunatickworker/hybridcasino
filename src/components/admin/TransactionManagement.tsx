@@ -138,7 +138,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     1000000
   ];
 
-  // URL 해시 변경 감지하여 탭 업데이트
+  // URL 해시 변경 감지하여 탭 업데이트 (초기화 로직 분리)
   useEffect(() => {
     // 컴포넌트 마운트 시에도 해시 확인
     const checkHash = () => {
@@ -150,16 +150,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         console.log('🔄 [TransactionManagement] 해시 변경 감지:', { fullHash, anchor, anchorIndex });
 
         if (anchor === 'deposit-request' || anchor === 'withdrawal-request' || anchor === 'deposit-history' || anchor === 'withdrawal-history') {
-          console.log('✅ [TransactionManagement] 탭 변경 및 데이터 로드:', anchor);
+          console.log('✅ [TransactionManagement] 타겟 탭 설정:', anchor);
+          // ✅ 초기화: 탭만 설정 (데이터는 아래 useEffect에서 로드)
           setActiveTab(anchor);
-          // ✅ 초기 로딩 중이더라도 탭 변경 시 즉시 데이터 로드
-          // 출금신청 탭의 경우 특별히 강제로 로드하여 버그 방지
-          if (anchor === 'withdrawal-request') {
-            console.log('🔄 [TransactionManagement] 출금신청 탭 강제 데이터 로드');
-            setTimeout(() => loadData(false), 50); // 약간의 지연 후 로드
-          } else {
-            loadData(false);
-          }
         } else {
           console.log('❌ [TransactionManagement] 지원하지 않는 탭:', anchor);
         }
@@ -175,9 +168,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []); // ✅ initialLoading 의존성 제거
+  }, []); // ✅ 해시만 감지 (탭 초기화만)
 
-  // ⚡ 데이터 로드 최적화 (병렬 쿼리)
+  // ⚡ 데이터 로드 - activeTab 변경 시 자동 로드 (Lv2+에서도 빠르게 표시)
+  useEffect(() => {
+    console.log('📊 [TransactionManagement] activeTab 변경 감지:', activeTab);
+    loadData(false);
+  }, [activeTab]); // ✅ activeTab 의존성만 추가 (초기 로드 + 탭 전환 시 로드)
   const loadData = async (isInitial = false, skipSetRefreshing = false) => {
     // Determine current tab from URL hash to ensure correct date range
     const fullHash = window.location.hash;
@@ -194,35 +191,35 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       // 날짜 필터 적용 (모든 탭에서 동일하게 적용)
       const dateRange = getDateRange(periodFilter);
 
-      // ✅ 파트너 ID 직접 계산 (allowedPartnerIds 의존성 제거)
+      // ✅ 파트너 ID 직접 계산 (allowedPartnerIds 의존성 제거) - 최적화
       let allowedPartnerIdsForQuery: string[] = [];
-
-      if (user.level === 1) {
-        // Lv1: 빈 배열 = 모든 파트너 허용
-        allowedPartnerIdsForQuery = [];
-      } else {
-        // Lv2+: 자신의 하위 파트너 ID 조회
-        const { data } = await supabase.rpc('get_hierarchical_partners', { p_partner_id: user.id });
-        allowedPartnerIdsForQuery = [user.id, ...(data?.map((p: any) => p.id) || [])];
-        console.log('🗂️ [loadData] 실시간 파트너 ID 조회:', allowedPartnerIdsForQuery);
-      }
-
-      // ⚡ 1단계: 계층 정보를 먼저 조회 (중복 제거)
       let hierarchicalPartners: any[] = [];
       let partnerIds: string[] = [user.id];
 
       if (user.level === 1) {
-        // Lv1: 전체 파트너 조회 (모든 하위 조직)
-        const { data } = await supabase
-          .from('partners')
-          .select('id, level, nickname, username')
-          .neq('level', 1); // Lv1 제외 (본인 제외)
+        // Lv1: 빈 배열 = 모든 파트너 허용 (필터링 없음)
+        allowedPartnerIdsForQuery = [];
+        partnerIds = [user.id];
+      } else {
+        // Lv2+: 자신의 하위 파트너 ID 조회 (병렬로 두 가지 쿼리 수행)
+        const [hierarchyResult, partnersResult] = await Promise.all([
+          supabase.rpc('get_hierarchical_partners', { p_partner_id: user.id }),
+          supabase
+            .from('partners')
+            .select('id, level, nickname, username')
+            .neq('level', 1)
+        ]);
 
-        hierarchicalPartners = data || [];
+        const hierarchyData = hierarchyResult.data || [];
+        const allPartners = partnersResult.data || [];
+
+        // 계층 내 파트너만 필터링
+        hierarchicalPartners = allPartners.filter((p: any) => 
+          hierarchyData.some((h: any) => h.id === p.id)
+        );
         partnerIds = [user.id, ...hierarchicalPartners.map((p: any) => p.id)];
-      } else if (user.level > 1) {
-        // 재사용: 이미 위에서 조회한 데이터 사용
-        partnerIds = allowedPartnerIdsForQuery;
+        allowedPartnerIdsForQuery = partnerIds;
+        console.log('⚡ [loadData] 파트너 ID 병렬 조회 완료:', { hierarchyDataCount: hierarchyData.length, partnerIdsCount: partnerIds.length });
       }
 
       // ⚡ 2단계: 회원 ID 목록 조회

@@ -167,9 +167,9 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
   useEffect(() => {
     loadMenusFromDB();
 
-    // ✅ Realtime 구독 1: partners 테이블의 menu_permissions 변경 감지 (가장 중요!)
+    // ✅ Realtime 구독: partners 테이블의 menu_permissions 변경만 감지 (Lv2+에서 과도한 트리거 방지)
     const partnersChannel = supabase
-      .channel('partners_menu_changes')
+      .channel(`partners_menu_${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -179,38 +179,20 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
           filter: `id=eq.${user.id}`
         },
         (payload) => {
-          console.log('🔄 [AdminSidebar] 본인 파트너 정보 변경 감지:', payload);
-          // 메뉴 다시 로드
-          loadMenusFromDB();
+          // ✅ menu_permissions이 실제로 변경된 경우만 리로드 (불필요한 갱신 방지)
+          if (payload.new?.menu_permissions !== payload.old?.menu_permissions) {
+            console.log('🔄 [AdminSidebar] 메뉴 권한 변경 감지 - 메뉴 새로고침');
+            loadMenusFromDB();
+          }
         }
       )
       .subscribe();
 
-    // ✅ Realtime 구독 2: 메뉴 권한 변경 감지 (legacy)
-    const permissionsChannel = supabase
-      .channel('menu_permissions_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'partner_menu_permissions',
-          filter: `partner_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('🔄 메뉴 권한 변경 감지:', payload);
-          // 메뉴 다시 로드
-          loadMenusFromDB();
-        }
-      )
-      .subscribe();
-
-    // ❌ 제거됨: 메뉴 마스터 데이터 변경 감지 (모든 관리자에게 알림 → 무한 루프 위험)
-    // 대신 파트너 정보 또는 권한 변경만 감시하도록 제한
+    // ❌ 제거됨: partner_menu_permissions 테이블 구독 (Lv2+ 계속 새로고침 원인)
+    // 이유: 해당 테이블의 변경은 DB에서 직접 처리되며, menu_permissions JSONB로 통합됨
 
     return () => {
       supabase.removeChannel(partnersChannel);
-      supabase.removeChannel(permissionsChannel);
     };
   }, [user.id, language]);
 
