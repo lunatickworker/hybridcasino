@@ -115,14 +115,16 @@ function AppContent() {
 
   // 🌍 환경 변수에 따라 허용된 페이지만 렌더링
   // 예: VITE_SITE_TYPE=benz인 경우 benz 페이지만 접근 가능
+  // admin 페이지는 항상 접근 가능
   const allowedPage = SITE_TYPE === 'benz' ? 'benz' : SITE_TYPE === 'user' ? 'user' : SITE_TYPE === 'm' ? 'm' : SITE_TYPE === 'admin' ? 'admin' : 'benz';
   
   // 현재 경로가 허용된 페이지가 아니면 기본 페이지로 리다이렉트
-  if (SITE_TYPE === 'benz' && !isBenzPage) {
+  // admin 페이지는 항상 접근 가능하므로 isAdminPage 체크 제외
+  if (SITE_TYPE === 'benz' && !isBenzPage && !isAdminPage) {
     window.location.hash = '#/benz';
-  } else if (SITE_TYPE === 'user' && !isUserPage) {
+  } else if (SITE_TYPE === 'user' && !isUserPage && !isAdminPage) {
     window.location.hash = '#/user';
-  } else if (SITE_TYPE === 'm' && !isMPage) {
+  } else if (SITE_TYPE === 'm' && !isMPage && !isAdminPage) {
     window.location.hash = '#/m';
   } else if (SITE_TYPE === 'admin' && !isAdminPage) {
     window.location.hash = '#/admin';
@@ -598,7 +600,7 @@ function AppContent() {
   }
 
   // Admin 페이지 라우팅
-  if (isAdminPage && SITE_TYPE === 'admin') {
+  if (isAdminPage) {
     const currentRoute = isAdminPage && currentPath !== '/admin' && currentPath !== '/admin/'
       ? currentPath
       : '/admin/dashboard';
