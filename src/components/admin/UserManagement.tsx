@@ -608,97 +608,113 @@ export function UserManagement() {
     try {
       const actualReferrerId = bulkFormData.selected_referrer_id || authState.user?.id;
       
-      for (let i = startNum; i <= endNum; i++) {
-        const username = `${prefix}${i}`;
-        const nickname = bulkFormData.nickname ? `${bulkFormData.nickname}${i}` : username;
+      // 🆕 배치 처리: 한번에 5개씩 처리 (동시성 제어)
+      const batchSize = 5;
+      
+      for (let batchStart = startNum; batchStart <= endNum; batchStart += batchSize) {
+        const batchEnd = Math.min(batchStart + batchSize - 1, endNum);
+        const batchPromises = [];
         
-        try {
-          toast.loading(`[${i - startNum + 1}/${count}] ${username} 생성 중...`, { id: 'bulk-create' });
+        // 배치 내 아이디들 생성 요청
+        for (let i = batchStart; i <= batchEnd; i++) {
+          const username = `${prefix}${i}`;
+          const nickname = bulkFormData.nickname ? `${bulkFormData.nickname}${i}` : username;
           
-          // 중복 체크
-          const { data: existingUser } = await supabase
-            .from('users')
-            .select('id')
-            .eq('username', username)
-            .maybeSingle();
+          const promise = (async () => {
+            try {
+              toast.loading(`[${i - startNum + 1}/${count}] ${username} 생성 중...`, { id: 'bulk-create' });
+              
+              // 중복 체크
+              const { data: existingUser } = await supabase
+                .from('users')
+                .select('id')
+                .eq('username', username)
+                .maybeSingle();
+              
+              if (existingUser) {
+                console.warn(`⚠️ 이미 존재하는 회원: ${username}`);
+                failCount++;
+                failedUsers.push(`${username} (중복)`);
+                return;
+              }
+              
+              const { data: existingPartner } = await supabase
+                .from('partners')
+                .select('id')
+                .eq('username', username)
+                .maybeSingle();
+              
+              if (existingPartner) {
+                console.warn(`⚠️ 파트너로 존재하는 아이디: ${username}`);
+                failCount++;
+                failedUsers.push(`${username} (파트너 중복)`);
+                return;
+              }
+              
+              // 비밀번호 해싱
+              const hashedPassword = await bcrypt.hash(password, 10);
+              // 출금 비밀번호 해싱 (기본값: 1234)
+              const hashedWithdrawalPassword = await bcrypt.hash('1234', 10);
+              
+              // DB에 사용자 생성
+              const { data: newUser, error: insertError } = await supabase
+                .from('users')
+                .insert({
+                  username,
+                  nickname,
+                  password_hash: hashedPassword,
+                  withdrawal_password: hashedWithdrawalPassword, // ✅ 출금 비밀번호 (기본값: 1234)
+                  bank_name: bulkFormData.bank_name || null,
+                  bank_account: bulkFormData.bank_account || null,
+                  memo: bulkFormData.memo || null,
+                  referrer_id: actualReferrerId,
+                  status: 'active',
+                  balance: 0,
+                  points: 0,
+                  api_account_status: 'pending',
+                  api_invest_created: false,
+                  api_oroplay_created: false,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+              
+              if (insertError) {
+                console.error(`❌ ${username} 생성 실패:`, insertError);
+                failCount++;
+                failedUsers.push(`${username} (DB 오류: ${insertError.message})`);
+                return;
+              }
+              
+              // API 계정 생성 (백그라운드)
+              createApiAccounts(
+                newUser.id,
+                username,
+                actualReferrerId || '',
+                undefined // toastId 없음 (벌크는 하나의 토스트만 사용)
+              ).catch(err => {
+                console.error(`⚠️ ${username} API 계정 생성 실패:`, err);
+              });
+              
+              successCount++;
+              
+            } catch (error) {
+              console.error(`❌ ${username} 생성 중 오류:`, error);
+              failCount++;
+              failedUsers.push(`${username} (오류)`);
+            }
+          })();
           
-          if (existingUser) {
-            console.warn(`⚠️ 이미 존재하는 회원: ${username}`);
-            failCount++;
-            failedUsers.push(`${username} (중복)`);
-            continue;
-          }
-          
-          const { data: existingPartner } = await supabase
-            .from('partners')
-            .select('id')
-            .eq('username', username)
-            .maybeSingle();
-          
-          if (existingPartner) {
-            console.warn(`⚠️ 파트너로 존재하는 아이디: ${username}`);
-            failCount++;
-            failedUsers.push(`${username} (파트너 중복)`);
-            continue;
-          }
-          
-          // 비밀번호 해싱
-          const hashedPassword = await bcrypt.hash(password, 10);
-          // 출금 비밀번호 해싱 (기본값: 1234)
-          const hashedWithdrawalPassword = await bcrypt.hash('1234', 10);
-          
-          // DB에 사용자 생성
-          const { data: newUser, error: insertError } = await supabase
-            .from('users')
-            .insert({
-              username,
-              nickname,
-              password_hash: hashedPassword,
-          withdrawal_password: hashedWithdrawalPassword, // ✅ 출금 비밀번호 (기본값: 1234)
-          bank_name: bulkFormData.bank_name || null,
-              bank_account: bulkFormData.bank_account || null,
-              memo: bulkFormData.memo || null,
-              referrer_id: actualReferrerId,
-              status: 'active',
-              balance: 0,
-              points: 0,
-              api_account_status: 'pending',
-              api_invest_created: false,
-              api_oroplay_created: false,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .select()
-            .single();
-          
-          if (insertError) {
-            console.error(`❌ ${username} 생성 실패:`, insertError);
-            failCount++;
-            failedUsers.push(`${username} (DB 오류)`);
-            continue;
-          }
-          
-          // API 계정 생성 (백그라운드)
-          createApiAccounts(
-            newUser.id,
-            username,
-            actualReferrerId || '',
-            undefined // toastId 없음 (벌크는 하나의 토스트만 사용)
-          ).catch(err => {
-            console.error(`⚠️ ${username} API 계정 생성 실패:`, err);
-          });
-          
-          successCount++;
-          
-          // 10개마다 잠시 대기 (API 부하 방지)
-          if (i % 10 === 0) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-          }
-          
-        } catch (error) {
-          console.error(`❌ ${username} 생성 중 오류:`, error);
-          failCount++;
-          failedUsers.push(`${username} (오류)`);
+          batchPromises.push(promise);
+        }
+        
+        // 배치 완료 대기
+        await Promise.all(batchPromises);
+        
+        // 배치 사이 대기 (DB 안정성)
+        if (batchEnd < endNum) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
       
@@ -706,9 +722,9 @@ export function UserManagement() {
       if (failCount === 0) {
         toast.success(`✅ 벌크 생성 완료! (${successCount}개 성공)`, { id: 'bulk-create', duration: 5000 });
       } else if (successCount === 0) {
-        toast.error(`❌ 벌크 생성 실패! (${failCount}개 실패)\n실패: ${failedUsers.join(', ')}`, { id: 'bulk-create', duration: 10000 });
+        toast.error(`❌ 벌크 생성 실패! (${failCount}개 실패)\n실패: ${failedUsers.slice(0, 10).join(', ')}${failedUsers.length > 10 ? `... 외 ${failedUsers.length - 10}개` : ''}`, { id: 'bulk-create', duration: 10000 });
       } else {
-        toast.warning(`⚠️ 벌크 생성 완료: 성공 ${successCount}개, 실패 ${failCount}개\n실패: ${failedUsers.join(', ')}`, { id: 'bulk-create', duration: 10000 });
+        toast.warning(`⚠️ 벌크 생성 완료: 성공 ${successCount}개, 실패 ${failCount}개\n실패: ${failedUsers.slice(0, 10).join(', ')}${failedUsers.length > 10 ? `... 외 ${failedUsers.length - 10}개` : ''}`, { id: 'bulk-create', duration: 10000 });
       }
       
       await fetchUsers();
