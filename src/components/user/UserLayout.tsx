@@ -195,14 +195,24 @@ export function UserLayout({ user, currentRoute, onRouteChange, onLogout, childr
             .update({ is_online: false })
             .eq('id', user.id);
         }
+
+        // 4. 로그아웃 처리
+        console.log('🔴 [브라우저 종료] 로그아웃 처리');
+        onLogout();
       } catch (error) {
         console.error('❌ [beforeunload] 세션 정리 오류:', error);
+        // 에러 발생해도 로그아웃 시도
+        try {
+          onLogout();
+        } catch (logoutErr) {
+          console.error('❌ 로그아웃 실패:', logoutErr);
+        }
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [user?.id]);
+  }, [user?.id, onLogout]);
 
   // ==========================================================================
   // 게임창 강제 종료 함수

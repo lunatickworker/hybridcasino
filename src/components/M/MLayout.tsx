@@ -68,14 +68,24 @@ export function MLayout({
             .update({ is_online: false })
             .eq('id', user.id);
         }
+
+        // 4. 로그아웃 처리
+        console.log('🔴 [브라우저 종료] 로그아웃 처리');
+        onLogout();
       } catch (error) {
         console.error('❌ [M beforeunload] 세션 정리 오류:', error);
+        // 에러 발생해도 로그아웃 시도
+        try {
+          onLogout();
+        } catch (logoutErr) {
+          console.error('❌ 로그아웃 실패:', logoutErr);
+        }
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [user?.id]);
+  }, [user?.id, onLogout]);
 
   // ==========================================================================
   // 게임 윈도우 관리 및 세션 종료 로직 (글로벌 함수)
