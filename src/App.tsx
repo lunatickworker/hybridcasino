@@ -262,6 +262,8 @@ function AppContent() {
         sessionStorage.setItem('benz_internal_route', '#/benz');
         // ⭐ 커스텀 이벤트 발생 - App에서 감지하여 benzRoute 업데이트
         window.dispatchEvent(new CustomEvent('benzRouteChange', { detail: '#/benz' }));
+        // ✅ 상태 업데이트 (중요: 로그아웃 반영)
+        forceUpdate({});
       }
     };
 
