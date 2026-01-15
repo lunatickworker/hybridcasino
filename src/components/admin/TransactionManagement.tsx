@@ -463,17 +463,17 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       const dateRangeStart = new Date(dateRange.start);
       const dateRangeEnd = new Date(dateRange.end);
       
-      // 1️⃣ transactions 테이블에서 입출금 집계 (모든 상태 포함, 날짜 필터만 적용)
+      // 1️⃣ transactions 테이블에서 입출금 집계 (승인된 것만 포함, 날짜 필터 적용)
       const transactionDepositSum = transactionsData
         .filter(t => {
+          if (t.status !== 'completed') return false; // ✅ 승인된 것만
           if (!t.created_at) return false;
           const createdAt = new Date(t.created_at);
           const type = t.transaction_type;
           const inDateRange = createdAt >= dateRangeStart && createdAt <= dateRangeEnd;
-          // completed-history 탭의 필터와 동일하게: deposit, admin_deposit_send, admin_withdrawal_send, partner_deposit, admin_adjustment
+          // completed-history 탭의 필터와 동일하게
           if (type === 'deposit') return inDateRange;
           if (type === 'admin_deposit_send') return inDateRange;
-          if (type === 'admin_withdrawal_send') return false; // 출금으로 분류됨
           if (type === 'partner_deposit') return inDateRange;
           if (type === 'admin_adjustment' && parseFloat(t.amount.toString()) > 0) return inDateRange; // 양수만 입금
           return false;
@@ -482,26 +482,19 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       
       const transactionWithdrawalSum = transactionsData
         .filter(t => {
+          if (t.status !== 'completed') return false; // ✅ 승인된 것만
           if (!t.created_at) return false;
           const createdAt = new Date(t.created_at);
           const type = t.transaction_type;
           const inDateRange = createdAt >= dateRangeStart && createdAt <= dateRangeEnd;
           // completed-history 탭의 필터와 동일하게
           if (type === 'withdrawal') return inDateRange;
-          if (type === 'admin_withdrawal_send') return inDateRange; // 음수 = 출금
+          if (type === 'admin_withdrawal_send') return inDateRange;
           if (type === 'partner_withdrawal') return inDateRange;
           if (type === 'admin_adjustment' && parseFloat(t.amount.toString()) < 0) return inDateRange; // 음수만 출금
           return false;
         })
-        .reduce((sum, t) => {
-          const amount = parseFloat(t.amount.toString());
-          // admin_withdrawal_send는 이미 음수이므로 그대로, 나머지는 음수로 변환
-          if (t.transaction_type === 'admin_withdrawal_send' || 
-              (t.transaction_type === 'admin_adjustment' && amount < 0)) {
-            return sum + amount;
-          }
-          return sum - amount; // withdrawal, partner_withdrawal은 음수로 변환
-        }, 0);
+        .reduce((sum, t) => sum - parseFloat(t.amount.toString()), 0); // 출금은 음수로 표시
       
       // 2️⃣ partner_balance_logs 테이블에서 입출금 집계 (날짜 필터 적용)
       const partnerDepositSum = partnerTransactionsData
@@ -549,7 +542,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         })
         .reduce((sum, t) => {
           const amount = parseFloat(t.amount.toString());
-          return sum + amount; // admin_adjustment는 이미 음수, use는 음수로 처리됨
+          // use는 이미 음수이므로 그대로, admin_adjustment도 이미 음수
+          return sum + amount;
         }, 0);
       
       // 4️⃣ 전체 합산
@@ -1640,6 +1634,34 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     filterBySearch(t)
   );
 
+  // ✅ 탭별 통계 계산 (activeTab 변경 시마다 재계산)
+  const getTabStats = () => {
+    if (activeTab === 'deposit-request') {
+      // 입금신청 탭: pending 입금 요청만
+      const totalDeposit = depositRequests.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      return {
+        totalDeposit: totalDeposit,
+        totalWithdrawal: 0, // 입금신청 탭에서는 출금 없음
+        pendingDepositCount: depositRequests.length,
+        pendingWithdrawalCount: 0
+      };
+    } else if (activeTab === 'withdrawal-request') {
+      // 출금신청 탭: pending 출금 요청만
+      const totalWithdrawal = withdrawalRequests.reduce((sum, t) => sum - parseFloat(t.amount.toString()), 0);
+      return {
+        totalDeposit: 0, // 출금신청 탭에서는 입금 없음
+        totalWithdrawal: totalWithdrawal,
+        pendingDepositCount: 0,
+        pendingWithdrawalCount: withdrawalRequests.length
+      };
+    } else {
+      // 전체입출금내역 탭: 통계 데이터 사용 (complete-history의 모든 항목)
+      return stats;
+    }
+  };
+
+  const displayStats = getTabStats();
+
   // 전체입출금내역: 사용자 + 관리자 입출금 + 파트너 거래 + 포인트 거래 통합
   const completedTransactions = (() => {
     const dateRange = getDateRange(periodFilter);
@@ -2402,7 +2424,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
         <MetricCard
           title={t.transactionManagement.totalDeposit}
-          value={formatCurrency(stats.totalDeposit)}
+          value={formatCurrency(displayStats.totalDeposit)}
           subtitle={t.transactionManagement.accumulatedDeposit}
           icon={TrendingUp}
           color="green"
@@ -2410,7 +2432,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         
         <MetricCard
           title={t.transactionManagement.totalWithdrawal}
-          value={formatCurrency(stats.totalWithdrawal)}
+          value={formatCurrency(displayStats.totalWithdrawal)}
           subtitle={t.transactionManagement.accumulatedWithdrawal}
           icon={TrendingDown}
           color="red"
@@ -2418,7 +2440,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         
         <MetricCard
           title={t.transactionManagement.depositRequests}
-          value={`${stats.pendingDepositCount}건`}
+          value={`${displayStats.pendingDepositCount}건`}
           subtitle={t.transactionManagement.pendingProcessing}
           icon={Clock}
           color="amber"
@@ -2426,7 +2448,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         
         <MetricCard
           title={t.transactionManagement.withdrawalRequests}
-          value={`${stats.pendingWithdrawalCount}건`}
+          value={`${displayStats.pendingWithdrawalCount}건`}
           subtitle={t.transactionManagement.pendingProcessing}
           icon={AlertTriangle}
           color="orange"
