@@ -1027,6 +1027,7 @@ async function syncLv2Balances(): Promise<any> {
       console.log(`   Parent ID: ${partner.parent_id || 'N/A'}`);
 
       const balances: any = {};
+      let apiFoundCount = 0;
 
       // ========================================
       // 1. Invest Balance 동기화
@@ -1085,6 +1086,7 @@ async function syncLv2Balances(): Promise<any> {
           balances.oroplay_balance = oroBalance;
           console.log(`   ✅ OroPlay 잔고 동기화: ${oroBalance}`);
           syncResults.oroplay.synced++;
+          apiFoundCount++;
         } else if (oroConfig) {
           console.log(`   ⏭️ OroPlay API 비활성화됨`);
         }
@@ -1117,6 +1119,7 @@ async function syncLv2Balances(): Promise<any> {
           balances.familyapi_balance = familyBalance;
           console.log(`   ✅ FamilyAPI 잔고 동기화: ${familyBalance}`);
           syncResults.familyapi.synced++;
+          apiFoundCount++;
         } else if (familyConfig && familyConfig.is_active === false) {
           console.log(`   ⏭️ FamilyAPI 비활성화됨`);
         }
@@ -1148,6 +1151,7 @@ async function syncLv2Balances(): Promise<any> {
           balances.honorapi_balance = honorBalance;
           console.log(`   ✅ HonorAPI 잔고 동기화: ${honorBalance}`);
           syncResults.honorapi.synced++;
+          apiFoundCount++;
         } else if (honorConfig && honorConfig.is_active === false) {
           console.log(`   ⏭️ HonorAPI 비활성화됨`);
         }
@@ -1160,69 +1164,51 @@ async function syncLv2Balances(): Promise<any> {
       // 5. DB 업데이트 (수집된 잔고들을 한 번에 업데이트)
       // ========================================
       if (Object.keys(balances).length > 0) {
-        console.log(`\n   📝 DB 업데이트 대기중:`);
-        Object.entries(balances).forEach(([key, value]) => {
-          console.log(`      - ${key}: ${value}`);
-        });
+        // 총합산된 보유금 계산
+        const totalBalance = Object.values(balances).reduce((sum: number, val: any) => {
+          const numVal = parseFloat(String(val)) || 0;
+          return sum + numVal;
+        }, 0);
         
         try {
           const updatePayload = {
             ...balances,
             updated_at: new Date().toISOString()
           };
-          console.log(`   📌 업데이트 파트너 ID: ${partner.id}`);
-          console.log(`   📌 업데이트 페이로드:`, JSON.stringify(updatePayload));
+          console.log(`   💰 보유금: ${totalBalance.toFixed(2)}`);
           
           const { error: updateError, data: updateData, status } = await supabase
             .from('partners')
             .update(updatePayload)
             .eq('id', partner.id)
             .select();
-
-          console.log(`   📌 업데이트 응답 상태: ${status}`);
-          console.log(`   📌 업데이트 응답 데이터:`, updateData);
           
           if (updateError) {
-            console.log(`   ❌ DB 업데이트 실패:`);
-            console.log(`      - 에러 메시지: ${updateError.message}`);
-            console.log(`      - 에러 코드: ${updateError.code}`);
-            console.log(`      - 에러 상세: ${JSON.stringify(updateError)}`);
+            console.log(`   ❌ DB 업데이트 실패: ${updateError.message}`);
             totalErrors++;
           } else if (!updateData || updateData.length === 0) {
-            console.log(`   ⚠️ DB 업데이트 반응 없음 - 매칭되는 레코드 없거나 RLS 문제 가능성`);
-            console.log(`      - 파트너 ID: ${partner.id}`);
+            console.log(`   ⚠️ DB 업데이트 반응 없음`);
             totalErrors++;
           } else {
-            console.log(`   ✅ DB 업데이트 성공! ${Object.keys(balances).length}개 필드 업데이트됨`);
-            console.log(`      - 업데이트된 레코드: ${updateData.length}개`);
+            console.log(`   ✅ 보유금 업데이트 완료`);
             totalSynced++;
           }
         } catch (updateCatchError: any) {
-          console.log(`   ❌ DB 업데이트 중 예외 발생:`, updateCatchError.message);
-          console.log(`      - 상세 에러:`, JSON.stringify(updateCatchError));
+          console.log(`   ❌ DB 업데이트 중 예외 발생: ${updateCatchError.message}`);
           totalErrors++;
         }
       } else {
-        console.log(`   ⏭️ 동기화할 잔고 데이터 없음`);
+        console.log(`   ⚠️ 동기화할 데이터 없음 (활성 API: ${apiFoundCount}개)`);
       }
 
     } catch (error) {
-      console.log(`   ❌ 처리 중 에러 발생:`, error);
+      console.log(`   ❌ 처리 중 에러 발생: ${error}`);
       totalErrors++;
     }
   }
 
   console.log('\n' + '='.repeat(60));
-  console.log('🎉 [Lv2 Balance Sync] 완료 - 결과 요약');
-  console.log('='.repeat(60));
-  console.log(`📊 총 파트너: ${lv2Partners.length}개`);
-  console.log(`✅ DB 업데이트 성공: ${totalSynced}개 파트너`);
-  console.log(`❌ DB 업데이트 실패: ${totalErrors}개 파트너`);
-  console.log(`\n🌐 API별 동기화 결과:`);
-  console.log(`   OroPlay: ${syncResults.oroplay.synced}개 ✅, ${syncResults.oroplay.errors}개 ❌`);
-  console.log(`   FamilyAPI: ${syncResults.familyapi.synced}개 ✅, ${syncResults.familyapi.errors}개 ❌`);
-  console.log(`   HonorAPI: ${syncResults.honorapi.synced}개 ✅, ${syncResults.honorapi.errors}개 ❌`);
-  console.log(`   Invest: ${syncResults.invest.synced}개 ✅, ${syncResults.invest.errors}개 ❌`);
+  console.log('✅ [Lv2 Balance Sync] 완료');
   console.log('='.repeat(60) + '\n');
 
     return {
