@@ -248,8 +248,8 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       
       const CASINO_PROVIDERS = [
         'evolution', 'ezugi', 'microgaming', 'asia', 'sa',
-        'dream', 'playace', 'pragmatic live', 'sexy',
-        '에볼루션', '이주기', '마이크로', '아시아', '드림', 
+        'dream gaming', 'playace', 'pragmatic live', 'sexy',
+        '에볼루션', '이주기', '마이크로', '아시아', '드림 게이밍', 
         '플레이', '프라그마틱 라이브', '섹시'
       ];
       
@@ -277,7 +277,14 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         }
         
         // 카지노 게임사는 제외
-        return !CASINO_PROVIDERS.some(casino => name.includes(casino.toLowerCase()));
+        // ⭐ 더 정확한 필터링: 'dream'이 아닌 'dream gaming' 또는 '드림 게이밍'로 검사
+        const isCasinoProvider = CASINO_PROVIDERS.some(casino => {
+          if (casino === 'dream gaming' && name.includes('dream')) {
+            return name.includes('gaming') || name.includes('게이밍');
+          }
+          return name.includes(casino.toLowerCase());
+        });
+        return !isCasinoProvider;
       });
       
       // 🆕 카지노 게임사 통합 (같은 이름끼리 합치기)
