@@ -209,7 +209,7 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
                     onClick={() => onRowClick?.(row, startIndex + rowIndex)}
                   >
                     {columns.map((column, colIndex) => (
-                      <TableCell key={`${uniqueKey}-col-${colIndex}`} className={cn(column.className || "text-center")}>
+                      <TableCell key={`${uniqueKey}-col-${colIndex}`} className={cn("py-4 px-4", column.className || "text-center")}>
                         {column.render
                           ? column.render(getCellValue(row, column), row, startIndex + rowIndex)
                           : column.cell
