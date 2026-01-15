@@ -1645,66 +1645,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     t.status === 'pending'
   );
 
-  // ✅ 탭별 통계 계산 (activeTab 변경 시마다 재계산)
-  const getTabStats = () => {
-    if (activeTab === 'deposit-request') {
-      // 입금신청 탭: pending 입금 요청의 신청 금액 합계
-      const totalDeposit = allDepositRequests.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
-      return {
-        totalDeposit: totalDeposit,
-        totalWithdrawal: 0,
-        pendingDepositCount: allDepositRequests.length,
-        pendingWithdrawalCount: 0
-      };
-    } else if (activeTab === 'withdrawal-request') {
-      // 출금신청 탭: pending 출금 요청의 신청 금액 합계 (음수 표시)
-      const totalWithdrawal = allWithdrawalRequests.reduce((sum, t) => sum - parseFloat(t.amount.toString()), 0);
-      return {
-        totalDeposit: 0,
-        totalWithdrawal: totalWithdrawal,
-        pendingDepositCount: 0,
-        pendingWithdrawalCount: allWithdrawalRequests.length
-      };
-    } else {
-      // 전체입출금내역 탭: completedTransactions 데이터 기반으로 집계
-      // pending, completed, rejected 모두 포함
-      const totalDeposit = completedTransactions
-        .filter(t => 
-          t.transaction_type === 'deposit' ||                    // 온라인 입금
-          t.transaction_type === 'admin_deposit_send' ||         // 수동 충전
-          t.transaction_type === 'partner_deposit' ||            // 파트너 충전
-          (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) > 0) // 포인트 지급
-        )
-        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
-      
-      const totalWithdrawal = completedTransactions
-        .filter(t => 
-          t.transaction_type === 'withdrawal' ||                 // 온라인 출금
-          t.transaction_type === 'admin_withdrawal_send' ||      // 수동 환전
-          t.transaction_type === 'partner_withdrawal' ||         // 파트너 환전
-          (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) < 0) // 포인트 회수
-        )
-        .reduce((sum, t) => {
-          const amount = parseFloat(t.amount.toString());
-          // admin_withdrawal_send는 이미 음수, admin_adjustment는 이미 음수
-          if (t.transaction_type === 'admin_withdrawal_send' || (t.transaction_type === 'admin_adjustment' && amount < 0)) {
-            return sum + amount;
-          }
-          return sum - amount; // withdrawal, partner_withdrawal은 음수로 변환
-        }, 0);
-      
-      return {
-        totalDeposit: totalDeposit,
-        totalWithdrawal: totalWithdrawal,
-        pendingDepositCount: allDepositRequests.length,
-        pendingWithdrawalCount: allWithdrawalRequests.length
-      };
-    }
-  };
-
-  const displayStats = getTabStats();
-
   // 전체입출금내역: 사용자 + 관리자 입출금 + 파트너 거래 + 포인트 거래 통합
+  // ✅ 이 부분을 getTabStats() 전에 정의해야 함!
   const completedTransactions = (() => {
     const dateRange = getDateRange(periodFilter);
     
@@ -1877,6 +1819,65 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     return result;
   })();
   
+  // ✅ 탭별 통계 계산 (activeTab 변경 시마다 재계산)
+  const getTabStats = () => {
+    if (activeTab === 'deposit-request') {
+      // 입금신청 탭: pending 입금 요청의 신청 금액 합계
+      const totalDeposit = allDepositRequests.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      return {
+        totalDeposit: totalDeposit,
+        totalWithdrawal: 0,
+        pendingDepositCount: allDepositRequests.length,
+        pendingWithdrawalCount: 0
+      };
+    } else if (activeTab === 'withdrawal-request') {
+      // 출금신청 탭: pending 출금 요청의 신청 금액 합계 (음수 표시)
+      const totalWithdrawal = allWithdrawalRequests.reduce((sum, t) => sum - parseFloat(t.amount.toString()), 0);
+      return {
+        totalDeposit: 0,
+        totalWithdrawal: totalWithdrawal,
+        pendingDepositCount: 0,
+        pendingWithdrawalCount: allWithdrawalRequests.length
+      };
+    } else {
+      // 전체입출금내역 탭: completedTransactions 데이터 기반으로 집계
+      // pending, completed, rejected 모두 포함
+      const totalDeposit = completedTransactions
+        .filter(t => 
+          t.transaction_type === 'deposit' ||                    // 온라인 입금
+          t.transaction_type === 'admin_deposit_send' ||         // 수동 충전
+          t.transaction_type === 'partner_deposit' ||            // 파트너 충전
+          (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) > 0) // 포인트 지급
+        )
+        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      
+      const totalWithdrawal = completedTransactions
+        .filter(t => 
+          t.transaction_type === 'withdrawal' ||                 // 온라인 출금
+          t.transaction_type === 'admin_withdrawal_send' ||      // 수동 환전
+          t.transaction_type === 'partner_withdrawal' ||         // 파트너 환전
+          (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) < 0) // 포인트 회수
+        )
+        .reduce((sum, t) => {
+          const amount = parseFloat(t.amount.toString());
+          // admin_withdrawal_send는 이미 음수, admin_adjustment는 이미 음수
+          if (t.transaction_type === 'admin_withdrawal_send' || (t.transaction_type === 'admin_adjustment' && amount < 0)) {
+            return sum + amount;
+          }
+          return sum - amount; // withdrawal, partner_withdrawal은 음수로 변환
+        }, 0);
+      
+      return {
+        totalDeposit: totalDeposit,
+        totalWithdrawal: totalWithdrawal,
+        pendingDepositCount: allDepositRequests.length,
+        pendingWithdrawalCount: allWithdrawalRequests.length
+      };
+    }
+  };
+
+  const displayStats = getTabStats();
+
   // ✅ 관리자 입금 로그만 출력
   const adminDepositTransactions = completedTransactions.filter((t: any) => {
     // transactions 테이블의 partner_deposit
@@ -1884,52 +1885,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     // partner_balance_logs 테이블의 deposit
     const isDepositFromPartnerBalanceLogs = t.is_partner_transaction && t.transaction_type === 'deposit';
     return isPartnerDepositFromTransactions || isDepositFromPartnerBalanceLogs;
-  });
-  
-  console.log('💰 관리자 입금 로그 (전체입출금내역):', {
-    fromTransactions: {
-      count: completedTransactions.filter((t: any) => t.transaction_type === 'partner_deposit' && !t.is_partner_transaction).length,
-      total: completedTransactions
-        .filter((t: any) => t.transaction_type === 'partner_deposit' && !t.is_partner_transaction && t.status === 'completed')
-        .reduce((sum: number, t: any) => sum + (t.amount || 0), 0),
-      details: completedTransactions
-        .filter((t: any) => t.transaction_type === 'partner_deposit' && !t.is_partner_transaction)
-        .map((t: any) => ({
-          source: 'transactions',
-          id: t.id,
-          user_id: t.user_id,
-          partner_id: t.partner_id,
-          amount: t.amount,
-          status: t.status,
-          created_at: t.created_at,
-          memo: t.memo
-        }))
-    },
-    fromPartnerBalanceLogs: {
-      count: completedTransactions.filter((t: any) => t.is_partner_transaction && t.transaction_type === 'deposit').length,
-      total: completedTransactions
-        .filter((t: any) => t.is_partner_transaction && t.transaction_type === 'deposit')
-        .reduce((sum: number, t: any) => sum + (t.amount || 0), 0),
-      details: completedTransactions
-        .filter((t: any) => t.is_partner_transaction && t.transaction_type === 'deposit')
-        .map((t: any) => ({
-          source: 'partner_balance_logs',
-          id: t.id,
-          partner_id: t.partner_id,
-          from_partner_id: t.from_partner_id,
-          to_partner_id: t.to_partner_id,
-          amount: t.amount,
-          created_at: t.created_at,
-          memo: t.memo
-        }))
-    },
-    total: adminDepositTransactions.reduce((sum: number, t: any) => {
-      if (t.status === 'completed' || t.is_partner_transaction) {
-        return sum + (t.amount || 0);
-      }
-      return sum;
-    }, 0),
-    totalCount: adminDepositTransactions.length
   });
 
   // 거래 테이블 컬럼 - 순서: 거래일시|아이디|보낸사람|받는사람|거래유형|보유금|신청금액|변경후 금액|상태|메모|처리자
