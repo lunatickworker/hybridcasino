@@ -173,8 +173,8 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     const s: SummaryStats = {
       totalBalance: filtered.reduce((sum, r) => sum + r.balance, 0),
       totalPoints: filtered.reduce((sum, r) => sum + r.points, 0),
-      onlineDeposit: filtered.reduce((sum, r) => sum + r.onlineDeposit, 0),
-      onlineWithdrawal: filtered.reduce((sum, r) => sum + r.onlineWithdrawal, 0),
+      onlineDeposit: filtered.reduce((sum, r) => sum + r.onlineDeposit + r.partnerDeposit, 0),
+      onlineWithdrawal: filtered.reduce((sum, r) => sum + r.onlineWithdrawal + r.partnerWithdrawal, 0),
       partnerDeposit: filtered.reduce((sum, r) => sum + r.partnerDeposit, 0),
       partnerWithdrawal: filtered.reduce((sum, r) => sum + r.partnerWithdrawal, 0),
       depositWithdrawalDiff: filtered.reduce((sum, r) => sum + r.depositWithdrawalDiff, 0),

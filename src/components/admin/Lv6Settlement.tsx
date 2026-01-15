@@ -181,8 +181,8 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     const s: SummaryStats = {
       totalBalance: filtered.reduce((sum, r) => sum + r.balance, 0),
       totalPoints: filtered.reduce((sum, r) => sum + r.points, 0),
-      onlineDeposit: filtered.reduce((sum, r) => sum + r.onlineDeposit, 0),
-      onlineWithdrawal: filtered.reduce((sum, r) => sum + r.onlineWithdrawal, 0),
+      onlineDeposit: filtered.reduce((sum, r) => sum + r.onlineDeposit + r.partnerCharge, 0),
+      onlineWithdrawal: filtered.reduce((sum, r) => sum + r.onlineWithdrawal + r.partnerExchange, 0),
       manualCharge: filtered.reduce((sum, r) => sum + r.manualCharge, 0),
       manualExchange: filtered.reduce((sum, r) => sum + r.manualExchange, 0),
       partnerCharge: filtered.reduce((sum, r) => sum + r.partnerCharge, 0),
