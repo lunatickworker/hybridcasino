@@ -48,7 +48,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [bettingRecords, setBettingRecords] = useState<BettingRecord[]>([]);
-  const [dateFilter, setDateFilter] = useState("all"); // ✅ 기본값을 "전체"로 변경 (모든 데이터 표시)
+  const [dateFilter, setDateFilter] = useState("today"); // ✅ 기본값을 "오늘"로 설정
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
