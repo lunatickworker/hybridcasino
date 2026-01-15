@@ -1634,28 +1634,39 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     filterBySearch(t)
   );
 
+  // ✅ 통계 계산용: 검색 필터 없이 모든 pending 요청
+  const allDepositRequests = transactions.filter(t => 
+    (t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit') && 
+    t.status === 'pending'
+  );
+
+  const allWithdrawalRequests = transactions.filter(t => 
+    (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal') && 
+    t.status === 'pending'
+  );
+
   // ✅ 탭별 통계 계산 (activeTab 변경 시마다 재계산)
   const getTabStats = () => {
     if (activeTab === 'deposit-request') {
-      // 입금신청 탭: pending 입금 요청만
-      const totalDeposit = depositRequests.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      // 입금신청 탭: pending 입금 요청의 신청 금액 합계
+      const totalDeposit = allDepositRequests.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
       return {
         totalDeposit: totalDeposit,
-        totalWithdrawal: 0, // 입금신청 탭에서는 출금 없음
-        pendingDepositCount: depositRequests.length,
+        totalWithdrawal: 0,
+        pendingDepositCount: allDepositRequests.length,
         pendingWithdrawalCount: 0
       };
     } else if (activeTab === 'withdrawal-request') {
-      // 출금신청 탭: pending 출금 요청만
-      const totalWithdrawal = withdrawalRequests.reduce((sum, t) => sum - parseFloat(t.amount.toString()), 0);
+      // 출금신청 탭: pending 출금 요청의 신청 금액 합계 (음수 표시)
+      const totalWithdrawal = allWithdrawalRequests.reduce((sum, t) => sum - parseFloat(t.amount.toString()), 0);
       return {
-        totalDeposit: 0, // 출금신청 탭에서는 입금 없음
+        totalDeposit: 0,
         totalWithdrawal: totalWithdrawal,
         pendingDepositCount: 0,
-        pendingWithdrawalCount: withdrawalRequests.length
+        pendingWithdrawalCount: allWithdrawalRequests.length
       };
     } else {
-      // 전체입출금내역 탭: 통계 데이터 사용 (complete-history의 모든 항목)
+      // 전체입출금내역 탭: 통계 데이터 사용 (완료된 거래들의 합계)
       return stats;
     }
   };
