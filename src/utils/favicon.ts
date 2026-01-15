@@ -2,7 +2,7 @@
  * 도메인 또는 라우트 기반으로 Favicon을 동적으로 변경하는 유틸리티
  */
 
-export type FaviconType = 'admin' | 'user' | 'indo' | 'sample1';
+export type FaviconType = 'admin' | 'user' | 'indo' | 'sample1' | 'benz';
 
 // Favicon 이모지 매핑 (실제 파일이 없는 경우 SVG로 변환하여 사용)
 const FAVICON_EMOJIS = {
@@ -10,6 +10,7 @@ const FAVICON_EMOJIS = {
   user: '👤', // 사용자: 사람
   indo: '🎰', // Indo 카지노: 슬롯머신
   sample1: '🎮', // Sample1: 게임패드
+  benz: 'BENZ', // Benz 카지노: BENZ 텍스트
 };
 
 // Favicon 색상 매핑
@@ -18,6 +19,7 @@ const FAVICON_COLORS = {
   user: '#10b981', // green
   indo: '#a855f7', // purple
   sample1: '#ec4899', // pink
+  benz: '#d4af37', // gold
 };
 
 /**
@@ -65,6 +67,7 @@ function updateTitle(type: FaviconType) {
     user: '사용자 포털 | GMS User',
     indo: 'INDO CASINO | 최고의 카지노 경험',
     sample1: 'Sample Casino | Gaming Platform',
+    benz: 'BENZ | Premium Casino Platform',
   };
   
   document.title = titles[type];
@@ -79,6 +82,9 @@ export function detectFaviconTypeByDomain(): FaviconType {
   // 도메인 매핑
   if (hostname.includes('admin')) {
     return 'admin';
+  }
+  if (hostname.includes('benz')) {
+    return 'benz';
   }
   if (hostname.includes('user')) {
     return 'user';
@@ -101,6 +107,9 @@ export function detectFaviconTypeByRoute(): FaviconType {
   const hash = window.location.hash || '#/admin';
   const path = hash.substring(1); // # 제거
   
+  if (path.startsWith('/benz')) {
+    return 'benz';
+  }
   if (path.startsWith('/indo')) {
     return 'indo';
   }

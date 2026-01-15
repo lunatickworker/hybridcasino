@@ -33,6 +33,7 @@ function AppContent() {
   const { authState, logout } = useAuth();
   const [, forceUpdate] = useState({});
   const [benzModals, setBenzModals] = useState({ login: false, signup: false });
+  const [benzRoute, setBenzRoute] = useState(() => sessionStorage.getItem('benz_internal_route') || '#/benz');
 
   // Favicon 초기화 (도메인/라우트별 자동 설정)
   useEffect(() => {
@@ -44,6 +45,18 @@ function AppContent() {
     if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
       window.location.hash = '#/benz';
     }
+  }, []);
+
+  // ⭐ benzRoute 상태 - sessionStorage의 실제 라우트를 추적
+  // 라우트 변경 시 커스텀 이벤트로 업데이트
+  useEffect(() => {
+    const handleBenzRouteChange = (e: Event) => {
+      const event = e as CustomEvent;
+      setBenzRoute(event.detail || '#/benz');
+    };
+
+    window.addEventListener('benzRouteChange', handleBenzRouteChange);
+    return () => window.removeEventListener('benzRouteChange', handleBenzRouteChange);
   }, []);
 
   useEffect(() => {
@@ -61,7 +74,8 @@ function AppContent() {
       // 내부 상태는 유지하고, 주소창은 #/benz만 표시
       window.history.replaceState({ benz_route: hashRoute }, '', window.location.pathname + '#/benz');
       sessionStorage.setItem('benz_internal_route', hashRoute);
-      forceUpdate({});
+      // ⭐ 커스텀 이벤트 발생 - App에서 감지하여 benzRoute 업데이트
+      window.dispatchEvent(new CustomEvent('benzRouteChange', { detail: hashRoute }));
       return;
     }
     
@@ -78,8 +92,6 @@ function AppContent() {
     } else {
       window.location.hash = hashRoute;
     }
-    
-    forceUpdate({});
   };
 
   // Hash 기반 라우팅 사용
@@ -94,8 +106,8 @@ function AppContent() {
 
   // Benz 페이지 라우팅 (기본 도메인)
   if (isBenzPage) {
-    // 주소창에는 #/benz만 표시되지만, 내부적으로는 sessionStorage에서 실제 라우트 가져오기
-    const currentRoute = sessionStorage.getItem('benz_internal_route') || currentPath;
+    // ⭐ benzRoute state를 사용하여 라우트 변경 감지
+    const currentRoute = benzRoute.substring(1); // # 제거
 
     // 사용자 세션 확인
     const userSessionString = localStorage.getItem('user_session');

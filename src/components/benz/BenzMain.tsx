@@ -475,6 +475,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
 
   // ✨ 게임 실행 핸들러 - 메인 페이지에서 바로 게임 실행
   const handleProviderClick = async (provider: GameProvider, type: 'casino' | 'slot') => {
+    console.log(`🎯 [BenzMain] handleProviderClick 호출됨 - provider: ${provider.name_ko || provider.name}, type: ${type}`);
     // 🚫 점검중인 게임사는 클릭 불가
     if (provider.status === 'maintenance') {
       toast.warning('현재 점검 중인 게임사입니다.');
@@ -864,6 +865,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
     
     // ===== 슬롯 게임사 =====
     if (type === 'slot') {
+      console.log(`🎰 [BenzMain] 슬롯 게임사 클릭 - provider: ${provider.name_ko || provider.name}`);
       // ⭐ Skywind
       if (providerName.includes('skywind') || providerNameKo.includes('스카이윈드')) {
         console.log('🎰 [BenzMain] Skywind 바로 실행');
@@ -891,7 +893,9 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       }
       
       // ⭐ 다른 슬롯 게임사들 - 페이지로 이동
+      console.log('💾 [BenzMain] localStorage에 provider 저장:', provider);
       localStorage.setItem('benz_selected_provider', JSON.stringify(provider));
+      console.log('🔀 [BenzMain] 라우트 변경: /benz/slot');
       onRouteChange('/benz/slot');
       return;
     }

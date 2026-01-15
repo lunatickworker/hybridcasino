@@ -158,36 +158,55 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   
   // 🆕 providers 로드 완료 후 localStorage에서 선택한 provider 자동 로드
   useEffect(() => {
-    if (providers.length > 0) {
-      const savedProvider = localStorage.getItem('benz_selected_provider');
-      if (savedProvider) {
-        try {
-          const providerData = JSON.parse(savedProvider);
+    const savedProvider = localStorage.getItem('benz_selected_provider');
+    if (savedProvider) {
+      try {
+        const providerData = JSON.parse(savedProvider);
+        console.log('📦 [BenzSlot] localStorage에서 provider 읽음:', providerData);
+        
+        // providers 배열에서 매칭되는 provider 찾기
+        let matchingProvider = null;
+        
+        if (providers.length > 0) {
+          // 1️⃣ ID로 직접 매칭
+          matchingProvider = providers.find(p => p.id === providerData.id);
           
-          // providers 배열에서 매칭되는 provider 찾기 (통합된 provider 기준)
-          const matchingProvider = providers.find(p => {
-            // ID로 매칭
-            if (p.id === providerData.id) return true;
-            
-            // provider_ids 배열에 포함되어 있는지 체크
-            if (p.provider_ids && providerData.provider_ids) {
+          // 2️⃣ provider_ids 배열 매칭
+          if (!matchingProvider && providerData.provider_ids) {
+            matchingProvider = providers.find(p => {
+              if (!p.provider_ids) return false;
               return p.provider_ids.some(id => providerData.provider_ids.includes(id));
-            }
-            
-            return false;
-          });
-          
-          if (matchingProvider) {
-            console.log('🎯 [BenzSlot] localStorage에서 선택한 provider 자동 로드:', matchingProvider);
-            handleProviderClick(matchingProvider);
+            });
           }
           
-          // localStorage 클리어
-          localStorage.removeItem('benz_selected_provider');
-        } catch (e) {
-          console.error('localStorage provider 파싱 오류:', e);
-          localStorage.removeItem('benz_selected_provider');
+          // 3️⃣ 이름으로 매칭
+          if (!matchingProvider) {
+            const savedName = (providerData.name_ko || providerData.name || '').toLowerCase();
+            matchingProvider = providers.find(p => {
+              const providerName = (p.name_ko || p.name || '').toLowerCase();
+              return providerName === savedName;
+            });
+          }
         }
+        
+        // 🆕 매칭 실패해도 localStorage의 provider를 직접 사용
+        if (!matchingProvider) {
+          console.warn('⚠️ [BenzSlot] providers에서 매칭 실패. localStorage의 provider 직접 사용');
+          matchingProvider = providerData;
+        }
+        
+        if (matchingProvider) {
+          console.log('✅ [BenzSlot] 선택된 provider:', matchingProvider);
+          setSelectedProvider(matchingProvider);
+          // 게임 로드도 직접 호출
+          loadGames(matchingProvider);
+        }
+        
+        // localStorage 클리어
+        localStorage.removeItem('benz_selected_provider');
+      } catch (e) {
+        console.error('❌ localStorage provider 파싱 오류:', e);
+        localStorage.removeItem('benz_selected_provider');
       }
     }
   }, [providers]);
