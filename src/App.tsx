@@ -45,30 +45,32 @@ const getSiteTypeFromEnv = () => {
     
     console.log('🔍 Detecting SITE_TYPE - Hash:', hash, 'Pathname:', pathname);
     
-    // 해시 기반 감지
-    if (hash.startsWith('#/user')) {
-      console.log('✅ Detected USER site from hash');
-      return 'user';
-    } else if (hash.startsWith('#/m')) {
-      console.log('✅ Detected M site from hash');
-      return 'm';
-    } else if (hash.startsWith('#/admin')) {
-      console.log('✅ Detected ADMIN site from hash');
-      return 'admin';
-    } else if (hash.startsWith('#/benz')) {
-      console.log('✅ Detected BENZ site from hash');
-      return 'benz';
+    // 해시 기반 감지 (해시가 있는 경우만 체크)
+    if (hash && hash !== '#' && hash !== '#/') {
+      if (hash.startsWith('#/user')) {
+        console.log('✅ Detected USER site from hash');
+        return 'user';
+      } else if (hash.startsWith('#/m')) {
+        console.log('✅ Detected M site from hash');
+        return 'm';
+      } else if (hash.startsWith('#/admin')) {
+        console.log('✅ Detected ADMIN site from hash');
+        return 'admin';
+      } else if (hash.startsWith('#/benz')) {
+        console.log('✅ Detected BENZ site from hash');
+        return 'benz';
+      }
     }
     
-    // 도메인 기반 감지 (여러 도메인 사용 시)
+    // 도메인 기반 감지 (여러 도메인 사용 시) - 매우 구체적으로 설정
     const hostname = window.location.hostname.toLowerCase();
-    if (hostname.includes('usersite') || hostname.includes('user-site') || hostname.includes('user.')) {
+    if (hostname.includes('usersite') || hostname.includes('user-site') || hostname === 'user.example.com') {
       console.log('✅ Detected USER site from domain');
       return 'user';
-    } else if (hostname.includes('msite') || hostname.includes('m-site') || hostname.includes('m.')) {
+    } else if (hostname.includes('msite') || hostname.includes('m-site') || hostname === 'm.example.com') {
       console.log('✅ Detected M site from domain');
       return 'm';
-    } else if (hostname.includes('admin')) {
+    } else if (hostname === 'admin.example.com' || hostname === 'admin-site.com') {
       console.log('✅ Detected ADMIN site from domain');
       return 'admin';
     }
@@ -170,14 +172,20 @@ function AppContent() {
   const allowedPage = SITE_TYPE === 'benz' ? 'benz' : SITE_TYPE === 'user' ? 'user' : SITE_TYPE === 'm' ? 'm' : SITE_TYPE === 'admin' ? 'admin' : 'benz';
   
   // 현재 경로가 허용된 페이지가 아니면 기본 페이지로 리다이렉트
-  // admin 페이지는 항상 접근 가능하므로 isAdminPage 체크 제외
+  // 주의: SITE_TYPE이 비어있으면 '#/benz'로 이동
+  console.log('🔍 Route check - SITE_TYPE:', SITE_TYPE, 'currentPath:', currentPath, 'isBenzPage:', isBenzPage);
+  
   if (SITE_TYPE === 'benz' && !isBenzPage && !isAdminPage) {
+    console.log('❌ Redirecting to benz (not benz page)');
     window.location.hash = '#/benz';
   } else if (SITE_TYPE === 'user' && !isUserPage && !isAdminPage) {
+    console.log('❌ Redirecting to user (not user page)');
     window.location.hash = '#/user';
   } else if (SITE_TYPE === 'm' && !isMPage && !isAdminPage) {
+    console.log('❌ Redirecting to m (not m page)');
     window.location.hash = '#/m';
   } else if (SITE_TYPE === 'admin' && !isAdminPage) {
+    console.log('❌ Redirecting to admin (not admin page)');
     window.location.hash = '#/admin';
   }
 
