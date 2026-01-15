@@ -157,6 +157,13 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
     setCurrentPage(1);
   }, [itemsPerPage]);
 
+  // ✅ 페이지/아이템수 변경 시 통계 재계산
+  useEffect(() => {
+    if (data.length > 0) {
+      calculateSummary(data);
+    }
+  }, [currentPage, itemsPerPage]);
+
   const fetchSettlementData = async () => {
     if (!dateRange?.from || !dateRange?.to) return;
     

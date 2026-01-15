@@ -112,6 +112,13 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     fetchSettlementData();
   }, [dateRange]);
 
+  // ✅ 검색/필터 변경 시 통계 재계산
+  useEffect(() => {
+    if (data.length > 0) {
+      calculateSummary(data);
+    }
+  }, [codeSearch, partnerLevelFilter]);
+
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows);
     if (newExpanded.has(id)) {
