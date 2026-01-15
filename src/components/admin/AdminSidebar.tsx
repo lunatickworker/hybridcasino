@@ -205,28 +205,12 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       )
       .subscribe();
 
-    // ✅ Realtime 구독 3: 메뉴 마스터 데이터 변경 감지
-    const menuMasterChannel = supabase
-      .channel('menu_master_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'menu_permissions'
-        },
-        (payload) => {
-          console.log('🔄 메뉴 마스터 변경 감지:', payload);
-          // 메뉴 다시 로드
-          loadMenusFromDB();
-        }
-      )
-      .subscribe();
+    // ❌ 제거됨: 메뉴 마스터 데이터 변경 감지 (모든 관리자에게 알림 → 무한 루프 위험)
+    // 대신 파트너 정보 또는 권한 변경만 감시하도록 제한
 
     return () => {
       supabase.removeChannel(partnersChannel);
       supabase.removeChannel(permissionsChannel);
-      supabase.removeChannel(menuMasterChannel);
     };
   }, [user.id, language]);
 
