@@ -481,7 +481,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
     // 3분 = 180초 = 180000ms
     inactivityTimerRef.current = setTimeout(() => {
       console.log('⏰ [Benz 자동 로그아웃] 3분 경과 - 로그아웃 실행');
-      toast.info('세션이 만료되었습니다.');
+      toast.info('로그아웃 되었습니다.');
       onLogout();
     }, 180000);
 
