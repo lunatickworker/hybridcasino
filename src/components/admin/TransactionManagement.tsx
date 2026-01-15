@@ -457,6 +457,16 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       });
 
       setTransactions(transactionsWithRelations);
+      
+      // ✅ 디버그: 원본 거래 데이터 확인
+      if (transactionsData.length > 0) {
+        console.log('🔍 [DEBUG] transactionsData (Supabase에서 받은 원본):');
+        console.log('  첫 번째 거래:', transactionsData[0]);
+        console.log(`  - balance_after: ${transactionsData[0].balance_after}`);
+        console.log('  변환된 transactionsWithRelations:');
+        console.log('  첫 번째 거래:', transactionsWithRelations[0]);
+        console.log(`  - balance_after: ${transactionsWithRelations[0].balance_after}`);
+      }
 
       // 통계 계산 - transactions + partner_balance_logs + point_transactions 모두 포함
       // ✅ 날짜 범위 필터 적용
@@ -1839,9 +1849,23 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     
     // ✅ 디버그: balance_after 필드 확인
     if (result.length > 0) {
-      console.log('🔍 [DEBUG] completedTransactions 샘플 데이터:');
-      console.log('  첫 번째 거래:', result[0]);
-      console.log('  balance_after 존재?:', 'balance_after' in result[0], '값:', result[0].balance_after);
+      const regularTransactions = result.filter(t => !t.is_partner_transaction && !t.is_point_transaction);
+      const partnerTransactions = result.filter(t => t.is_partner_transaction);
+      const pointTransactions = result.filter(t => t.is_point_transaction);
+      
+      console.log('🔍 [DEBUG] completedTransactions 분석:');
+      console.log(`  총 거래: ${result.length} (일반: ${regularTransactions.length}, 파트너: ${partnerTransactions.length}, 포인트: ${pointTransactions.length})`);
+      
+      if (regularTransactions.length > 0) {
+        console.log('  일반 거래 샘플:', regularTransactions[0]);
+        console.log(`  - balance_after 존재? ${('balance_after' in regularTransactions[0])}, 값: ${regularTransactions[0].balance_after}`);
+      }
+      
+      if (partnerTransactions.length > 0) {
+        console.log('  파트너 거래 샘플:', partnerTransactions[0]);
+        console.log(`  - balance_after 존재? ${('balance_after' in partnerTransactions[0])}, 값: ${partnerTransactions[0].balance_after}`);
+        console.log(`  - balance_after_total 존재? ${('balance_after_total' in partnerTransactions[0])}, 값: ${partnerTransactions[0].balance_after_total}`);
+      }
     }
     
     return result;
