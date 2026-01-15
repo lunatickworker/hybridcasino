@@ -446,14 +446,18 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
         casinoBet, casinoWin, slotBet, slotWin
       });
     }
-    const casinoWinLoss = casinoBet - casinoWin;
-    const slotWinLoss = slotBet - slotWin;
-    const ggr = casinoWinLoss + slotWinLoss;
+    // ✅ GGR 게임별 계산
+    const casinoGgr = casinoBet - casinoWin;  // 카지노 GGR
+    const slotGgr = slotBet - slotWin;        // 슬롯 GGR
+    const ggr = casinoGgr + slotGgr;          // 합계 GGR
+    
     const casinoTotalRolling = casinoBet * (casinoRollingRate / 100);
     const slotTotalRolling = slotBet * (slotRollingRate / 100);
     const totalRolling = casinoTotalRolling + slotTotalRolling;
-    const casinoLosableAmount = Math.max(0, casinoWinLoss - casinoTotalRolling);
-    const slotLosableAmount = Math.max(0, slotWinLoss - slotTotalRolling);
+    
+    // ✅ 루징 가능 금액 = 게임별 GGR - 게임별 롤링금 (중요: 게임타입별로 개별 계산!)
+    const casinoLosableAmount = Math.max(0, casinoGgr - casinoTotalRolling);
+    const slotLosableAmount = Math.max(0, slotGgr - slotTotalRolling);
     const casinoTotalLosing = casinoLosableAmount * (casinoLosingRate / 100);
     const slotTotalLosing = slotLosableAmount * (slotLosingRate / 100);
     const totalLosing = casinoTotalLosing + slotTotalLosing;
