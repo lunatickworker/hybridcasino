@@ -1245,8 +1245,8 @@ Deno.serve(async (req: Request) => {
       return await handleChangeBalanceSlotCallback(req, supabase, corsHeaders);
     }
 
-    // ✅ Authorization 헤더 검증 (동기화 엔드포인트만)
-    if (path.includes('/sync/')) {
+    // ✅ Authorization 헤더 검증 (동기화 엔드포인트만 - lv2-balances 제외)
+    if (path.includes('/sync/') && !path.includes('lv2-balances')) {
       const authHeader = req.headers.get('Authorization');
       
       if (!authHeader) {
