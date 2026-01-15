@@ -458,86 +458,59 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       setTransactions(transactionsWithRelations);
 
-      // 통계 계산 - transactions + partner_balance_logs + point_transactions 모두 포함
+      // 통계 계산 - "전체입출금내역" 탭 기준으로 계산 (completed-history tab의 모든 항목 포함)
       // ✅ 날짜 범위 필터 적용
       const dateRangeStart = new Date(dateRange.start);
       const dateRangeEnd = new Date(dateRange.end);
       
-      // ✅ transactionTypeFilter에 따른 필터링 헬퍼 함수
-      const shouldIncludeInStats = (type: string, source: 'transaction' | 'partner' | 'point') => {
-        if (transactionTypeFilter === 'all') return true;
-        
-        // 사용자 입금: 사용자 요청 + 관리자 강제 입금
-        if (transactionTypeFilter === 'user_deposit') {
-          return source === 'transaction' && (type === 'deposit' || type === 'admin_deposit');
-        }
-        
-        // 사용자 출금: 사용자 요청 + 관리자 강제 출금
-        if (transactionTypeFilter === 'user_withdrawal') {
-          return source === 'transaction' && (type === 'withdrawal' || type === 'admin_withdrawal');
-        }
-        
-        // 관리자 입금: 파트너 요청 + 파트너 처리
-        if (transactionTypeFilter === 'admin_deposit') {
-          return (source === 'transaction' && type === 'partner_deposit') ||
-                 (source === 'partner' && type === 'deposit');
-        }
-        
-        // 관리자 출금: 파트너 요청 + 파트너 처리
-        if (transactionTypeFilter === 'admin_withdrawal') {
-          return (source === 'transaction' && type === 'partner_withdrawal') ||
-                 (source === 'partner' && type === 'withdrawal');
-        }
-        
-        // 포인트 지급 (point_transactions의 earn/admin_adjustment 양수)
-        if (transactionTypeFilter === 'point_give') {
-          return source === 'point' && (type === 'earn' || type === 'admin_adjustment');
-        }
-        
-        // 포인트 회수 (point_transactions의 use/admin_adjustment 음수)
-        if (transactionTypeFilter === 'point_recover') {
-          return source === 'point' && (type === 'use' || type === 'admin_adjustment');
-        }
-        
-        return false;
-      };
-      
-      // 1️⃣ transactions 테이블에서 입출금 집계 (클라이언트 날짜 필터 추가)
+      // 1️⃣ transactions 테이블에서 입출금 집계 (모든 상태 포함, 날짜 필터만 적용)
       const transactionDepositSum = transactionsData
         .filter(t => {
-          if (t.status !== 'completed') return false;
           if (!t.created_at) return false;
           const createdAt = new Date(t.created_at);
           const type = t.transaction_type;
           const inDateRange = createdAt >= dateRangeStart && createdAt <= dateRangeEnd;
-          if (type === 'deposit') return inDateRange && shouldIncludeInStats('deposit', 'transaction');
-          if (type === 'admin_deposit' || type === 'partner_deposit') return inDateRange && shouldIncludeInStats(type, 'transaction');
+          // completed-history 탭의 필터와 동일하게: deposit, admin_deposit_send, admin_withdrawal_send, partner_deposit, admin_adjustment
+          if (type === 'deposit') return inDateRange;
+          if (type === 'admin_deposit_send') return inDateRange;
+          if (type === 'admin_withdrawal_send') return false; // 출금으로 분류됨
+          if (type === 'partner_deposit') return inDateRange;
+          if (type === 'admin_adjustment' && parseFloat(t.amount.toString()) > 0) return inDateRange; // 양수만 입금
           return false;
         })
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
       
       const transactionWithdrawalSum = transactionsData
         .filter(t => {
-          if (t.status !== 'completed') return false;
           if (!t.created_at) return false;
           const createdAt = new Date(t.created_at);
           const type = t.transaction_type;
           const inDateRange = createdAt >= dateRangeStart && createdAt <= dateRangeEnd;
-          if (type === 'withdrawal') return inDateRange && shouldIncludeInStats('withdrawal', 'transaction');
-          if (type === 'admin_withdrawal' || type === 'partner_withdrawal') return inDateRange && shouldIncludeInStats(type, 'transaction');
+          // completed-history 탭의 필터와 동일하게
+          if (type === 'withdrawal') return inDateRange;
+          if (type === 'admin_withdrawal_send') return inDateRange; // 음수 = 출금
+          if (type === 'partner_withdrawal') return inDateRange;
+          if (type === 'admin_adjustment' && parseFloat(t.amount.toString()) < 0) return inDateRange; // 음수만 출금
           return false;
         })
-        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+        .reduce((sum, t) => {
+          const amount = parseFloat(t.amount.toString());
+          // admin_withdrawal_send는 이미 음수이므로 그대로, 나머지는 음수로 변환
+          if (t.transaction_type === 'admin_withdrawal_send' || 
+              (t.transaction_type === 'admin_adjustment' && amount < 0)) {
+            return sum + amount;
+          }
+          return sum - amount; // withdrawal, partner_withdrawal은 음수로 변환
+        }, 0);
       
-      // 2️⃣ partner_balance_logs 테이블에서 입출금 집계 (클라이언트 날짜 필터 추가)
+      // 2️⃣ partner_balance_logs 테이블에서 입출금 집계 (날짜 필터 적용)
       const partnerDepositSum = partnerTransactionsData
         .filter(t => {
           if (!t.created_at) return false;
           const createdAt = new Date(t.created_at);
           return t.transaction_type === 'deposit' && 
                  createdAt >= dateRangeStart && 
-                 createdAt <= dateRangeEnd &&
-                 shouldIncludeInStats('deposit', 'partner');
+                 createdAt <= dateRangeEnd;
         })
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
       
@@ -547,12 +520,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           const createdAt = new Date(t.created_at);
           return t.transaction_type === 'withdrawal' && 
                  createdAt >= dateRangeStart && 
-                 createdAt <= dateRangeEnd &&
-                 shouldIncludeInStats('withdrawal', 'partner');
+                 createdAt <= dateRangeEnd;
         })
-        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+        .reduce((sum, t) => sum - parseFloat(t.amount.toString()), 0); // 음수로 변환
       
-      // 3️⃣ point_transactions 테이블에서 입출금 집계 (클라이언트 날짜 필터 추가)
+      // 3️⃣ point_transactions 테이블에서 입출금 집계 (날짜 필터 적용)
       const pointDepositSum = pointTransactionsData
         .filter(t => {
           if (!t.created_at) return false;
@@ -561,8 +533,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           return (t.transaction_type === 'earn' || 
                   (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) > 0)) && 
                  createdAt >= dateRangeStart && 
-                 createdAt <= dateRangeEnd &&
-                 shouldIncludeInStats(t.transaction_type, 'point');
+                 createdAt <= dateRangeEnd;
         })
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
       
@@ -574,14 +545,16 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           return (t.transaction_type === 'use' || 
                   (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) < 0)) && 
                  createdAt >= dateRangeStart && 
-                 createdAt <= dateRangeEnd &&
-                 shouldIncludeInStats(t.transaction_type, 'point');
+                 createdAt <= dateRangeEnd;
         })
-        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+        .reduce((sum, t) => {
+          const amount = parseFloat(t.amount.toString());
+          return sum + amount; // admin_adjustment는 이미 음수, use는 음수로 처리됨
+        }, 0);
       
       // 4️⃣ 전체 합산
       const totalDepositSum = transactionDepositSum + partnerDepositSum + pointDepositSum;
-      const totalWithdrawalSum = transactionWithdrawalSum + partnerWithdrawalSum + pointWithdrawalSum; // ✅ 음수 그대로 사용
+      const totalWithdrawalSum = transactionWithdrawalSum + partnerWithdrawalSum + pointWithdrawalSum;
       
       // 대기 중인 입금 신청 (사용자 + 관리자)
       const pendingDeposits = transactionsData.filter(t => 
