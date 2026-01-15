@@ -820,6 +820,24 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
 
     let recordsSaved = 0;
 
+    // ✅ 배치 조회: 모든 사용자를 한 번에 조회 (개별 쿼리 제거)
+    const uniqueUsernames = [...new Set(newTransactions
+      .filter((tx: any) => tx.type === 'bet')
+      .map((tx: any) => tx.user.username))];
+    
+    const { data: allUsers } = await supabase
+      .from('users')
+      .select('id, username, referrer_id')
+      .in('username', uniqueUsernames);
+    
+    const userMap = new Map<string, any>();
+    if (allUsers) {
+      allUsers.forEach((u: any) => {
+        userMap.set(u.username, { id: u.id, referrer_id: u.referrer_id });
+      });
+    }
+    console.log(`📋 [HonorAPI] 사용자 배치 조회: ${uniqueUsernames.length}명 요청, ${userMap.size}명 발견`);
+
     // 각 트랜잭션을 game_records에 저장
     for (const tx of newTransactions) {
       // bet 타입만 처리 (win, cancel 등은 제외)
@@ -846,12 +864,8 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
           continue;  // 조용히 건너뜀 (로그 제거)
         }
 
-        // 사용자 정보 조회 (username으로)
-        const { data: user } = await supabase
-          .from('users')
-          .select('id, referrer_id')
-          .eq('username', tx.user.username)
-          .single();
+        // ✅ 배치 조회 결과에서 사용자 정보 조회 (개별 쿼리 제거!)
+        const user = userMap.get(tx.user.username);
 
         if (!user) {
           // 사용자가 없으면 조용히 건너뜀 (등록되지 않은 사용자의 베팅 기록 무시)
