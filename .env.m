@@ -1,0 +1,2 @@
+VITE_SITE_TYPE=m
+VITE_SITE_NAME=M 사용자 페이지

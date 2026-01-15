@@ -29,6 +29,9 @@ import { setupNetworkLogging } from './lib/networkLoggingInterceptor';
 // ✅ 앱 시작 시 네트워크 로깅 초기화 (민감한 정보 마스킹)
 setupNetworkLogging();
 
+// 🌍 환경 변수에서 사이트 타입 읽기 (기본값: 'benz')
+const SITE_TYPE = (import.meta.env.VITE_SITE_TYPE || 'benz').toLowerCase();
+
 function AppContent() {
   const { authState, logout } = useAuth();
   const [, forceUpdate] = useState({});
@@ -43,7 +46,9 @@ function AppContent() {
   // 초기 리다이렉트 처리 (useEffect로 이동하여 render phase 오류 방지)
   useEffect(() => {
     if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
-      window.location.hash = '#/benz';
+      // 환경 변수에 따라 기본 경로 결정
+      const defaultPath = SITE_TYPE === 'm' ? '#/m' : SITE_TYPE === 'user' ? '#/user' : '#/benz';
+      window.location.hash = defaultPath;
     }
   }, []);
 
@@ -95,7 +100,7 @@ function AppContent() {
   };
 
   // Hash 기반 라우팅 사용
-  const currentHash = window.location.hash || '#/admin';
+  const currentHash = window.location.hash || `#/${SITE_TYPE}`;
   const currentPath = currentHash.substring(1); // # 제거
 
   const isBenzPage = currentPath.startsWith('/benz');
@@ -103,6 +108,19 @@ function AppContent() {
   const isMPage = currentPath.startsWith('/m');
   const isSample1Page = currentPath.startsWith('/sample1');
   const isAdminPage = currentPath.startsWith('/admin');
+
+  // 🌍 환경 변수에 따라 허용된 페이지만 렌더링
+  // 예: VITE_SITE_TYPE=benz인 경우 benz 페이지만 접근 가능
+  const allowedPage = SITE_TYPE === 'benz' ? 'benz' : SITE_TYPE === 'user' ? 'user' : SITE_TYPE === 'm' ? 'm' : 'benz';
+  
+  // 현재 경로가 허용된 페이지가 아니면 기본 페이지로 리다이렉트
+  if (SITE_TYPE === 'benz' && !isBenzPage) {
+    window.location.hash = '#/benz';
+  } else if (SITE_TYPE === 'user' && !isUserPage) {
+    window.location.hash = '#/user';
+  } else if (SITE_TYPE === 'm' && !isMPage) {
+    window.location.hash = '#/m';
+  }
 
   // Benz 페이지 라우팅 (기본 도메인)
   if (isBenzPage) {
