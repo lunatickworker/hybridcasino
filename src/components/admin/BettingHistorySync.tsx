@@ -27,7 +27,7 @@ const monitorSessionStates = async () => {
       .from('game_launch_sessions')
       .select('id, user_id, status, last_bet_at, users(username)')
       .eq('status', 'active')
-      .not('last_bet_at', 'is.null') // ✅ 올바른 PostgREST 문법
+      .neq('last_bet_at', null) // ✅ neq 메서드 사용
       .lt('last_bet_at', fourMinutesAgo.toISOString());
 
     if (activeSessions && activeSessions.length > 0) {

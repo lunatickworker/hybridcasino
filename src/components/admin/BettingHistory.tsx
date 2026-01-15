@@ -184,6 +184,8 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       }
       
       console.log('👥 Child partner IDs count:', allowedPartnerIds.length);
+      console.log('📌 Allowed partner IDs:', allowedPartnerIds); // ✅ 디버깅 추가
+      console.log('📌 User level:', user.level); // ✅ 디버깅 추가
 
       // ✅ Data query (filtered by level)
       let query = supabase
@@ -194,8 +196,10 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         // 시스템관리자: 모든 데이터 조회 가능
         if (allowedPartnerIds.length > 0) {
           query = query.in('partner_id', allowedPartnerIds);
+          console.log('🔍 System Admin: Query with partner_id filter');
+        } else {
+          console.log('🔍 System Admin: Query ALL data (no partner filter)');
         }
-        console.log('🔍 System Admin: Query all partner data');
       } else {
         // Regular admin: filter by child user IDs
         const { data: usersData } = await supabase
@@ -205,6 +209,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         
         const userIds = usersData?.map(u => u.id) || [];
         console.log('👤 하위 회원 ID 개수:', userIds.length);
+        console.log('📌 User IDs:', userIds); // ✅ 디버깅 추가
         
         if (userIds.length > 0) {
           query = query.in('user_id', userIds);
