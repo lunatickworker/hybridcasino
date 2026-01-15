@@ -2165,7 +2165,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             "font-asiahead font-semibold",
             isWithdrawal ? 'text-red-400' : 'text-green-400'
           )} style={{ fontSize: '16px' }}>
-            {isWithdrawal ? '-' : '+'}
             {formatNumberOnly(parseFloat(row.amount.toString()))}
           </span>
         );
