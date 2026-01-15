@@ -2052,6 +2052,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           
           // 그 외 파트너 거래 타입
           const partnerTypeMap: any = {
+            deposit: { text: '파트너 충전', color: 'bg-purple-600' },
+            withdrawal: { text: '파트너 환전', color: 'bg-pink-600' },
             admin_adjustment: { text: '파트너조정', color: 'bg-indigo-600' },
             commission: { text: '파트너수수료', color: 'bg-violet-600' },
             refund: { text: '파트너환급', color: 'bg-sky-600' }
