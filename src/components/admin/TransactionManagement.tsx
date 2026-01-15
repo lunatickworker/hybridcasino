@@ -1666,8 +1666,29 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         pendingWithdrawalCount: allWithdrawalRequests.length
       };
     } else {
-      // 전체입출금내역 탭: 통계 데이터 사용 (완료된 거래들의 합계)
-      return stats;
+      // 전체입출금내역 탭: completedTransactions 데이터 기반으로 집계
+      // pending, completed, rejected 모두 포함
+      const totalDeposit = completedTransactions
+        .filter(t => t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit_send' || t.transaction_type === 'partner_deposit' || (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) > 0))
+        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      
+      const totalWithdrawal = completedTransactions
+        .filter(t => t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal_send' || t.transaction_type === 'partner_withdrawal' || (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) < 0))
+        .reduce((sum, t) => {
+          const amount = parseFloat(t.amount.toString());
+          // admin_withdrawal_send는 이미 음수, admin_adjustment는 이미 음수
+          if (t.transaction_type === 'admin_withdrawal_send' || (t.transaction_type === 'admin_adjustment' && amount < 0)) {
+            return sum + amount;
+          }
+          return sum - amount; // withdrawal, partner_withdrawal은 음수로 변환
+        }, 0);
+      
+      return {
+        totalDeposit: totalDeposit,
+        totalWithdrawal: totalWithdrawal,
+        pendingDepositCount: allDepositRequests.length,
+        pendingWithdrawalCount: allWithdrawalRequests.length
+      };
     }
   };
 
