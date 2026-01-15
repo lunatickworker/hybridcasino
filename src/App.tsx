@@ -29,8 +29,33 @@ import { setupNetworkLogging } from './lib/networkLoggingInterceptor';
 // ✅ 앱 시작 시 네트워크 로깅 초기화 (민감한 정보 마스킹)
 setupNetworkLogging();
 
-// 🌍 환경 변수에서 사이트 타입 읽기 (기본값: 'benz')
-const SITE_TYPE = (import.meta.env.VITE_SITE_TYPE || 'benz').toLowerCase();
+// 🌍 환경 변수에서 사이트 타입 읽기 (Vercel 배포 환경에서도 동작하도록 도메인 감지 추가)
+const getSiteTypeFromEnv = () => {
+  // 1. 환경 변수에서 명시적으로 설정된 경우 우선
+  const envValue = import.meta.env.VITE_SITE_TYPE;
+  if (envValue && envValue.toLowerCase() !== 'benz') {
+    return envValue.toLowerCase();
+  }
+
+  // 2. 런타임에 도메인으로부터 감지 (Vercel 배포 환경에서 동작)
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname.toLowerCase();
+    
+    // 도메인 매핑
+    if (hostname.includes('usersite') || hostname.includes('user-site')) {
+      return 'user';
+    } else if (hostname.includes('msite') || hostname.includes('m-site')) {
+      return 'm';
+    } else if (hostname.includes('admin') && !hostname.includes('adminlogin')) {
+      return 'admin';
+    }
+  }
+
+  // 3. 기본값: benz
+  return 'benz';
+};
+
+const SITE_TYPE = getSiteTypeFromEnv().toLowerCase();
 
 function AppContent() {
   const { authState, logout } = useAuth();
