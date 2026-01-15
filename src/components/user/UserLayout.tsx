@@ -159,6 +159,52 @@ export function UserLayout({ user, currentRoute, onRouteChange, onLogout, childr
   };
 
   // ==========================================================================
+  // 브라우저 탭/종료 시 세션 정리
+  // ==========================================================================
+  useEffect(() => {
+    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
+      try {
+        // 1. 게임 윈도우 강제 종료
+        const gameWindows = (window as any).gameWindows as Map<number, Window>;
+        if (gameWindows && gameWindows.size > 0) {
+          const sessionIds = Array.from(gameWindows.keys());
+          sessionIds.forEach(sessionId => {
+            const gameWindow = gameWindows.get(sessionId);
+            if (gameWindow && !gameWindow.closed) {
+              gameWindow.close();
+            }
+          });
+        }
+
+        // 2. 활성 게임 세션 강제 종료
+        if (user?.id) {
+          await supabase
+            .from('game_launch_sessions')
+            .update({ 
+              status: 'force_ended', 
+              ended_at: new Date().toISOString() 
+            })
+            .eq('user_id', user.id)
+            .eq('status', 'active');
+        }
+
+        // 3. 사용자 오프라인 처리
+        if (user?.id) {
+          await supabase
+            .from('users')
+            .update({ is_online: false })
+            .eq('id', user.id);
+        }
+      } catch (error) {
+        console.error('❌ [beforeunload] 세션 정리 오류:', error);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [user?.id]);
+
+  // ==========================================================================
   // 게임창 강제 종료 함수
   // ==========================================================================
   useEffect(() => {
