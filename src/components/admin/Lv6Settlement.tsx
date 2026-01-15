@@ -524,16 +524,16 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       });
     }
 
-    const casinoWinLoss = casinoBet + casinoWin;
-    const slotWinLoss = slotBet + slotWin;
-    const ggr = casinoWinLoss + slotWinLoss;
+    // ✅ GGR 합산 = (카지노 베팅 + 슬롯 베팅) − (카지노 당첨 + 슬롯 당첨)
+    const ggr = (casinoBet + slotBet) - (casinoWin + slotWin);
 
     const casinoTotalRolling = casinoBet * (casinoRollingRate / 100);
     const slotTotalRolling = slotBet * (slotRollingRate / 100);
     const totalRolling = casinoTotalRolling + slotTotalRolling;
 
-    const casinoLosableAmount = Math.max(0, casinoWinLoss - casinoTotalRolling);
-    const slotLosableAmount = Math.max(0, slotWinLoss - slotTotalRolling);
+    // ✅ 루징 가능 금액 = GGR - 롤링금
+    const casinoLosableAmount = Math.max(0, ggr - totalRolling);
+    const slotLosableAmount = Math.max(0, ggr - totalRolling);
     const casinoTotalLosing = casinoLosableAmount * (casinoLosingRate / 100);
     const slotTotalLosing = slotLosableAmount * (slotLosingRate / 100);
     const totalLosing = casinoTotalLosing + slotTotalLosing;
