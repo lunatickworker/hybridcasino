@@ -2583,30 +2583,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   수동 환전
                 </Button>
                 <Button
-                  onClick={() => setTransactionTypeFilter('partner_charge')}
-                  variant={transactionTypeFilter === 'partner_charge' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'partner_charge' 
-                      ? "bg-purple-500/30 border border-purple-400/50 hover:bg-purple-500/40 text-purple-100 shadow-lg" 
-                      : "bg-purple-500/10 border border-purple-400/20 hover:bg-purple-500/20 text-slate-300"
-                  )}
-                >
-                  파트너 충전
-                </Button>
-                <Button
-                  onClick={() => setTransactionTypeFilter('partner_withdrawal')}
-                  variant={transactionTypeFilter === 'partner_withdrawal' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'partner_withdrawal' 
-                      ? "bg-pink-500/30 border border-pink-400/50 hover:bg-pink-500/40 text-pink-100 shadow-lg" 
-                      : "bg-pink-500/10 border border-pink-400/20 hover:bg-pink-500/20 text-slate-300"
-                  )}
-                >
-                  파트너 환전
-                </Button>
-                <Button
                   onClick={() => setTransactionTypeFilter('point_give')}
                   variant={transactionTypeFilter === 'point_give' ? 'default' : 'outline'}
                   className={cn(
