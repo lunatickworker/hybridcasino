@@ -1081,17 +1081,33 @@ async function syncLv2Balances(): Promise<any> {
         }
 
         if (oroConfig && oroConfig.is_active !== false) {
-          const oroToken = await getOroPlayToken(partner.id);
-          const oroBalance = await getAgentBalance(oroToken);
-          balances.oroplay_balance = oroBalance;
-          console.log(`   ✅ OroPlay 잔고 동기화: ${oroBalance}`);
-          syncResults.oroplay.synced++;
-          apiFoundCount++;
+          try {
+            console.log(`   🔍 OroPlay 토큰 조회 시도...`);
+            const oroToken = await getOroPlayToken(partner.id);
+            console.log(`   ✓ 토큰 확보: ${oroToken ? '성공' : '실패'}`);
+            
+            console.log(`   🔍 OroPlay 잔고 조회 시도...`);
+            const oroBalance = await getAgentBalance(oroToken);
+            console.log(`   ✓ 잔고 응답: ${oroBalance}`);
+            
+            if (oroBalance !== undefined && oroBalance !== null) {
+              balances.oroplay_balance = oroBalance;
+              console.log(`   ✅ OroPlay: ${oroBalance}`);
+              syncResults.oroplay.synced++;
+              apiFoundCount++;
+            } else {
+              console.log(`   ⚠️ OroPlay 잔고 응답이 비어있음: ${oroBalance}`);
+              syncResults.oroplay.errors++;
+            }
+          } catch (innerError: any) {
+            console.log(`   ❌ OroPlay: ${innerError.message}`);
+            syncResults.oroplay.errors++;
+          }
         } else if (oroConfig) {
-          console.log(`   ⏭️ OroPlay API 비활성화됨`);
+          console.log(`   ⏭️ OroPlay 비활성화`);
         }
       } catch (oroError: any) {
-        console.log(`   ❌ OroPlay 동기화 실패: ${oroError.message}`);
+        console.log(`   ❌ OroPlay 설정 조회 실패: ${oroError.message}`);
         syncResults.oroplay.errors++;
       }
 
@@ -1114,17 +1130,33 @@ async function syncLv2Balances(): Promise<any> {
         }
 
         if (familyConfig && familyConfig.api_key && familyConfig.is_active !== false) {
-          const familyToken = await getFamilyApiToken(partner.id);
-          const familyBalance = await getFamilyApiAgentBalance(familyConfig.api_key, familyToken);
-          balances.familyapi_balance = familyBalance;
-          console.log(`   ✅ FamilyAPI 잔고 동기화: ${familyBalance}`);
-          syncResults.familyapi.synced++;
-          apiFoundCount++;
+          try {
+            console.log(`   🔍 FamilyAPI 토큰 조회 시도...`);
+            const familyToken = await getFamilyApiToken(partner.id);
+            console.log(`   ✓ 토큰 확보: ${familyToken ? '성공' : '실패'}`);
+            
+            console.log(`   🔍 FamilyAPI 잔고 조회 시도...`);
+            const familyBalance = await getFamilyApiAgentBalance(familyConfig.api_key, familyToken);
+            console.log(`   ✓ 잔고 응답: ${familyBalance}`);
+            
+            if (familyBalance !== undefined && familyBalance !== null) {
+              balances.familyapi_balance = familyBalance;
+              console.log(`   ✅ FamilyAPI: ${familyBalance}`);
+              syncResults.familyapi.synced++;
+              apiFoundCount++;
+            } else {
+              console.log(`   ⚠️ FamilyAPI 잔고 응답이 비어있음: ${familyBalance}`);
+              syncResults.familyapi.errors++;
+            }
+          } catch (innerError: any) {
+            console.log(`   ❌ FamilyAPI: ${innerError.message}`);
+            syncResults.familyapi.errors++;
+          }
         } else if (familyConfig && familyConfig.is_active === false) {
-          console.log(`   ⏭️ FamilyAPI 비활성화됨`);
+          console.log(`   ⏭️ FamilyAPI 비활성화`);
         }
       } catch (familyError: any) {
-        console.log(`   ❌ FamilyAPI 동기화 실패: ${familyError.message}`);
+        console.log(`   ❌ FamilyAPI 설정 조회 실패: ${familyError.message}`);
         syncResults.familyapi.errors++;
       }
 
@@ -1147,16 +1179,29 @@ async function syncLv2Balances(): Promise<any> {
         }
 
         if (honorConfig && honorConfig.api_key && honorConfig.is_active !== false) {
-          const honorBalance = await getHonorApiAgentBalance(honorConfig.api_key);
-          balances.honorapi_balance = honorBalance;
-          console.log(`   ✅ HonorAPI 잔고 동기화: ${honorBalance}`);
-          syncResults.honorapi.synced++;
-          apiFoundCount++;
+          try {
+            console.log(`   🔍 HonorAPI 잔고 조회 시도...`);
+            const honorBalance = await getHonorApiAgentBalance(honorConfig.api_key);
+            console.log(`   ✓ 잔고 응답: ${honorBalance}`);
+            
+            if (honorBalance !== undefined && honorBalance !== null) {
+              balances.honorapi_balance = honorBalance;
+              console.log(`   ✅ HonorAPI: ${honorBalance}`);
+              syncResults.honorapi.synced++;
+              apiFoundCount++;
+            } else {
+              console.log(`   ⚠️ HonorAPI 잔고 응답이 비어있음: ${honorBalance}`);
+              syncResults.honorapi.errors++;
+            }
+          } catch (innerError: any) {
+            console.log(`   ❌ HonorAPI: ${innerError.message}`);
+            syncResults.honorapi.errors++;
+          }
         } else if (honorConfig && honorConfig.is_active === false) {
-          console.log(`   ⏭️ HonorAPI 비활성화됨`);
+          console.log(`   ⏭️ HonorAPI 비활성화`);
         }
       } catch (honorError: any) {
-        console.log(`   ❌ HonorAPI 동기화 실패: ${honorError.message}`);
+        console.log(`   ❌ HonorAPI 설정 조회 실패: ${honorError.message}`);
         syncResults.honorapi.errors++;
       }
 
