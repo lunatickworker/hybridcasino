@@ -326,40 +326,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
 
   const currentAmount = parseFloat(amount) || 0;
 
-  // active 세션 체크 및 보유금 동기화
-  const checkAndSyncBalance = async () => {
-    if (!user?.id) return;
-
-    try {
-      const { data: activeSession, error: sessionError } = await supabase
-        .from('game_launch_sessions')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      if (sessionError) {
-        console.error('❌ active 세션 조회 오류:', sessionError);
-        return;
-      }
-
-      if (activeSession) {
-        console.log(`🔄 [출금 페이지] active 세션 감지 - API 출금 + 보유금 동기화 실행`);
-        
-        const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
-        await syncBalanceOnSessionEnd(user.id, activeSession.api_type);
-        
-        await fetchCurrentBalance();
-        
-        console.log('✅ [출금 페이지] API 출금 + 보유금 동기화 완료');
-      }
-    } catch (error) {
-      console.error('❌ 보유금 동기화 오류:', error);
-    }
-  };
-
   useEffect(() => {
-    checkAndSyncBalance();
     checkWithdrawStatus();
     fetchWithdrawHistory();
     fetchCurrentBalance();
