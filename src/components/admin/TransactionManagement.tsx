@@ -26,7 +26,6 @@ import { MetricCard } from "./MetricCard";
 import { depositBalance, withdrawBalance, extractBalanceFromResponse } from "../../lib/investApi";
 import { getAdminOpcode, isMultipleOpcode } from "../../lib/opcodeHelper";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { createAdminNotification } from "../../lib/notificationHelper";
 
 interface TransactionManagementProps {
   user: Partner;
@@ -1260,33 +1259,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       }
 
       toast.success(action === 'approve' ? t.transactionManagement.transactionApproved : t.transactionManagement.transactionRejected);
-      
-      // ✅ 온라인 입출금 승인 시 알림 생성
-      if (action === 'approve' && (transaction.transaction_type === 'deposit' || transaction.transaction_type === 'withdrawal')) {
-        // 사용자 정보 조회 (알림에 사용자 정보 필요)
-        const { data: userData } = await supabase
-          .from('users')
-          .select('username, login_id, referrer_id')
-          .eq('id', transaction.user_id)
-          .single();
-        
-        if (userData && userData.referrer_id) {
-          const notificationType = transaction.transaction_type === 'deposit' ? 'online_deposit' : 'online_withdrawal';
-          const message = transaction.transaction_type === 'deposit' 
-            ? `온라인 입금 완료: ${(userData.username || userData.login_id || '사용자')}님 ${amount.toLocaleString()}원`
-            : `온라인 출금 완료: ${(userData.username || userData.login_id || '사용자')}님 ${amount.toLocaleString()}원`;
-          
-          await createAdminNotification({
-            user_id: transaction.user_id,
-            username: userData.username || userData.login_id || '사용자',
-            user_login_id: userData.login_id || '',
-            partner_id: userData.referrer_id,
-            message,
-            log_message: message,
-            notification_type: notificationType as any
-          });
-        }
-      }
       
       // WebSocket으로 실시간 알림 - 올바른 형식으로 수정
       sendMessage('transaction_processed', { 
@@ -2735,7 +2707,20 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                 <div className="flex justify-between">
                   <span className="text-slate-400 text-lg">{t.transactionManagement.transactionType}:</span>
                   <span className="text-white text-lg">
-                    {actionDialog.transaction.transaction_type === 'deposit' ? t.transactionManagement.deposit : t.transactionManagement.withdrawal}
+                    {(() => {
+                      const typeMap: any = {
+                        deposit: '온라인 입금',
+                        withdrawal: '온라인 출금',
+                        partner_deposit: '온라인 입금',
+                        partner_withdrawal: '온라인 출금',
+                        admin_deposit_send: '수동 충전',
+                        admin_withdrawal_send: '수동 환전',
+                        admin_adjustment: '포인트 조정',
+                        commission: '수수료',
+                        refund: '환급'
+                      };
+                      return typeMap[actionDialog.transaction.transaction_type] || actionDialog.transaction.transaction_type;
+                    })()}
                   </span>
                 </div>
                 <div className="flex justify-between">
