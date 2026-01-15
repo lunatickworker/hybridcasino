@@ -20,42 +20,16 @@ export function setupNetworkLogging() {
     const [resource, config] = args;
     const url = typeof resource === 'string' ? resource : resource?.url;
 
-    // 요청 로그
-    const requestLog = {
-      method: config?.method || 'GET',
-      url: url,
-      headers: config?.headers || {}
-    };
-
-    // 프로덕션 환경에서만 민감한 정보 마스킹
-    if (isProduction()) {
-      if (requestLog.headers['Authorization']) {
-        requestLog.headers['Authorization'] = maskAuthHeader(requestLog.headers['Authorization']);
-      }
-      
-      // 마스킹된 데이터
-      const maskedHeaders = maskSensitiveData(requestLog.headers);
-      
-      // 요청 로그 출력
-      if (config?.body) {
-        console.log('📤 [Network Request]', {
-          method: requestLog.method,
-          url: requestLog.url,
-          headers: maskedHeaders
-        });
-      }
-    } else {
-      console.log('📤 [Network Request]', requestLog);
-    }
-
     // 원본 fetch 호출
     return originalFetch.apply(this, args).then((response: Response) => {
-      // 응답 로그 (상태 코드만)
-      console.log('📥 [Network Response]', {
-        status: response.status,
-        statusText: response.statusText,
-        url: response.url
-      });
+      // ❌ 에러 응답만 로깅 (개발 편의성)
+      if (!response.ok) {
+        console.warn('⚠️ [Network Response]', {
+          status: response.status,
+          statusText: response.statusText,
+          url: response.url
+        });
+      }
 
       return response;
     }).catch((error: Error) => {
