@@ -17,12 +17,15 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const syncCountRef = useRef(0);
   const investSyncCountRef = useRef(0);
+  const honorSyncCountRef = useRef(0);
   const balanceIntervalRef = useRef<number | null>(null);
   const investIntervalRef = useRef<number | null>(null);
+  const honorIntervalRef = useRef<number | null>(null);
   const [activeApis, setActiveApis] = useState({
     invest: false,
     oroplay: false,
-    familyapi: false
+    familyapi: false,
+    honorapi: false
   });
 
   // ✅ 네트워크 오류 재시도 헬퍼 함수
@@ -98,13 +101,15 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
           const activeApiMap = {
             invest: false,
             oroplay: false,
-            familyapi: false
+            familyapi: false,
+            honorapi: false
           };
 
           apiConfigs.forEach((config: any) => {
             if (config.api_provider === 'invest') activeApiMap.invest = true;
             if (config.api_provider === 'oroplay') activeApiMap.oroplay = true;
             if (config.api_provider === 'familyapi') activeApiMap.familyapi = true;
+            if (config.api_provider === 'honorapi') activeApiMap.honorapi = true;
           });
 
           setActiveApis(activeApiMap);
@@ -161,6 +166,36 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
 
       } catch (error: any) {
         // console.error('❌ [Lv2AutoSync] Invest 베팅 동기화 오류:', error);
+      }
+    };
+
+    // HonorAPI 베팅 동기화 실행 함수 (34초마다)
+    const runHonorBettingSync = async () => {
+      if (!activeApis.honorapi) {
+        return;
+      }
+
+      try {
+        honorSyncCountRef.current += 1;
+        // console.log(`🎰 [Lv2AutoSync #${honorSyncCountRef.current}] HonorAPI 베팅 동기화 시작...`);
+
+        const honorBetsResponse = await fetchWithRetry(`${EDGE_FUNCTION_URL}/sync/honorapi-bets`, {
+          method: 'POST',
+          headers,
+        });
+
+        if (!honorBetsResponse) {
+          // console.error('❌ [Lv2AutoSync] HonorAPI 베팅 동기화 실패: 최대 재시도 횟수 초과');
+        } else if (!honorBetsResponse.ok) {
+          const errorText = await honorBetsResponse.text();
+          // console.error('❌ [Lv2AutoSync] HonorAPI 베팅 동기화 실패:', honorBetsResponse.status, errorText);
+        } else {
+          const honorBetsData = await honorBetsResponse.json();
+          // console.log('✅ [Lv2AutoSync] HonorAPI 베팅 동기화 성공:', honorBetsData);
+        }
+
+      } catch (error: any) {
+        // console.error('❌ [Lv2AutoSync] HonorAPI 베팅 동기화 오류:', error);
       }
     };
 
@@ -238,6 +273,9 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
     if (activeApis.invest) {
       runInvestBettingSync();
     }
+    if (activeApis.honorapi) {
+      runHonorBettingSync();
+    }
     runFastSync();
 
     // Invest 베팅 동기화: 30초마다 실행
@@ -252,6 +290,13 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
       runFastSync();
     }, 4000);
 
+    // HonorAPI 베팅 동기화: 34초마다 실행
+    if (activeApis.honorapi) {
+      honorIntervalRef.current = window.setInterval(() => {
+        runHonorBettingSync();
+      }, 34000);
+    }
+
     // 클린업
     return () => {
       if (balanceIntervalRef.current) {
@@ -261,6 +306,10 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
       if (investIntervalRef.current) {
         clearInterval(investIntervalRef.current);
         investIntervalRef.current = null;
+      }
+      if (honorIntervalRef.current) {
+        clearInterval(honorIntervalRef.current);
+        honorIntervalRef.current = null;
       }
     };
   }, [user.level, user.id, user.parent_id, activeApis]);
