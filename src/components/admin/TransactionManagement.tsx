@@ -1669,11 +1669,21 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       // 전체입출금내역 탭: completedTransactions 데이터 기반으로 집계
       // pending, completed, rejected 모두 포함
       const totalDeposit = completedTransactions
-        .filter(t => t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit_send' || t.transaction_type === 'partner_deposit' || (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) > 0))
+        .filter(t => 
+          t.transaction_type === 'deposit' ||                    // 온라인 입금
+          t.transaction_type === 'admin_deposit_send' ||         // 수동 충전
+          t.transaction_type === 'partner_deposit' ||            // 파트너 충전
+          (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) > 0) // 포인트 지급
+        )
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
       
       const totalWithdrawal = completedTransactions
-        .filter(t => t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal_send' || t.transaction_type === 'partner_withdrawal' || (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) < 0))
+        .filter(t => 
+          t.transaction_type === 'withdrawal' ||                 // 온라인 출금
+          t.transaction_type === 'admin_withdrawal_send' ||      // 수동 환전
+          t.transaction_type === 'partner_withdrawal' ||         // 파트너 환전
+          (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) < 0) // 포인트 회수
+        )
         .reduce((sum, t) => {
           const amount = parseFloat(t.amount.toString());
           // admin_withdrawal_send는 이미 음수, admin_adjustment는 이미 음수
