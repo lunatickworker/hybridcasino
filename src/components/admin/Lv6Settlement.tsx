@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, RefreshCw, Search, ChevronDown, ChevronRight, TrendingUp, Wallet, Coins, ArrowUpRight, ArrowDownRight, Activity, DollarSign, Gift, Percent } from "lucide-react";
+import { Calendar as CalendarIcon, RefreshCw, Search, ChevronDown, ChevronRight, TrendingUp, Wallet, Coins, ArrowUpRight, ArrowDownRight, Activity, DollarSign, Gift, Percent, X } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -717,7 +717,15 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
 
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-2.5 h-6 w-6 text-slate-400" />
-            <Input placeholder="코드 검색..." className="pl-10 input-premium" value={codeSearch} onChange={(e) => setCodeSearch(e.target.value)} />
+            <Input placeholder="코드 검색..." className="pl-10 pr-10 input-premium" value={codeSearch} onChange={(e) => setCodeSearch(e.target.value)} />
+            {codeSearch && (
+              <button
+                onClick={() => setCodeSearch("")}
+                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            )}
           </div>
 
           <Button onClick={toggleExpandAll} variant="outline" className="h-10">
