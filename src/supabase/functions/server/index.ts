@@ -982,22 +982,30 @@ async function syncLv2Balances(): Promise<any> {
   console.log('='.repeat(60));
 
   // Lv2 파트너 목록 조회
-  const { data: lv2Partners, error: partnersError } = await supabase
-    .from('partners')
-    .select('id, nickname, parent_id')
-    .eq('level', 2)
-    .eq('status', 'active');
+  try {
+    const { data: lv2Partners, error: partnersError } = await supabase
+      .from('partners')
+      .select('id, nickname, parent_id')
+      .eq('level', 2)
+      .eq('status', 'active');
 
-  if (partnersError || !lv2Partners || lv2Partners.length === 0) {
-    console.log('⚠️ Lv2 파트너 조회 실패 또는 활성 파트너 없음');
-    if (partnersError) console.log('   에러:', partnersError);
-    return { success: true, message: 'No active Lv2 partners', synced: 0 };
-  }
+    if (partnersError) {
+      console.log('❌ Lv2 파트너 조회 실패:');
+      console.log(`   에러 메시지: ${partnersError.message}`);
+      console.log(`   에러 코드: ${partnersError.code}`);
+      console.log(`   에러 상세: ${JSON.stringify(partnersError)}`);
+      return { success: false, message: 'Failed to fetch Lv2 partners', error: partnersError };
+    }
 
-  console.log(`\n📋 활성 Lv2 파트너 ${lv2Partners.length}개 발견:`);
-  lv2Partners.forEach((p, idx) => {
-    console.log(`   ${idx + 1}. ${p.nickname} (ID: ${p.id})`);
-  });
+    if (!lv2Partners || lv2Partners.length === 0) {
+      console.log('⚠️ 활성 Lv2 파트너가 없습니다');
+      return { success: true, message: 'No active Lv2 partners', synced: 0 };
+    }
+
+    console.log(`\n📋 활성 Lv2 파트너 ${lv2Partners.length}개 발견:`);
+    lv2Partners.forEach((p, idx) => {
+      console.log(`   ${idx + 1}. ${p.nickname} (ID: ${p.id})`);
+    });
 
   let totalSynced = 0;
   let totalErrors = 0;
@@ -1157,20 +1165,42 @@ async function syncLv2Balances(): Promise<any> {
           console.log(`      - ${key}: ${value}`);
         });
         
-        const { error: updateError, data: updateData } = await supabase
-          .from('partners')
-          .update({
+        try {
+          const updatePayload = {
             ...balances,
             updated_at: new Date().toISOString()
-          })
-          .eq('id', partner.id);
+          };
+          console.log(`   📌 업데이트 파트너 ID: ${partner.id}`);
+          console.log(`   📌 업데이트 페이로드:`, JSON.stringify(updatePayload));
+          
+          const { error: updateError, data: updateData, status } = await supabase
+            .from('partners')
+            .update(updatePayload)
+            .eq('id', partner.id)
+            .select();
 
-        if (updateError) {
-          console.log(`   ❌ DB 업데이트 실패: ${updateError.message}`);
+          console.log(`   📌 업데이트 응답 상태: ${status}`);
+          console.log(`   📌 업데이트 응답 데이터:`, updateData);
+          
+          if (updateError) {
+            console.log(`   ❌ DB 업데이트 실패:`);
+            console.log(`      - 에러 메시지: ${updateError.message}`);
+            console.log(`      - 에러 코드: ${updateError.code}`);
+            console.log(`      - 에러 상세: ${JSON.stringify(updateError)}`);
+            totalErrors++;
+          } else if (!updateData || updateData.length === 0) {
+            console.log(`   ⚠️ DB 업데이트 반응 없음 - 매칭되는 레코드 없거나 RLS 문제 가능성`);
+            console.log(`      - 파트너 ID: ${partner.id}`);
+            totalErrors++;
+          } else {
+            console.log(`   ✅ DB 업데이트 성공! ${Object.keys(balances).length}개 필드 업데이트됨`);
+            console.log(`      - 업데이트된 레코드: ${updateData.length}개`);
+            totalSynced++;
+          }
+        } catch (updateCatchError: any) {
+          console.log(`   ❌ DB 업데이트 중 예외 발생:`, updateCatchError.message);
+          console.log(`      - 상세 에러:`, JSON.stringify(updateCatchError));
           totalErrors++;
-        } else {
-          console.log(`   ✅ DB 업데이트 성공! ${Object.keys(balances).length}개 필드 업데이트됨`);
-          totalSynced++;
         }
       } else {
         console.log(`   ⏭️ 동기화할 잔고 데이터 없음`);
