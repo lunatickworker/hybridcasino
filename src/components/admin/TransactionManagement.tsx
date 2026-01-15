@@ -2087,44 +2087,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         return <Badge className={`${type.color} text-white text-sm px-3 py-1`}>{type.text}</Badge>;
       }
     },
-    // 6. 보유금 (거래 전 잔액)
-    {
-      header: '보유금',
-      cell: (row: any) => {
-        // 금액 포맷팅 (원화 표시 없이 숫자만)
-        const formatNumberOnly = (num: number) => new Intl.NumberFormat('ko-KR').format(num);
-        
-        // 파트너 거래인 경우: Lv2는 총 보유금(4개 지갑 합계), 그 외는 balance_before
-        if (row.is_partner_transaction) {
-          const balanceValue = row.balance_before_total !== undefined 
-            ? row.balance_before_total 
-            : parseFloat(row.balance_before?.toString() || '0');
-          return (
-            <span className="font-asiahead text-cyan-300" style={{ fontSize: '15px' }}>
-              {formatNumberOnly(balanceValue)}
-            </span>
-          );
-        }
-        
-        // 포인트 거래인 경우
-        if (row.points_before !== undefined) {
-          return (
-            <span className="font-asiahead text-amber-300" style={{ fontSize: '15px' }}>
-              {row.points_before.toLocaleString()}P
-            </span>
-          );
-        }
-        
-        // 일반 입출금 거래
-        return (
-          <span className="font-asiahead text-cyan-300" style={{ fontSize: '15px' }}>
-            {formatNumberOnly(parseFloat(row.balance_before?.toString() || '0'))}
-          </span>
-        );
-      },
-      className: "text-right"
-    },
-    // 7. 신청금액
+    // 6. 신청금액
     {
       header: t.transactionManagement.amount,
       cell: (row: any) => {
@@ -2170,6 +2133,43 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             isWithdrawal ? 'text-red-400' : 'text-green-400'
           )} style={{ fontSize: '16px' }}>
             {formatNumberOnly(parseFloat(row.amount.toString()))}
+          </span>
+        );
+      },
+      className: "text-right"
+    },
+    // 7. 보유금 (거래 전 잔액)
+    {
+      header: '보유금',
+      cell: (row: any) => {
+        // 금액 포맷팅 (원화 표시 없이 숫자만)
+        const formatNumberOnly = (num: number) => new Intl.NumberFormat('ko-KR').format(num);
+        
+        // 파트너 거래인 경우: Lv2는 총 보유금(4개 지갑 합계), 그 외는 balance_before
+        if (row.is_partner_transaction) {
+          const balanceValue = row.balance_before_total !== undefined 
+            ? row.balance_before_total 
+            : parseFloat(row.balance_before?.toString() || '0');
+          return (
+            <span className="font-asiahead text-cyan-300" style={{ fontSize: '15px' }}>
+              {formatNumberOnly(balanceValue)}
+            </span>
+          );
+        }
+        
+        // 포인트 거래인 경우
+        if (row.points_before !== undefined) {
+          return (
+            <span className="font-asiahead text-amber-300" style={{ fontSize: '15px' }}>
+              {row.points_before.toLocaleString()}P
+            </span>
+          );
+        }
+        
+        // 일반 입출금 거래
+        return (
+          <span className="font-asiahead text-cyan-300" style={{ fontSize: '15px' }}>
+            {formatNumberOnly(parseFloat(row.balance_before?.toString() || '0'))}
           </span>
         );
       },
@@ -2221,7 +2221,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         };
         const status = statusMap[row.status] || { text: row.status, color: 'bg-slate-600' };
         return <Badge className={`${status.color} text-white text-sm px-3 py-1`}>{status.text}</Badge>;
-      }
+      },
+      className: "text-center"
     },
     // 10. 메모
     {
