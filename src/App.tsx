@@ -47,7 +47,11 @@ function AppContent() {
   useEffect(() => {
     if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
       // 환경 변수에 따라 기본 경로 결정
-      const defaultPath = SITE_TYPE === 'm' ? '#/m' : SITE_TYPE === 'user' ? '#/user' : '#/benz';
+      const defaultPath = 
+        SITE_TYPE === 'm' ? '#/m' : 
+        SITE_TYPE === 'user' ? '#/user' : 
+        SITE_TYPE === 'admin' ? '#/admin' : 
+        '#/benz';
       window.location.hash = defaultPath;
     }
   }, []);
@@ -111,7 +115,7 @@ function AppContent() {
 
   // 🌍 환경 변수에 따라 허용된 페이지만 렌더링
   // 예: VITE_SITE_TYPE=benz인 경우 benz 페이지만 접근 가능
-  const allowedPage = SITE_TYPE === 'benz' ? 'benz' : SITE_TYPE === 'user' ? 'user' : SITE_TYPE === 'm' ? 'm' : 'benz';
+  const allowedPage = SITE_TYPE === 'benz' ? 'benz' : SITE_TYPE === 'user' ? 'user' : SITE_TYPE === 'm' ? 'm' : SITE_TYPE === 'admin' ? 'admin' : 'benz';
   
   // 현재 경로가 허용된 페이지가 아니면 기본 페이지로 리다이렉트
   if (SITE_TYPE === 'benz' && !isBenzPage) {
@@ -120,6 +124,8 @@ function AppContent() {
     window.location.hash = '#/user';
   } else if (SITE_TYPE === 'm' && !isMPage) {
     window.location.hash = '#/m';
+  } else if (SITE_TYPE === 'admin' && !isAdminPage) {
+    window.location.hash = '#/admin';
   }
 
   // Benz 페이지 라우팅 (기본 도메인)
@@ -587,6 +593,38 @@ function AppContent() {
           )}
         </WebSocketProvider>
         <Toaster position="top-right" />
+      </>
+    );
+  }
+
+  // Admin 페이지 라우팅
+  if (isAdminPage && SITE_TYPE === 'admin') {
+    const currentRoute = isAdminPage && currentPath !== '/admin' && currentPath !== '/admin/'
+      ? currentPath
+      : '/admin/dashboard';
+
+    const isAuthenticated = authState.isAuthenticated && authState.user;
+
+    return (
+      <>
+        {!isAuthenticated ? (
+          <AdminLogin onLoginSuccess={() => {
+            window.location.hash = '#/admin/dashboard';
+            forceUpdate({});
+          }} />
+        ) : (
+          <WebSocketProvider>
+            <BalanceProvider user={authState.user}>
+              <SessionTimeoutManager />
+              <MessageQueueProvider userType="admin" userId={authState.user.id}>
+                <AdminLayout currentRoute={currentRoute} onNavigate={handleNavigate}>
+                  <AdminRoutes currentRoute={currentRoute} user={authState.user} />
+                </AdminLayout>
+              </MessageQueueProvider>
+            </BalanceProvider>
+          </WebSocketProvider>
+        )}
+        <Toaster position="bottom-right" />
       </>
     );
   }
