@@ -29,26 +29,51 @@ import { setupNetworkLogging } from './lib/networkLoggingInterceptor';
 // ✅ 앱 시작 시 네트워크 로깅 초기화 (민감한 정보 마스킹)
 setupNetworkLogging();
 
-// 🌍 환경 변수에서 사이트 타입 읽기 (Vercel 배포 환경에서도 동작하도록 도메인 감지 추가)
+// 🌍 환경 변수 또는 URL 해시에서 사이트 타입 읽기
 const getSiteTypeFromEnv = () => {
   // 1. 환경 변수에서 명시적으로 설정된 경우 우선
   const envValue = import.meta.env.VITE_SITE_TYPE;
   if (envValue && envValue.toLowerCase() !== 'benz') {
+    console.log('✅ SITE_TYPE from env:', envValue);
     return envValue.toLowerCase();
   }
 
-  // 2. 런타임에 도메인으로부터 감지 (Vercel 배포 환경에서 동작)
+  // 2. URL 해시에서 감지 (단일 도메인 & Vercel 배포 환경에서 동작)
   if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    const pathname = window.location.pathname.toLowerCase();
     
-    // 도메인 매핑
-    if (hostname.includes('usersite') || hostname.includes('user-site')) {
+    console.log('🔍 Detecting SITE_TYPE - Hash:', hash, 'Pathname:', pathname);
+    
+    // 해시 기반 감지
+    if (hash.startsWith('#/user')) {
+      console.log('✅ Detected USER site from hash');
       return 'user';
-    } else if (hostname.includes('msite') || hostname.includes('m-site')) {
+    } else if (hash.startsWith('#/m')) {
+      console.log('✅ Detected M site from hash');
       return 'm';
-    } else if (hostname.includes('admin') && !hostname.includes('adminlogin')) {
+    } else if (hash.startsWith('#/admin')) {
+      console.log('✅ Detected ADMIN site from hash');
+      return 'admin';
+    } else if (hash.startsWith('#/benz')) {
+      console.log('✅ Detected BENZ site from hash');
+      return 'benz';
+    }
+    
+    // 도메인 기반 감지 (여러 도메인 사용 시)
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname.includes('usersite') || hostname.includes('user-site') || hostname.includes('user.')) {
+      console.log('✅ Detected USER site from domain');
+      return 'user';
+    } else if (hostname.includes('msite') || hostname.includes('m-site') || hostname.includes('m.')) {
+      console.log('✅ Detected M site from domain');
+      return 'm';
+    } else if (hostname.includes('admin')) {
+      console.log('✅ Detected ADMIN site from domain');
       return 'admin';
     }
+    
+    console.log('⚠️ No match detected, using default benz');
   }
 
   // 3. 기본값: benz
@@ -56,6 +81,7 @@ const getSiteTypeFromEnv = () => {
 };
 
 const SITE_TYPE = getSiteTypeFromEnv().toLowerCase();
+console.log('🌍 FINAL SITE_TYPE:', SITE_TYPE);
 
 function AppContent() {
   const { authState, logout } = useAuth();
