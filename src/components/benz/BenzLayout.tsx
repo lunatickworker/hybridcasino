@@ -473,25 +473,27 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   // ==========================================================================
   // 3분 후 자동 로그아웃
   // ==========================================================================
-  useEffect(() => {
-    if (!user?.id) return;
+  // 🔔 3분 자동 로그아웃 (임시 비활성화 - 2026-01-15)
+  // ==========================================================================
+  // useEffect(() => {
+  //   if (!user?.id) return;
 
-    console.log('⏰ [Benz 자동 로그아웃] 3분 타이머 시작');
+  //   console.log('⏰ [Benz 자동 로그아웃] 3분 타이머 시작');
 
-    // 3분 = 180초 = 180000ms
-    inactivityTimerRef.current = setTimeout(() => {
-      console.log('⏰ [Benz 자동 로그아웃] 3분 경과 - 로그아웃 실행');
-      toast.info('로그아웃 되었습니다.');
-      onLogout();
-    }, 180000);
+  //   // 3분 = 180초 = 180000ms
+  //   inactivityTimerRef.current = setTimeout(() => {
+  //     console.log('⏰ [Benz 자동 로그아웃] 3분 경과 - 로그아웃 실행');
+  //     toast.info('로그아웃 되었습니다.');
+  //     onLogout();
+  //   }, 180000);
 
-    return () => {
-      if (inactivityTimerRef.current) {
-        console.log('⏰ [Benz 자동 로그아웃] 타이머 정리');
-        clearTimeout(inactivityTimerRef.current);
-      }
-    };
-  }, [user?.id, onLogout]);
+  //   return () => {
+  //     if (inactivityTimerRef.current) {
+  //       console.log('⏰ [Benz 자동 로그아웃] 타이머 정리');
+  //       clearTimeout(inactivityTimerRef.current);
+  //     }
+  //   };
+  // }, [user?.id, onLogout]);
 
   // ==========================================================================
   // 온라인 상태 모니터링 (Realtime)
