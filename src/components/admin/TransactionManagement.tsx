@@ -89,7 +89,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   }, [user.id, user.level]);
 
   // 필터 상태
-  const [periodFilter, setPeriodFilter] = useState("all");
+  const [periodFilter, setPeriodFilter] = useState("today");
   const [searchTerm, setSearchTerm] = useState("");
   const [transactionTypeFilter, setTransactionTypeFilter] = useState("all"); // all, user, admin, point
   
