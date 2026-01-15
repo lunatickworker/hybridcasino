@@ -2165,7 +2165,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         // 일반 입출금 거래
         return (
           <span className="font-asiahead text-cyan-300" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
-            {formatNumberOnly(parseFloat(row.balance_before?.toString() || '0'))}.
+            {formatNumberOnly(parseFloat(row.balance_before?.toString() || '0'))}
           </span>
         );
       },
