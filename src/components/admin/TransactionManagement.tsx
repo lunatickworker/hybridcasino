@@ -2102,7 +2102,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             <span className={cn(
               "font-asiahead font-semibold",
               isNegative ? 'text-red-400' : 'text-green-400'
-            )} style={{ fontSize: '16px', letterSpacing: '0.02em' }}>
+            )} style={{ fontSize: '16px', letterSpacing: '0.02em', marginLeft: '-10em' }}>
               {isNegative ? '-' : '+'}
               {formatNumberOnly(Math.abs(parseFloat(row.amount?.toString() || '0')))}
             </span>
@@ -2116,7 +2116,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             <span className={cn(
               "font-asiahead font-semibold",
               isNegative ? 'text-red-400' : 'text-green-400'
-            )} style={{ fontSize: '16px', letterSpacing: '0.02em' }}>
+            )} style={{ fontSize: '16px', letterSpacing: '0.1em', marginLeft: '-10em' }}>
               {isNegative ? '' : '+'}
               {Math.abs(row.amount).toLocaleString()}P
             </span>
@@ -2132,7 +2132,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           <span className={cn(
             "font-asiahead font-semibold",
             isWithdrawal ? 'text-red-400' : 'text-green-400'
-          )} style={{ fontSize: '16px', letterSpacing: '0.02em' }}>
+          )} style={{ fontSize: '16px', letterSpacing: '0.1em', marginLeft: '-10em' }}>
             {formatNumberOnly(parseFloat(row.amount.toString()))}
           </span>
         );
@@ -2152,7 +2152,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             ? row.balance_before_total 
             : parseFloat(row.balance_before?.toString() || '0');
           return (
-            <span className="font-asiahead text-cyan-300" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>
+            <span className="font-asiahead text-cyan-300" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
               {formatNumberOnly(balanceValue)}
             </span>
           );
@@ -2161,7 +2161,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         // 포인트 거래인 경우
         if (row.points_before !== undefined) {
           return (
-            <span className="font-asiahead text-amber-300" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>
+            <span className="font-asiahead text-amber-300" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
               {row.points_before.toLocaleString()}P
             </span>
           );
@@ -2169,8 +2169,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         
         // 일반 입출금 거래
         return (
-          <span className="font-asiahead text-cyan-300" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>
-            {formatNumberOnly(parseFloat(row.balance_before?.toString() || '0'))}
+          <span className="font-asiahead text-cyan-300" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
+            {formatNumberOnly(parseFloat(row.balance_before?.toString() || '0'))}.
           </span>
         );
       },
@@ -2187,7 +2187,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (row.is_partner_transaction) {
           const balanceValue = parseFloat(row.balance_after?.toString() || '0');
           return (
-            <span className="font-asiahead text-purple-400" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>
+            <span className="font-asiahead text-purple-400" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
               {formatNumberOnly(balanceValue)}
             </span>
           );
@@ -2196,7 +2196,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         // 포인트 거래인 경우
         if (row.points_after !== undefined) {
           return (
-            <span className="font-asiahead text-amber-400" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>
+            <span className="font-asiahead text-amber-400" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
               {row.points_after.toLocaleString()}P
             </span>
           );
@@ -2204,7 +2204,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         
         // 일반 입출금 거래
         return (
-          <span className="font-asiahead text-cyan-400" style={{ fontSize: '15px', letterSpacing: '0.02em' }}>
+          <span className="font-asiahead text-cyan-400" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
             {formatNumberOnly(parseFloat(row.balance_after?.toString() || '0'))}
           </span>
         );
