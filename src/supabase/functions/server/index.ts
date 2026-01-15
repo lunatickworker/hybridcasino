@@ -981,8 +981,8 @@ async function syncLv2Balances(): Promise<any> {
   console.log('⏰ [Lv2 Balance Sync] 시작 -', new Date().toISOString());
   console.log('='.repeat(60));
 
-  // Lv2 파트너 목록 조회
   try {
+    // Lv2 파트너 목록 조회
     const { data: lv2Partners, error: partnersError } = await supabase
       .from('partners')
       .select('id, nickname, parent_id')
@@ -1007,7 +1007,7 @@ async function syncLv2Balances(): Promise<any> {
       console.log(`   ${idx + 1}. ${p.nickname} (ID: ${p.id})`);
     });
 
-  let totalSynced = 0;
+    let totalSynced = 0;
   let totalErrors = 0;
   const syncResults = {
     invest: { synced: 0, errors: 0 },
@@ -1225,20 +1225,29 @@ async function syncLv2Balances(): Promise<any> {
   console.log(`   Invest: ${syncResults.invest.synced}개 ✅, ${syncResults.invest.errors}개 ❌`);
   console.log('='.repeat(60) + '\n');
 
-  return {
-    success: true,
-    message: `Lv2 보유금 동기화 완료: ${totalSynced}개 파트너 DB 업데이트됨`,
-    synced: totalSynced,
-    errors: totalErrors,
-    totalPartners: lv2Partners.length,
-    syncResults: {
-      oroplay: syncResults.oroplay,
-      familyapi: syncResults.familyapi,
-      honorapi: syncResults.honorapi,
-      invest: syncResults.invest
-    },
-    timestamp: new Date().toISOString()
-  };
+    return {
+      success: true,
+      message: `Lv2 보유금 동기화 완료: ${totalSynced}개 파트너 DB 업데이트됨`,
+      synced: totalSynced,
+      errors: totalErrors,
+      totalPartners: lv2Partners.length,
+      syncResults: {
+        oroplay: syncResults.oroplay,
+        familyapi: syncResults.familyapi,
+        honorapi: syncResults.honorapi,
+        invest: syncResults.invest
+      },
+      timestamp: new Date().toISOString()
+    };
+  } catch (error: any) {
+    console.error('❌ [Lv2 Balance Sync] 예외 발생:', error);
+    return {
+      success: false,
+      message: 'Lv2 보유금 동기화 중 오류 발생',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
+  }
 }
 
 // =====================================================
