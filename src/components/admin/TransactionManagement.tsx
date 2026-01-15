@@ -2708,6 +2708,33 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   <span className="text-slate-400 text-lg">{t.transactionManagement.transactionType}:</span>
                   <span className="text-white text-lg">
                     {(() => {
+                      // ✅ 파트너 거래인 경우 처리
+                      if (actionDialog.transaction.is_partner_transaction) {
+                        const tx = actionDialog.transaction;
+                        // deposit/withdrawal 거래: 현재 사용자 기준으로 파트너 환전/충전 판단
+                        if (tx.transaction_type === 'deposit' || tx.transaction_type === 'withdrawal') {
+                          // 현재 사용자가 송금자(from_partner_id)인 경우 → 파트너 환전 (출금)
+                          if (tx.from_partner_id === user.id && tx.transaction_type === 'withdrawal') {
+                            return '파트너 환전';
+                          }
+                          // 현재 사용자가 수신자(to_partner_id)인 경우 → 파트너 충전 (입금)
+                          if (tx.to_partner_id === user.id && tx.transaction_type === 'deposit') {
+                            return '파트너 충전';
+                          }
+                        }
+                        
+                        // 그 외 파트너 거래 타입
+                        const partnerTypeMap: any = {
+                          deposit: '파트너 충전',
+                          withdrawal: '파트너 환전',
+                          admin_adjustment: '파트너조정',
+                          commission: '파트너수수료',
+                          refund: '파트너환급'
+                        };
+                        return partnerTypeMap[tx.transaction_type] || tx.transaction_type;
+                      }
+
+                      // ✅ 일반 거래
                       const typeMap: any = {
                         deposit: '온라인 입금',
                         withdrawal: '온라인 출금',
