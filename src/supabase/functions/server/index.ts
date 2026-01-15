@@ -977,7 +977,9 @@ async function syncHonorapiBets(): Promise<any> {
 // Lv2 파트너 보유금 동기화
 // =====================================================
 async function syncLv2Balances(): Promise<any> {
-  console.log('⏰ [Lv2 Balance Sync] 3초 주기로 시작됨 -', new Date().toISOString());
+  console.log('\n' + '='.repeat(60));
+  console.log('⏰ [Lv2 Balance Sync] 시작 -', new Date().toISOString());
+  console.log('='.repeat(60));
 
   // Lv2 파트너 목록 조회
   const { data: lv2Partners, error: partnersError } = await supabase
@@ -987,10 +989,15 @@ async function syncLv2Balances(): Promise<any> {
     .eq('status', 'active');
 
   if (partnersError || !lv2Partners || lv2Partners.length === 0) {
+    console.log('⚠️ Lv2 파트너 조회 실패 또는 활성 파트너 없음');
+    if (partnersError) console.log('   에러:', partnersError);
     return { success: true, message: 'No active Lv2 partners', synced: 0 };
   }
 
-  console.log(`📋 ${lv2Partners.length}개 Lv2 파트너 발견`);
+  console.log(`\n📋 활성 Lv2 파트너 ${lv2Partners.length}개 발견:`);
+  lv2Partners.forEach((p, idx) => {
+    console.log(`   ${idx + 1}. ${p.nickname} (ID: ${p.id})`);
+  });
 
   let totalSynced = 0;
   let totalErrors = 0;
@@ -1008,7 +1015,8 @@ async function syncLv2Balances(): Promise<any> {
         continue;
       }
 
-      console.log(`\n🔄 Partner ${partner.id} (${partner.nickname}) 처리 중...`);
+      console.log(`\n🔄 Partner ${partner.id} (${partner.nickname}) 처리 시작...`);
+      console.log(`   Parent ID: ${partner.parent_id || 'N/A'}`);
 
       const balances: any = {};
 
@@ -1024,18 +1032,24 @@ async function syncLv2Balances(): Promise<any> {
           .eq('api_provider', 'invest')
           .maybeSingle();
 
+        if (investConfig) {
+          console.log(`   📌 Invest API 설정 찾음 (활성: ${investConfig.is_active !== false})`);
+        } else {
+          console.log(`   📌 Invest API 설정 없음`);
+        }
+
         if (investConfig && investConfig.is_active !== false) {
           // Dynamic import to avoid circular dependency
           const investModule = await import('https://deno.land/x/invest_api@v1.0.0/mod.ts').catch(() => null);
           
           // Note: Invest API는 별도 모듈이 필요하므로 여기서는 스킵
           // 실제 구현 시에는 invest 토큰 조회 및 잔고 조회 로직 추가
-          console.log(`⚠️ Partner ${partner.id}: Invest API 동기화는 별도 구현 필요`);
+          console.log(`   ⚠️ Invest API 동기화는 별도 구현 필요`);
         } else if (investConfig && investConfig.is_active === false) {
-          console.log(`⏭️ Partner ${partner.id}: Invest API 비활성화됨 - 동기화 건너뜀`);
+          console.log(`   ⏭️ Invest API 비활성화됨`);
         }
       } catch (investError: any) {
-        console.log(`⚠️ Partner ${partner.id}: Invest 동기화 실패 - ${investError.message}`);
+        console.log(`   ❌ Invest 동기화 실패: ${investError.message}`);
         syncResults.invest.errors++;
       }
 
@@ -1051,17 +1065,23 @@ async function syncLv2Balances(): Promise<any> {
           .eq('api_provider', 'oroplay')
           .maybeSingle();
 
+        if (oroConfig) {
+          console.log(`   📌 OroPlay API 설정 찾음 (활성: ${oroConfig.is_active !== false})`);
+        } else {
+          console.log(`   📌 OroPlay API 설정 없음`);
+        }
+
         if (oroConfig && oroConfig.is_active !== false) {
           const oroToken = await getOroPlayToken(partner.id);
           const oroBalance = await getAgentBalance(oroToken);
           balances.oroplay_balance = oroBalance;
-          console.log(`💰 Partner ${partner.id} OroPlay: ${oroBalance}`);
+          console.log(`   ✅ OroPlay 잔고 동기화: ${oroBalance}`);
           syncResults.oroplay.synced++;
-        } else {
-          console.log(`⏭️ Partner ${partner.id}: OroPlay API 비활성화됨 - 동기화 건너뜀`);
+        } else if (oroConfig) {
+          console.log(`   ⏭️ OroPlay API 비활성화됨`);
         }
       } catch (oroError: any) {
-        console.log(`⚠️ Partner ${partner.id}: OroPlay 동기화 실패 - ${oroError.message}`);
+        console.log(`   ❌ OroPlay 동기화 실패: ${oroError.message}`);
         syncResults.oroplay.errors++;
       }
 
@@ -1077,17 +1097,23 @@ async function syncLv2Balances(): Promise<any> {
           .eq('api_provider', 'familyapi')
           .maybeSingle();
 
+        if (familyConfig) {
+          console.log(`   📌 FamilyAPI 설정 찾음 (활성: ${familyConfig.is_active !== false}, API Key: ${familyConfig.api_key ? '있음' : '없음'})`);
+        } else {
+          console.log(`   📌 FamilyAPI 설정 없음`);
+        }
+
         if (familyConfig && familyConfig.api_key && familyConfig.is_active !== false) {
           const familyToken = await getFamilyApiToken(partner.id);
           const familyBalance = await getFamilyApiAgentBalance(familyConfig.api_key, familyToken);
           balances.familyapi_balance = familyBalance;
-          console.log(`💰 Partner ${partner.id} FamilyAPI: ${familyBalance}`);
+          console.log(`   ✅ FamilyAPI 잔고 동기화: ${familyBalance}`);
           syncResults.familyapi.synced++;
         } else if (familyConfig && familyConfig.is_active === false) {
-          console.log(`⏭️ Partner ${partner.id}: FamilyAPI 비활성화됨 - 동기화 건너뜀`);
+          console.log(`   ⏭️ FamilyAPI 비활성화됨`);
         }
       } catch (familyError: any) {
-        console.log(`⚠️ Partner ${partner.id}: FamilyAPI 동기화 실패 - ${familyError.message}`);
+        console.log(`   ❌ FamilyAPI 동기화 실패: ${familyError.message}`);
         syncResults.familyapi.errors++;
       }
 
@@ -1103,16 +1129,22 @@ async function syncLv2Balances(): Promise<any> {
           .eq('api_provider', 'honorapi')
           .maybeSingle();
 
+        if (honorConfig) {
+          console.log(`   📌 HonorAPI 설정 찾음 (활성: ${honorConfig.is_active !== false}, API Key: ${honorConfig.api_key ? '있음' : '없음'})`);
+        } else {
+          console.log(`   📌 HonorAPI 설정 없음`);
+        }
+
         if (honorConfig && honorConfig.api_key && honorConfig.is_active !== false) {
           const honorBalance = await getHonorApiAgentBalance(honorConfig.api_key);
           balances.honorapi_balance = honorBalance;
-          console.log(`💰 Partner ${partner.id} HonorAPI: ${honorBalance}`);
+          console.log(`   ✅ HonorAPI 잔고 동기화: ${honorBalance}`);
           syncResults.honorapi.synced++;
         } else if (honorConfig && honorConfig.is_active === false) {
-          console.log(`⏭️ Partner ${partner.id}: HonorAPI 비활성화됨 - 동기화 건너뜀`);
+          console.log(`   ⏭️ HonorAPI 비활성화됨`);
         }
       } catch (honorError: any) {
-        console.log(`⚠️ Partner ${partner.id}: HonorAPI 동기화 실패 - ${honorError.message}`);
+        console.log(`   ❌ HonorAPI 동기화 실패: ${honorError.message}`);
         syncResults.honorapi.errors++;
       }
 
@@ -1120,7 +1152,12 @@ async function syncLv2Balances(): Promise<any> {
       // 5. DB 업데이트 (수집된 잔고들을 한 번에 업데이트)
       // ========================================
       if (Object.keys(balances).length > 0) {
-        const { error: updateError } = await supabase
+        console.log(`\n   📝 DB 업데이트 대기중:`);
+        Object.entries(balances).forEach(([key, value]) => {
+          console.log(`      - ${key}: ${value}`);
+        });
+        
+        const { error: updateError, data: updateData } = await supabase
           .from('partners')
           .update({
             ...balances,
@@ -1129,32 +1166,48 @@ async function syncLv2Balances(): Promise<any> {
           .eq('id', partner.id);
 
         if (updateError) {
-          console.error(`❌ Partner ${partner.id} 업데이트 에러:`, updateError);
+          console.log(`   ❌ DB 업데이트 실패: ${updateError.message}`);
           totalErrors++;
         } else {
+          console.log(`   ✅ DB 업데이트 성공! ${Object.keys(balances).length}개 필드 업데이트됨`);
           totalSynced++;
         }
+      } else {
+        console.log(`   ⏭️ 동기화할 잔고 데이터 없음`);
       }
 
     } catch (error) {
-      console.error(`❌ Partner ${partner.id} 처리 에러:`, error);
+      console.log(`   ❌ 처리 중 에러 발생:`, error);
       totalErrors++;
     }
   }
 
-  console.log(`\n🎉 [Lv2 Balance Sync] 완료`);
-  console.log(`   📊 총 파트너: ${lv2Partners.length}개`);
-  console.log(`   ✅ OroPlay: ${syncResults.oroplay.synced}개 성공, ${syncResults.oroplay.errors}개 실패`);
-  console.log(`   ✅ FamilyAPI: ${syncResults.familyapi.synced}개 성공, ${syncResults.familyapi.errors}개 실패`);
-  console.log(`   ✅ Invest: ${syncResults.invest.synced}개 성공, ${syncResults.invest.errors}개 실패`);
-  console.log(`   ✅ HonorAPI: ${syncResults.honorapi.synced}개 성공, ${syncResults.honorapi.errors}개 실패`);
+  console.log('\n' + '='.repeat(60));
+  console.log('🎉 [Lv2 Balance Sync] 완료 - 결과 요약');
+  console.log('='.repeat(60));
+  console.log(`📊 총 파트너: ${lv2Partners.length}개`);
+  console.log(`✅ DB 업데이트 성공: ${totalSynced}개 파트너`);
+  console.log(`❌ DB 업데이트 실패: ${totalErrors}개 파트너`);
+  console.log(`\n🌐 API별 동기화 결과:`);
+  console.log(`   OroPlay: ${syncResults.oroplay.synced}개 ✅, ${syncResults.oroplay.errors}개 ❌`);
+  console.log(`   FamilyAPI: ${syncResults.familyapi.synced}개 ✅, ${syncResults.familyapi.errors}개 ❌`);
+  console.log(`   HonorAPI: ${syncResults.honorapi.synced}개 ✅, ${syncResults.honorapi.errors}개 ❌`);
+  console.log(`   Invest: ${syncResults.invest.synced}개 ✅, ${syncResults.invest.errors}개 ❌`);
+  console.log('='.repeat(60) + '\n');
 
   return {
     success: true,
+    message: `Lv2 보유금 동기화 완료: ${totalSynced}개 파트너 DB 업데이트됨`,
     synced: totalSynced,
     errors: totalErrors,
-    partners: lv2Partners.length,
-    details: syncResults
+    totalPartners: lv2Partners.length,
+    syncResults: {
+      oroplay: syncResults.oroplay,
+      familyapi: syncResults.familyapi,
+      honorapi: syncResults.honorapi,
+      invest: syncResults.invest
+    },
+    timestamp: new Date().toISOString()
   };
 }
 
