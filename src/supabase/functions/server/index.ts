@@ -836,6 +836,20 @@ async function syncHonorapiBets(): Promise<any> {
         continue;
       }
 
+      // ✅ 배치 조회: 모든 신규 트랜잭션의 external_txid를 한 번에 조회 (Supabase 과부하 방지)
+      const newTxIds = newBetTransactions.map((tx: any) => String(tx.id));
+      const { data: batchExistingRecords } = await supabase
+        .from('game_records')
+        .select('external_txid')
+        .eq('partner_id', partner.id)
+        .eq('api_type', 'honorapi')
+        .in('external_txid', newTxIds);
+
+      const batchExistingTxIds = new Set(
+        batchExistingRecords?.map((r: any) => String(r.external_txid)) || []
+      );
+      console.log(`   ✅ 배치 중복 체크 완료: ${batchExistingTxIds.size}개 발견`);
+
       // 7. 사용자 매핑
       const { data: allUsers } = await supabase
         .from('users')
@@ -856,16 +870,9 @@ async function syncHonorapiBets(): Promise<any> {
             continue;
           }
 
-          // ⚠️ CRITICAL: INSERT 직전에 한 번 더 중복 체크 (경쟁 조건 방지)
-          const { data: alreadyExists } = await supabase
-            .from('game_records')
-            .select('id')
-            .eq('external_txid', tx.id)
-            .eq('api_type', 'honorapi')
-            .maybeSingle();
-
-          if (alreadyExists) {
-            continue;  // 조용히 건너뜀 (로그 제거)
+          // ⚠️ 배치 조회 결과에서 확인 (개별 쿼리 제거!)
+          if (batchExistingTxIds.has(String(tx.id))) {
+            continue;  // 조용히 건너뜀
           }
 
           // 게임 정보 조회
