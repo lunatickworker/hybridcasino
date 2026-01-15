@@ -360,7 +360,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           last_bet_at,
           balance_before
         `)
-        .not('game_id', 'is', null)
+        .not('game_id', 'is.null') // ✅ 올바른 PostgREST 문법
         .eq('status', 'active')
         .order('last_activity_at', { ascending: false });
 
