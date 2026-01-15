@@ -14,6 +14,7 @@ import { supabase } from '../../lib/supabase';
 import { useMessageQueue } from '../common/MessageQueueProvider';
 import { AnimatedCurrency } from '../common/AnimatedNumber';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { createAdminNotification } from '../../lib/notificationHelper';
 
 interface User {
   id: string;
@@ -211,6 +212,19 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         .single();
 
       if (insertError) throw insertError;
+
+      // ✅ 알림카드에 출금 요청 알림 전송
+      if (user.referrer_id) {
+        await createAdminNotification({
+          user_id: user.id,
+          username: user.username || user.nickname,
+          user_login_id: user.login_id || '',
+          partner_id: user.referrer_id,
+          message: `온라인 출금 요청: ${user.nickname}님 ${withdrawAmount.toLocaleString()}원`,
+          log_message: `온라인 출금 요청 - ${user.nickname}님: ${withdrawAmount.toLocaleString()}원`,
+          notification_type: 'online_withdrawal' as any
+        });
+      }
 
       // 메시지 큐를 통한 실시간 알림 전송
       const success = await sendMessage('withdrawal_request', {

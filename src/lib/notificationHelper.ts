@@ -7,7 +7,7 @@ export interface NotificationData {
   partner_id: string; // 알림을 받을 관리자 ID (사용자의 referrer_id)
   message: string;
   log_message?: string;
-  notification_type: 'balance_insufficient' | 'game_error' | 'api_error' | 'system_error';
+  notification_type: 'balance_insufficient' | 'game_error' | 'api_error' | 'system_error' | 'online_deposit' | 'online_withdrawal';
 }
 
 /**
