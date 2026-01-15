@@ -854,7 +854,7 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
           .single();
 
         if (!user) {
-          console.warn(`⚠️ [HonorAPI] 사용자 없음: username=${tx.user.username}`);
+          // 사용자가 없으면 조용히 건너뜀 (등록되지 않은 사용자의 베팅 기록 무시)
           continue;
         }
 
