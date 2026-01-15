@@ -121,6 +121,13 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     fetchSettlementData();
   }, [dateRange]);
 
+  // ✅ 검색/필터 변경 시 통계 재계산
+  useEffect(() => {
+    if (data.length > 0) {
+      calculateSummary(data);
+    }
+  }, [codeSearch]);
+
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows);
     if (newExpanded.has(id)) {
