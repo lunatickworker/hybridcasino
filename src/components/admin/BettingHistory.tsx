@@ -193,13 +193,8 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         .select('*');
 
       if (user.level === 1) {
-        // 시스템관리자: 모든 데이터 조회 가능
-        if (allowedPartnerIds.length > 0) {
-          query = query.in('partner_id', allowedPartnerIds);
-          console.log('🔍 System Admin: Query with partner_id filter');
-        } else {
-          console.log('🔍 System Admin: Query ALL data (no partner filter)');
-        }
+        // 시스템관리자: 모든 데이터 조회 가능 (필터 없음)
+        console.log('🔍 System Admin: Query ALL data (no filters)');
       } else {
         // Regular admin: filter by child user IDs
         const { data: usersData } = await supabase

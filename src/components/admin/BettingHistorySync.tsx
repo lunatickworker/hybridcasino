@@ -23,12 +23,13 @@ const monitorSessionStates = async () => {
     const fourMinutesAgo = new Date(now.getTime() - 4 * 60 * 1000);
 
     // 1. active → paused (4분 베팅 없음) ⭐ paused 상태로 변경
+    // ✅ 간단한 쿼리: users 중첩 조인 제거 및 필터 단순화
     const { data: activeSessions } = await supabase
       .from('game_launch_sessions')
-      .select('id, user_id, status, last_bet_at, users(username)')
+      .select('id, user_id, status, last_bet_at')
       .eq('status', 'active')
-      .neq('last_bet_at', null) // ✅ neq 메서드 사용
-      .lt('last_bet_at', fourMinutesAgo.toISOString());
+      .lt('last_bet_at', fourMinutesAgo.toISOString())
+      .not('last_bet_at', 'is', null); // last_bet_at이 NOT NULL인 경우만
 
     if (activeSessions && activeSessions.length > 0) {
       for (const session of activeSessions) {
@@ -42,14 +43,15 @@ const monitorSessionStates = async () => {
           })
           .eq('id', session.id);
 
-        console.log(`✅ active → paused: user=${session.users?.username}`);
+        console.log(`✅ active → paused: session_id=${session.id}`);
       }
     }
 
     // 2. paused → active (베팅 재개)
+    // ✅ 간단한 쿼리: users 중첩 조인 제거
     const { data: pausedSessions } = await supabase
       .from('game_launch_sessions')
-      .select('id, user_id, status, users(username)')
+      .select('id, user_id, status')
       .eq('status', 'paused');
 
     if (pausedSessions && pausedSessions.length > 0) {
