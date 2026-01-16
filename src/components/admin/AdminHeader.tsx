@@ -1983,7 +1983,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       <div className="text-sm text-emerald-300 font-medium text-center mb-1">{t.dashboard.pendingDeposits}</div>
                       <div className="text-2xl font-bold text-white text-center">{stats.pending_deposits}</div>
                       {stats.pending_deposits > 0 && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                        <Badge className="absolute -top-2 -right-2 h-5 min-w-[20px] px-1 rounded-full text-[10px] bg-red-600 hover:bg-red-700 animate-pulse border-0 text-white">
+                          {stats.pending_deposits > 99 ? '99+' : stats.pending_deposits}
+                        </Badge>
                       )}
                     </div>
                   </TooltipTrigger>
@@ -2002,7 +2004,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       <div className="text-sm text-orange-300 font-medium text-center mb-1">{t.dashboard.pendingWithdrawals}</div>
                       <div className="text-2xl font-bold text-white text-center">{stats.pending_withdrawals}</div>
                       {stats.pending_withdrawals > 0 && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                        <Badge className="absolute -top-2 -right-2 h-5 min-w-[20px] px-1 rounded-full text-[10px] bg-red-600 hover:bg-red-700 animate-pulse border-0 text-white">
+                          {stats.pending_withdrawals > 99 ? '99+' : stats.pending_withdrawals}
+                        </Badge>
                       )}
                     </div>
                   </TooltipTrigger>
