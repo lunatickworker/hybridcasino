@@ -676,6 +676,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
   // 승인/거절 Dialog 열기
   const openActionDialog = (transaction: Transaction, action: 'approve' | 'reject') => {
+    console.log('✅ openActionDialog called:', { transaction, action });
     setActionDialog({
       open: true,
       transaction,
@@ -2683,7 +2684,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       </div>
 
       {/* 승인/거절 확인 Dialog */}
-      <Dialog open={actionDialog.open} onOpenChange={(open) => setActionDialog({ ...actionDialog, open })}>
+      <Dialog open={actionDialog.open} onOpenChange={(open) => {
+        console.log('📋 Dialog state changed:', { open, transaction: actionDialog.transaction });
+        setActionDialog({ ...actionDialog, open });
+      }}>
         <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-[350px]">
           <DialogHeader>
             <DialogTitle className="text-white text-2xl">
