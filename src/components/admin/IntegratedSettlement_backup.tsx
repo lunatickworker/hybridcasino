@@ -649,7 +649,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
     // ✅ 포인트 거래의 입출금 (transaction_type이 deposit/withdrawal인 경우)
     const pointDeposit = userPointTrans
-      .filter(pt => pt.transaction_type === 'deposit' || pt.transaction_type === 'admin_deposit_initial' || pt.transaction_type === 'admin_deposit_send')
+      .filter(pt => pt.transaction_type === 'deposit' || pt.transaction_type === 'admin_deposit_initial' || pt.transaction_type === 'partner_manual_deposit')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
     const pointWithdrawal = userPointTrans

@@ -20,9 +20,9 @@ const getTransactionType = (
     if (senderLevel === 1 && receiverLevel === 2) {
       return 'admin_deposit_initial'; // 운영사 → 본사
     } else if (senderLevel < receiverLevel) {
-      return 'admin_deposit_send'; // 상위 → 하위: 환전
+      return 'partner_manual_deposit'; // 상위 → 하위: 환전
     } else if (senderLevel > receiverLevel) {
-      return 'admin_deposit_receive'; // 하위 → 상위: 충전
+      return 'partner_manual_deposit'; // 하위 → 상위: 충전
     }
   } else {
     // 출금: 수신자로부터 송신자가 돈을 회수
@@ -31,7 +31,7 @@ const getTransactionType = (
     } else if (senderLevel < receiverLevel) {
       return 'partner_manual_withdrawal'; // 상위 → 하위: 환전
     } else if (senderLevel > receiverLevel) {
-      return 'admin_withdrawal_receive'; // 하위 → 상위: 충전
+      return 'partner_manual_withdrawal'; // 하위 → 상위: 충전
     }
   }
   // 기본값 (동일 레벨의 경우 발생하지 않음)

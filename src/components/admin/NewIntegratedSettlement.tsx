@@ -425,7 +425,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     // 조건: transaction_type = 'partner_manual_withdrawal' AND status = 'completed'
     const manualWithdrawalTransactions = userTransactions.filter(t => t.transaction_type === 'partner_manual_withdrawal' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
     
-    // ✅ 수동 입금 = 수동 충전 (admin_deposit_send)
+    // ✅ 수동 입금 = 수동 충전 (partner_manual_deposit)
     const manualDeposit = manualDepositTransactions;
     
     // ✅ 수동 출금 = 수동 환전 (partner_manual_withdrawal)

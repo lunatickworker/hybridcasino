@@ -278,12 +278,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       const { data: usersData } = await userQuery.order('nickname');
       setUsers(usersData || []);
 
-      // 통계 계산 - 모든 입출금 타입 포함 (deposit, admin_deposit_initial, admin_deposit_send, withdrawal, partner_manual_withdrawal)
+      // 통계 계산 - 모든 입출금 타입 포함 (deposit, admin_deposit_initial, partner_manual_deposit, withdrawal, partner_manual_withdrawal)
       if (transactionsData) {
-        // 입금: deposit + admin_deposit_initial + admin_deposit_send (completed만)
+        // 입금: deposit + admin_deposit_initial + partner_manual_deposit (completed만)
         const depositSum = transactionsData
           .filter(t => 
-            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && 
+            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'partner_manual_deposit') && 
             t.status === 'completed'
           )
           .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
@@ -310,7 +310,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           depositSum,
           withdrawalSum,
           depositCount: transactionsData.filter(t => 
-            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && 
+            (t.transaction_type === 'deposit' || t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'partner_manual_deposit') && 
             t.status === 'completed'
           ).length,
           withdrawalCount: transactionsData.filter(t => 

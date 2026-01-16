@@ -1827,7 +1827,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       const totalDeposit = completedTransactions
         .filter(t => 
           t.transaction_type === 'deposit' ||                    // 온라인 입금만
-          t.transaction_type === 'admin_deposit_send'            // 수동 충전만
+          t.transaction_type === 'partner_manual_deposit'            // 수동 충전만
         )
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
       

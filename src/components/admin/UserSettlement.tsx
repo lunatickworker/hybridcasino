@@ -152,7 +152,7 @@ export default function UserSettlement({ user }: UserSettlementProps) {
           .reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
 
         const adminDeposit = transactions
-          ?.filter(t => (t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'admin_deposit_send') && t.status === 'approved')
+          ?.filter(t => (t.transaction_type === 'admin_deposit_initial' || t.transaction_type === 'partner_manual_deposit') && t.status === 'approved')
           .reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
 
         const adminWithdrawal = transactions
