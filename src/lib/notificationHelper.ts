@@ -16,7 +16,7 @@ export interface NotificationData {
 export async function createAdminNotification(data: NotificationData) {
   try {
     const { error } = await supabase
-      .from('notifications')
+      .from('realtime_notifications')
       .insert({
         recipient_type: 'partner',
         recipient_id: data.partner_id, // ✅ 관리자 ID로 설정
@@ -104,7 +104,7 @@ export async function markNotificationAsRead(notificationId: string) {
 export async function markAllNotificationsAsRead(partnerId?: string) {
   try {
     let query = supabase
-      .from('notifications')
+      .from('realtime_notifications')
       .update({ 
         is_read: true,
         read_at: new Date().toISOString()
