@@ -170,7 +170,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   useEffect(() => {
     // ✅ 모든 초기화가 완료된 후에만 데이터 로드
     if (!isMountedRef.current) {
-      console.log('⏳ [TransactionManagement] 아직 초기화 중...');
       return;
     }
 
@@ -182,7 +181,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   useEffect(() => {
     // ✅ 첫 번째 마운트에서는 스킵
     if (!isMountedRef.current) {
-      console.log('⏭️ [TransactionManagement] 아직 초기화 중, 탭 변경 무시:', activeTab);
       return;
     }
 

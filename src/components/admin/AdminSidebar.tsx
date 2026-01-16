@@ -203,12 +203,8 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
               newCount: payload.new?.menu_permissions?.length || 0
             });
             loadMenusFromDB(); // 메뉴 다시 로드
-          } else {
-            console.log('⏭️ [AdminSidebar] 다른 필드 변경으로 인한 UPDATE 무시:', {
-              userId: user.id,
-              changedFields: Object.keys(payload.new || {}).filter(k => payload.old?.[k] !== payload.new?.[k])
-            });
           }
+          // ✅ 무시된 UPDATE는 로그 출력 안 함 (너무 많은 로그 방지)
         }
       )
       .subscribe();
