@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   CreditCard, TrendingUp, TrendingDown, Clock, CheckCircle, XCircle, 
   AlertTriangle, Banknote, Users, Plus, Search, Trash2, RefreshCw, Check, ChevronsUpDown, Gift, MinusCircle
@@ -54,6 +54,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   };
   
   const [activeTab, setActiveTab] = useState(getInitialTab());
+  
+  // ✅ 초기 로드 여부 추적 (두 번째 useEffect에서 초기 로드 스킵용)
+  const isInitialLoadRef = useRef(false);
   
   // 데이터 상태
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -154,14 +157,20 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           // ✅ 탭 설정 + 즉시 데이터 로드
           setActiveTab(anchor);
           // 즉시 로드 (상태 업데이트 대기 X)
-          setTimeout(() => loadData(true, false), 0);
+          setTimeout(() => {
+            loadData(true, false);
+            isInitialLoadRef.current = true; // ✅ 초기 로드 완료 표시
+          }, 0);
         } else {
           console.log('❌ [TransactionManagement] 지원하지 않는 탭:', anchor);
         }
       } else {
         // ✅ 해시에 탭이 없으면 기본 탭으로 초기 데이터 로드
         console.log('📍 [TransactionManagement] 기본 탭으로 초기 데이터 로드');
-        setTimeout(() => loadData(true, false), 0);
+        setTimeout(() => {
+          loadData(true, false);
+          isInitialLoadRef.current = true; // ✅ 초기 로드 완료 표시
+        }, 0);
       }
     };
 
@@ -176,12 +185,16 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []); // ✅ 마운트 시만 실행
 
-  // ⚡ 데이터 로드 - 탭 전환 시만 (초기 로드는 위 useEffect에서 수행)
+  // ⚡ 데이터 로드 - 실제 탭 전환 시만 (초기 로드는 위 useEffect에서 수행)
   useEffect(() => {
-    // activeTab이 처음 설정될 때는 이미 위에서 로드했으므로 스킵
-    // 실제 탭 전환 시에만 로드하도록 처리
-    console.log('📊 [TransactionManagement] activeTab 변경 감지:', activeTab);
-    // 탭 전환 시 데이터 다시 로드
+    // ✅ 초기 로드는 스킵 (첫 번째 useEffect에서 이미 실행됨)
+    if (!isInitialLoadRef.current) {
+      console.log('⏭️ [TransactionManagement] 초기 로드는 스킵, activeTab:', activeTab);
+      return;
+    }
+
+    // ✅ 초기 로드 이후 실제 탭 전환 시에만 데이터 리로드
+    console.log('📊 [TransactionManagement] 탭 전환 감지:', activeTab);
     loadData(false);
   }, [activeTab]);
   const loadData = async (isInitial = false, skipSetRefreshing = false) => {
