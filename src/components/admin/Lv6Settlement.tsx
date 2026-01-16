@@ -478,6 +478,10 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
 
     const userTransactions = transactions.filter(t => relevantUserIdsForTransactions.includes(t.user_id));
 
+    // 파트너의 경우 본인의 잔액 로그만 계산
+    const relevantPartnerIdsForTransactions: string[] = level === 6 ? [entityId] : [];
+    const partnerTransactionsFromTable = transactions.filter(t => (t.transaction_type === 'partner_online_deposit' || t.transaction_type === 'partner_online_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
+
     // ✅ 온라인 입출금: 사용자 직접 입금/출금만 (deposit/withdrawal)
     const onlineDeposit = userTransactions
       .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
@@ -497,15 +501,27 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       .filter(t => t.transaction_type === 'admin_withdrawal_send' && t.status === 'completed')
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ 5️⃣ 파트너 충전 (Guidelines.md: partner_balance_logs에서 'deposit')
-    const partnerCharge = partnerBalanceLogs
+    // ✅ 5️⃣ 파트너 충전 (Guidelines.md: partner_balance_logs + transactions 테이블)
+    const partnerChargeFromBalanceLogs = partnerBalanceLogs
       .filter(pbl => pbl.to_partner_id === entityId && pbl.transaction_type === 'deposit')
       .reduce((sum, pbl) => sum + (pbl.amount || 0), 0);
 
-    // ✅ 6️⃣ 파트너 환전 (Guidelines.md: partner_balance_logs에서 'withdrawal')
-    const partnerExchange = partnerBalanceLogs
+    const partnerChargeFromTransactions = partnerTransactionsFromTable
+      .filter(t => t.transaction_type === 'partner_online_deposit' && t.status === 'completed')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    const partnerCharge = partnerChargeFromBalanceLogs + partnerChargeFromTransactions;
+
+    // ✅ 6️⃣ 파트너 환전 (Guidelines.md: partner_balance_logs + transactions 테이블)
+    const partnerExchangeFromBalanceLogs = partnerBalanceLogs
       .filter(pbl => pbl.from_partner_id === entityId && pbl.transaction_type === 'withdrawal')
       .reduce((sum, pbl) => sum + Math.abs(pbl.amount || 0), 0);
+
+    const partnerExchangeFromTransactions = partnerTransactionsFromTable
+      .filter(t => t.transaction_type === 'partner_online_withdrawal' && t.status === 'completed')
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+
+    const partnerExchange = partnerExchangeFromBalanceLogs + partnerExchangeFromTransactions;
 
     // ✅ 입출차액 = (온라인 입금 + 수동 충전 + 파트너 충전) - (온라인 출금 + 수동 환전 + 파트너 환전)
     const depositWithdrawalDiff = onlineDeposit + manualCharge + partnerCharge - onlineWithdrawal - manualExchange - partnerExchange;

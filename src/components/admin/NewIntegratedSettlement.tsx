@@ -403,7 +403,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
 
     // 파트너의 경우 본인의 잔액 로그만 계산
     const relevantPartnerIdsForTransactions: string[] = level > 0 ? [entityId] : [];
-    const partnerTransactions = transactions.filter(t => (t.transaction_type === 'partner_deposit' || t.transaction_type === 'partner_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
+    const partnerTransactions = transactions.filter(t => (t.transaction_type === 'partner_online_deposit' || t.transaction_type === 'partner_online_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
 
     // ✅ 4️⃣ 온라인 입금 (Guidelines.md 기준)
     // 데이터 소스: transactions 테이블
