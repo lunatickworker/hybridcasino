@@ -784,9 +784,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         },
         async (payload) => {
           console.log('💰 [헤더 알림] transactions 변경 감지:', payload.eventType, payload);
-          fetchHeaderStats(); // 즉시 갱신
           
-          // UPDATE 이벤트: 승인/거절 처리
+          // UPDATE: 상태 변경 감지 → fetchHeaderStats() 호출
           if (payload.eventType === 'UPDATE' && payload.new && payload.old) {
             const oldTx = payload.old as any;
             const newTx = payload.new as any;
@@ -798,119 +797,113 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 status: newTx.status,
                 oldPending: oldTx.status
               });
+              fetchHeaderStats(); // 상태 변경 시만 갱신
             }
+            return;
           }
           
-          // 새 입금/출금 요청 시 토스트 알림
+          // INSERT: 새로운 신청 시 토스트 + 상태 직접 업데이트
           if (payload.eventType === 'INSERT' && payload.new) {
             const transaction = payload.new as any;
             
-            if (transaction.status === 'pending') {
-              // ✅ 관리자 입출금 신청 처리 (6가지 유형)
-              const isAdminDeposit = ['admin_deposit_initial', 'partner_manual_deposit'].includes(transaction.transaction_type);
-              const isAdminWithdrawal = ['partner_manual_withdrawal'].includes(transaction.transaction_type);
-              
-              if (isAdminDeposit || isAdminWithdrawal) {
-                // ✅ 신청자 본인에게는 알람 표시 안 함 + 조직격리 적용
-                if (transaction.partner_id !== user.id) {
-                  // Lv1: 모든 관리자 신청 알림, Lv2+: 자신의 하위 조직만
-                  let shouldNotify = false;
-                  if (user.level === 1) {
-                    shouldNotify = true;
-                  } else {
-                    // 신청한 파트너가 자신의 하위 조직인지 확인
-                    shouldNotify = allowedPartnerIds.includes(transaction.partner_id);
-                  }
-
-                  if (shouldNotify) {
-                    const memo = transaction.memo || '';
-
-                    if (isAdminDeposit) {
-                      toast.info('새로운 관리자 입금 신청이 있습니다.', {
-                        description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
-                        duration: 10000,
-                        position: 'bottom-left',
-                        action: {
-                          label: '확인',
-                          onClick: () => {
-                            if (onRouteChange) {
-                              onRouteChange('/admin/transactions#deposit-request');
-                            }
-                          }
-                        }
-                      });
-                    } else if (isAdminWithdrawal) {
-                      toast.warning('새로운 관리자 출금 신청이 있습니다.', {
-                        description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
-                        duration: 10000,
-                        position: 'bottom-left',
-                        action: {
-                          label: '확인',
-                          onClick: () => {
-                            if (onRouteChange) {
-                              onRouteChange('/admin/transactions#withdrawal-request');
-                            }
-                          }
-                        }
-                      });
-                    }
+            if (transaction.status !== 'pending') return;
+            
+            // ✅ 거래 타입 분류
+            const isPartnerDeposit = ['partner_manual_deposit', 'partner_online_deposit'].includes(transaction.transaction_type);
+            const isPartnerWithdrawal = ['partner_manual_withdrawal', 'partner_online_withdrawal'].includes(transaction.transaction_type);
+            const isUserDeposit = transaction.transaction_type === 'user_online_deposit';
+            const isUserWithdrawal = transaction.transaction_type === 'user_online_withdrawal';
+            
+            // ✅ 파트너 입출금 신청 (조직격리 적용)
+            if (isPartnerDeposit || isPartnerWithdrawal) {
+              if (transaction.partner_id !== user.id) {
+                const shouldNotify = user.level === 1 || allowedPartnerIds.includes(transaction.partner_id);
+                
+                if (shouldNotify) {
+                  const memo = transaction.memo || '';
+                  const amount = formatCurrency(Number(transaction.amount));
+                  
+                  if (isPartnerDeposit) {
+                    toast.info('새로운 파트너 입금 신청이 있습니다.', {
+                      description: `금액: ${amount}${memo ? ` | ${memo}` : ''}`,
+                      duration: 10000,
+                      position: 'bottom-left',
+                      action: {
+                        label: '확인',
+                        onClick: () => onRouteChange?.('/admin/transactions#deposit-request')
+                      }
+                    });
+                    // 상태 직접 업데이트
+                    setStats(prev => ({
+                      ...prev,
+                      pending_deposits: prev.pending_deposits + 1
+                    }));
+                  } else if (isPartnerWithdrawal) {
+                    toast.warning('새로운 파트너 출금 신청이 있습니다.', {
+                      description: `금액: ${amount}${memo ? ` | ${memo}` : ''}`,
+                      duration: 10000,
+                      position: 'bottom-left',
+                      action: {
+                        label: '확인',
+                        onClick: () => onRouteChange?.('/admin/transactions#withdrawal-request')
+                      }
+                    });
+                    // 상태 직접 업데이트
+                    setStats(prev => ({
+                      ...prev,
+                      pending_withdrawals: prev.pending_withdrawals + 1
+                    }));
                   }
                 }
-                return; // 관리자 신청은 여기서 처리 완료
               }
-              
-              // ✅ 사용자 입출금 신청 처리 (deposit, withdrawal)
-              // 🔐 조직격리: 해당 회원이 내 조직에 속하는지 확인
+              return;
+            }
+            
+            // ✅ 사용자 입출금 신청 (조직격리 적용)
+            if (isUserDeposit || isUserWithdrawal) {
               const { data: transactionUser } = await supabase
                 .from('users')
-                .select('id, username, referrer_id')
+                .select('id, username')
                 .eq('id', transaction.user_id)
                 .single();
               
-              if (!transactionUser) return; // 사용자 정보 없으면 알림 X
+              if (!transactionUser) return;
               
-              // Lv1이면 모든 거래, Lv2+ 이면 하위 조직만
-              let shouldNotify = false;
-              if (user.level === 1) {
-                shouldNotify = true;
-              } else {
-                // 하위 조직에 속하는지 확인
-                const descendantIds = await getDescendantUserIds(user.id);
-                shouldNotify = descendantIds.includes(transaction.user_id);
-              }
+              const shouldNotify = user.level === 1 || (await getDescendantUserIds(user.id)).includes(transaction.user_id);
               
-              if (!shouldNotify) return; // 내 조직이 아니면 알림 X
+              if (!shouldNotify) return;
               
               const username = transactionUser.username || transaction.user_id;
+              const amount = formatCurrency(Number(transaction.amount));
               
-              if (transaction.transaction_type === 'user_online_deposit') {
-                toast.info('새로운 입금 요청이 있습니.', {
-                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${username}\n클릭하면 사라집니다.`,
+              if (isUserDeposit) {
+                toast.info('새로운 입금 요청이 있습니다.', {
+                  description: `금액: ${amount} | 회원: ${username}`,
                   duration: 10000,
                   position: 'bottom-left',
                   action: {
                     label: '확인',
-                    onClick: () => {
-                      if (onRouteChange) {
-                        onRouteChange('/admin/transactions#deposit-request');
-                      }
-                    }
+                    onClick: () => onRouteChange?.('/admin/transactions#deposit-request')
                   }
                 });
-              } else if (transaction.transaction_type === 'user_online_withdrawal') {
+                setStats(prev => ({
+                  ...prev,
+                  pending_deposits: prev.pending_deposits + 1
+                }));
+              } else if (isUserWithdrawal) {
                 toast.warning('새로운 출금 요청이 있습니다.', {
-                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${username}\n클릭하면 사라집니다.`,
+                  description: `금액: ${amount} | 회원: ${username}`,
                   duration: 10000,
                   position: 'bottom-left',
                   action: {
                     label: '확인',
-                    onClick: () => {
-                      if (onRouteChange) {
-                        onRouteChange('/admin/transactions#withdrawal-request');
-                      }
-                    }
+                    onClick: () => onRouteChange?.('/admin/transactions#withdrawal-request')
                   }
                 });
+                setStats(prev => ({
+                  ...prev,
+                  pending_withdrawals: prev.pending_withdrawals + 1
+                }));
               }
             }
           }
