@@ -621,11 +621,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             console.error('❌ 사용자 입금 대기 수 조회 실패:', userDepositError);
           }
 
-          // 관리자 입금 신청도 조직격리 적용
+          // 관리자 입금 신청도 조직격리 적용 (partner_manual_deposit + partner_online_deposit)
           let adminDepositQuery = supabase
             .from('transactions')
             .select('id', { count: 'exact', head: true })
-            .in('transaction_type', ['partner_manual_deposit'])
+            .in('transaction_type', ['partner_manual_deposit', 'partner_online_deposit'])
             .eq('status', 'pending')
             .neq('partner_id', user.id); // 본인이 신청한 것은 제외
 
@@ -666,11 +666,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             console.error('❌ 사용자 출금 대기 수 조회 실패:', userWithdrawalError);
           }
 
-          // 관리자 출금 신청도 조직격리 적용 (3가지 유형: initial, send, receive)
+          // 관리자 출금 신청도 조직격리 적용 (partner_manual_withdrawal + partner_online_withdrawal)
           let adminWithdrawalQuery = supabase
             .from('transactions')
             .select('id', { count: 'exact', head: true })
-            .in('transaction_type', ['partner_manual_withdrawal'])
+            .in('transaction_type', ['partner_manual_withdrawal', 'partner_online_withdrawal'])
             .eq('status', 'pending')
             .neq('partner_id', user.id); // 본인이 신청한 것은 제외
 
@@ -1257,12 +1257,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   // 관리자 입금/출금 신청
   // =====================================================
   const handleDepositRequest = async () => {
-    // Lv2 (운영사)는 입출금 신청 불가
-    if (user.level === 2) {
-      toast.error('운영사는 입금 신청을 할 수 없습니다.');
-      return;
-    }
-
     if (!requestAmount || parseFloat(requestAmount.replace(/,/g, '')) <= 0) {
       toast.error('입금 금액을 입력해주세요.');
       return;
@@ -1295,26 +1289,29 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         }
       }
 
-      // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
-      const { data: transaction, error } = await supabase
-        .from('transactions')
-        .insert({
-          partner_id: user.id, // 관리자 입출금은 partner_id 사용
-          transaction_type: 'partner_online_deposit',
-          amount: amount,
-          status: 'pending',
-          balance_before: balance,
-          balance_after: balance, // 승인 전까지는 동일
-          created_at: new Date().toISOString(),
-          memo: `[관리자 입금신청] ${user.nickname || user.username} → 본사`,
-          from_partner_id: user.id,  // ✅ 보낸사람 (신청자)
-          to_partner_id: lv2PartnerId // ✅ 받는사람 (본사/Lv2)
-        })
-        .select()
-        .single();
+      // Lv2 (운영사) 거래는 거래내역에 저장하지 않음
+      if (user.level !== 2) {
+        // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
+        const { data: transaction, error } = await supabase
+          .from('transactions')
+          .insert({
+            partner_id: user.id, // 관리자 입출금은 partner_id 사용
+            transaction_type: 'partner_online_deposit',
+            amount: amount,
+            status: 'pending',
+            balance_before: balance,
+            balance_after: balance, // 승인 전까지는 동일
+            created_at: new Date().toISOString(),
+            memo: `[관리자 입금신청] ${user.nickname || user.username} → 본사`,
+            from_partner_id: user.id,  // ✅ 보낸사람 (신청자)
+            to_partner_id: lv2PartnerId // ✅ 받는사람 (본사/Lv2)
+          })
+          .select()
+          .single();
 
-      if (error) {
-        throw new Error(error.message);
+        if (error) {
+          throw new Error(error.message);
+        }
       }
 
       toast.success(`입금 신청이 완료되었습니다. (${formatCurrency(amount)})`);
@@ -1332,12 +1329,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   };
 
   const handleWithdrawalRequest = async () => {
-    // Lv2 (운영사)는 입출금 신청 불가
-    if (user.level === 2) {
-      toast.error('운영사는 출금 신청을 할 수 없습니다.');
-      return;
-    }
-
     if (!requestAmount || parseFloat(requestAmount.replace(/,/g, '')) <= 0) {
       toast.error('출금 금액을 입력해주세요.');
       return;
@@ -1376,26 +1367,29 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         }
       }
 
-      // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
-      const { data: transaction, error } = await supabase
-        .from('transactions')
-        .insert({
-          partner_id: user.id, // 관리자 입출금은 partner_id 사용
-          transaction_type: 'partner_online_withdrawal',
-          amount: amount,
-          status: 'pending',
-          balance_before: balance,
-          balance_after: balance, // 승인 전까지는 동일
-          created_at: new Date().toISOString(),
-          memo: `[관리자 출금신청] ${user.nickname || user.username} → 본사`,
-          from_partner_id: lv2PartnerId, // ✅ 보낸사람 (본사/Lv2)
-          to_partner_id: user.id         // ✅ 받는사람 (신청자)
-        })
-        .select()
-        .single();
+      // Lv2 (운영사) 거래는 거래내역에 저장하지 않음
+      if (user.level !== 2) {
+        // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
+        const { data: transaction, error } = await supabase
+          .from('transactions')
+          .insert({
+            partner_id: user.id, // 관리자 입출금은 partner_id 사용
+            transaction_type: 'partner_online_withdrawal',
+            amount: amount,
+            status: 'pending',
+            balance_before: balance,
+            balance_after: balance, // 승인 전까지는 동일
+            created_at: new Date().toISOString(),
+            memo: `[관리자 출금신청] ${user.nickname || user.username} → 본사`,
+            from_partner_id: lv2PartnerId, // ✅ 보낸사람 (본사/Lv2)
+            to_partner_id: user.id         // ✅ 받는사람 (신청자)
+          })
+          .select()
+          .single();
 
-      if (error) {
-        throw new Error(error.message);
+        if (error) {
+          throw new Error(error.message);
+        }
       }
 
       toast.success(`출금 신청이 완료되었습니다. (${formatCurrency(amount)})`);
