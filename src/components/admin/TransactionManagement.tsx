@@ -1349,7 +1349,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         id: crypto.randomUUID(), // ✅ id 명시적 설정
         user_id: userId,
         partner_id: user.id,
-        transaction_type: type === 'deposit' ? 'admin_deposit' : 'admin_withdrawal',
+        transaction_type: type === 'deposit' ? 'partner_manual_deposit' : 'partner_manual_withdrawal',
         amount: amountNum,
         status: 'completed',
         balance_before: balanceBefore,
