@@ -519,9 +519,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           return sum + amount;
         }, 0);
       
-      // 4️⃣ 전체 합산
-      const totalDepositSum = transactionDepositSum + partnerDepositSum + pointDepositSum;
-      const totalWithdrawalSum = transactionWithdrawalSum + partnerWithdrawalSum + pointWithdrawalSum;
+      // 4️⃣ 전체 합산 (통계 카드는 completed-history 탭의 거래만 집계)
+      const totalDepositSum = transactionDepositSum; // ✅ transactions 테이블만 집계
+      const totalWithdrawalSum = transactionWithdrawalSum; // ✅ transactions 테이블만 집계
       
       // 대기 중인 입금 신청 (사용자 + 관리자)
       const pendingDeposits = transactionsData.filter(t => 
