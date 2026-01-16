@@ -792,8 +792,19 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             
             // pending -> completed/rejected 상태 변경 감지
             if (oldTx.status === 'pending' && newTx.status !== 'pending') {
+              // 거래 타입을 한국어로 변환
+              const typeMap: any = {
+                user_online_deposit: '온라인 입금',
+                user_online_withdrawal: '온라인 출금',
+                partner_online_deposit: '온라인 입금',
+                partner_online_withdrawal: '온라인 출금',
+                partner_manual_deposit: '수동 충전',
+                partner_manual_withdrawal: '수동 환전'
+              };
+              const koreanType = typeMap[newTx.transaction_type] || newTx.transaction_type;
+              
               console.log('✅ [헤더 알림] 거래 처리 완료:', {
-                type: newTx.transaction_type,
+                type: koreanType,
                 status: newTx.status,
                 oldPending: oldTx.status
               });

@@ -2378,7 +2378,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                 <Button
                   size="default"
                   variant="outline"
-                  onClick={() => openActionDialog(row, 'reject')}
+                  onClick={() => {
+                    console.log('🔘 파트너 거절 버튼 클릭됨:', row);
+                    openActionDialog(row, 'reject');
+                  }}
                   disabled={refreshing}
                   className="h-10 px-5 text-base border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
                 >
@@ -2410,7 +2413,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             <Button
               size="default"
               variant="outline"
-              onClick={() => openActionDialog(row, 'reject')}
+              onClick={() => {
+                console.log('🔘 일반 거절 버튼 클릭됨:', row);
+                openActionDialog(row, 'reject');
+              }}
               disabled={refreshing}
               className="h-10 px-5 text-base border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
             >
