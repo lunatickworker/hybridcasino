@@ -503,7 +503,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
 
     // ✅ 5️⃣ 파트너 충전 (Guidelines.md: partner_balance_logs + transactions 테이블)
     const partnerChargeFromBalanceLogs = partnerBalanceLogs
-      .filter(pbl => pbl.to_partner_id === entityId && pbl.transaction_type === 'deposit')
+      .filter(pbl => pbl.to_partner_id === entityId && (pbl.transaction_type === 'deposit' || pbl.transaction_type === 'partner_online_deposit'))
       .reduce((sum, pbl) => sum + (pbl.amount || 0), 0);
 
     const partnerChargeFromTransactions = partnerTransactionsFromTable
@@ -514,7 +514,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
 
     // ✅ 6️⃣ 파트너 환전 (Guidelines.md: partner_balance_logs + transactions 테이블)
     const partnerExchangeFromBalanceLogs = partnerBalanceLogs
-      .filter(pbl => pbl.from_partner_id === entityId && pbl.transaction_type === 'withdrawal')
+      .filter(pbl => pbl.from_partner_id === entityId && (pbl.transaction_type === 'withdrawal' || pbl.transaction_type === 'partner_online_withdrawal'))
       .reduce((sum, pbl) => sum + Math.abs(pbl.amount || 0), 0);
 
     const partnerExchangeFromTransactions = partnerTransactionsFromTable

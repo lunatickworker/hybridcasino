@@ -486,11 +486,11 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     // ✅ 파트너 충전/환전 (partner_balance_logs + transactions 테이블)
     // partner_balance_logs 기준: to_partner_id/from_partner_id 기반
     const partnerDepositFromBalanceLogs = partnerBalanceLogs
-      .filter(l => l.to_partner_id === entityId && l.transaction_type === 'deposit')
+      .filter(l => l.to_partner_id === entityId && (l.transaction_type === 'deposit' || l.transaction_type === 'partner_online_deposit'))
       .reduce((sum, l) => sum + (l.amount || 0), 0);
 
     const partnerWithdrawalFromBalanceLogs = partnerBalanceLogs
-      .filter(l => l.from_partner_id === entityId && l.transaction_type === 'withdrawal')
+      .filter(l => l.from_partner_id === entityId && (l.transaction_type === 'withdrawal' || l.transaction_type === 'partner_online_withdrawal'))
       .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
 
     // transactions 테이블 기준: partner_online_deposit/partner_online_withdrawal
