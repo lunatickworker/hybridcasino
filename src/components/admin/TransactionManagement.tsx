@@ -166,20 +166,16 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []); // ✅ 마운트 시만 실행
 
-  // ⚡ 초기 데이터 로드 - allowedPartnerIds가 로드된 후 정확히 한 번만
+  // ⚡ 초기 데이터 로드 - 마운트 직후 즉시 시작 (allowedPartnerIds 기다리지 않음)
   useEffect(() => {
-    // ✅ Lv1은 즉시 로드, Lv2+는 allowedPartnerIds 로드 후
-    if (user.level > 1 && allowedPartnerIds.length === 0) {
-      return; // Lv2+가 allowedPartnerIds를 아직 로드하지 못함
-    }
-
+    // ✅ 첫 실행인 경우만 스킵 (allowedPartnerIds 로드 중)
     if (!isMountedRef.current) {
-      return; // 첫 번째 실행 (allowedPartnerIds 로드 중)
+      return;
     }
 
     console.log('🚀 [TransactionManagement] 마운트 완료, 초기 데이터 로드 시작');
-    loadData(true, false);
-  }, [allowedPartnerIds, user.level]);
+    loadData(true, false); // ✅ 즉시 로드 (allowedPartnerIds 기다리지 않음)
+  }, [isMountedRef]);
 
   // ⚡ 데이터 로드 - 실제 탭 전환 시만 (초기 로드는 위 useEffect에서 수행)
   useEffect(() => {
@@ -207,7 +203,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       // ✅ 파트너 ID 직접 계산 (allowedPartnerIds 의존성 제거) - 최적화
       let allowedPartnerIdsForQuery: string[] = [];
-      let hierarchicalPartners: any[] = [];
       let partnerIds: string[] = [user.id];
 
       if (user.level === 1) {
@@ -215,24 +210,17 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         allowedPartnerIdsForQuery = [];
         partnerIds = [user.id];
       } else {
-        // Lv2+: 자신의 하위 파트너 ID 조회 (병렬로 두 가지 쿼리 수행)
-        const [hierarchyResult, partnersResult] = await Promise.all([
-          supabase.rpc('get_hierarchical_partners', { p_partner_id: user.id }),
-          supabase
-            .from('partners')
-            .select('id, level, nickname, username')
-            .neq('level', 1)
-        ]);
-
-        const hierarchyData = hierarchyResult.data || [];
-        const allPartners = partnersResult.data || [];
-
-        // 계층 내 파트너만 필터링
-        hierarchicalPartners = allPartners.filter((p: any) => 
-          hierarchyData.some((h: any) => h.id === p.id)
-        );
-        partnerIds = [user.id, ...hierarchicalPartners.map((p: any) => p.id)];
+        // Lv2+: 이미 로드된 allowedPartnerIds 사용 (있으면) 또는 빠른 로드
+        partnerIds = allowedPartnerIds.length > 0 ? allowedPartnerIds : [user.id];
         allowedPartnerIdsForQuery = partnerIds;
+        
+        // ⚡ 백그라운드에서 업데이트 (초기 로드는 기다리지 않음)
+        if (allowedPartnerIds.length === 0 && isInitial) {
+          supabase.rpc('get_hierarchical_partners', { p_partner_id: user.id }).then(result => {
+            const hierarchyData = result.data || [];
+            setAllowedPartnerIds([user.id, ...hierarchyData.map((p: any) => p.id)]);
+          });
+        }
       }
 
       // ⚡ 2단계: 회원 ID 목록 조회
