@@ -2,40 +2,17 @@ import { supabase } from "../../../lib/supabase";
 import { Partner, TransferMode, TransferBalanceParams } from "./types";
 
 /**
- * ✅ 거래유형 결정 함수 (Lv별 계층 구조 고려)
- * - admin_deposit_initial: Lv1(운영사) → Lv2(본사) 입금
- * - admin_deposit_send: 상위 Lv에서 하위 Lv로의 입금 (환전)
- * - admin_deposit_receive: 하위 Lv에서 상위 Lv로의 입금 (충전)
- * - partner_manual_withdrawal: Lv2(본사) → Lv1(운영사) 출금
- * - partner_manual_withdrawal: 상위 Lv에서 하위 Lv로의 출금 (환전)
- * - admin_withdrawal_receive: 하위 Lv에서 상위 Lv로의 출금 (충전)
+ * ✅ 거래유형 결정 함수 (모든 파트너 간 거래 통일)
+ * - partner_manual_deposit: 모든 파트너 간 입금 (Lv 관계없이 통일)
+ * - partner_manual_withdrawal: 모든 파트너 간 출금 (Lv 관계없이 통일)
  */
 const getTransactionType = (
   senderLevel: number,
   receiverLevel: number,
   transferMode: TransferMode
 ): string => {
-  if (transferMode === 'deposit') {
-    // 입금: 송신자 → 수신자로 돈을 보냄
-    if (senderLevel === 1 && receiverLevel === 2) {
-      return 'admin_deposit_initial'; // 운영사 → 본사
-    } else if (senderLevel < receiverLevel) {
-      return 'partner_manual_deposit'; // 상위 → 하위: 환전
-    } else if (senderLevel > receiverLevel) {
-      return 'partner_manual_deposit'; // 하위 → 상위: 충전
-    }
-  } else {
-    // 출금: 수신자로부터 송신자가 돈을 회수
-    if (senderLevel === 2 && receiverLevel === 1) {
-      return 'partner_manual_withdrawal'; // 본사 → 운영사
-    } else if (senderLevel < receiverLevel) {
-      return 'partner_manual_withdrawal'; // 상위 → 하위: 환전
-    } else if (senderLevel > receiverLevel) {
-      return 'partner_manual_withdrawal'; // 하위 → 상위: 충전
-    }
-  }
-  // 기본값 (동일 레벨의 경우 발생하지 않음)
-  return transferMode === 'deposit' ? 'deposit' : 'withdrawal';
+  // 모든 파트너 간 거래는 partner_manual_* 로 통일
+  return transferMode === 'deposit' ? 'partner_manual_deposit' : 'partner_manual_withdrawal';
 };
 
 /**
