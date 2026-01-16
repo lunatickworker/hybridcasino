@@ -1300,7 +1300,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             amount: amount,
             status: 'pending',
             balance_before: balance,
-            balance_after: balance, // 승인 전까지는 동일
+            balance_after: balance + amount, // ✅ 입금이므로 가산
             created_at: new Date().toISOString(),
             memo: `[관리자 입금신청] ${user.nickname || user.username} → 본사`,
             from_partner_id: user.id,  // ✅ 보낸사람 (신청자)
@@ -1378,11 +1378,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             amount: amount,
             status: 'pending',
             balance_before: balance,
-            balance_after: balance, // 승인 전까지는 동일
+            balance_after: balance - amount, // ✅ 출금이므로 차감
             created_at: new Date().toISOString(),
             memo: `[관리자 출금신청] ${user.nickname || user.username} → 본사`,
-            from_partner_id: lv2PartnerId, // ✅ 보낸사람 (본사/Lv2)
-            to_partner_id: user.id         // ✅ 받는사람 (신청자)
+            from_partner_id: user.id,        // ✅ 보낸사람 (신청자/본사)
+            to_partner_id: lv2PartnerId      // ✅ 받는사람 (운영사)
           })
           .select()
           .single();

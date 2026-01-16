@@ -1,11 +1,19 @@
 /**
  * 거래유형 Display 로직
  * 
- * 핵심: 동일한 transaction_type이라도 발신자/수신자 관점에서 다른 이름으로 표시
+ * 정확한 발신자/수신자 규칙:
  * 
- * 예시:
- * - 부본사→본사 입금: 부본사는 "온라인 입금", 본사는 "온라인 출금"
- * - 본사→부본사 충전: 본사는 "수동 환전", 부본사는 "수동 충전"
+ * 온라인 입금 (partner_online_deposit):
+ * - 본사(Lv3) → 운영사(Lv2): 본사 "온라인 입금", 운영사 "온라인 입금"
+ * - 부본사(Lv4) → 본사(Lv3): 부본사 "온라인 입금", 본사 "온라인 출금"
+ * - 총판(Lv5) → 부본사(Lv4): 총판 "온라인 입금", 부본사 "온라인 출금"
+ * - 매장(Lv6) → 총판(Lv5): 매장 "온라인 입금", 총판 "온라인 출금"
+ * 
+ * 온라인 출금 (partner_online_withdrawal):
+ * - 본사(Lv3) → 운영사(Lv2): 본사 "온라인 출금", 운영사 "온라인 출금"
+ * - 부본사(Lv4) → 본사(Lv3): 부본사 "온라인 출금", 본사 "온라인 입금"
+ * - 총판(Lv5) → 부본사(Lv4): 총판 "온라인 출금", 부본사 "온라인 입금"
+ * - 매장(Lv6) → 총판(Lv5): 매장 "온라인 출금", 총판 "온라인 입금"
  */
 
 interface TransactionDisplayContext {
@@ -33,16 +41,16 @@ export function getTransactionDisplay(context: TransactionDisplayContext): strin
 
   if (transactionType === 'partner_online_deposit') {
     // 규칙:
-    // - 부본사(3) → 본사(2): 부본사 "온라인 입금", 본사 "온라인 출금"
-    // - 본사(2) → 운영사(1): 본사 "온라인 입금", 운영사 "온라인 입금"
+    // - 상위 레벨 → 하위 레벨: 발신자 "온라인 입금", 수신자 "온라인 출금"
+    // - 동일/다른 경우: 발신자 "온라인 입금", 수신자 "온라인 입금"
     
-    const isFromHigherLevel = (fromPartnerLevel || 0) > (toPartnerLevel || 0);
+    const isSenderHigher = (fromPartnerLevel || 0) > (toPartnerLevel || 0);
     
     if (isFromRecord) {
       return '온라인 입금'; // 발신자는 항상 "온라인 입금"
     } else {
       // 수신자: 발신자가 상위 레벨이면 반대로 표시
-      return isFromHigherLevel ? '온라인 출금' : '온라인 입금';
+      return isSenderHigher ? '온라인 출금' : '온라인 입금';
     }
   }
 
@@ -53,30 +61,29 @@ export function getTransactionDisplay(context: TransactionDisplayContext): strin
 
   if (transactionType === 'partner_online_withdrawal') {
     // 규칙:
-    // - 부본사(3) → 본사(2): 부본사 "온라인 출금", 본사 "온라인 입금"
-    // - 본사(2) → 운영사(1): 본사 "온라인 출금", 운영사 "온라인 출금"
+    // - 상위 레벨 → 하위 레벨: 발신자 "온라인 출금", 수신자 "온라인 입금"
+    // - 동일/다른 경우: 발신자 "온라인 출금", 수신자 "온라인 출금"
     
-    const isFromHigherLevel = (fromPartnerLevel || 0) > (toPartnerLevel || 0);
+    const isSenderHigher = (fromPartnerLevel || 0) > (toPartnerLevel || 0);
     
     if (isFromRecord) {
       return '온라인 출금'; // 발신자는 항상 "온라인 출금"
     } else {
       // 수신자: 발신자가 상위 레벨이면 반대로 표시
-      return isFromHigherLevel ? '온라인 입금' : '온라인 출금';
+      return isSenderHigher ? '온라인 입금' : '온라인 출금';
     }
   }
 
   // ===== 수동 충전 (partner_manual_deposit) =====
   if (transactionType === 'partner_manual_deposit') {
     // 규칙:
-    // - 운영사(1) → 회원: "수동 충전" / "수동 충전"
-    // - 본사(2) → 회원: "수동 환전" / "수동 충전"
-    // - 부본사(3) → 회원: "수동 환전" / "수동 충전"
+    // - 운영사(Lv2) → 회원: "수동 충전" / "수동 충전"
+    // - 본사(Lv3+) → 회원: "수동 환전" / "수동 충전"
     
-    if (fromPartnerLevel === 1) {
+    if (fromPartnerLevel === 2) {
       // 운영사
       return '수동 충전';
-    } else if (fromPartnerLevel && fromPartnerLevel >= 2) {
+    } else if (fromPartnerLevel && fromPartnerLevel >= 3) {
       // 본사 이상
       return isFromRecord ? '수동 환전' : '수동 충전';
     }
@@ -86,14 +93,13 @@ export function getTransactionDisplay(context: TransactionDisplayContext): strin
   // ===== 수동 환전 (partner_manual_withdrawal) =====
   if (transactionType === 'partner_manual_withdrawal') {
     // 규칙:
-    // - 운영사(1) → 회원: "수동 환전" / "수동 환전"
-    // - 본사(2) → 회원: "수동 충전" / "수동 환전"
-    // - 부본사(3) → 회원: "수동 충전" / "수동 환전"
+    // - 운영사(Lv2) → 회원: "수동 환전" / "수동 환전"
+    // - 본사(Lv3+) → 회원: "수동 충전" / "수동 환전"
     
-    if (fromPartnerLevel === 1) {
+    if (fromPartnerLevel === 2) {
       // 운영사
       return '수동 환전';
-    } else if (fromPartnerLevel && fromPartnerLevel >= 2) {
+    } else if (fromPartnerLevel && fromPartnerLevel >= 3) {
       // 본사 이상
       return isFromRecord ? '수동 충전' : '수동 환전';
     }
@@ -101,16 +107,18 @@ export function getTransactionDisplay(context: TransactionDisplayContext): strin
   }
 
   // ===== 파트너 충전 (partner_balance_logs에만 기록, partner_deposit) =====
+  // ===== 파트너 충전 (partner_balance_logs에만 기록, partner_deposit) =====
   if (transactionType === 'partner_deposit') {
     // 규칙:
-    // - 운영사(1) → 본사(2): "파트너 충전" / "파트너 충전"
-    // - 본사(2) → 부본사(3): "파트너 환전" / "파트너 충전"
-    // - 부본사(3) → 총판(4): "파트너 환전" / "파트너 충전"
+    // - 운영사(Lv2) → 본사(Lv3): "파트너 충전" / "파트너 충전"
+    // - 본사(Lv3) → 부본사(Lv4): "파트너 환전" / "파트너 충전"
+    // - 부본사(Lv4) → 총판(Lv5): "파트너 환전" / "파트너 충전"
+    // - 총판(Lv5) → 매장(Lv6): "파트너 환전" / "파트너 충전"
     
-    if (fromPartnerLevel === 1) {
+    if (fromPartnerLevel === 2) {
       // 운영사
       return '파트너 충전';
-    } else if (fromPartnerLevel && fromPartnerLevel >= 2) {
+    } else if (fromPartnerLevel && fromPartnerLevel >= 3) {
       // 본사 이상
       return isFromRecord ? '파트너 환전' : '파트너 충전';
     }
@@ -120,14 +128,15 @@ export function getTransactionDisplay(context: TransactionDisplayContext): strin
   // ===== 파트너 환전 (partner_balance_logs에만 기록, partner_withdrawal) =====
   if (transactionType === 'partner_withdrawal') {
     // 규칙:
-    // - 운영사(1) → 본사(2): "파트너 환전" / "파트너 환전"
-    // - 본사(2) → 부본사(3): "파트너 충전" / "파트너 환전"
-    // - 부본사(3) → 총판(4): "파트너 충전" / "파트너 환전"
+    // - 운영사(Lv2) → 본사(Lv3): "파트너 환전" / "파트너 환전"
+    // - 본사(Lv3) → 부본사(Lv4): "파트너 충전" / "파트너 환전"
+    // - 부본사(Lv4) → 총판(Lv5): "파트너 충전" / "파트너 환전"
+    // - 총판(Lv5) → 매장(Lv6): "파트너 충전" / "파트너 환전"
     
-    if (fromPartnerLevel === 1) {
+    if (fromPartnerLevel === 2) {
       // 운영사
       return '파트너 환전';
-    } else if (fromPartnerLevel && fromPartnerLevel >= 2) {
+    } else if (fromPartnerLevel && fromPartnerLevel >= 3) {
       // 본사 이상
       return isFromRecord ? '파트너 충전' : '파트너 환전';
     }
