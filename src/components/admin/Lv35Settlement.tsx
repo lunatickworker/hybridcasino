@@ -474,13 +474,13 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     const relevantPartnerIdsForTransactions: string[] = level > 0 ? [entityId] : [];
     const partnerTransactionsFromTable = transactions.filter(t => (t.transaction_type === 'partner_online_deposit' || t.transaction_type === 'partner_online_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
 
-    // ✅ 온라인 입출금: 사용자 직접 입금/출금 + 파트너 온라인 입출금 (deposit/partner_online_deposit)
+    // ✅ 온라인 입출금: 사용자 직접 입금/출금 + 파트너 온라인 입출금 (user_online_deposit/partner_online_deposit)
     const onlineDeposit = userTransactions
-      .filter(t => (t.transaction_type === 'deposit' || t.transaction_type === 'partner_online_deposit') && t.status === 'completed')
+      .filter(t => (t.transaction_type === 'user_online_deposit' || t.transaction_type === 'partner_online_deposit') && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const onlineWithdrawal = userTransactions
-      .filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_online_withdrawal') && t.status === 'completed')
+      .filter(t => (t.transaction_type === 'user_online_withdrawal' || t.transaction_type === 'partner_online_withdrawal') && t.status === 'completed')
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
     // ✅ 파트너 충전/환전 (partner_balance_logs 만 - deposit/withdrawal)
