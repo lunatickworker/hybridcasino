@@ -198,7 +198,7 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
           .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
         const adminDeposit = transactions
-          .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'approved')
+          .filter(t => t.transaction_type === 'partner_online_deposit' && t.status === 'approved')
           .reduce((sum, t) => sum + (t.amount || 0), 0);
 
         const adminWithdrawal = transactions

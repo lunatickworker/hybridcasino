@@ -310,7 +310,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       
       // ✅ transactions 테이블의 partner_deposit도 포함
       const partnerDepositFromTransactions = allTransactions?.filter(t => 
-        t.transaction_type === 'partner_deposit' && t.status === 'completed'
+        t.transaction_type === 'partner_online_deposit' && t.status === 'completed'
       ) || [];
       
       // ✅ 관리자 입금 로그 (transactions + partner_balance_logs 통합)
@@ -574,7 +574,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
     // ✅ 파트너 거래 필터링 (partner_deposit, partner_withdrawal은 partner_id 사용)
     const partnerTransactions = transactions.filter(t => 
-      (t.transaction_type === 'partner_deposit' || t.transaction_type === 'partner_withdrawal') && 
+      (t.transaction_type === 'partner_online_deposit' || t.transaction_type === 'partner_online_withdrawal') && 
       relevantPartnerIdsForTransactions.includes(t.partner_id)
     );
 

@@ -549,7 +549,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         const { data: depositData, error: depositError } = await supabase
           .from('transactions')
           .select('amount')
-          .in('transaction_type', ['deposit', 'partner_deposit'])
+          .in('transaction_type', ['deposit', 'partner_online_deposit'])
           .eq('status', 'completed')
           .gte('created_at', todayStartISO)
           .in('user_id', allowedUserIds);
@@ -1301,7 +1301,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         .from('transactions')
         .insert({
           partner_id: user.id, // 관리자 입출금은 partner_id 사용
-          transaction_type: 'partner_deposit',
+          transaction_type: 'partner_online_deposit',
           amount: amount,
           status: 'pending',
           balance_before: balance,

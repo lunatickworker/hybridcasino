@@ -237,7 +237,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         const conditions = [
           `processed_by.eq.${user.id}`, // 자신이 처리한 거래
           `and(status.eq.pending,transaction_type.in.(deposit,withdrawal),user_id.in.(${targetUserIds.join(',')}))`, // 하부 조직 회원들의 deposit/withdrawal
-          `and(status.eq.pending,transaction_type.in.(partner_deposit,partner_withdrawal),partner_id.in.(${allowedPartnerIdsForQuery.join(',')}))` // 하부 조직 파트너들의 partner_deposit/partner_withdrawal
+          `and(status.eq.pending,transaction_type.in.(partner_online_deposit,partner_online_withdrawal),partner_id.in.(${allowedPartnerIdsForQuery.join(',')}))` // 하부 조직 파트너들의 partner_online_deposit/partner_online_withdrawal
         ];
         transactionQuery = transactionQuery.or(conditions.join(','));
       }
@@ -443,7 +443,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           // completed-history 탭의 필터와 동일하게
           if (type === 'deposit') return inDateRange;
           if (type === 'admin_deposit_send') return inDateRange;
-          if (type === 'partner_deposit') return inDateRange;
+          if (type === 'partner_online_deposit') return inDateRange;
           if (type === 'admin_adjustment' && parseFloat(t.amount.toString()) > 0) return inDateRange; // 양수만 입금
           return false;
         })
@@ -521,7 +521,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       
       // 대기 중인 입금 신청 (사용자 + 관리자)
       const pendingDeposits = transactionsData.filter(t => 
-        (t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit') && 
+        (t.transaction_type === 'deposit' || t.transaction_type === 'partner_online_deposit') && 
         t.status === 'pending'
       );
       
@@ -839,7 +839,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           return { from_partner_id: user.id, to_partner_id: transaction.user_id };
         } else if (transaction.transaction_type === 'withdrawal') {
           return { from_partner_id: transaction.user_id, to_partner_id: user.id };
-        } else if (transaction.transaction_type === 'partner_deposit') {
+        } else if (transaction.transaction_type === 'partner_online_deposit') {
           return { from_partner_id: user.id, to_partner_id: (transaction as any).partner_id };
         } else if (transaction.transaction_type === 'partner_withdrawal') {
           return { from_partner_id: (transaction as any).partner_id, to_partner_id: user.id };
@@ -969,24 +969,24 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               partner_id: requestPartnerId,
               balance_before: currentBalance,
               balance_after: newBalance,
-              amount: transaction.transaction_type === 'partner_deposit' ? amount : -amount,
-              transaction_type: transaction.transaction_type === 'partner_deposit' ? 'deposit' : 'withdrawal',
-              from_partner_id: transaction.transaction_type === 'partner_deposit' ? user.id : requestPartnerId,  // ✅ 추가
-              to_partner_id: transaction.transaction_type === 'partner_deposit' ? requestPartnerId : user.id,    // ✅ 추가
+              amount: transaction.transaction_type === 'partner_online_deposit' ? amount : -amount,
+              transaction_type: transaction.transaction_type,
+              from_partner_id: transaction.transaction_type === 'partner_online_deposit' ? user.id : requestPartnerId,  // ✅ 추가
+              to_partner_id: transaction.transaction_type === 'partner_online_deposit' ? requestPartnerId : user.id,    // ✅ 추가
               processed_by: user.id,
-              memo: `관리자 ${transaction.transaction_type === 'partner_deposit' ? '입금' : '출금'} 승인 (승인자: ${user.username})`,
+              memo: `관리자 ${transaction.transaction_type === 'partner_online_deposit' ? '입금' : '출금'} 승인 (승인자: ${user.username})`,  // ✅ 추가
               created_at: new Date().toISOString()
             },
             {
               partner_id: user.id,
               balance_before: currentApproverBalance,
               balance_after: newApproverBalance,
-              amount: transaction.transaction_type === 'partner_deposit' ? -amount : amount,
+              amount: transaction.transaction_type === 'partner_online_deposit' ? -amount : amount,
               transaction_type: 'admin_adjustment',
-              from_partner_id: transaction.transaction_type === 'partner_deposit' ? user.id : requestPartnerId,  // ✅ 추가
-              to_partner_id: transaction.transaction_type === 'partner_deposit' ? requestPartnerId : user.id,    // ✅ 추가
+              from_partner_id: transaction.transaction_type === 'partner_online_deposit' ? user.id : requestPartnerId,  // ✅ 추가
+              to_partner_id: transaction.transaction_type === 'partner_online_deposit' ? requestPartnerId : user.id,    // ✅ 추가
               processed_by: user.id,
-              memo: `${requestPartnerData.username} 관리자 ${transaction.transaction_type === 'partner_deposit' ? '입금' : '출금'} 승인`,
+              memo: `${requestPartnerData.username} 관리자 ${transaction.transaction_type === 'partner_online_deposit' ? '입금' : '출금'} 승인`,  // ✅ 추가
               created_at: new Date().toISOString()
             }
           ]);
