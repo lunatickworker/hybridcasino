@@ -264,12 +264,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         userListQuery = userListQuery.in('referrer_id', partnerIds);
       }
       
-  // 파트너 거래 조회 (partner_balance_logs) - deposit/withdrawal만
+  // 파트너 거래 조회 (partner_balance_logs) - deposit/withdrawal + partner_online_deposit/partner_online_withdrawal
   // ✅ KST 날짜 필터 적용 (transactions 쿼리와 동일한 방식)
   let partnerTransactionQuery = supabase
     .from('partner_balance_logs')
     .select('*')
-    .in('transaction_type', ['deposit', 'withdrawal'])
+    .in('transaction_type', ['deposit', 'withdrawal', 'partner_online_deposit', 'partner_online_withdrawal'])
     .gte('created_at', dateRange.start)
     .lte('created_at', dateRange.end)
     .order('created_at', { ascending: false });
