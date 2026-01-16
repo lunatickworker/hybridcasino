@@ -2181,7 +2181,20 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           );
         }
         
-        // 일반 입출금 거래
+        // ✅ pending 상태 입출금 신청인 경우: 보유금 + 신청금액 계산
+        if (row.status === 'pending') {
+          const balanceBefore = parseFloat(row.balance_before?.toString() || '0');
+          const amount = parseFloat(row.amount?.toString() || '0');
+          const isWithdrawal = row.transaction_type === 'withdrawal' || row.transaction_type === 'partner_withdrawal';
+          const afterBalance = isWithdrawal ? balanceBefore - amount : balanceBefore + amount;
+          return (
+            <span className="font-asiahead text-cyan-400" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
+              {formatNumberOnly(afterBalance)}
+            </span>
+          );
+        }
+        
+        // 일반 입출금 거래 (completed/rejected)
         return (
           <span className="font-asiahead text-cyan-400" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
             {formatNumberOnly(parseFloat(row.balance_after?.toString() || '0'))}
