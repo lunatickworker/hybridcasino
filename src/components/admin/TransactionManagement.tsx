@@ -27,6 +27,24 @@ import { depositBalance, withdrawBalance, extractBalanceFromResponse } from "../
 import { getAdminOpcode, isMultipleOpcode } from "../../lib/opcodeHelper";
 import { useLanguage } from "../../contexts/LanguageContext";
 
+/**
+ * 거래유형 시스템 (TRANSACTION_TYPE_GUIDE.md 참조)
+ * 
+ * ✅ transactions 테이블:
+ *   - user_online_deposit: 회원 → 운영사 입금
+ *   - user_online_withdrawal: 회원 → 운영사 출금
+ *   - partner_online_deposit: 파트너 → 상위자 입금
+ *   - partner_online_withdrawal: 파트너 → 상위자 출금
+ *   - partner_manual_deposit: 상위자 → 하위자/회원 충전
+ *   - partner_manual_withdrawal: 상위자 → 하위자/회원 환전
+ * 
+ * ✅ partner_balance_logs 테이블:
+ *   - partner_deposit: 파트너 간 충전
+ *   - partner_withdrawal: 파트너 간 환전
+ * 
+ * 🔑 핵심: from_partner_id, to_partner_id로 방향성 판단
+ */
+
 interface TransactionManagementProps {
   user: Partner;
 }

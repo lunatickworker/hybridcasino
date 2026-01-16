@@ -63,7 +63,7 @@ export interface Transaction {
   id: string;
   user_id: string;
   partner_id?: string;
-  transaction_type: 'user_online_deposit' | 'user_online_withdrawal' | 'partner_online_deposit' | 'partner_online_withdrawal' | 'partner_manual_deposit' | 'partner_manual_withdrawal' | 'partner_deposit' | 'partner_withdrawal' | 'point_conversion' | 'admin_adjustment' | 'admin_deposit' | 'admin_withdrawal' | 'admin_deposit_initial' | 'admin_withdrawal_initial';
+  transaction_type: 'user_online_deposit' | 'user_online_withdrawal' | 'partner_online_deposit' | 'partner_online_withdrawal' | 'partner_manual_deposit' | 'partner_manual_withdrawal' | 'point_conversion' | 'admin_adjustment' | 'admin_deposit' | 'admin_withdrawal' | 'admin_deposit_initial' | 'admin_withdrawal_initial';
   amount: number;
   status: 'pending' | 'approved' | 'rejected' | 'completed';
   balance_before: number;
