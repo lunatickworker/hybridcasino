@@ -607,44 +607,23 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           .eq('receiver_type', 'partner')
           .is('parent_id', null);
 
-        // 🔔 7️⃣ 입금요청 대기 수 - 사용자 입금 + 관리자 입금 (조직격리 적용)
+        // 🔔 7️⃣ 입금요청 대기 수 - realtime_notifications 사용
         let pendingDepositsCount = 0;
         try {
-          const { count: userDepositCount, error: userDepositError } = await supabase
-            .from('transactions')
+          const { count: depositNotifCount, error: depositNotifError } = await supabase
+            .from('realtime_notifications')
             .select('id', { count: 'exact', head: true })
-            .eq('transaction_type', 'user_online_deposit')
+            .eq('notification_type', 'pending_deposit')
             .eq('status', 'pending')
-            .in('user_id', allowedUserIds);
+            .eq('recipient_id', user.id);
 
-          if (userDepositError) {
-            console.error('❌ 사용자 입금 대기 수 조회 실패:', userDepositError);
+          if (depositNotifError) {
+            console.error('❌ 입금 알림 대기 수 조회 실패:', depositNotifError);
           }
 
-          // 관리자 입금 신청도 조직격리 적용 (partner_manual_deposit + partner_online_deposit)
-          let adminDepositQuery = supabase
-            .from('transactions')
-            .select('id', { count: 'exact', head: true })
-            .in('transaction_type', ['partner_manual_deposit', 'partner_online_deposit'])
-            .eq('status', 'pending')
-            .neq('partner_id', user.id); // 본인이 신청한 것은 제외
-
-          // Lv1이 아닌 경우 하위 조직만
-          if (user.level !== 1) {
-            adminDepositQuery = adminDepositQuery.in('partner_id', allowedPartnerIds);
-          }
-
-          const { count: adminDepositCount, error: adminDepositError } = await adminDepositQuery;
-
-          if (adminDepositError) {
-            console.error('❌ 관리자 입금 대기 수 조회 실패:', adminDepositError);
-          }
-
-          pendingDepositsCount = (userDepositCount || 0) + (adminDepositCount || 0);
-          console.log('🔔 입금요청 대기 수 (조직격리 적용):', {
-            userDepositCount,
-            adminDepositCount,
-            allowedPartnerIds: user.level === 1 ? 'all' : allowedPartnerIds,
+          pendingDepositsCount = depositNotifCount || 0;
+          console.log('🔔 입금요청 대기 수 (realtime_notifications):', {
+            depositNotifCount,
             total: pendingDepositsCount
           });
         } catch (error) {
@@ -652,44 +631,23 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           pendingDepositsCount = 0;
         }
 
-        // 🔔 8️⃣ 출금요청 대기 수 - 사용자 출금 + 관리자 출금 (조직격리 적용)
+        // 🔔 8️⃣ 출금요청 대기 수 - realtime_notifications 사용
         let pendingWithdrawalsCount = 0;
         try {
-          const { count: userWithdrawalCount, error: userWithdrawalError } = await supabase
-            .from('transactions')
+          const { count: withdrawalNotifCount, error: withdrawalNotifError } = await supabase
+            .from('realtime_notifications')
             .select('id', { count: 'exact', head: true })
-            .eq('transaction_type', 'user_online_withdrawal')
+            .eq('notification_type', 'pending_withdrawal')
             .eq('status', 'pending')
-            .in('user_id', allowedUserIds);
+            .eq('recipient_id', user.id);
 
-          if (userWithdrawalError) {
-            console.error('❌ 사용자 출금 대기 수 조회 실패:', userWithdrawalError);
+          if (withdrawalNotifError) {
+            console.error('❌ 출금 알림 대기 수 조회 실패:', withdrawalNotifError);
           }
 
-          // 관리자 출금 신청도 조직격리 적용 (partner_manual_withdrawal + partner_online_withdrawal)
-          let adminWithdrawalQuery = supabase
-            .from('transactions')
-            .select('id', { count: 'exact', head: true })
-            .in('transaction_type', ['partner_manual_withdrawal', 'partner_online_withdrawal'])
-            .eq('status', 'pending')
-            .neq('partner_id', user.id); // 본인이 신청한 것은 제외
-
-          // Lv1이 아닌 경우 하위 조직만
-          if (user.level !== 1) {
-            adminWithdrawalQuery = adminWithdrawalQuery.in('partner_id', allowedPartnerIds);
-          }
-
-          const { count: adminWithdrawalCount, error: adminWithdrawalError } = await adminWithdrawalQuery;
-
-          if (adminWithdrawalError) {
-            console.error('❌ 관리자 출금 대기 수 조회 실패:', adminWithdrawalError);
-          }
-
-          pendingWithdrawalsCount = (userWithdrawalCount || 0) + (adminWithdrawalCount || 0);
-          console.log('🔔 출금요청 대기 수 (조직격리 적용):', {
-            userWithdrawalCount,
-            adminWithdrawalCount,
-            allowedPartnerIds: user.level === 1 ? 'all' : allowedPartnerIds,
+          pendingWithdrawalsCount = withdrawalNotifCount || 0;
+          console.log('🔔 출금요청 대기 수 (realtime_notifications):', {
+            withdrawalNotifCount,
             total: pendingWithdrawalsCount
           });
         } catch (error) {
