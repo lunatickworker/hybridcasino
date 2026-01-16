@@ -474,37 +474,28 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     const relevantPartnerIdsForTransactions: string[] = level > 0 ? [entityId] : [];
     const partnerTransactionsFromTable = transactions.filter(t => (t.transaction_type === 'partner_online_deposit' || t.transaction_type === 'partner_online_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
 
-    // ✅ 온라인 입출금: 사용자 직접 입금/출금만 (deposit/withdrawal)
+    // ✅ 온라인 입출금: 사용자 직접 입금/출금 + 파트너 온라인 입출금 (deposit/partner_online_deposit)
     const onlineDeposit = userTransactions
-      .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
+      .filter(t => (t.transaction_type === 'deposit' || t.transaction_type === 'partner_online_deposit') && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const onlineWithdrawal = userTransactions
-      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
+      .filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_online_withdrawal') && t.status === 'completed')
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ 파트너 충전/환전 (partner_balance_logs + transactions 테이블)
-    // partner_balance_logs 기준: to_partner_id/from_partner_id 기반
+    // ✅ 파트너 충전/환전 (partner_balance_logs 만 - deposit/withdrawal)
+    // partner_balance_logs 기준: to_partner_id/from_partner_id 기반 (관리자 강제 입출금)
     const partnerDepositFromBalanceLogs = partnerBalanceLogs
-      .filter(l => l.to_partner_id === entityId && (l.transaction_type === 'deposit' || l.transaction_type === 'partner_online_deposit'))
+      .filter(l => l.to_partner_id === entityId && l.transaction_type === 'deposit')
       .reduce((sum, l) => sum + (l.amount || 0), 0);
 
     const partnerWithdrawalFromBalanceLogs = partnerBalanceLogs
-      .filter(l => l.from_partner_id === entityId && (l.transaction_type === 'withdrawal' || l.transaction_type === 'partner_online_withdrawal'))
+      .filter(l => l.from_partner_id === entityId && l.transaction_type === 'withdrawal')
       .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
 
-    // transactions 테이블 기준: partner_online_deposit/partner_online_withdrawal
-    const partnerDepositFromTransactions = partnerTransactionsFromTable
-      .filter(t => t.transaction_type === 'partner_online_deposit' && t.status === 'completed')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
-
-    const partnerWithdrawalFromTransactions = partnerTransactionsFromTable
-      .filter(t => t.transaction_type === 'partner_online_withdrawal' && t.status === 'completed')
-      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
-
-    // 합산: 두 테이블의 데이터를 모두 포함
-    const partnerDeposit = partnerDepositFromBalanceLogs + partnerDepositFromTransactions;
-    const partnerWithdrawal = partnerWithdrawalFromBalanceLogs + partnerWithdrawalFromTransactions;
+    // 합산: 관리자 강제 입출금만
+    const partnerDeposit = partnerDepositFromBalanceLogs;
+    const partnerWithdrawal = partnerWithdrawalFromBalanceLogs;
 
     // ✅ 게임 기록 (본인 데이터만)
     const relevantGameRecords = gameRecords.filter(gr => relevantUserIdsForTransactions.includes(gr.user_id));

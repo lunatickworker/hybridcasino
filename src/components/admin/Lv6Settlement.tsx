@@ -482,13 +482,13 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     const relevantPartnerIdsForTransactions: string[] = level === 6 ? [entityId] : [];
     const partnerTransactionsFromTable = transactions.filter(t => (t.transaction_type === 'partner_online_deposit' || t.transaction_type === 'partner_online_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
 
-    // ✅ 온라인 입출금: 사용자 직접 입금/출금만 (deposit/withdrawal)
+    // ✅ 온라인 입출금: 사용자 직접 입금/출금 + 파트너 온라인 입출금 (deposit/partner_online_deposit)
     const onlineDeposit = userTransactions
-      .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
+      .filter(t => (t.transaction_type === 'deposit' || t.transaction_type === 'partner_online_deposit') && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const onlineWithdrawal = userTransactions
-      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
+      .filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_online_withdrawal') && t.status === 'completed')
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
     // ✅ 3️⃣ 수동 충전 (Guidelines.md Phase 2: admin_deposit_send)
@@ -501,27 +501,19 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       .filter(t => t.transaction_type === 'admin_withdrawal_send' && t.status === 'completed')
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ 5️⃣ 파트너 충전 (Guidelines.md: partner_balance_logs + transactions 테이블)
+    // ✅ 5️⃣ 파트너 충전 (Guidelines.md: partner_balance_logs - deposit 만)
     const partnerChargeFromBalanceLogs = partnerBalanceLogs
-      .filter(pbl => pbl.to_partner_id === entityId && (pbl.transaction_type === 'deposit' || pbl.transaction_type === 'partner_online_deposit'))
+      .filter(pbl => pbl.to_partner_id === entityId && pbl.transaction_type === 'deposit')
       .reduce((sum, pbl) => sum + (pbl.amount || 0), 0);
 
-    const partnerChargeFromTransactions = partnerTransactionsFromTable
-      .filter(t => t.transaction_type === 'partner_online_deposit' && t.status === 'completed')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
+    const partnerCharge = partnerChargeFromBalanceLogs;
 
-    const partnerCharge = partnerChargeFromBalanceLogs + partnerChargeFromTransactions;
-
-    // ✅ 6️⃣ 파트너 환전 (Guidelines.md: partner_balance_logs + transactions 테이블)
+    // ✅ 6️⃣ 파트너 환전 (Guidelines.md: partner_balance_logs - withdrawal 만)
     const partnerExchangeFromBalanceLogs = partnerBalanceLogs
-      .filter(pbl => pbl.from_partner_id === entityId && (pbl.transaction_type === 'withdrawal' || pbl.transaction_type === 'partner_online_withdrawal'))
+      .filter(pbl => pbl.from_partner_id === entityId && pbl.transaction_type === 'withdrawal')
       .reduce((sum, pbl) => sum + Math.abs(pbl.amount || 0), 0);
 
-    const partnerExchangeFromTransactions = partnerTransactionsFromTable
-      .filter(t => t.transaction_type === 'partner_online_withdrawal' && t.status === 'completed')
-      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
-
-    const partnerExchange = partnerExchangeFromBalanceLogs + partnerExchangeFromTransactions;
+    const partnerExchange = partnerExchangeFromBalanceLogs;
 
     // ✅ 입출차액 = (온라인 입금 + 수동 충전 + 파트너 충전) - (온라인 출금 + 수동 환전 + 파트너 환전)
     const depositWithdrawalDiff = onlineDeposit + manualCharge + partnerCharge - onlineWithdrawal - manualExchange - partnerExchange;
