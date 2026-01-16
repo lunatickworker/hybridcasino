@@ -55,9 +55,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   
   const [activeTab, setActiveTab] = useState(getInitialTab());
   
-  // ✅ 초기 마운트 완료 플래그 - 모든 초기화 후 한 번만 로드
-  const isMountedRef = useRef(false);
-  
   // 데이터 상태
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [pointTransactions, setPointTransactions] = useState<any[]>([]);
@@ -67,20 +64,15 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   // ✅ 조직 관리: 허용된 파트너 ID 리스트 (자신 + 하위 조직)
   const [allowedPartnerIds, setAllowedPartnerIds] = useState<string[]>([]);
 
-  // ✅ 허용된 파트너 ID 로드
+  // ✅ 백그라운드에서 허용된 파트너 ID 로드 (초기 로드 대기 없음)
   useEffect(() => {
     const loadAllowedPartners = async () => {
       if (user.level === 1) {
-        // Lv1: 모든 파트너 허용 (빈 배열 = 필터링 없음)
         setAllowedPartnerIds([]);
-        isMountedRef.current = true; // ✅ Lv1은 즉시 마운트 완료
       } else {
-        // 자신과 하위 파트너 조회
         const { data } = await supabase.rpc('get_hierarchical_partners', { p_partner_id: user.id });
         const partnerIds = [user.id, ...(data?.map((p: any) => p.id) || [])];
         setAllowedPartnerIds(partnerIds);
-        console.log('🗂️ [TransactionManagement] 허용 파트너 ID 로드 완료:', partnerIds);
-        isMountedRef.current = true; // ✅ Lv2+도 파트너 로드 완료 후 마운트 완료
       }
     };
 
@@ -137,54 +129,34 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     1000000
   ];
 
-  // URL 해시 변경 감지하여 탭 업데이트 (초기화 로직 분리)
+  // ⚡ 마운트 시 URL 해시 확인 및 탭 설정
   useEffect(() => {
-    // 컴포넌트 마운트 시에도 해시 확인
     const checkHash = () => {
-      const fullHash = window.location.hash; // #/admin/transactions#deposit-request
-      const anchorIndex = fullHash.indexOf('#', 1); // 두 번째 # 찾기
+      const fullHash = window.location.hash;
+      const anchorIndex = fullHash.indexOf('#', 1);
 
       if (anchorIndex !== -1) {
-        const anchor = fullHash.substring(anchorIndex + 1); // deposit-request
-        console.log('🔄 [TransactionManagement] 해시 변경 감지:', { fullHash, anchor, anchorIndex });
-
+        const anchor = fullHash.substring(anchorIndex + 1);
         if (anchor === 'deposit-request' || anchor === 'withdrawal-request' || anchor === 'deposit-history' || anchor === 'withdrawal-history') {
-          console.log('✅ [TransactionManagement] 타겟 탭 설정:', anchor);
           setActiveTab(anchor);
         }
       }
     };
 
-    checkHash(); // 마운트 시 즉시 실행
+    checkHash();
+    window.addEventListener('hashchange', checkHash);
+    return () => window.removeEventListener('hashchange', checkHash);
+  }, []);
 
-    const handleHashChange = () => {
-      console.log('🎯 [TransactionManagement] hashchange 이벤트 발생');
-      checkHash();
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []); // ✅ 마운트 시만 실행
-
-  // ⚡ 초기 데이터 로드 - 마운트 직후 즉시 시작 (allowedPartnerIds 기다리지 않음)
+  // ⚡ 초기 데이터 로드 - 마운트 직후 즉시 (새로고침 버튼처럼)
   useEffect(() => {
-    // ✅ 첫 실행인 경우만 스킵 (allowedPartnerIds 로드 중)
-    if (!isMountedRef.current) {
-      return;
-    }
+    // ✅ 첫 번째 렌더링에서만 실행
+    loadData(true, false);
+  }, []); // 의존성 배열 비움 = 마운트 시 한 번만
 
-    console.log('🚀 [TransactionManagement] 마운트 완료, 초기 데이터 로드 시작');
-    loadData(true, false); // ✅ 즉시 로드 (allowedPartnerIds 기다리지 않음)
-  }, [isMountedRef]);
-
-  // ⚡ 데이터 로드 - 실제 탭 전환 시만 (초기 로드는 위 useEffect에서 수행)
+  // ⚡ 탭 전환 시 데이터 로드
   useEffect(() => {
-    // ✅ 첫 번째 마운트에서는 스킵
-    if (!isMountedRef.current) {
-      return;
-    }
-
-    console.log('📊 [TransactionManagement] 탭 전환 감지:', activeTab);
+    // ✅ 초기 로드는 위에서 처리했으므로, 실제 탭 변경 시만 로드
     loadData(false);
   }, [activeTab]);
   const loadData = async (isInitial = false, skipSetRefreshing = false) => {
