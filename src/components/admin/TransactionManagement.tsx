@@ -2710,22 +2710,78 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                       // ✅ 파트너 거래인 경우 처리
                       if (actionDialog.transaction.is_partner_transaction) {
                         const tx = actionDialog.transaction;
-                        // deposit/withdrawal 거래: 현재 사용자 기준으로 파트너 환전/충전 판단
-                        if (tx.transaction_type === 'deposit' || tx.transaction_type === 'withdrawal') {
-                          // 현재 사용자가 송금자(from_partner_id)인 경우 → 파트너 환전 (출금)
-                          if (tx.from_partner_id === user.id && tx.transaction_type === 'withdrawal') {
-                            return '파트너 환전';
-                          }
-                          // 현재 사용자가 수신자(to_partner_id)인 경우 → 파트너 충전 (입금)
-                          if (tx.to_partner_id === user.id && tx.transaction_type === 'deposit') {
-                            return '파트너 충전';
+                        
+                        // partner_online_deposit / partner_online_withdrawal는 transactionDisplayHelper 사용해서 표시
+                        if (tx.transaction_type === 'partner_online_deposit' || tx.transaction_type === 'partner_online_withdrawal') {
+                          const isFromRecord = tx.from_partner_id === user.id;
+                          const fromLevel = tx.from_partner?.level;
+                          const toLevel = tx.to_partner?.level;
+                          
+                          // Display Helper 로직 적용
+                          if (tx.transaction_type === 'partner_online_deposit') {
+                            const isSenderHigher = (fromLevel || 0) > (toLevel || 0);
+                            if (isFromRecord) {
+                              return '온라인 입금';
+                            } else {
+                              return isSenderHigher ? '온라인 출금' : '온라인 입금';
+                            }
+                          } else { // partner_online_withdrawal
+                            const isSenderHigher = (fromLevel || 0) > (toLevel || 0);
+                            if (isFromRecord) {
+                              return '온라인 출금';
+                            } else {
+                              return isSenderHigher ? '온라인 입금' : '온라인 출금';
+                            }
                           }
                         }
                         
+                        // partner_manual_deposit / partner_manual_withdrawal
+                        if (tx.transaction_type === 'partner_manual_deposit' || tx.transaction_type === 'partner_manual_withdrawal') {
+                          const isFromRecord = tx.from_partner_id === user.id || !tx.from_partner_id;
+                          const fromLevel = tx.from_partner?.level || tx.partner?.level;
+                          
+                          if (tx.transaction_type === 'partner_manual_deposit') {
+                            if (fromLevel === 2) {
+                              return '수동 충전';
+                            } else if (fromLevel && fromLevel >= 3) {
+                              return isFromRecord ? '수동 환전' : '수동 충전';
+                            }
+                            return '수동 충전';
+                          } else { // partner_manual_withdrawal
+                            if (fromLevel === 2) {
+                              return '수동 환전';
+                            } else if (fromLevel && fromLevel >= 3) {
+                              return isFromRecord ? '수동 충전' : '수동 환전';
+                            }
+                            return '수동 환전';
+                          }
+                        }
+                        
+                        // deposit / withdrawal (partner_balance_logs)
+                        if (tx.transaction_type === 'deposit' || tx.transaction_type === 'withdrawal') {
+                          const isFromRecord = tx.from_partner_id === user.id;
+                          const fromLevel = tx.from_partner?.level;
+                          const toLevel = tx.to_partner?.level;
+                          
+                          if (tx.transaction_type === 'deposit') {
+                            if (fromLevel === 2) {
+                              return '파트너 충전';
+                            } else if (fromLevel && fromLevel >= 3) {
+                              return isFromRecord ? '파트너 환전' : '파트너 충전';
+                            }
+                            return '파트너 충전';
+                          } else { // withdrawal
+                            if (fromLevel === 2) {
+                              return '파트너 환전';
+                            } else if (fromLevel && fromLevel >= 3) {
+                              return isFromRecord ? '파트너 충전' : '파트너 환전';
+                            }
+                            return '파트너 환전';
+                          }
+                        }
+
                         // 그 외 파트너 거래 타입
                         const partnerTypeMap: any = {
-                          deposit: '파트너 충전',
-                          withdrawal: '파트너 환전',
                           admin_adjustment: '파트너조정',
                           commission: '파트너수수료',
                           refund: '파트너환급'
@@ -2735,11 +2791,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
                       // ✅ 일반 거래
                       const typeMap: any = {
-                        deposit: '온라인 입금',
-                        withdrawal: '온라인 출금',
+                        user_online_deposit: '온라인 입금',
+                        user_online_withdrawal: '온라인 출금',
                         partner_online_deposit: '온라인 입금',
                         partner_online_withdrawal: '온라인 출금',
-                        admin_deposit_send: '수동 충전',
+                        partner_manual_deposit: '수동 충전',
                         partner_manual_withdrawal: '수동 환전',
                         admin_adjustment: '포인트 조정',
                         commission: '수수료',
