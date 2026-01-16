@@ -1859,7 +1859,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     const totalDeposit = completedTransactions
       .filter(t => 
         t.transaction_type === 'deposit' ||                    // 온라인 입금만
-        t.transaction_type === 'admin_deposit_send'            // 수동 충전만
+        t.transaction_type === 'partner_manual_deposit'        // 수동 충전만
       )
       .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
     
@@ -1957,7 +1957,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         }
 
         // ✅ 관리자 입금/출금 거래: from_partner_id/to_partner_id 표시
-        const isAdminDepositType = row.transaction_type === 'admin_deposit_initial' || row.transaction_type === 'admin_deposit_send';
+        const isAdminDepositType = row.transaction_type === 'admin_deposit_initial' || row.transaction_type === 'partner_manual_deposit';
         const isAdminWithdrawalType = row.transaction_type === 'partner_manual_withdrawal';
         
         if (isAdminDepositType || isAdminWithdrawalType) {
@@ -2006,7 +2006,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         }
 
         // ✅ 관리자 입금/출금 거래: 받는 사람 표시
-        const isAdminDepositType = row.transaction_type === 'admin_deposit_initial' || row.transaction_type === 'admin_deposit_send';
+        const isAdminDepositType = row.transaction_type === 'admin_deposit_initial' || row.transaction_type === 'partner_manual_deposit';
         const isAdminWithdrawalType = row.transaction_type === 'partner_manual_withdrawal';
         
         if (isAdminDepositType) {
