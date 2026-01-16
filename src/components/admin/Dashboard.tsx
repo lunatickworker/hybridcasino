@@ -946,8 +946,8 @@ export function Dashboard({ user }: DashboardProps) {
           filter: `id=eq.${user.id}`
         },
         (payload) => {
-          console.log('💰 [대시보드] partners 보유금 변경 감지:', payload.new);
-          loadDashboardStats(); // 즉시 갱신
+          // 보유금 변경 감지 - 즉시 갱신
+          loadDashboardStats();
         }
       )
       .subscribe();

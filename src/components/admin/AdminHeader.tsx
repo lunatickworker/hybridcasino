@@ -1569,8 +1569,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   // ✅ 실시간 커미션 계산 + 과거 미전환 커미션 조회
   const loadLatestCommissions = async () => {
     try {
-      console.log('💰 [실시간 커미션 조회] 시작 - partner_id:', user.id);
-      
       // 1️⃣ 파트너의 현재 커미션 요율 조회
       const { data: partnerData, error: partnerError } = await supabase
         .from('partners')
@@ -1590,17 +1588,12 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         slot_losing: partnerData.slot_losing_commission || 0
       };
       
-      console.log('💰 [실시간 커미션] 파트너 요율:', commissionRates);
-      
       // 2️⃣ 실시간 커미션 계산 (오늘 00:00부터 현재까지)
       const todayStart = getTodayStartUTC();
       const now = new Date().toISOString();
       
-      console.log('💰 [실시간 커미션] 기간:', { todayStart, now });
-      
       // 하위 사용자 ID 조회
       const descendantUserIds = await getDescendantUserIds(user.id);
-      console.log('💰 [실시간 커미션] 하위 사용자 수:', descendantUserIds.length);
       
       let realtimeCommission = {
         casino_rolling: 0,
@@ -1613,8 +1606,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         // 베팅 통계 조회 (카지노/슬롯 구분)
         const stats = await getBettingStatsByGameType(descendantUserIds, todayStart, now, 'all');
         
-        console.log('💰 [실시간 커미션] 베팅 통계:', stats);
-        
         // 커미션 계산
         realtimeCommission = {
           casino_rolling: stats.casino.betAmount * (commissionRates.casino_rolling / 100),
@@ -1622,8 +1613,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           slot_rolling: stats.slot.betAmount * (commissionRates.slot_rolling / 100),
           slot_losing: stats.slot.lossAmount * (commissionRates.slot_losing / 100)
         };
-        
-        console.log('💰 [실시간 커미션] 계산 결과:', realtimeCommission);
       }
       
       // 3️⃣ 과거 정산 내역 조회 (오늘 이전)
@@ -1735,8 +1724,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             pastCommission.slot_losing += parseFloat(settlement.slot_losing_commission) || 0;
           }
         });
-        
-        console.log('💰 [과거 정산] 미전환 커미션:', pastCommission);
       }
       
       setLatestSettlements(settlementsWithConversion);
@@ -1748,8 +1735,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         slot_rolling: realtimeCommission.slot_rolling + pastCommission.slot_rolling,
         slot_losing: realtimeCommission.slot_losing + pastCommission.slot_losing
       };
-      
-      console.log('💰 [총 커미션] 실시간 + 과거:', totalCommission);
       
       setCommissionBalances(totalCommission);
       
@@ -1817,13 +1802,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         slot_losing: '슬롯 루징 커미션'
       }[selectedCommission.type];
 
-      console.log('💰 [커미션 전환] 시작:', {
-        partner_id: user.id,
-        settlement_id: selectedCommission.settlementId,
-        type: selectedCommission.type,
-        amount: selectedCommission.amount
-      });
-
       // ✅ RPC 함수 호출
       const { data, error } = await supabase.rpc('convert_commission_to_balance', {
         p_partner_id: user.id,
@@ -1846,7 +1824,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         throw new Error(errorMessage);
       }
 
-      console.log('✅ [커미션 전환] 성공:', data);
       toast.success(`${commissionTypeText} ${formatCurrency(selectedCommission.amount)}이(가) 보유금으로 전환되었습니다.\n전환된 금액은 즉시 사용 가능합니다.`);
 
       // ✅ 커미션 정보 새로고침

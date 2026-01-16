@@ -193,8 +193,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     const anchorIndex = fullHash.indexOf('#', 1);
     const currentTab = anchorIndex !== -1 ? fullHash.substring(anchorIndex + 1) : 'completed-history';
 
-    console.log('🔄 loadData 호출됨, isInitial:', isInitial, 'periodFilter:', periodFilter, 'activeTab:', activeTab, 'currentTab:', currentTab);
-
     try {
       if (!isInitial) {
         setRefreshing(true);
@@ -231,7 +229,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         );
         partnerIds = [user.id, ...hierarchicalPartners.map((p: any) => p.id)];
         allowedPartnerIdsForQuery = partnerIds;
-        console.log('⚡ [loadData] 파트너 ID 병렬 조회 완료:', { hierarchyDataCount: hierarchyData.length, partnerIdsCount: partnerIds.length });
       }
 
       // ⚡ 2단계: 회원 ID 목록 조회
@@ -571,13 +568,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         t.status === 'pending'
       );
 
-      console.log('📊 통계 계산 (3개 테이블 통합):', {
-        transactions: { deposit: transactionDepositSum, withdrawal: transactionWithdrawalSum },
-        partnerLogs: { deposit: partnerDepositSum, withdrawal: partnerWithdrawalSum },
-        pointTransactions: { deposit: pointDepositSum, withdrawal: pointWithdrawalSum },
-        total: { deposit: totalDepositSum, withdrawal: totalWithdrawalSum },
-        pending: { deposits: pendingDeposits.length, withdrawals: pendingWithdrawals.length }
-      });
+      // 통계 계산 완료
 
       setStats({
         totalDeposit: totalDepositSum,
