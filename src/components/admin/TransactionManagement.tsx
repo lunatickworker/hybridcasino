@@ -148,10 +148,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     return () => window.removeEventListener('hashchange', checkHash);
   }, []);
 
-  // ⚡ 초기 데이터 로드 - 마운트 직후 즉시 (새로고침 버튼처럼)
+  // ⚡ 초기 데이터 로드 - 페이지 렌더링 완료 후 로드 (새로고침 버튼처럼)
   useEffect(() => {
-    // ✅ 첫 번째 렌더링에서만 실행
-    loadData(true, false);
+    // ✅ 페이지 렌더링이 완료된 후 데이터 로드 (requestAnimationFrame 사용)
+    const rafId = requestAnimationFrame(() => {
+      loadData(true, false);
+    });
+    return () => cancelAnimationFrame(rafId);
   }, []); // 의존성 배열 비움 = 마운트 시 한 번만
 
   // ⚡ 탭 전환 시 데이터 로드
