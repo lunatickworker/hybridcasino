@@ -1011,7 +1011,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           ]);
         }
         // ✅ 사용자 입출금 처리
-        else if (transaction.transaction_type === 'deposit' || transaction.transaction_type === 'withdrawal') {
+        else if (transaction.transaction_type === 'user_online_deposit' || transaction.transaction_type === 'user_online_withdrawal') {
           // 1️⃣ 현재 사용자 잔고 확인
           const { data: currentUserData, error: currentUserError } = await supabase
             .from('users')
@@ -1028,9 +1028,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         
         // 2️⃣ 새로운 잔고 계산
         let newBalance = currentBalance;
-        if (transaction.transaction_type === 'deposit') {
+        if (transaction.transaction_type === 'user_online_deposit') {
           newBalance = currentBalance + amount;
-        } else if (transaction.transaction_type === 'withdrawal') {
+        } else if (transaction.transaction_type === 'user_online_withdrawal') {
           newBalance = currentBalance - amount;
           
           // 출금 시 음수 방지
@@ -1117,7 +1117,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         });
 
         // 6️⃣ 입금/출금에 따른 파트너 보유금 계산 및 업데이트
-        if (transaction.transaction_type === 'deposit') {
+        if (transaction.transaction_type === 'user_online_deposit') {
           // 입금: 파트너 보유금 차감
           if (currentPartnerBalance < amount) {
             throw new Error(
@@ -1165,7 +1165,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             created_at: new Date().toISOString()
           });
 
-        } else if (transaction.transaction_type === 'withdrawal') {
+        } else if (transaction.transaction_type === 'user_online_withdrawal') {
           // 출금: 관리자 보유금 증가
           const newPartnerBalance = currentPartnerBalance + amount;
 
@@ -1834,12 +1834,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       const totalWithdrawal = completedTransactions
         .filter(t => 
           t.transaction_type === 'withdrawal' ||                 // 온라인 출금만
-          t.transaction_type === 'admin_withdrawal_send'         // 수동 환전만
+          t.transaction_type === 'partner_manual_withdrawal'         // 수동 환전만
         )
         .reduce((sum, t) => {
           const amount = parseFloat(t.amount.toString());
-          // admin_withdrawal_send는 이미 음수
-          if (t.transaction_type === 'admin_withdrawal_send') {
+          // partner_manual_withdrawal는 이미 음수
+          if (t.transaction_type === 'partner_manual_withdrawal') {
             return sum + amount;
           }
           return sum - amount; // withdrawal은 음수로 변환
@@ -1866,11 +1866,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     const totalWithdrawal = completedTransactions
       .filter(t => 
         t.transaction_type === 'withdrawal' ||                 // 온라인 출금만
-        t.transaction_type === 'admin_withdrawal_send'         // 수동 환전만
+        t.transaction_type === 'partner_manual_withdrawal'         // 수동 환전만
       )
       .reduce((sum, t) => {
         const amount = parseFloat(t.amount.toString());
-        if (t.transaction_type === 'admin_withdrawal_send') {
+        if (t.transaction_type === 'partner_manual_withdrawal') {
           return sum + amount;
         }
         return sum - amount;
@@ -1958,7 +1958,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
         // ✅ 관리자 입금/출금 거래: from_partner_id/to_partner_id 표시
         const isAdminDepositType = row.transaction_type === 'admin_deposit_initial' || row.transaction_type === 'admin_deposit_send';
-        const isAdminWithdrawalType = row.transaction_type === 'admin_withdrawal_initial' || row.transaction_type === 'admin_withdrawal_send';
+        const isAdminWithdrawalType = row.transaction_type === 'partner_manual_withdrawal';
         
         if (isAdminDepositType || isAdminWithdrawalType) {
           // 관리자 입금/출금: 보낸사람 = 담당 파트너
@@ -2007,7 +2007,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
         // ✅ 관리자 입금/출금 거래: 받는 사람 표시
         const isAdminDepositType = row.transaction_type === 'admin_deposit_initial' || row.transaction_type === 'admin_deposit_send';
-        const isAdminWithdrawalType = row.transaction_type === 'admin_withdrawal_initial' || row.transaction_type === 'admin_withdrawal_send';
+        const isAdminWithdrawalType = row.transaction_type === 'partner_manual_withdrawal';
         
         if (isAdminDepositType) {
           // 관리자 입금: 받는사람 = 회원 (user.username)
@@ -2740,7 +2740,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                         partner_online_deposit: '온라인 입금',
                         partner_online_withdrawal: '온라인 출금',
                         admin_deposit_send: '수동 충전',
-                        admin_withdrawal_send: '수동 환전',
+                        partner_manual_withdrawal: '수동 환전',
                         admin_adjustment: '포인트 조정',
                         commission: '수수료',
                         refund: '환급'

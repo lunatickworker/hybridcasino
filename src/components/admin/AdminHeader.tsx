@@ -670,7 +670,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           let adminWithdrawalQuery = supabase
             .from('transactions')
             .select('id', { count: 'exact', head: true })
-            .in('transaction_type', ['admin_withdrawal_initial', 'admin_withdrawal_send', 'admin_withdrawal_receive'])
+            .in('transaction_type', ['partner_manual_withdrawal', 'admin_withdrawal_receive'])
             .eq('status', 'pending')
             .neq('partner_id', user.id); // 본인이 신청한 것은 제외
 
@@ -808,7 +808,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             if (transaction.status === 'pending') {
               // ✅ 관리자 입출금 신청 처리 (6가지 유형)
               const isAdminDeposit = ['admin_deposit_initial', 'admin_deposit_send', 'admin_deposit_receive'].includes(transaction.transaction_type);
-              const isAdminWithdrawal = ['admin_withdrawal_initial', 'admin_withdrawal_send', 'admin_withdrawal_receive'].includes(transaction.transaction_type);
+              const isAdminWithdrawal = ['partner_manual_withdrawal', 'admin_withdrawal_receive'].includes(transaction.transaction_type);
               
               if (isAdminDeposit || isAdminWithdrawal) {
                 // ✅ 신청자 본인에게는 알람 표시 안 함 + 조직격리 적용

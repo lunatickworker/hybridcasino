@@ -428,7 +428,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     // ✅ 수동 입금 = 수동 충전 (admin_deposit_send)
     const manualDeposit = manualDepositTransactions;
     
-    // ✅ 수동 출금 = 수동 환전 (admin_withdrawal_send)
+    // ✅ 수동 출금 = 수동 환전 (partner_manual_withdrawal)
     const manualWithdrawal = manualWithdrawalTransactions;
     const userPointTrans = pointTransactions.filter(pt => relevantUserIdsForTransactions.includes(pt.user_id));
     const pointGiven = userPointTrans.filter(pt => pt.type === 'commission_earned').reduce((sum, pt) => sum + (pt.amount || 0), 0);

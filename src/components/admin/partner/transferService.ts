@@ -6,8 +6,8 @@ import { Partner, TransferMode, TransferBalanceParams } from "./types";
  * - admin_deposit_initial: Lv1(운영사) → Lv2(본사) 입금
  * - admin_deposit_send: 상위 Lv에서 하위 Lv로의 입금 (환전)
  * - admin_deposit_receive: 하위 Lv에서 상위 Lv로의 입금 (충전)
- * - admin_withdrawal_initial: Lv2(본사) → Lv1(운영사) 출금
- * - admin_withdrawal_send: 상위 Lv에서 하위 Lv로의 출금 (환전)
+ * - partner_manual_withdrawal: Lv2(본사) → Lv1(운영사) 출금
+ * - partner_manual_withdrawal: 상위 Lv에서 하위 Lv로의 출금 (환전)
  * - admin_withdrawal_receive: 하위 Lv에서 상위 Lv로의 출금 (충전)
  */
 const getTransactionType = (
@@ -27,9 +27,9 @@ const getTransactionType = (
   } else {
     // 출금: 수신자로부터 송신자가 돈을 회수
     if (senderLevel === 2 && receiverLevel === 1) {
-      return 'admin_withdrawal_initial'; // 본사 → 운영사
+      return 'partner_manual_withdrawal'; // 본사 → 운영사
     } else if (senderLevel < receiverLevel) {
-      return 'admin_withdrawal_send'; // 상위 → 하위: 환전
+      return 'partner_manual_withdrawal'; // 상위 → 하위: 환전
     } else if (senderLevel > receiverLevel) {
       return 'admin_withdrawal_receive'; // 하위 → 상위: 충전
     }

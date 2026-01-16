@@ -156,7 +156,7 @@ export default function UserSettlement({ user }: UserSettlementProps) {
           .reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
 
         const adminWithdrawal = transactions
-          ?.filter(t => (t.transaction_type === 'admin_withdrawal_initial' || t.transaction_type === 'admin_withdrawal_send') && t.status === 'approved')
+          ?.filter(t => t.transaction_type === 'partner_manual_withdrawal' && t.status === 'approved')
           .reduce((sum, t) => sum + (t.amount || 0), 0) || 0;
 
         // 포인트 데이터
