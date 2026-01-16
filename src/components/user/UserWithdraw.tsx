@@ -84,7 +84,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'withdrawal')
+        .eq('transaction_type', 'user_online_withdrawal')
         .in('status', ['pending', 'approved'])
         .limit(1);
 
@@ -113,7 +113,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'withdrawal')
+        .eq('transaction_type', 'user_online_withdrawal')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -189,7 +189,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
       const withdrawData = {
         user_id: user.id,
         partner_id: user.referrer_id || null,
-        transaction_type: 'withdrawal',
+        transaction_type: 'user_online_withdrawal',
         amount: withdrawAmount,
         status: 'pending',
         balance_before: currentBalance,
@@ -359,7 +359,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
           const newTransaction = payload.new as any;
           
-          if (newTransaction.transaction_type === 'withdrawal') {
+          if (newTransaction.transaction_type === 'user_online_withdrawal') {
             fetchWithdrawHistory();
             checkWithdrawStatus();
             

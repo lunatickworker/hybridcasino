@@ -407,23 +407,23 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
 
     // ✅ 4️⃣ 온라인 입금 (Guidelines.md 기준)
     // 데이터 소스: transactions 테이블
-    // 조건: transaction_type = 'deposit' AND status = 'completed'
-    const onlineDeposit = userTransactions.filter(t => t.transaction_type === 'deposit' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
+    // 조건: transaction_type IN ('user_online_deposit', 'partner_online_deposit') AND status = 'completed'
+    const onlineDeposit = userTransactions.filter(t => (t.transaction_type === 'user_online_deposit' || t.transaction_type === 'partner_online_deposit') && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
     
     // ✅ 온라인 출금 (Guidelines.md 기준)
     // 데이터 소스: transactions 테이블
-    // 조건: transaction_type = 'withdrawal' AND status = 'completed'
-    const onlineWithdrawal = userTransactions.filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+    // 조건: transaction_type IN ('user_online_withdrawal', 'partner_online_withdrawal') AND status = 'completed'
+    const onlineWithdrawal = userTransactions.filter(t => (t.transaction_type === 'user_online_withdrawal' || t.transaction_type === 'partner_online_withdrawal') && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
     
     // ✅ 5️⃣ 수동 충전 (Guidelines.md 기준)
     // 데이터 소스: transactions 테이블
-    // 조건: transaction_type = 'admin_deposit_send' AND status = 'completed'
-    const manualDepositTransactions = userTransactions.filter(t => t.transaction_type === 'admin_deposit_send' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
+    // 조건: transaction_type = 'partner_manual_deposit' AND status = 'completed'
+    const manualDepositTransactions = userTransactions.filter(t => t.transaction_type === 'partner_manual_deposit' && t.status === 'completed').reduce((sum, t) => sum + (t.amount || 0), 0);
     
     // ✅ 수동 환전 (Guidelines.md 기준)
     // 데이터 소스: transactions 테이블
-    // 조건: transaction_type = 'admin_withdrawal_send' AND status = 'completed'
-    const manualWithdrawalTransactions = userTransactions.filter(t => t.transaction_type === 'admin_withdrawal_send' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+    // 조건: transaction_type = 'partner_manual_withdrawal' AND status = 'completed'
+    const manualWithdrawalTransactions = userTransactions.filter(t => t.transaction_type === 'partner_manual_withdrawal' && t.status === 'completed').reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
     
     // ✅ 수동 입금 = 수동 충전 (admin_deposit_send)
     const manualDeposit = manualDepositTransactions;

@@ -58,7 +58,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'withdrawal')
+        .eq('transaction_type', 'user_online_withdrawal')
         .in('status', ['pending', 'approved'])
         .limit(1);
 
@@ -106,7 +106,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'withdrawal')
+        .eq('transaction_type', 'user_online_withdrawal')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -243,7 +243,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
       const withdrawData = {
         user_id: user.id,
         partner_id: user.referrer_id || null,
-        transaction_type: 'withdrawal',
+        transaction_type: 'user_online_withdrawal',
         amount: amount,
         status: 'pending',
         balance_before: balance,
@@ -402,7 +402,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
         const newTx = payload.new as any;
         
         // 출금 거래만 처리
-        if (newTx.transaction_type === 'withdrawal') {
+        if (newTx.transaction_type === 'user_online_withdrawal') {
           // 거래 목록 새로고침
           loadWithdrawRecords();
           checkWithdrawStatus();

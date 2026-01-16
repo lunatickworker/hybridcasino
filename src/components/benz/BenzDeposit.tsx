@@ -96,7 +96,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'deposit')
+        .eq('transaction_type', 'user_online_deposit')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -134,7 +134,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'deposit')
+        .eq('transaction_type', 'user_online_deposit')
         .in('status', ['pending', 'approved'])
         .limit(1);
 
@@ -211,7 +211,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
       const depositData = {
         user_id: user.id,
         partner_id: user.referrer_id || null,
-        transaction_type: 'deposit',
+        transaction_type: 'user_online_deposit',
         amount: amount,
         status: 'pending',
         balance_before: currentBalance,

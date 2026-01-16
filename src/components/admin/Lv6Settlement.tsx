@@ -482,23 +482,23 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     const relevantPartnerIdsForTransactions: string[] = level === 6 ? [entityId] : [];
     const partnerTransactionsFromTable = transactions.filter(t => (t.transaction_type === 'partner_online_deposit' || t.transaction_type === 'partner_online_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
 
-    // ✅ 온라인 입출금: 사용자 직접 입금/출금 + 파트너 온라인 입출금 (deposit/partner_online_deposit)
+    // ✅ 온라인 입출금: 사용자 직접 입금/출금 + 파트너 온라인 입출금 (user_online_deposit/partner_online_deposit)
     const onlineDeposit = userTransactions
-      .filter(t => (t.transaction_type === 'deposit' || t.transaction_type === 'partner_online_deposit') && t.status === 'completed')
+      .filter(t => (t.transaction_type === 'user_online_deposit' || t.transaction_type === 'partner_online_deposit') && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const onlineWithdrawal = userTransactions
-      .filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_online_withdrawal') && t.status === 'completed')
+      .filter(t => (t.transaction_type === 'user_online_withdrawal' || t.transaction_type === 'partner_online_withdrawal') && t.status === 'completed')
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ 3️⃣ 수동 충전 (Guidelines.md Phase 2: admin_deposit_send)
+    // ✅ 3️⃣ 수동 충전 (Guidelines.md Phase 2: partner_manual_deposit)
     const manualCharge = userTransactions
-      .filter(t => t.transaction_type === 'admin_deposit_send' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_manual_deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    // ✅ 4️⃣ 수동 환전 (Guidelines.md Phase 2: admin_withdrawal_send)
+    // ✅ 4️⃣ 수동 환전 (Guidelines.md Phase 2: partner_manual_withdrawal)
     const manualExchange = userTransactions
-      .filter(t => t.transaction_type === 'admin_withdrawal_send' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_manual_withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
     // ✅ 5️⃣ 파트너 충전 (Guidelines.md: partner_balance_logs - deposit 만)

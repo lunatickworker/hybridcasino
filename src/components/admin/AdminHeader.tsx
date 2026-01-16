@@ -545,11 +545,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           return;
         }
 
-        // 1️⃣ 입금 합계 (사용자 deposit + 관리자 partner_deposit) - 소속 사용자만
+        // 1️⃣ 입금 합계 (사용자 user_online_deposit + 관리자 partner_online_deposit) - 소속 사용자만
         const { data: depositData, error: depositError } = await supabase
           .from('transactions')
           .select('amount')
-          .in('transaction_type', ['deposit', 'partner_online_deposit'])
+          .in('transaction_type', ['user_online_deposit', 'partner_online_deposit'])
           .eq('status', 'completed')
           .gte('created_at', todayStartISO)
           .in('user_id', allowedUserIds);
@@ -560,11 +560,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
         const dailyDeposit = depositData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
 
-        // 2️⃣ 출금 합계 (사용자 withdrawal + 관리자 partner_online_withdrawal) - 소속 사용자만
+        // 2️⃣ 출금 합계 (사용자 user_online_withdrawal + 관리자 partner_online_withdrawal) - 소속 사용자만
         const { data: withdrawalData, error: withdrawalError } = await supabase
           .from('transactions')
           .select('amount')
-          .in('transaction_type', ['withdrawal', 'partner_online_withdrawal'])
+          .in('transaction_type', ['user_online_withdrawal', 'partner_online_withdrawal'])
           .eq('status', 'completed')
           .gte('created_at', todayStartISO)
           .in('user_id', allowedUserIds);
@@ -613,7 +613,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           const { count: userDepositCount, error: userDepositError } = await supabase
             .from('transactions')
             .select('id', { count: 'exact', head: true })
-            .eq('transaction_type', 'deposit')
+            .eq('transaction_type', 'user_online_deposit')
             .eq('status', 'pending')
             .in('user_id', allowedUserIds);
 
@@ -621,11 +621,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             console.error('❌ 사용자 입금 대기 수 조회 실패:', userDepositError);
           }
 
-          // 관리자 입금 신청도 조직격리 적용 (3가지 유형: initial, send, receive)
+          // 관리자 입금 신청도 조직격리 적용
           let adminDepositQuery = supabase
             .from('transactions')
             .select('id', { count: 'exact', head: true })
-            .in('transaction_type', ['admin_deposit_initial', 'admin_deposit_send', 'admin_deposit_receive'])
+            .in('transaction_type', ['partner_manual_deposit'])
             .eq('status', 'pending')
             .neq('partner_id', user.id); // 본인이 신청한 것은 제외
 

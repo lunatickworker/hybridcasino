@@ -236,7 +236,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         // Lv2+의 경우: 자신이 처리한 거래 OR 자신의 하부 조직의 pending 요청
         const conditions = [
           `processed_by.eq.${user.id}`, // 자신이 처리한 거래
-          `and(status.eq.pending,transaction_type.in.(deposit,withdrawal),user_id.in.(${targetUserIds.join(',')}))`, // 하부 조직 회원들의 deposit/withdrawal
+          `and(status.eq.pending,transaction_type.in.(user_online_deposit,user_online_withdrawal),user_id.in.(${targetUserIds.join(',')}))`, // 하부 조직 회원들의 user_online_deposit/user_online_withdrawal
           `and(status.eq.pending,transaction_type.in.(partner_online_deposit,partner_online_withdrawal),partner_id.in.(${allowedPartnerIdsForQuery.join(',')}))` // 하부 조직 파트너들의 partner_online_deposit/partner_online_withdrawal
         ];
         transactionQuery = transactionQuery.or(conditions.join(','));
@@ -269,7 +269,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   let partnerTransactionQuery = supabase
     .from('partner_balance_logs')
     .select('*')
-    .in('transaction_type', ['deposit', 'withdrawal', 'partner_online_deposit', 'partner_online_withdrawal'])
+    .in('transaction_type', ['user_online_deposit', 'user_online_withdrawal', 'partner_manual_deposit', 'partner_manual_withdrawal', 'partner_online_deposit', 'partner_online_withdrawal'])
     .gte('created_at', dateRange.start)
     .lte('created_at', dateRange.end)
     .order('created_at', { ascending: false });
@@ -442,7 +442,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           const inDateRange = createdAt >= dateRangeStart && createdAt <= dateRangeEnd;
           // completed-history 탭의 필터와 동일하게
           if (type === 'deposit') return inDateRange;
-          if (type === 'admin_deposit_send') return inDateRange;
+          if (type === 'partner_manual_deposit') return inDateRange;
           if (type === 'partner_online_deposit') return inDateRange;
           if (type === 'admin_adjustment' && parseFloat(t.amount.toString()) > 0) return inDateRange; // 양수만 입금
           return false;
@@ -458,7 +458,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           const inDateRange = createdAt >= dateRangeStart && createdAt <= dateRangeEnd;
           // completed-history 탭의 필터와 동일하게
           if (type === 'withdrawal') return inDateRange;
-          if (type === 'admin_withdrawal_send') return inDateRange;
+          if (type === 'partner_manual_withdrawal') return inDateRange;
           if (type === 'partner_online_withdrawal') return inDateRange;
           if (type === 'admin_adjustment' && parseFloat(t.amount.toString()) < 0) return inDateRange; // 음수만 출금
           return false;
@@ -470,7 +470,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         .filter(t => {
           if (!t.created_at) return false;
           const createdAt = new Date(t.created_at);
-          return t.transaction_type === 'deposit' && 
+          return t.transaction_type === 'user_online_deposit' && 
                  createdAt >= dateRangeStart && 
                  createdAt <= dateRangeEnd;
         })
@@ -480,7 +480,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         .filter(t => {
           if (!t.created_at) return false;
           const createdAt = new Date(t.created_at);
-          return t.transaction_type === 'withdrawal' && 
+          return t.transaction_type === 'user_online_withdrawal' && 
                  createdAt >= dateRangeStart && 
                  createdAt <= dateRangeEnd;
         })
@@ -521,13 +521,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       
       // 대기 중인 입금 신청 (사용자 + 관리자)
       const pendingDeposits = transactionsData.filter(t => 
-        (t.transaction_type === 'deposit' || t.transaction_type === 'partner_online_deposit') && 
+        (t.transaction_type === 'user_online_deposit' || t.transaction_type === 'partner_online_deposit') && 
         t.status === 'pending'
       );
       
       // 대기 중인 출금 신청 (사용자 + 관리자)
       const pendingWithdrawals = transactionsData.filter(t => 
-        (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_online_withdrawal') && 
+        (t.transaction_type === 'user_online_withdrawal' || t.transaction_type === 'partner_online_withdrawal') && 
         t.status === 'pending'
       );
 
@@ -754,7 +754,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         }
         
         // 입금 승인: 로그인한 관리자의 보유금 확인 (✅ 상위 권한자 입출금 가능)
-        if (transaction.transaction_type === 'deposit') {
+        if (transaction.transaction_type === 'user_online_deposit' || transaction.transaction_type === 'partner_manual_deposit') {
           // 로그인한 관리자의 보유금 조회
           const { data: adminPartnerData, error: adminPartnerError } = await supabase
             .from('partners')
@@ -805,7 +805,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         }
         
         // 출금 승인: 회원 보유금 확인
-        if (transaction.transaction_type === 'withdrawal') {
+        if (transaction.transaction_type === 'user_online_withdrawal' || transaction.transaction_type === 'partner_manual_withdrawal') {
           const { data: userData, error: userError } = await supabase
             .from('users')
             .select('balance, nickname')
@@ -835,9 +835,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       // ✅ from_partner_id, to_partner_id 계산
       const getFromToPartnerIds = () => {
-        if (transaction.transaction_type === 'deposit') {
+        if (transaction.transaction_type === 'user_online_deposit' || transaction.transaction_type === 'partner_manual_deposit') {
           return { from_partner_id: user.id, to_partner_id: transaction.user_id };
-        } else if (transaction.transaction_type === 'withdrawal') {
+        } else if (transaction.transaction_type === 'user_online_withdrawal' || transaction.transaction_type === 'partner_manual_withdrawal') {
           return { from_partner_id: transaction.user_id, to_partner_id: user.id };
         } else if (transaction.transaction_type === 'partner_online_deposit') {
           return { from_partner_id: user.id, to_partner_id: (transaction as any).partner_id };
