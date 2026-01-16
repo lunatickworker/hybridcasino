@@ -1001,7 +1001,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       )
       .subscribe();
 
-    // ✅ Realtime 구독 5: notifications 변경 시 알림 개수 업데이트
+    // ✅ Realtime 구독 5: realtime_notifications 변경 시 알림 개수 업데이트
     const notificationsChannel = supabase
       .channel('header_notifications')
       .on(
@@ -1009,7 +1009,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         {
           event: '*',
           schema: 'public',
-          table: 'notifications' // ⭐ notifications 테이블 사용
+          table: 'realtime_notifications', // ⭐ realtime_notifications 테이블 사용
+          filter: `recipient_type=eq.partner`
         },
         (payload) => {
           console.log('🔔 [헤더 알림] notifications 변경 감지:', {

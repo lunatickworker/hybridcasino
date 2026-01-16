@@ -49,7 +49,7 @@ export async function createAdminNotification(data: NotificationData) {
 export async function getUnreadNotificationCount(partnerId?: string) {
   try {
     let query = supabase
-      .from('notifications')
+      .from('realtime_notifications')
       .select('*', { count: 'exact', head: true })
       .eq('recipient_type', 'partner')
       .eq('is_read', false);
@@ -79,7 +79,7 @@ export async function getUnreadNotificationCount(partnerId?: string) {
 export async function markNotificationAsRead(notificationId: string) {
   try {
     const { error } = await supabase
-      .from('notifications')
+      .from('realtime_notifications')
       .update({ 
         is_read: true,
         read_at: new Date().toISOString()
