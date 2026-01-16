@@ -658,7 +658,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           const { count: userWithdrawalCount, error: userWithdrawalError } = await supabase
             .from('transactions')
             .select('id', { count: 'exact', head: true })
-            .eq('transaction_type', 'withdrawal')
+            .eq('transaction_type', 'user_online_withdrawal')
             .eq('status', 'pending')
             .in('user_id', allowedUserIds);
 
