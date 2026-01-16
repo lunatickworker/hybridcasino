@@ -2264,6 +2264,27 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         // 금액 포맷팅 (원화 표시 없이 숫자만)
         const formatNumberOnly = (num: number) => new Intl.NumberFormat('ko-KR').format(num);
         
+        // ✅ partner_online_deposit/partner_online_withdrawal: 입출금 신청이므로 분리
+        if (row.transaction_type === 'partner_online_deposit' || row.transaction_type === 'partner_online_withdrawal') {
+          if (row.status === 'pending') {
+            const balanceBefore = parseFloat(row.balance_before?.toString() || '0');
+            const amount = parseFloat(row.amount?.toString() || '0');
+            const isWithdrawal = row.transaction_type === 'partner_online_withdrawal';
+            const afterBalance = isWithdrawal ? balanceBefore - amount : balanceBefore + amount;
+            return (
+              <span className="font-asiahead text-cyan-400" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
+                {formatNumberOnly(afterBalance)}
+              </span>
+            );
+          }
+          // completed/rejected
+          return (
+            <span className="font-asiahead text-cyan-400" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
+              {formatNumberOnly(parseFloat(row.balance_after?.toString() || '0'))}
+            </span>
+          );
+        }
+        
         // 파트너 거래인 경우: balance_after (거래 후 잔액)
         if (row.is_partner_transaction) {
           const balanceValue = parseFloat(row.balance_after?.toString() || '0');
@@ -2287,7 +2308,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (row.status === 'pending') {
           const balanceBefore = parseFloat(row.balance_before?.toString() || '0');
           const amount = parseFloat(row.amount?.toString() || '0');
-          const isWithdrawal = row.transaction_type === 'withdrawal' || row.transaction_type === 'partner_online_withdrawal';
+          const isWithdrawal = row.transaction_type === 'withdrawal' || row.transaction_type === 'user_online_withdrawal';
           const afterBalance = isWithdrawal ? balanceBefore - amount : balanceBefore + amount;
           return (
             <span className="font-asiahead text-cyan-400" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
