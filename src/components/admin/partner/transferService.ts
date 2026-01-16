@@ -354,44 +354,48 @@ export const transferBalanceToPartner = async ({
 
   console.log('✅ [파트너 보유금 입출금] 완료');
 
-  // ✅ 전체입출금내역에 기록하기 위해 transactions 테이블에도 저장
-  const transactionRecord = {
-    id: crypto.randomUUID(),
-    user_id: null, // 파트너 간 거래이므로 회원 ID는 없음
-    partner_id: isSystemAdmin ? null : currentUserId, // 송신자 파트너 ID
-    transaction_type: senderTransactionType,
-    amount: transferMode === 'deposit' ? amount : -amount,
-    status: 'completed',
-    balance_before: transferMode === 'deposit' 
-      ? (currentPartnerData.level === 2 ? (currentPartnerData.oroplay_balance || 0) : currentPartnerData.balance)
-      : transferTargetPartner.balance,
-    balance_after: transferMode === 'deposit'
-      ? (currentPartnerData.level === 2 
-        ? ((currentPartnerData.oroplay_balance || 0) - amount)
-        : (currentPartnerData.balance - amount))
-      : (transferTargetPartner.balance - amount),
-    processed_by: currentUserId,
-    processed_at: new Date().toISOString(),
-    from_partner_id: transferMode === 'deposit' ? currentUserId : transferTargetPartner.id,
-    to_partner_id: transferMode === 'deposit' ? transferTargetPartner.id : currentUserId,
-    memo: transferMemo || `[파트너 ${transferMode === 'deposit' ? '입금' : '출금'}] ${currentPartnerData.nickname} → ${transferTargetPartner.nickname}`,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
+  // ✅ 전체입출금내역에 기록: Lv2(운영사) 거래는 기록 안 함
+  if (currentPartnerData.level !== 2) {
+    const transactionRecord = {
+      id: crypto.randomUUID(),
+      user_id: null, // 파트너 간 거래이므로 회원 ID는 없음
+      partner_id: isSystemAdmin ? null : currentUserId, // 송신자 파트너 ID
+      transaction_type: senderTransactionType,
+      amount: transferMode === 'deposit' ? amount : -amount,
+      status: 'completed',
+      balance_before: transferMode === 'deposit' 
+        ? (currentPartnerData.level === 2 ? (currentPartnerData.oroplay_balance || 0) : currentPartnerData.balance)
+        : transferTargetPartner.balance,
+      balance_after: transferMode === 'deposit'
+        ? (currentPartnerData.level === 2 
+          ? ((currentPartnerData.oroplay_balance || 0) - amount)
+          : (currentPartnerData.balance - amount))
+        : (transferTargetPartner.balance - amount),
+      processed_by: currentUserId,
+      processed_at: new Date().toISOString(),
+      from_partner_id: transferMode === 'deposit' ? currentUserId : transferTargetPartner.id,
+      to_partner_id: transferMode === 'deposit' ? transferTargetPartner.id : currentUserId,
+      memo: transferMemo || `[파트너 ${transferMode === 'deposit' ? '입금' : '출금'}] ${currentPartnerData.nickname} → ${transferTargetPartner.nickname}`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
 
-  const { error: transactionError } = await supabase
-    .from('transactions')
-    .insert(transactionRecord);
+    const { error: transactionError } = await supabase
+      .from('transactions')
+      .insert(transactionRecord);
 
-  if (transactionError) {
-    console.error('❌ [전체입출금내역 저장 실패]:', transactionError);
-    throw transactionError;
+    if (transactionError) {
+      console.error('❌ [전체입출금내역 저장 실패]:', transactionError);
+      throw transactionError;
+    }
+
+    console.log('✅ [전체입출금내역] transactions 테이블 저장 완료:', {
+      transaction_type: senderTransactionType,
+      from: currentPartnerData.nickname,
+      to: transferTargetPartner.nickname,
+      amount: transferMode === 'deposit' ? amount : -amount
+    });
+  } else {
+    console.log('ℹ️ [전체입출금내역] Lv2(운영사) 거래는 기록하지 않음');
   }
-
-  console.log('✅ [전체입출금내역] transactions 테이블 저장 완료:', {
-    transaction_type: senderTransactionType,
-    from: currentPartnerData.nickname,
-    to: transferTargetPartner.nickname,
-    amount: transferMode === 'deposit' ? amount : -amount
-  });
 };
