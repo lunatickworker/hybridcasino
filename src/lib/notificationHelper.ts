@@ -27,7 +27,7 @@ export async function createAdminNotification(data: NotificationData) {
           user_login_id: data.user_login_id,
           log_message: data.log_message || data.message,
         }),
-        is_read: false,
+        status: 'pending',
       });
 
     if (error) {
@@ -52,7 +52,7 @@ export async function getUnreadNotificationCount(partnerId?: string) {
       .from('realtime_notifications')
       .select('*', { count: 'exact', head: true })
       .eq('recipient_type', 'partner')
-      .eq('is_read', false);
+      .eq('status', 'pending');
 
     // partnerId가 제공되면 해당 파트너의 알림만 조회
     if (partnerId) {
@@ -81,7 +81,7 @@ export async function markNotificationAsRead(notificationId: string) {
     const { error } = await supabase
       .from('realtime_notifications')
       .update({ 
-        is_read: true,
+        status: 'read',
         read_at: new Date().toISOString()
       })
       .eq('id', notificationId);
@@ -106,11 +106,11 @@ export async function markAllNotificationsAsRead(partnerId?: string) {
     let query = supabase
       .from('realtime_notifications')
       .update({ 
-        is_read: true,
+        status: 'read',
         read_at: new Date().toISOString()
       })
       .eq('recipient_type', 'partner')
-      .eq('is_read', false);
+      .eq('status', 'pending');
 
     // partnerId가 제공되면 해당 파트너의 알림만 업데이트
     if (partnerId) {

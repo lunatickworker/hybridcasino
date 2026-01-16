@@ -1023,7 +1023,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           if (payload.eventType === 'INSERT') {
             const newNotification = payload.new as any;
             // 내가 받을 알림인지 확인
-            if (newNotification.recipient_id === user.id && newNotification.is_read === false) {
+            if (newNotification.recipient_id === user.id && newNotification.status === 'pending') {
               console.log('🔔 [알림 증가] 새 알림:', newNotification.id);
               loadNotificationCount(); // 알림 개수 즉시 업데이트
             }
@@ -1035,15 +1035,15 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             const newNotification = payload.new as any;
             
             console.log('🔔 [알림 업데이트 상세]:', {
-              old_is_read: oldNotification?.is_read,
-              new_is_read: newNotification?.is_read,
+              old_status: oldNotification?.status,
+              new_status: newNotification?.status,
               recipient_id: newNotification?.recipient_id,
               current_user_id: user.id,
               is_mine: newNotification?.recipient_id === user.id
             });
             
-            // is_read: false -> true 상태 변경 감지
-            if (oldNotification?.is_read === false && newNotification?.is_read === true && newNotification?.recipient_id === user.id) {
+            // status: pending -> read 상태 변경 감지
+            if (oldNotification?.status === 'pending' && newNotification?.status === 'read' && newNotification?.recipient_id === user.id) {
               console.log('✅ [알림 감소] 읽음 처리:', newNotification.id);
               loadNotificationCount(); // 알림 개수 즉시 업데이트
             }
@@ -1052,7 +1052,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           // DELETE: 알림 삭제
           else if (payload.eventType === 'DELETE') {
             const deletedNotification = payload.old as any;
-            if (deletedNotification?.recipient_id === user.id && deletedNotification?.is_read === false) {
+            if (deletedNotification?.recipient_id === user.id && deletedNotification?.status === 'pending') {
               console.log('🔔 [알림 감소] 알림 삭제:', deletedNotification.id);
               loadNotificationCount(); // 알림 개수 즉시 업데이트
             }
