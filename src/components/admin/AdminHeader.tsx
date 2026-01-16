@@ -1257,6 +1257,12 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   // 관리자 입금/출금 신청
   // =====================================================
   const handleDepositRequest = async () => {
+    // Lv2 (운영사)는 입출금 신청 불가
+    if (user.level === 2) {
+      toast.error('운영사는 입금 신청을 할 수 없습니다.');
+      return;
+    }
+
     if (!requestAmount || parseFloat(requestAmount.replace(/,/g, '')) <= 0) {
       toast.error('입금 금액을 입력해주세요.');
       return;
@@ -1326,6 +1332,12 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   };
 
   const handleWithdrawalRequest = async () => {
+    // Lv2 (운영사)는 입출금 신청 불가
+    if (user.level === 2) {
+      toast.error('운영사는 출금 신청을 할 수 없습니다.');
+      return;
+    }
+
     if (!requestAmount || parseFloat(requestAmount.replace(/,/g, '')) <= 0) {
       toast.error('출금 금액을 입력해주세요.');
       return;
