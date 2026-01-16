@@ -560,11 +560,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
         const dailyDeposit = depositData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
 
-        // 2️⃣ 출금 합계 (사용자 withdrawal + 관리자 partner_withdrawal) - 소속 사용자만
+        // 2️⃣ 출금 합계 (사용자 withdrawal + 관리자 partner_online_withdrawal) - 소속 사용자만
         const { data: withdrawalData, error: withdrawalError } = await supabase
           .from('transactions')
           .select('amount')
-          .in('transaction_type', ['withdrawal', 'partner_withdrawal'])
+          .in('transaction_type', ['withdrawal', 'partner_online_withdrawal'])
           .eq('status', 'completed')
           .gte('created_at', todayStartISO)
           .in('user_id', allowedUserIds);
@@ -1376,7 +1376,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         .from('transactions')
         .insert({
           partner_id: user.id, // 관리자 입출금은 partner_id 사용
-          transaction_type: 'partner_withdrawal',
+          transaction_type: 'partner_online_withdrawal',
           amount: amount,
           status: 'pending',
           balance_before: balance,
