@@ -2708,6 +2708,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   <span className="text-white text-lg">
                     {(() => {
                       const tx = actionDialog.transaction;
+                      console.log('🔍 Modal Transaction Data:', tx); // ✅ 디버그 로그
                       
                       // partner_online_deposit / partner_online_withdrawal 먼저 처리 (is_partner_transaction 무관)
                       if (tx.transaction_type === 'partner_online_deposit' || tx.transaction_type === 'partner_online_withdrawal') {
