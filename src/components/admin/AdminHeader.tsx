@@ -731,6 +731,15 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     
     // 초기 로드
     fetchHeaderStats();
+
+    // 폴링 폴백: Realtime 이벤트가 누락되는 경우에 대비해 30초마다 통계를 재요청합니다.
+    const _headerPollInterval = setInterval(() => {
+      try {
+        fetchHeaderStats();
+      } catch (e) {
+        console.error('Header poll error:', e);
+      }
+    }, 30000);
     
     // ⏰ 자정 리셋 타이머 설정 (시스템 타임존 기준)
     const setupMidnightReset = () => {
@@ -1086,6 +1095,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     return () => {
       console.log('🔕 헤더 Realtime 구독 해제');
       clearTimeout(midnightTimer);
+      try { clearInterval(_headerPollInterval); } catch (e) {}
       supabase.removeChannel(transactionChannel);
       supabase.removeChannel(usersChannel);
       supabase.removeChannel(messagesChannel);
