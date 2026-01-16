@@ -166,16 +166,20 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []); // ✅ 마운트 시만 실행
 
-  // ⚡ 초기 데이터 로드 - 마운트 완료 후 정확히 한 번만
+  // ⚡ 초기 데이터 로드 - allowedPartnerIds가 로드된 후 정확히 한 번만
   useEffect(() => {
-    // ✅ 모든 초기화가 완료된 후에만 데이터 로드
+    // ✅ Lv1은 즉시 로드, Lv2+는 allowedPartnerIds 로드 후
+    if (user.level > 1 && allowedPartnerIds.length === 0) {
+      return; // Lv2+가 allowedPartnerIds를 아직 로드하지 못함
+    }
+
     if (!isMountedRef.current) {
-      return;
+      return; // 첫 번째 실행 (allowedPartnerIds 로드 중)
     }
 
     console.log('🚀 [TransactionManagement] 마운트 완료, 초기 데이터 로드 시작');
     loadData(true, false);
-  }, []);
+  }, [allowedPartnerIds, user.level]);
 
   // ⚡ 데이터 로드 - 실제 탭 전환 시만 (초기 로드는 위 useEffect에서 수행)
   useEffect(() => {
