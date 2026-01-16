@@ -588,13 +588,13 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     // ✅ 관리자 입출금: 파트너 요청 + 파트너 강제입출금 (입출금관리 페이지의 관리자입금/관리자출금 필터 로직 그대로 사용)
-    // 1️⃣ transactions 테이블에서 파트너 요청 집계 (partner_deposit, partner_withdrawal)
+    // 1️⃣ transactions 테이블에서 파트너 요청 집계 (partner_online_deposit, partner_online_withdrawal)
     const adminDepositFromTransactions = partnerTransactions
-      .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_online_deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const adminWithdrawalFromTransactions = partnerTransactions
-      .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_online_withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     // 2️⃣ partner_balance_logs 테이블에서 파트너 강제입출금 집계 (deposit, withdrawal)
@@ -618,19 +618,19 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     const adminDeposit = adminDepositFromTransactions + adminDepositFromLogs;
     const adminWithdrawal = adminWithdrawalFromTransactions + adminWithdrawalFromLogs;
     
-    // 4️⃣ 관리자신청금/출금 (transactions의 partner_deposit/partner_withdrawal)
+    // 4️⃣ 관리자신청금/출금 (transactions의 partner_online_deposit/partner_online_withdrawal)
     // 입출금관리 페이지의 "관리자입금신청/관리자출금신청"과 동일하게 transactions에서 집계
     const partnerRequestDeposit = partnerTransactions
-      .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_online_deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const partnerRequestWithdrawal = partnerTransactions
-      .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_online_withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
     
     // ✅ 관리자 입금 상세 로그 (transactions 테이블 포함)
     const adminDepositFromTransactionsDetails = partnerTransactions
-      .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_online_deposit' && t.status === 'completed')
       .map(t => ({
         source: 'transactions',
         id: t.id,

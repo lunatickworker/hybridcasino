@@ -459,7 +459,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           // completed-history 탭의 필터와 동일하게
           if (type === 'withdrawal') return inDateRange;
           if (type === 'admin_withdrawal_send') return inDateRange;
-          if (type === 'partner_withdrawal') return inDateRange;
+          if (type === 'partner_online_withdrawal') return inDateRange;
           if (type === 'admin_adjustment' && parseFloat(t.amount.toString()) < 0) return inDateRange; // 음수만 출금
           return false;
         })
@@ -527,7 +527,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       
       // 대기 중인 출금 신청 (사용자 + 관리자)
       const pendingWithdrawals = transactionsData.filter(t => 
-        (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal') && 
+        (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_online_withdrawal') && 
         t.status === 'pending'
       );
 
@@ -735,7 +735,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           }
           
           // 출금 신청 승인: 신청자 보유금 확인
-          if (transaction.transaction_type === 'partner_withdrawal') {
+          if (transaction.transaction_type === 'partner_online_withdrawal') {
             const requestPartnerBalance = parseFloat(requestPartnerData.balance?.toString() || '0');
 
             if (requestPartnerBalance < amount) {
@@ -841,7 +841,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           return { from_partner_id: transaction.user_id, to_partner_id: user.id };
         } else if (transaction.transaction_type === 'partner_online_deposit') {
           return { from_partner_id: user.id, to_partner_id: (transaction as any).partner_id };
-        } else if (transaction.transaction_type === 'partner_withdrawal') {
+        } else if (transaction.transaction_type === 'partner_online_withdrawal') {
           return { from_partner_id: (transaction as any).partner_id, to_partner_id: user.id };
         }
         return { from_partner_id: null, to_partner_id: null };
@@ -1599,12 +1599,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
   // ✅ 통계 계산용: 검색 필터 없이 모든 pending 요청
   const allDepositRequests = transactions.filter(t => 
-    (t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit') && 
+    (t.transaction_type === 'deposit' || t.transaction_type === 'partner_online_deposit') && 
     t.status === 'pending'
   );
 
   const allWithdrawalRequests = transactions.filter(t => 
-    (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal') && 
+    (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_online_withdrawal') && 
     t.status === 'pending'
   );
 
@@ -2058,8 +2058,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           // 레거시 타입 (호환성)
           admin_deposit_initial: { text: '수동 충전', color: 'bg-blue-600' },
           admin_withdrawal_initial: { text: '수동 환전', color: 'bg-red-600' },
-          partner_deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
-          partner_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' },
           // 파트너 온라인 입출금
           partner_online_deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
           partner_online_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' }
@@ -2108,7 +2106,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         // 일반 입출금 거래 (관리자입금신청/관리자출금신청/입금/출금)
         const isWithdrawal = row.transaction_type === 'withdrawal' || 
                              row.transaction_type === 'admin_withdrawal' ||
-                             row.transaction_type === 'partner_withdrawal' ||
+                             row.transaction_type === 'partner_online_withdrawal' ||
                              (row.transaction_type === 'admin_adjustment' && row.memo?.includes('강제 출금'));
         return (
           <span className={cn(
@@ -2188,7 +2186,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (row.status === 'pending') {
           const balanceBefore = parseFloat(row.balance_before?.toString() || '0');
           const amount = parseFloat(row.amount?.toString() || '0');
-          const isWithdrawal = row.transaction_type === 'withdrawal' || row.transaction_type === 'partner_withdrawal';
+          const isWithdrawal = row.transaction_type === 'withdrawal' || row.transaction_type === 'partner_online_withdrawal';
           const afterBalance = isWithdrawal ? balanceBefore - amount : balanceBefore + amount;
           return (
             <span className="font-asiahead text-cyan-400" style={{ fontSize: '15px', letterSpacing: '0.1em' }}>
@@ -2318,8 +2316,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     ...(showActions ? [{
       header: t.transactionManagement.actions,
       cell: (row: Transaction) => {
-        // ✅ partner_deposit/partner_withdrawal 승인 대기 중인 경우
-        if ((row.transaction_type === 'partner_deposit' || row.transaction_type === 'partner_withdrawal') &&
+        // ✅ partner_online_deposit/partner_online_withdrawal 승인 대기 중인 경우
+        if ((row.transaction_type === 'partner_online_deposit' || row.transaction_type === 'partner_online_withdrawal') &&
             row.status === 'pending') {
 
           // ✅ 승인 권한 확인: Lv1은 모두, Lv2+는 자신의 하부 조직만 (단, 자신의 신청은 승인 불가)
@@ -2709,8 +2707,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                       const typeMap: any = {
                         deposit: '온라인 입금',
                         withdrawal: '온라인 출금',
-                        partner_deposit: '온라인 입금',
-                        partner_withdrawal: '온라인 출금',
+                        partner_online_deposit: '온라인 입금',
+                        partner_online_withdrawal: '온라인 출금',
                         admin_deposit_send: '수동 충전',
                         admin_withdrawal_send: '수동 환전',
                         admin_adjustment: '포인트 조정',

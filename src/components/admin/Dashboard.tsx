@@ -735,7 +735,7 @@ export function Dashboard({ user }: DashboardProps) {
         const { data: withdrawalData } = await supabase
           .from('transactions')
           .select('amount, created_at')
-          .in('transaction_type', ['withdrawal', 'partner_withdrawal'])
+          .in('transaction_type', ['withdrawal', 'partner_online_withdrawal'])
           .in('status', ['approved', 'completed'])
           .in('user_id', subPartnerUserIds)
           .gte('created_at', todayStartISO);
