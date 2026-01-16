@@ -1807,31 +1807,27 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         pendingWithdrawalCount: allWithdrawalRequests.length
       };
     } else {
-      // 전체입출금내역 탭: completedTransactions 데이터 기반으로 집계
-      // pending, completed, rejected 모두 포함
+      // 전체입출금내역 탭: transactions 테이블만 집계 (completed-history 기준)
+      // ✅ partner_deposit, partner_withdrawal, admin_adjustment, point_transactions는 제외
       const totalDeposit = completedTransactions
         .filter(t => 
-          t.transaction_type === 'deposit' ||                    // 온라인 입금
-          t.transaction_type === 'admin_deposit_send' ||         // 수동 충전
-          t.transaction_type === 'partner_deposit' ||            // 파트너 충전
-          (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) > 0) // 포인트 지급
+          t.transaction_type === 'deposit' ||                    // 온라인 입금만
+          t.transaction_type === 'admin_deposit_send'            // 수동 충전만
         )
         .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
       
       const totalWithdrawal = completedTransactions
         .filter(t => 
-          t.transaction_type === 'withdrawal' ||                 // 온라인 출금
-          t.transaction_type === 'admin_withdrawal_send' ||      // 수동 환전
-          t.transaction_type === 'partner_withdrawal' ||         // 파트너 환전
-          (t.transaction_type === 'admin_adjustment' && parseFloat(t.amount.toString()) < 0) // 포인트 회수
+          t.transaction_type === 'withdrawal' ||                 // 온라인 출금만
+          t.transaction_type === 'admin_withdrawal_send'         // 수동 환전만
         )
         .reduce((sum, t) => {
           const amount = parseFloat(t.amount.toString());
-          // admin_withdrawal_send는 이미 음수, admin_adjustment는 이미 음수
-          if (t.transaction_type === 'admin_withdrawal_send' || (t.transaction_type === 'admin_adjustment' && amount < 0)) {
+          // admin_withdrawal_send는 이미 음수
+          if (t.transaction_type === 'admin_withdrawal_send') {
             return sum + amount;
           }
-          return sum - amount; // withdrawal, partner_withdrawal은 음수로 변환
+          return sum - amount; // withdrawal은 음수로 변환
         }, 0);
       
       return {
