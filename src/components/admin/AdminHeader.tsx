@@ -1289,8 +1289,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         }
       }
 
-      // Lv2 (운영사) 거래는 거래내역에 저장하지 않음
-      if (user.level !== 2) {
+      // Lv2 (운영사) 거래는 거래내역에 저장하지 않음 - Lv3(본사) 이상만 저장
+      if (user.level >= 3) {
         // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
         const { data: transaction, error } = await supabase
           .from('transactions')
@@ -1367,8 +1367,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         }
       }
 
-      // Lv2 (운영사) 거래는 거래내역에 저장하지 않음
-      if (user.level !== 2) {
+      // Lv2 (운영사) 거래는 거래내역에 저장하지 않음 - Lv3(본사) 이상만 저장
+      if (user.level >= 3) {
         // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
         const { data: transaction, error } = await supabase
           .from('transactions')

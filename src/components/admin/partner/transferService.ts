@@ -354,8 +354,8 @@ export const transferBalanceToPartner = async ({
 
   console.log('✅ [파트너 보유금 입출금] 완료');
 
-  // ✅ 전체입출금내역에 기록: Lv2(운영사) 거래는 기록 안 함
-  if (currentPartnerData.level !== 2) {
+  // ✅ 전체입출금내역에 기록: Lv2(운영사) 거래는 기록 안 함 - Lv3(본사) 이상만 기록
+  if (currentPartnerData.level >= 3) {
     const transactionRecord = {
       id: crypto.randomUUID(),
       user_id: null, // 파트너 간 거래이므로 회원 ID는 없음
