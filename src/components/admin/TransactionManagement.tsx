@@ -884,6 +884,76 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       if (error) throw error;
 
+      // ✅ 거절인 경우: 잔액 복구 로직
+      if (action === 'reject') {
+        // 사용자 입출금만 잔액 복구 필요
+        if (transaction.transaction_type === 'user_online_deposit' || transaction.transaction_type === 'user_online_withdrawal' ||
+            transaction.transaction_type === 'partner_online_withdrawal' || transaction.transaction_type === 'partner_online_deposit') {
+          
+          // user_online_withdrawal / partner_online_withdrawal: pending 시 보유금이 차감되었으므로 복구 필요
+          if (transaction.transaction_type === 'user_online_withdrawal' || transaction.transaction_type === 'partner_online_withdrawal') {
+            // 사용자 잔액 복구 (pending 시 차감된 금액 복구)
+            const { data: currentUserData } = await supabase
+              .from('users')
+              .select('balance')
+              .eq('id', transaction.user_id)
+              .single();
+
+            const recoveredBalance = parseFloat(currentUserData?.balance?.toString() || '0') + amount;
+
+            const { error: recoverError } = await supabase
+              .from('users')
+              .update({
+                balance: recoveredBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', transaction.user_id);
+
+            if (recoverError) {
+              console.error('❌ [출금 거절 시 잔액 복구 실패]:', recoverError);
+              throw new Error('출금 거절 시 잔액 복구에 실패했습니다.');
+            }
+
+            console.log('✅ [출금 거절 시 잔액 복구 완료]:', {
+              user_id: transaction.user_id,
+              amount_recovered: amount,
+              new_balance: recoveredBalance
+            });
+          }
+          
+          // partner_online_withdrawal: 파트너 잔액도 복구
+          if (transaction.transaction_type === 'partner_online_withdrawal') {
+            const requestPartnerId = (transaction as any).partner_id;
+            const { data: currentPartnerData } = await supabase
+              .from('partners')
+              .select('balance')
+              .eq('id', requestPartnerId)
+              .single();
+
+            const recoveredBalance = parseFloat(currentPartnerData?.balance?.toString() || '0') + amount;
+
+            const { error: recoverError } = await supabase
+              .from('partners')
+              .update({
+                balance: recoveredBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', requestPartnerId);
+
+            if (recoverError) {
+              console.error('❌ [파트너 출금 거절 시 잔액 복구 실패]:', recoverError);
+              throw new Error('파트너 출금 거절 시 잔액 복구에 실패했습니다.');
+            }
+
+            console.log('✅ [파트너 출금 거절 시 잔액 복구 완료]:', {
+              partner_id: requestPartnerId,
+              amount_recovered: amount,
+              new_balance: recoveredBalance
+            });
+          }
+        }
+      }
+
       // ✅ 승인인 경우: 처리 로직 (사용자 입출금 vs 관리자 입출금)
       if (action === 'approve') {
         const now = new Date().toISOString();
