@@ -55,8 +55,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   
   const [activeTab, setActiveTab] = useState(getInitialTab());
   
-  // ✅ 초기 로드 여부 추적 (두 번째 useEffect에서 초기 로드 스킵용)
-  const isInitialLoadRef = useRef(false);
+  // ✅ 초기 마운트 완료 플래그 - 모든 초기화 후 한 번만 로드
+  const isMountedRef = useRef(false);
   
   // 데이터 상태
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -73,18 +73,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       if (user.level === 1) {
         // Lv1: 모든 파트너 허용 (빈 배열 = 필터링 없음)
         setAllowedPartnerIds([]);
+        isMountedRef.current = true; // ✅ Lv1은 즉시 마운트 완료
       } else {
         // 자신과 하위 파트너 조회
         const { data } = await supabase.rpc('get_hierarchical_partners', { p_partner_id: user.id });
         const partnerIds = [user.id, ...(data?.map((p: any) => p.id) || [])];
         setAllowedPartnerIds(partnerIds);
         console.log('🗂️ [TransactionManagement] 허용 파트너 ID 로드 완료:', partnerIds);
-
-        // ✅ 파트너 ID 로드 완료 후 데이터 리로드 (출금신청 탭 문제 해결)
-        if (!initialLoading) {
-          console.log('🔄 [TransactionManagement] 파트너 ID 로드 후 데이터 리로드');
-          loadData(false);
-        }
+        isMountedRef.current = true; // ✅ Lv2+도 파트너 로드 완료 후 마운트 완료
       }
     };
 
@@ -154,23 +150,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
         if (anchor === 'deposit-request' || anchor === 'withdrawal-request' || anchor === 'deposit-history' || anchor === 'withdrawal-history') {
           console.log('✅ [TransactionManagement] 타겟 탭 설정:', anchor);
-          // ✅ 탭 설정 + 즉시 데이터 로드
           setActiveTab(anchor);
-          // 즉시 로드 (상태 업데이트 대기 X)
-          setTimeout(() => {
-            loadData(true, false);
-            isInitialLoadRef.current = true; // ✅ 초기 로드 완료 표시
-          }, 0);
-        } else {
-          console.log('❌ [TransactionManagement] 지원하지 않는 탭:', anchor);
         }
-      } else {
-        // ✅ 해시에 탭이 없으면 기본 탭으로 초기 데이터 로드
-        console.log('📍 [TransactionManagement] 기본 탭으로 초기 데이터 로드');
-        setTimeout(() => {
-          loadData(true, false);
-          isInitialLoadRef.current = true; // ✅ 초기 로드 완료 표시
-        }, 0);
       }
     };
 
@@ -185,15 +166,26 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []); // ✅ 마운트 시만 실행
 
-  // ⚡ 데이터 로드 - 실제 탭 전환 시만 (초기 로드는 위 useEffect에서 수행)
+  // ⚡ 초기 데이터 로드 - 마운트 완료 후 정확히 한 번만
   useEffect(() => {
-    // ✅ 초기 로드는 스킵 (첫 번째 useEffect에서 이미 실행됨)
-    if (!isInitialLoadRef.current) {
-      console.log('⏭️ [TransactionManagement] 초기 로드는 스킵, activeTab:', activeTab);
+    // ✅ 모든 초기화가 완료된 후에만 데이터 로드
+    if (!isMountedRef.current) {
+      console.log('⏳ [TransactionManagement] 아직 초기화 중...');
       return;
     }
 
-    // ✅ 초기 로드 이후 실제 탭 전환 시에만 데이터 리로드
+    console.log('🚀 [TransactionManagement] 마운트 완료, 초기 데이터 로드 시작');
+    loadData(true, false);
+  }, []);
+
+  // ⚡ 데이터 로드 - 실제 탭 전환 시만 (초기 로드는 위 useEffect에서 수행)
+  useEffect(() => {
+    // ✅ 첫 번째 마운트에서는 스킵
+    if (!isMountedRef.current) {
+      console.log('⏭️ [TransactionManagement] 아직 초기화 중, 탭 변경 무시:', activeTab);
+      return;
+    }
+
     console.log('📊 [TransactionManagement] 탭 전환 감지:', activeTab);
     loadData(false);
   }, [activeTab]);
