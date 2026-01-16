@@ -45,7 +45,7 @@ interface UserProfileProps {
 
 interface Transaction {
   id: string;
-  transaction_type: 'deposit' | 'withdrawal' | 'point_conversion' | 'admin_adjustment';
+  transaction_type: 'user_online_deposit' | 'user_online_withdrawal' | 'partner_online_deposit' | 'partner_online_withdrawal' | 'partner_manual_deposit' | 'partner_manual_withdrawal' | 'admin_adjustment' | 'point_conversion';
   amount: number;
   status: 'pending' | 'approved' | 'rejected' | 'completed';
   balance_before: number;
@@ -200,7 +200,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .in('transaction_type', ['deposit', 'withdrawal'])
+        .in('transaction_type', ['user_online_deposit', 'user_online_withdrawal'])
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -258,11 +258,11 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
         .eq('status', 'completed');
 
       const totalDeposits = (transactionStats || [])
-        .filter(t => t.transaction_type === 'deposit')
+        .filter(t => t.transaction_type === 'user_online_deposit')
         .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
       const totalWithdrawals = (transactionStats || [])
-        .filter(t => t.transaction_type === 'withdrawal')
+        .filter(t => t.transaction_type === 'user_online_withdrawal')
         .reduce((sum, t) => sum + parseFloat(t.amount), 0);
 
       // 게임 통계
@@ -921,7 +921,7 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
                       {transactions.map((transaction) => {
                         const statusInfo = getStatusInfo(transaction.status);
                         const StatusIcon = statusInfo.icon;
-                        const isDeposit = transaction.transaction_type === 'deposit';
+                        const isDeposit = transaction.transaction_type === 'user_online_deposit';
                         
                         return (
                           <div key={transaction.id} className="p-4 border-0" style={{

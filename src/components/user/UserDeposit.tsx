@@ -80,7 +80,7 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'deposit')
+        .eq('transaction_type', 'user_online_deposit')
         .order('created_at', { ascending: false })
         .limit(10);
 

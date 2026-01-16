@@ -2063,27 +2063,20 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         }
         
         const typeMap: any = {
-          // 온라인 입출금
-          deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
-          withdrawal: { text: '온라인 출금', color: 'bg-orange-600' },
+          // 회원 온라인 입출금
+          user_online_deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
+          user_online_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' },
+          // 파트너 온라인 입출금
+          partner_online_deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
+          partner_online_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' },
           // 수동 충전/환전
-          admin_deposit_send: { text: '수동 충전', color: 'bg-blue-600' },
-          admin_withdrawal_send: { text: '수동 환전', color: 'bg-red-600' },
+          partner_manual_deposit: { text: '수동 충전', color: 'bg-blue-600' },
+          partner_manual_withdrawal: { text: '수동 환전', color: 'bg-red-600' },
           // 포인트 거래
           admin_adjustment: { 
             text: row.amount > 0 && row.points_before !== undefined ? '포인트 지급' : '포인트 회수', 
             color: row.amount > 0 && row.points_before !== undefined ? 'bg-amber-600' : 'bg-purple-600'
-          },
-          // 레거시 타입 (호환성)
-          admin_deposit_initial: { text: '수동 충전', color: 'bg-blue-600' },
-          admin_withdrawal_initial: { text: '수동 환전', color: 'bg-red-600' },
-          // 파트너 온라인 입출금
-          user_online_deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
-          user_online_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' },
-          partner_online_deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
-          partner_online_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' },
-          partner_manual_deposit: { text: '수동 충전', color: 'bg-blue-600' },
-          partner_manual_withdrawal: { text: '수동 환전', color: 'bg-red-600' }
+          }
         };
         
         // Display 로직: 발신자/수신자 레벨에 따라 다를 수 있음
