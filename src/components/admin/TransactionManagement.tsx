@@ -26,6 +26,7 @@ import { MetricCard } from "./MetricCard";
 import { depositBalance, withdrawBalance, extractBalanceFromResponse } from "../../lib/investApi";
 import { getAdminOpcode, isMultipleOpcode } from "../../lib/opcodeHelper";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { getTransactionDisplay, getSimpleTransactionDisplay } from "../../lib/transactionDisplayHelper";
 
 /**
  * 거래유형 시스템 (TRANSACTION_TYPE_GUIDE.md 참조)
@@ -2077,11 +2078,29 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           admin_deposit_initial: { text: '수동 충전', color: 'bg-blue-600' },
           admin_withdrawal_initial: { text: '수동 환전', color: 'bg-red-600' },
           // 파트너 온라인 입출금
+          user_online_deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
+          user_online_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' },
           partner_online_deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
-          partner_online_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' }
+          partner_online_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' },
+          partner_manual_deposit: { text: '수동 충전', color: 'bg-blue-600' },
+          partner_manual_withdrawal: { text: '수동 환전', color: 'bg-red-600' }
         };
         
-        const type = typeMap[row.transaction_type] || { text: row.transaction_type, color: 'bg-slate-600' };
+        // Display 로직: 발신자/수신자 레벨에 따라 다를 수 있음
+        let displayText = typeMap[row.transaction_type]?.text || row.transaction_type;
+        
+        // 파트너 온라인 입출금의 경우 레벨에 따라 Display 달라짐
+        if ((row.transaction_type === 'partner_online_deposit' || row.transaction_type === 'partner_online_withdrawal') &&
+            row.from_partner_id && row.to_partner_id) {
+          // 발신자/수신자 파트너 레벨 조회 필요 - 현재는 간단한 Display 사용
+          displayText = getSimpleTransactionDisplay(row.transaction_type);
+        } else if ((row.transaction_type === 'partner_manual_deposit' || row.transaction_type === 'partner_manual_withdrawal') &&
+                   row.from_partner_id && row.to_partner_id) {
+          // 수동 충전/환전도 레벨에 따라 다름
+          displayText = getSimpleTransactionDisplay(row.transaction_type);
+        }
+        
+        const type = { text: displayText, color: typeMap[row.transaction_type]?.color || 'bg-slate-600' };
         return <Badge className={`${type.color} text-white text-sm px-3 py-1`} style={{ letterSpacing: '0.02em' }}>{type.text}</Badge>;
       },
       width: '120px'
