@@ -151,11 +151,17 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
         if (anchor === 'deposit-request' || anchor === 'withdrawal-request' || anchor === 'deposit-history' || anchor === 'withdrawal-history') {
           console.log('✅ [TransactionManagement] 타겟 탭 설정:', anchor);
-          // ✅ 초기화: 탭만 설정 (데이터는 아래 useEffect에서 로드)
+          // ✅ 탭 설정 + 즉시 데이터 로드
           setActiveTab(anchor);
+          // 즉시 로드 (상태 업데이트 대기 X)
+          setTimeout(() => loadData(true, false), 0);
         } else {
           console.log('❌ [TransactionManagement] 지원하지 않는 탭:', anchor);
         }
+      } else {
+        // ✅ 해시에 탭이 없으면 기본 탭으로 초기 데이터 로드
+        console.log('📍 [TransactionManagement] 기본 탭으로 초기 데이터 로드');
+        setTimeout(() => loadData(true, false), 0);
       }
     };
 
@@ -168,13 +174,16 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []); // ✅ 해시만 감지 (탭 초기화만)
+  }, []); // ✅ 마운트 시만 실행
 
-  // ⚡ 데이터 로드 - activeTab 변경 시 자동 로드 (Lv2+에서도 빠르게 표시)
+  // ⚡ 데이터 로드 - 탭 전환 시만 (초기 로드는 위 useEffect에서 수행)
   useEffect(() => {
+    // activeTab이 처음 설정될 때는 이미 위에서 로드했으므로 스킵
+    // 실제 탭 전환 시에만 로드하도록 처리
     console.log('📊 [TransactionManagement] activeTab 변경 감지:', activeTab);
+    // 탭 전환 시 데이터 다시 로드
     loadData(false);
-  }, [activeTab]); // ✅ activeTab 의존성만 추가 (초기 로드 + 탭 전환 시 로드)
+  }, [activeTab]);
   const loadData = async (isInitial = false, skipSetRefreshing = false) => {
     // Determine current tab from URL hash to ensure correct date range
     const fullHash = window.location.hash;
