@@ -1839,7 +1839,35 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     }
   };
 
-  const displayStats = getTabStats();
+  // ✅ 통계 카드: 항상 전체입출금내역(completed-history) 탭의 데이터만 표시
+  const displayStats = (() => {
+    const totalDeposit = completedTransactions
+      .filter(t => 
+        t.transaction_type === 'deposit' ||                    // 온라인 입금만
+        t.transaction_type === 'admin_deposit_send'            // 수동 충전만
+      )
+      .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+    
+    const totalWithdrawal = completedTransactions
+      .filter(t => 
+        t.transaction_type === 'withdrawal' ||                 // 온라인 출금만
+        t.transaction_type === 'admin_withdrawal_send'         // 수동 환전만
+      )
+      .reduce((sum, t) => {
+        const amount = parseFloat(t.amount.toString());
+        if (t.transaction_type === 'admin_withdrawal_send') {
+          return sum + amount;
+        }
+        return sum - amount;
+      }, 0);
+    
+    return {
+      totalDeposit: totalDeposit,
+      totalWithdrawal: totalWithdrawal,
+      pendingDepositCount: allDepositRequests.length,
+      pendingWithdrawalCount: allWithdrawalRequests.length
+    };
+  })();
 
   // ✅ 관리자 입금 로그만 출력
   const adminDepositTransactions = completedTransactions.filter((t: any) => {
