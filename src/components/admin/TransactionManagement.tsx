@@ -2059,7 +2059,10 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           admin_deposit_initial: { text: '수동 충전', color: 'bg-blue-600' },
           admin_withdrawal_initial: { text: '수동 환전', color: 'bg-red-600' },
           partner_deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
-          partner_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' }
+          partner_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' },
+          // 파트너 온라인 입출금
+          partner_online_deposit: { text: '온라인 입금', color: 'bg-emerald-600' },
+          partner_online_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' }
         };
         
         const type = typeMap[row.transaction_type] || { text: row.transaction_type, color: 'bg-slate-600' };
