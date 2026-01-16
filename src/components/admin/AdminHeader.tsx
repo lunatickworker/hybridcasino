@@ -883,7 +883,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               
               const username = transactionUser.username || transaction.user_id;
               
-              if (transaction.transaction_type === 'deposit') {
+              if (transaction.transaction_type === 'user_online_deposit') {
                 toast.info('새로운 입금 요청이 있습니.', {
                   description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${username}\n클릭하면 사라집니다.`,
                   duration: 10000,
@@ -897,7 +897,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     }
                   }
                 });
-              } else if (transaction.transaction_type === 'withdrawal') {
+              } else if (transaction.transaction_type === 'user_online_withdrawal') {
                 toast.warning('새로운 출금 요청이 있습니다.', {
                   description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${username}\n클릭하면 사라집니다.`,
                   duration: 10000,

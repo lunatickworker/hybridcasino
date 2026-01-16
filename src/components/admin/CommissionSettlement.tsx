@@ -190,11 +190,11 @@ export function CommissionSettlement({ user }: CommissionSettlementProps) {
         const children = childrenResult.data || [];
 
         const deposit = transactions
-          .filter(t => t.transaction_type === 'deposit' && t.status === 'approved')
+          .filter(t => t.transaction_type === 'user_online_deposit' && t.status === 'approved')
           .reduce((sum, t) => sum + (t.amount || 0), 0);
 
         const withdrawal = transactions
-          .filter(t => t.transaction_type === 'withdrawal' && t.status === 'approved')
+          .filter(t => t.transaction_type === 'user_online_withdrawal' && t.status === 'approved')
           .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
         const adminDeposit = transactions

@@ -580,11 +580,11 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
     // ✅ 사용자 입출금: 사용자 요청 + 관리자 강제입출금 (입출금관리 페이지와 동기화)
     const deposit = userTransactions
-      .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'user_online_deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const withdrawal = userTransactions
-      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'user_online_withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     // ✅ 관리자 입출금: 파트너 요청 + 파트너 강제입출금 (입출금관리 페이지의 관리자입금/관리자출금 필터 로직 그대로 사용)

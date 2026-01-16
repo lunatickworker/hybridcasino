@@ -359,7 +359,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
           const newTransaction = payload.new as any;
           
-          if (newTransaction.transaction_type === 'deposit') {
+          if (newTransaction.transaction_type === 'user_online_deposit') {
             // 즉시 데이터 새로고침
             loadDepositRecords();
             

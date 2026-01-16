@@ -693,7 +693,7 @@ export function Dashboard({ user }: DashboardProps) {
         const { data: depositData } = await supabase
           .from('transactions')
           .select('amount, created_at')
-          .in('transaction_type', ['deposit'])
+          .in('transaction_type', ['user_online_deposit'])
           .in('status', ['approved', 'completed'])
           .in('user_id', directUserIds)
           .gte('created_at', todayStartISO);

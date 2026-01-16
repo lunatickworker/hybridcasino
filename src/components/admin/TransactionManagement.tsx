@@ -1642,31 +1642,31 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       const typeMatch = (() => {
         // 전체 필터: 모든 입출금 거래 표시
         if (transactionTypeFilter === 'all') {
-          return t.transaction_type === 'deposit' || 
-                 t.transaction_type === 'withdrawal' ||
-                 t.transaction_type === 'admin_deposit_send' ||
-                 t.transaction_type === 'admin_withdrawal_send' ||
+          return t.transaction_type === 'user_online_deposit' || 
+                 t.transaction_type === 'user_online_withdrawal' ||
+                 t.transaction_type === 'partner_manual_deposit' ||
+                 t.transaction_type === 'partner_manual_withdrawal' ||
                  t.transaction_type === 'admin_adjustment';
         }
         
         // 온라인 입금
         if (transactionTypeFilter === 'online_deposit') {
-          return t.transaction_type === 'deposit';
+          return t.transaction_type === 'user_online_deposit';
         }
         
         // 온라인 출금
         if (transactionTypeFilter === 'online_withdrawal') {
-          return t.transaction_type === 'withdrawal';
+          return t.transaction_type === 'user_online_withdrawal';
         }
         
         // 수동 충전 (manual_charge)
         if (transactionTypeFilter === 'manual_charge') {
-          return t.transaction_type === 'admin_deposit_send';
+          return t.transaction_type === 'partner_manual_deposit';
         }
         
         // 수동 환전 (manual_withdrawal)
         if (transactionTypeFilter === 'manual_withdrawal') {
-          return t.transaction_type === 'admin_withdrawal_send';
+          return t.transaction_type === 'partner_manual_withdrawal';
         }
         
         // 파트너 충전: 현재 사용자가 수신자인 파트너 거래

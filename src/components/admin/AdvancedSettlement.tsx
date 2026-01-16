@@ -377,29 +377,29 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         return lDate >= dayStart && lDate <= dayEnd;
       });
 
-      // 입출금 계산 - 사용자 직접 입금/출금만 (deposit/withdrawal)
+      // 입출금 계산 - 사용자 직접 입금/출금만 (user_online_deposit/user_online_withdrawal)
       const deposit = dayTransactions
-        .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
+        .filter(t => t.transaction_type === 'user_online_deposit' && t.status === 'completed')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
       const withdrawal = dayTransactions
-        .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
+        .filter(t => t.transaction_type === 'user_online_withdrawal' && t.status === 'completed')
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
       // ✅ 수동 입금 (Guidelines.md 기준)
       // 📊 데이터 소스: transactions 테이블
-      // 🎯 조건: transaction_type = 'admin_deposit_send' AND status = 'completed'
+      // 🎯 조건: transaction_type = 'partner_manual_deposit' AND status = 'completed'
       // 💰 계산식: SUM(amount)
       const adminDeposit = dayTransactions
-        .filter(t => t.transaction_type === 'admin_deposit_send' && t.status === 'completed')
+        .filter(t => t.transaction_type === 'partner_manual_deposit' && t.status === 'completed')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
       // ✅ 수동 출금 (Guidelines.md 기준)
       // 📊 데이터 소스: transactions 테이블
-      // 🎯 조건: transaction_type = 'admin_withdrawal_send' AND status = 'completed'
+      // 🎯 조건: transaction_type = 'partner_manual_withdrawal' AND status = 'completed'
       // 💰 계산식: SUM(|amount|) // 절대값
       const adminWithdrawal = dayTransactions
-        .filter(t => t.transaction_type === 'admin_withdrawal_send' && t.status === 'completed')
+        .filter(t => t.transaction_type === 'partner_manual_withdrawal' && t.status === 'completed')
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
       // 포인트 계산
