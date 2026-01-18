@@ -28,7 +28,10 @@ const LoadingFallback = () => (
 );
 
 export const BenzRoutes = memo(({ currentRoute, user, onRouteChange, onOpenPointModal }: BenzRoutesProps) => {
+  console.log('🔄 [BenzRoutes] 렌더링:', { currentRoute, userExists: !!user });
+  
   const renderRoute = () => {
+    console.log('📍 [BenzRoutes] 라우트 매칭:', { currentRoute });
     switch (currentRoute) {
       case '/benz':
       case '/benz/featured':

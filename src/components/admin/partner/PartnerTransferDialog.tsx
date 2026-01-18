@@ -127,6 +127,19 @@ export function PartnerTransferDialog({
 
     const amount = parseFloat(transferAmount.replace(/,/g, '') || '0');
 
+    console.log('🚀 [PartnerTransferDialog.handleTransfer] 시작:', {
+      targetPartner: {
+        id: targetPartner.id,
+        nickname: targetPartner.nickname,
+        level: targetPartner.level
+      },
+      currentUserId,
+      currentUserLevel,
+      transferMode,
+      amount,
+      apiType
+    });
+
     // 입력 검증
     if (!amount || amount <= 0) {
       const typeText = transferMode === 'deposit' ? t.partnerManagement.depositLabel : t.partnerManagement.withdrawalLabel;
@@ -135,6 +148,14 @@ export function PartnerTransferDialog({
     }
 
     try {
+      console.log('📞 transferBalanceService 호출 전:', {
+        targetPartner: targetPartner.nickname,
+        currentUserId,
+        amount,
+        transferMode,
+        apiType: currentUserLevel === 2 ? apiType : undefined
+      });
+
       // 서비스 호출
       await transferBalanceService({
         transferTargetPartner: targetPartner,
@@ -144,6 +165,8 @@ export function PartnerTransferDialog({
         transferMemo,
         apiType: currentUserLevel === 2 ? apiType : undefined // ✅ Lv2만 API 선택
       });
+
+      console.log('✅ transferBalanceService 호출 성공');
 
       // 성공 메시지
       const typeText = transferMode === 'deposit' ? '지급' : '회수';
@@ -170,7 +193,11 @@ export function PartnerTransferDialog({
       onOpenChange(false);
 
     } catch (error: any) {
-      console.error('[Partner Balance Transfer Error]:', error);
+      console.error('❌ [Partner Balance Transfer Error]:', {
+        message: error.message,
+        errorString: error.toString(),
+        fullError: error
+      });
       
       // 오류 메시지 파싱
       if (error.message?.includes('TARGET_BALANCE_INSUFFICIENT')) {
@@ -280,11 +307,9 @@ export function PartnerTransferDialog({
               </div>
               {/* ✅ Lv3~Lv6 파트너: 전체 지갑(balance) 표시 */}
               {targetPartner.level && targetPartner.level >= 3 && targetPartner.level <= 6 && (
-                <div className="mt-2 pt-2 border-t border-slate-700">
                   <p className="text-[10px] text-slate-500">
-                    ※ Lv{targetPartner.level}은 전체 지갑(balance)을 사용합니다.
+                    {/*※ Lv{targetPartner.level}은 전체 지갑(balance)을 사용합니다.*/}
                   </p>
-                </div>
               )}
             </div>
 

@@ -48,6 +48,7 @@ import { LanguageSwitcher } from "./LanguageSwitcher";
 import { getInvestCredentials, updateInvestBalance, updateOroplayBalance, getLv1HonorApiCredentials, updateHonorApiBalance } from "../../lib/apiConfigHelper";
 import { getTodayStartUTC, getCachedTimezoneOffset, convertUTCToSystemTime } from "../../utils/timezone";
 import { NotificationsModal } from "./NotificationsModal";
+import { TransactionType, TRANSACTION_TABLE_TYPES, PARTNER_BALANCE_TABLE_TYPES } from "../../types/transactions";
 import { CommissionConvertModal } from "./CommissionConvertModal";
 import { getUnreadNotificationCount } from '../../lib/notificationHelper';
 import * as investApiModule from '../../lib/investApi';
@@ -545,11 +546,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           return;
         }
 
-        // 1️⃣ 입금 합계 (사용자 user_online_deposit + 관리자 partner_online_deposit) - 소속 사용자만
+        // 1️⃣ 입금 합계 (사용자 deposit만) - 소속 사용자만
         const { data: depositData, error: depositError } = await supabase
           .from('transactions')
           .select('amount')
-          .in('transaction_type', ['user_online_deposit', 'partner_online_deposit'])
+          .in('transaction_type', ['deposit'])
           .eq('status', 'completed')
           .gte('created_at', todayStartISO)
           .in('user_id', allowedUserIds);
@@ -560,11 +561,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
 
         const dailyDeposit = depositData?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
 
-        // 2️⃣ 출금 합계 (사용자 user_online_withdrawal + 관리자 partner_online_withdrawal) - 소속 사용자만
+        // 2️⃣ 출금 합계 (사용자 withdrawal만) - 소속 사용자만
         const { data: withdrawalData, error: withdrawalError } = await supabase
           .from('transactions')
           .select('amount')
-          .in('transaction_type', ['user_online_withdrawal', 'partner_online_withdrawal'])
+          .in('transaction_type', ['withdrawal'])
           .eq('status', 'completed')
           .gte('created_at', todayStartISO)
           .in('user_id', allowedUserIds);
@@ -607,23 +608,44 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           .eq('receiver_type', 'partner')
           .is('parent_id', null);
 
-        // 🔔 7️⃣ 입금요청 대기 수 - realtime_notifications 사용
+        // 🔔 7️⃣ 입금요청 대기 수 - 사용자 입금 + 관리자 입금 (조직격리 적용)
         let pendingDepositsCount = 0;
         try {
-          const { count: depositNotifCount, error: depositNotifError } = await supabase
-            .from('realtime_notifications')
+          const { count: userDepositCount, error: userDepositError } = await supabase
+            .from('transactions')
             .select('id', { count: 'exact', head: true })
-            .eq('notification_type', 'pending_deposit')
+            .eq('transaction_type', 'deposit')
             .eq('status', 'pending')
-            .eq('recipient_id', user.id);
+            .in('user_id', allowedUserIds);
 
-          if (depositNotifError) {
-            console.error('❌ 입금 알림 대기 수 조회 실패:', depositNotifError);
+          if (userDepositError) {
+            console.error('❌ 사용자 입금 대기 수 조회 실패:', userDepositError);
           }
 
-          pendingDepositsCount = depositNotifCount || 0;
-          console.log('🔔 입금요청 대기 수 (realtime_notifications):', {
-            depositNotifCount,
+          // 파트너 입금 신청도 조직격리 적용
+          let adminDepositQuery = supabase
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .in('transaction_type', ['partner_deposit_request'])
+            .eq('status', 'pending')
+            .neq('partner_id', user.id); // 본인이 신청한 것은 제외
+
+          // Lv1이 아닌 경우 하위 조직만
+          if (user.level !== 1) {
+            adminDepositQuery = adminDepositQuery.in('partner_id', allowedPartnerIds);
+          }
+
+          const { count: adminDepositCount, error: adminDepositError } = await adminDepositQuery;
+
+          if (adminDepositError) {
+            console.error('❌ 파트너 입금 대기 수 조회 실패:', adminDepositError);
+          }
+
+          pendingDepositsCount = (userDepositCount || 0) + (adminDepositCount || 0);
+          console.log('🔔 입금요청 대기 수 (조직격리 적용):', {
+            userDepositCount,
+            adminDepositCount,
+            allowedPartnerIds: user.level === 1 ? 'all' : allowedPartnerIds,
             total: pendingDepositsCount
           });
         } catch (error) {
@@ -631,23 +653,44 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           pendingDepositsCount = 0;
         }
 
-        // 🔔 8️⃣ 출금요청 대기 수 - realtime_notifications 사용
+        // 🔔 8️⃣ 출금요청 대기 수 - 사용자 출금 + 관리자 출금 (조직격리 적용)
         let pendingWithdrawalsCount = 0;
         try {
-          const { count: withdrawalNotifCount, error: withdrawalNotifError } = await supabase
-            .from('realtime_notifications')
+          const { count: userWithdrawalCount, error: userWithdrawalError } = await supabase
+            .from('transactions')
             .select('id', { count: 'exact', head: true })
-            .eq('notification_type', 'pending_withdrawal')
+            .eq('transaction_type', 'withdrawal')
             .eq('status', 'pending')
-            .eq('recipient_id', user.id);
+            .in('user_id', allowedUserIds);
 
-          if (withdrawalNotifError) {
-            console.error('❌ 출금 알림 대기 수 조회 실패:', withdrawalNotifError);
+          if (userWithdrawalError) {
+            console.error('❌ 사용자 출금 대기 수 조회 실패:', userWithdrawalError);
           }
 
-          pendingWithdrawalsCount = withdrawalNotifCount || 0;
-          console.log('🔔 출금요청 대기 수 (realtime_notifications):', {
-            withdrawalNotifCount,
+          // 파트너 출금 신청도 조직격리 적용
+          let adminWithdrawalQuery = supabase
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .in('transaction_type', ['partner_withdrawal_request'])
+            .eq('status', 'pending')
+            .neq('partner_id', user.id); // 본인이 신청한 것은 제외
+
+          // Lv1이 아닌 경우 하위 조직만
+          if (user.level !== 1) {
+            adminWithdrawalQuery = adminWithdrawalQuery.in('partner_id', allowedPartnerIds);
+          }
+
+          const { count: adminWithdrawalCount, error: adminWithdrawalError } = await adminWithdrawalQuery;
+
+          if (adminWithdrawalError) {
+            console.error('❌ 파트너 출금 대기 수 조회 실패:', adminWithdrawalError);
+          }
+
+          pendingWithdrawalsCount = (userWithdrawalCount || 0) + (adminWithdrawalCount || 0);
+          console.log('🔔 출금요청 대기 수 (조직격리 적용):', {
+            userWithdrawalCount,
+            adminWithdrawalCount,
+            allowedPartnerIds: user.level === 1 ? 'all' : allowedPartnerIds,
             total: pendingWithdrawalsCount
           });
         } catch (error) {
@@ -689,8 +732,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     
     // 초기 로드
     fetchHeaderStats();
-
-    // NOTE: Removed polling fallback to avoid extra load — rely on realtime subscriptions and reconnection logic.
     
     // ⏰ 자정 리셋 타이머 설정 (시스템 타임존 기준)
     const setupMidnightReset = () => {
@@ -742,137 +783,133 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         },
         async (payload) => {
           console.log('💰 [헤더 알림] transactions 변경 감지:', payload.eventType, payload);
+          fetchHeaderStats(); // 즉시 갱신
           
-          // UPDATE: 상태 변경 감지 → fetchHeaderStats() 호출
+          // UPDATE 이벤트: 승인/거절 처리
           if (payload.eventType === 'UPDATE' && payload.new && payload.old) {
             const oldTx = payload.old as any;
             const newTx = payload.new as any;
             
             // pending -> completed/rejected 상태 변경 감지
             if (oldTx.status === 'pending' && newTx.status !== 'pending') {
-              // 거래 타입을 한국어로 변환
-              const typeMap: any = {
-                user_online_deposit: '온라인 입금',
-                user_online_withdrawal: '온라인 출금',
-                partner_online_deposit: '온라인 입금',
-                partner_online_withdrawal: '온라인 출금',
-                partner_manual_deposit: '수동 충전',
-                partner_manual_withdrawal: '수동 환전'
-              };
-              const koreanType = typeMap[newTx.transaction_type] || newTx.transaction_type;
-              
               console.log('✅ [헤더 알림] 거래 처리 완료:', {
-                type: koreanType,
+                type: newTx.transaction_type,
                 status: newTx.status,
                 oldPending: oldTx.status
               });
-              fetchHeaderStats(); // 상태 변경 시만 갱신
             }
-            return;
           }
           
-          // INSERT: 새로운 신청 시 토스트 + 상태 직접 업데이트
+          // 새 입금/출금 요청 시 토스트 알림
           if (payload.eventType === 'INSERT' && payload.new) {
             const transaction = payload.new as any;
             
-            if (transaction.status !== 'pending') return;
-            
-            // ✅ 거래 타입 분류
-            const isPartnerDeposit = ['partner_manual_deposit', 'partner_online_deposit'].includes(transaction.transaction_type);
-            const isPartnerWithdrawal = ['partner_manual_withdrawal', 'partner_online_withdrawal'].includes(transaction.transaction_type);
-            const isUserDeposit = transaction.transaction_type === 'user_online_deposit';
-            const isUserWithdrawal = transaction.transaction_type === 'user_online_withdrawal';
-            
-            // ✅ 파트너 입출금 신청 (조직격리 적용)
-            if (isPartnerDeposit || isPartnerWithdrawal) {
-              if (transaction.partner_id !== user.id) {
-                const shouldNotify = user.level === 1 || allowedPartnerIds.includes(transaction.partner_id);
-                
-                if (shouldNotify) {
-                  const memo = transaction.memo || '';
-                  const amount = formatCurrency(Number(transaction.amount));
-                  
-                  if (isPartnerDeposit) {
-                    toast.info('새로운 파트너 입금 신청이 있습니다.', {
-                      description: `금액: ${amount}${memo ? ` | ${memo}` : ''}`,
-                      duration: 10000,
-                      position: 'bottom-left',
-                      action: {
-                        label: '확인',
-                        onClick: () => onRouteChange?.('/admin/transactions#deposit-request')
-                      }
-                    });
-                    // 상태 직접 업데이트
-                    setStats(prev => ({
-                      ...prev,
-                      pending_deposits: prev.pending_deposits + 1
-                    }));
-                  } else if (isPartnerWithdrawal) {
-                    toast.warning('새로운 파트너 출금 신청이 있습니다.', {
-                      description: `금액: ${amount}${memo ? ` | ${memo}` : ''}`,
-                      duration: 10000,
-                      position: 'bottom-left',
-                      action: {
-                        label: '확인',
-                        onClick: () => onRouteChange?.('/admin/transactions#withdrawal-request')
-                      }
-                    });
-                    // 상태 직접 업데이트
-                    setStats(prev => ({
-                      ...prev,
-                      pending_withdrawals: prev.pending_withdrawals + 1
-                    }));
+            if (transaction.status === 'pending') {
+              // ✅ 파트너 입출금 신청 처리
+              const isPartnerDepositRequest = transaction.transaction_type === 'partner_deposit_request';
+              const isPartnerWithdrawalRequest = transaction.transaction_type === 'partner_withdrawal_request';
+              
+              if (isPartnerDepositRequest || isPartnerWithdrawalRequest) {
+                // ✅ 신청자 본인에게는 알람 표시 안 함 + 조직격리 적용
+                if (transaction.partner_id !== user.id) {
+                  // Lv1: 모든 파트너 신청 알림, Lv2+: 자신의 하위 조직만
+                  let shouldNotify = false;
+                  if (user.level === 1) {
+                    shouldNotify = true;
+                  } else {
+                    // 신청한 파트너가 자신의 하위 조직인지 확인
+                    shouldNotify = allowedPartnerIds.includes(transaction.partner_id);
+                  }
+
+                  if (shouldNotify) {
+                    const memo = transaction.memo || '';
+
+                    if (isAdminDeposit) {
+                      toast.info('새로운 관리자 입금 신청이 있습니다.', {
+                        description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
+                        duration: 10000,
+                        position: 'bottom-left',
+                        action: {
+                          label: '확인',
+                          onClick: () => {
+                            if (onRouteChange) {
+                              onRouteChange('/admin/transactions#deposit-request');
+                            }
+                          }
+                        }
+                      });
+                    } else if (isAdminWithdrawal) {
+                      toast.warning('새로운 관리자 출금 신청이 있습니다.', {
+                        description: `금액: ${formatCurrency(Number(transaction.amount))}${memo ? ` | ${memo}` : ''}`,
+                        duration: 10000,
+                        position: 'bottom-left',
+                        action: {
+                          label: '확인',
+                          onClick: () => {
+                            if (onRouteChange) {
+                              onRouteChange('/admin/transactions#withdrawal-request');
+                            }
+                          }
+                        }
+                      });
+                    }
                   }
                 }
+                return; // 관리자 신청은 여기서 처리 완료
               }
-              return;
-            }
-            
-            // ✅ 사용자 입출금 신청 (조직격리 적용)
-            if (isUserDeposit || isUserWithdrawal) {
+              
+              // ✅ 사용자 입출금 신청 처리 (deposit, withdrawal)
+              // 🔐 조직격리: 해당 회원이 내 조직에 속하는지 확인
               const { data: transactionUser } = await supabase
                 .from('users')
-                .select('id, username')
+                .select('id, username, referrer_id')
                 .eq('id', transaction.user_id)
                 .single();
               
-              if (!transactionUser) return;
+              if (!transactionUser) return; // 사용자 정보 없으면 알림 X
               
-              const shouldNotify = user.level === 1 || (await getDescendantUserIds(user.id)).includes(transaction.user_id);
+              // Lv1이면 모든 거래, Lv2+ 이면 하위 조직만
+              let shouldNotify = false;
+              if (user.level === 1) {
+                shouldNotify = true;
+              } else {
+                // 하위 조직에 속하는지 확인
+                const descendantIds = await getDescendantUserIds(user.id);
+                shouldNotify = descendantIds.includes(transaction.user_id);
+              }
               
-              if (!shouldNotify) return;
+              if (!shouldNotify) return; // 내 조직이 아니면 알림 X
               
               const username = transactionUser.username || transaction.user_id;
-              const amount = formatCurrency(Number(transaction.amount));
               
-              if (isUserDeposit) {
-                toast.info('새로운 입금 요청이 있습니다.', {
-                  description: `금액: ${amount} | 회원: ${username}`,
+              if (transaction.transaction_type === 'deposit') {
+                toast.info('새로운 입금 요청이 있습니.', {
+                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${username}\n클릭하면 사라집니다.`,
                   duration: 10000,
                   position: 'bottom-left',
                   action: {
                     label: '확인',
-                    onClick: () => onRouteChange?.('/admin/transactions#deposit-request')
+                    onClick: () => {
+                      if (onRouteChange) {
+                        onRouteChange('/admin/transactions#deposit-request');
+                      }
+                    }
                   }
                 });
-                setStats(prev => ({
-                  ...prev,
-                  pending_deposits: prev.pending_deposits + 1
-                }));
-              } else if (isUserWithdrawal) {
+              } else if (transaction.transaction_type === 'withdrawal') {
                 toast.warning('새로운 출금 요청이 있습니다.', {
-                  description: `금액: ${amount} | 회원: ${username}`,
+                  description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${username}\n클릭하면 사라집니다.`,
                   duration: 10000,
                   position: 'bottom-left',
                   action: {
                     label: '확인',
-                    onClick: () => onRouteChange?.('/admin/transactions#withdrawal-request')
+                    onClick: () => {
+                      if (onRouteChange) {
+                        onRouteChange('/admin/transactions#withdrawal-request');
+                      }
+                    }
                   }
                 });
-                setStats(prev => ({
-                  ...prev,
-                  pending_withdrawals: prev.pending_withdrawals + 1
-                }));
               }
             }
           }
@@ -963,7 +1000,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       )
       .subscribe();
 
-    // ✅ Realtime 구독 5: realtime_notifications 변경 시 알림 개수 업데이트
+    // ✅ Realtime 구독 5: notifications 변경 시 알림 개수 업데이트
     const notificationsChannel = supabase
       .channel('header_notifications')
       .on(
@@ -971,8 +1008,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         {
           event: '*',
           schema: 'public',
-          table: 'realtime_notifications', // ⭐ realtime_notifications 테이블 사용
-          filter: `recipient_type=eq.partner`
+          table: 'notifications' // ⭐ notifications 테이블 사용
         },
         (payload) => {
           console.log('🔔 [헤더 알림] notifications 변경 감지:', {
@@ -985,7 +1021,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           if (payload.eventType === 'INSERT') {
             const newNotification = payload.new as any;
             // 내가 받을 알림인지 확인
-            if (newNotification.recipient_id === user.id && newNotification.status === 'pending') {
+            if (newNotification.recipient_id === user.id && newNotification.is_read === false) {
               console.log('🔔 [알림 증가] 새 알림:', newNotification.id);
               loadNotificationCount(); // 알림 개수 즉시 업데이트
             }
@@ -997,15 +1033,15 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             const newNotification = payload.new as any;
             
             console.log('🔔 [알림 업데이트 상세]:', {
-              old_status: oldNotification?.status,
-              new_status: newNotification?.status,
+              old_is_read: oldNotification?.is_read,
+              new_is_read: newNotification?.is_read,
               recipient_id: newNotification?.recipient_id,
               current_user_id: user.id,
               is_mine: newNotification?.recipient_id === user.id
             });
             
-            // status: pending -> read 상태 변경 감지
-            if (oldNotification?.status === 'pending' && newNotification?.status === 'read' && newNotification?.recipient_id === user.id) {
+            // is_read: false -> true 상태 변경 감지
+            if (oldNotification?.is_read === false && newNotification?.is_read === true && newNotification?.recipient_id === user.id) {
               console.log('✅ [알림 감소] 읽음 처리:', newNotification.id);
               loadNotificationCount(); // 알림 개수 즉시 업데이트
             }
@@ -1014,7 +1050,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           // DELETE: 알림 삭제
           else if (payload.eventType === 'DELETE') {
             const deletedNotification = payload.old as any;
-            if (deletedNotification?.recipient_id === user.id && deletedNotification?.status === 'pending') {
+            if (deletedNotification?.recipient_id === user.id && deletedNotification?.is_read === false) {
               console.log('🔔 [알림 감소] 알림 삭제:', deletedNotification.id);
               loadNotificationCount(); // 알림 개수 즉시 업데이트
             }
@@ -1258,29 +1294,26 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         }
       }
 
-      // Lv2 (운영사) 거래는 거래내역에 저장하지 않음 - Lv3(본사) 이상만 저장
-      if (user.level >= 3) {
-        // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
-        const { data: transaction, error } = await supabase
-          .from('transactions')
-          .insert({
-            partner_id: user.id, // 관리자 입출금은 partner_id 사용
-            transaction_type: 'partner_online_deposit',
-            amount: amount,
-            status: 'pending',
-            balance_before: balance,
-            balance_after: balance + amount, // ✅ 입금이므로 가산
-            created_at: new Date().toISOString(),
-            memo: `[관리자 입금신청] ${user.nickname || user.username} → 본사`,
-            from_partner_id: user.id,  // ✅ 보낸사람 (신청자)
-            to_partner_id: lv2PartnerId // ✅ 받는사람 (본사/Lv2)
-          })
-          .select()
-          .single();
+      // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
+      const { data: transaction, error } = await supabase
+        .from('transactions')
+        .insert({
+          partner_id: user.id, // 관리자 입출금은 partner_id 사용
+          transaction_type: 'partner_deposit_request',
+          amount: amount,
+          status: 'pending',
+          balance_before: balance,
+          balance_after: balance, // 승인 전까지는 동일
+          created_at: new Date().toISOString(),
+          memo: `[관리자 입금신청] ${user.nickname || user.username} → 본사`,
+          from_partner_id: user.id,  // ✅ 보낸사람 (신청자)
+          to_partner_id: lv2PartnerId // ✅ 받는사람 (본사/Lv2)
+        })
+        .select()
+        .single();
 
-        if (error) {
-          throw new Error(error.message);
-        }
+      if (error) {
+        throw new Error(error.message);
       }
 
       toast.success(`입금 신청이 완료되었습니다. (${formatCurrency(amount)})`);
@@ -1336,29 +1369,26 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         }
       }
 
-      // Lv2 (운영사) 거래는 거래내역에 저장하지 않음 - Lv3(본사) 이상만 저장
-      if (user.level >= 3) {
-        // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
-        const { data: transaction, error } = await supabase
-          .from('transactions')
-          .insert({
-            partner_id: user.id, // 관리자 입출금은 partner_id 사용
-            transaction_type: 'partner_online_withdrawal',
-            amount: amount,
-            status: 'pending',
-            balance_before: balance,
-            balance_after: balance - amount, // ✅ 출금이므로 차감
-            created_at: new Date().toISOString(),
-            memo: `[관리자 출금신청] ${user.nickname || user.username} → 본사`,
-            from_partner_id: user.id,        // ✅ 보낸사람 (신청자/본사)
-            to_partner_id: lv2PartnerId      // ✅ 받는사람 (운영사)
-          })
-          .select()
-          .single();
+      // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
+      const { data: transaction, error } = await supabase
+        .from('transactions')
+        .insert({
+          partner_id: user.id, // 관리자 입출금은 partner_id 사용
+          transaction_type: 'partner_withdrawal_request',
+          amount: amount,
+          status: 'pending',
+          balance_before: balance,
+          balance_after: balance, // 승인 전까지는 동일
+          created_at: new Date().toISOString(),
+          memo: `[관리자 출금신청] ${user.nickname || user.username} → 본사`,
+          from_partner_id: lv2PartnerId, // ✅ 보낸사람 (본사/Lv2)
+          to_partner_id: user.id         // ✅ 받는사람 (신청자)
+        })
+        .select()
+        .single();
 
-        if (error) {
-          throw new Error(error.message);
-        }
+      if (error) {
+        throw new Error(error.message);
       }
 
       toast.success(`출금 신청이 완료되었습니다. (${formatCurrency(amount)})`);
@@ -1540,6 +1570,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   // ✅ 실시간 커미션 계산 + 과거 미전환 커미션 조회
   const loadLatestCommissions = async () => {
     try {
+      console.log('💰 [실시간 커미션 조회] 시작 - partner_id:', user.id);
+      
       // 1️⃣ 파트너의 현재 커미션 요율 조회
       const { data: partnerData, error: partnerError } = await supabase
         .from('partners')
@@ -1559,12 +1591,17 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         slot_losing: partnerData.slot_losing_commission || 0
       };
       
+      console.log('💰 [실시간 커미션] 파트너 요율:', commissionRates);
+      
       // 2️⃣ 실시간 커미션 계산 (오늘 00:00부터 현재까지)
       const todayStart = getTodayStartUTC();
       const now = new Date().toISOString();
       
+      console.log('💰 [실시간 커미션] 기간:', { todayStart, now });
+      
       // 하위 사용자 ID 조회
       const descendantUserIds = await getDescendantUserIds(user.id);
+      console.log('💰 [실시간 커미션] 하위 사용자 수:', descendantUserIds.length);
       
       let realtimeCommission = {
         casino_rolling: 0,
@@ -1577,6 +1614,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         // 베팅 통계 조회 (카지노/슬롯 구분)
         const stats = await getBettingStatsByGameType(descendantUserIds, todayStart, now, 'all');
         
+        console.log('💰 [실시간 커미션] 베팅 통계:', stats);
+        
         // 커미션 계산
         realtimeCommission = {
           casino_rolling: stats.casino.betAmount * (commissionRates.casino_rolling / 100),
@@ -1584,6 +1623,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           slot_rolling: stats.slot.betAmount * (commissionRates.slot_rolling / 100),
           slot_losing: stats.slot.lossAmount * (commissionRates.slot_losing / 100)
         };
+        
+        console.log('💰 [실시간 커미션] 계산 결과:', realtimeCommission);
       }
       
       // 3️⃣ 과거 정산 내역 조회 (오늘 이전)
@@ -1695,6 +1736,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             pastCommission.slot_losing += parseFloat(settlement.slot_losing_commission) || 0;
           }
         });
+        
+        console.log('💰 [과거 정산] 미전환 커미션:', pastCommission);
       }
       
       setLatestSettlements(settlementsWithConversion);
@@ -1706,6 +1749,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         slot_rolling: realtimeCommission.slot_rolling + pastCommission.slot_rolling,
         slot_losing: realtimeCommission.slot_losing + pastCommission.slot_losing
       };
+      
+      console.log('💰 [총 커미션] 실시간 + 과거:', totalCommission);
       
       setCommissionBalances(totalCommission);
       
@@ -1773,6 +1818,13 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         slot_losing: '슬롯 루징 커미션'
       }[selectedCommission.type];
 
+      console.log('💰 [커미션 전환] 시작:', {
+        partner_id: user.id,
+        settlement_id: selectedCommission.settlementId,
+        type: selectedCommission.type,
+        amount: selectedCommission.amount
+      });
+
       // ✅ RPC 함수 호출
       const { data, error } = await supabase.rpc('convert_commission_to_balance', {
         p_partner_id: user.id,
@@ -1795,6 +1847,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         throw new Error(errorMessage);
       }
 
+      console.log('✅ [커미션 전환] 성공:', data);
       toast.success(`${commissionTypeText} ${formatCurrency(selectedCommission.amount)}이(가) 보유금으로 전환되었습니다.\n전환된 금액은 즉시 사용 가능합니다.`);
 
       // ✅ 커미션 정보 새로고침
@@ -1954,9 +2007,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       <div className="text-sm text-emerald-300 font-medium text-center mb-1">{t.dashboard.pendingDeposits}</div>
                       <div className="text-2xl font-bold text-white text-center">{stats.pending_deposits}</div>
                       {stats.pending_deposits > 0 && (
-                        <Badge className="absolute -top-2 -right-2 h-5 min-w-[20px] px-1 rounded-full text-[10px] bg-red-600 hover:bg-red-700 animate-pulse border-0 text-white">
-                          {stats.pending_deposits > 99 ? '99+' : stats.pending_deposits}
-                        </Badge>
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
                       )}
                     </div>
                   </TooltipTrigger>
@@ -1975,9 +2026,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       <div className="text-sm text-orange-300 font-medium text-center mb-1">{t.dashboard.pendingWithdrawals}</div>
                       <div className="text-2xl font-bold text-white text-center">{stats.pending_withdrawals}</div>
                       {stats.pending_withdrawals > 0 && (
-                        <Badge className="absolute -top-2 -right-2 h-5 min-w-[20px] px-1 rounded-full text-[10px] bg-red-600 hover:bg-red-700 animate-pulse border-0 text-white">
-                          {stats.pending_withdrawals > 99 ? '99+' : stats.pending_withdrawals}
-                        </Badge>
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
                       )}
                     </div>
                   </TooltipTrigger>
@@ -2248,6 +2297,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         onClose={() => setShowNotifications(false)}
         onNotificationCountChange={setNotificationCount}
         currentPartnerId={user.id}
+        onRouteChange={onRouteChange}
       />
 
       {/* 비밀번호 변경 모달 */}

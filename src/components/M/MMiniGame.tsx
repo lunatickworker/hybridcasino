@@ -177,12 +177,6 @@ export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
                 (window as any).gameWindowCheckers?.delete(sessionId);
               }
               
-              // ⭐ Heartbeat 정리
-              const heartbeat = (handleGameWindowClose as any)._heartbeat;
-              if (heartbeat) {
-                clearInterval(heartbeat);
-              }
-              
               (window as any).gameWindows?.delete(sessionId);
               
               console.log('🔄 [미니게임창 닫힘] syncBalanceAfterGame 호출 시작');
@@ -211,25 +205,7 @@ export function Sample1MiniGame({ user }: Sample1MiniGameProps) {
               }
             }, 1000);
             
-            // ⭐ Heartbeat: 30초마다 게임 세션 활동 업데이트 (5분 자동 종료 방지)
-            const heartbeat = setInterval(async () => {
-              try {
-                const currentGameWindow = (window as any).gameWindows?.get(sessionId);
-                if (currentGameWindow && !currentGameWindow.closed) {
-                  await supabase
-                    .from('game_launch_sessions')
-                    .update({
-                      last_activity_at: new Date().toISOString()
-                    })
-                    .eq('id', sessionId);
-                }
-              } catch (error) {
-                console.error('❌ [Heartbeat] 활동 업데이트 실패:', error);
-              }
-            }, 30 * 1000); // 30초마다
-            
             (window as any).gameWindowCheckers.set(sessionId, checkGameWindow);
-            Object.defineProperty(handleGameWindowClose, '_heartbeat', { value: heartbeat });
             console.log('✅ [미니게임창 모니터링 시작] sessionId:', sessionId);
           }
         }

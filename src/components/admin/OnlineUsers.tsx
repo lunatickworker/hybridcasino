@@ -360,7 +360,7 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
           last_bet_at,
           balance_before
         `)
-        .neq('game_id', null) // ✅ neq 메서드 사용
+        .not('game_id', 'is', null)
         .eq('status', 'active')
         .order('last_activity_at', { ascending: false });
 

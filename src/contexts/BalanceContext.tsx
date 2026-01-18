@@ -355,6 +355,38 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         }
       }
 
+      // ✅ HonorAPI 보유금 동기화 추가
+      try {
+        const { data: honorConfig } = await supabase
+          .from('api_configs')
+          .select('api_key')
+          .eq('partner_id', user.id)
+          .eq('api_provider', 'honorapi')
+          .maybeSingle();
+
+        if (!honorConfig?.api_key) {
+          const errorMsg = `HonorAPI credentials가 설정되지 않았습니다.`;
+          console.error('❌ [Balance]', errorMsg);
+          if (isManual) {
+            toast.error(errorMsg);
+          }
+        } else {
+          const { getAgentBalance } = await import('../lib/honorApi');
+
+          const rawHonorBalance = await getAgentBalance(honorConfig.api_key);
+          newHonorBalance = typeof rawHonorBalance === 'number' && !isNaN(rawHonorBalance) ? rawHonorBalance : 0;
+
+          // ✅ updateHonorBalance로 변경 (Lv2 동기화 포함)
+          const { updateHonorBalance } = await import('../lib/apiConfigHelper');
+          await updateHonorBalance(user.id, newHonorBalance);
+        }
+      } catch (honorErr: any) {
+        console.error('❌ [Balance] HonorAPI 잔고 조회 실패:', honorErr);
+        if (isManual) {
+          toast.error(`HonorAPI 잔고 조회 실패: ${honorErr.message}`);
+        }
+      }
+
       setInvestBalance(newInvestBalance);
       setOroplayBalance(newOroBalance);
       setFamilyapiBalance(newFamilyBalance);

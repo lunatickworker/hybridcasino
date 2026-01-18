@@ -68,6 +68,7 @@ export const WebSocketProvider = React.memo(({ children }: WebSocketProviderProp
             type: 'ping',
             timestamp: new Date().toISOString()
           }));
+          console.log('💓 Heartbeat ping 전송');
           startHeartbeat(); // 다음 Heartbeat 예약
         } catch (error) {
           console.error('❌ Heartbeat 전송 실패:', error);
@@ -222,6 +223,7 @@ export const WebSocketProvider = React.memo(({ children }: WebSocketProviderProp
 
           // Heartbeat pong 응답 처리
           if (message.type === 'pong') {
+            console.log('💓 Heartbeat pong 수신');
             return; // UI에 표시하지 않음
           }
 

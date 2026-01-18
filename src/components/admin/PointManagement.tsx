@@ -30,7 +30,11 @@ interface PointTransaction {
   user_nickname: string;
   partner_id: string;
   partner_nickname: string;
-  transaction_type: 'earn' | 'use' | 'convert_to_balance' | 'admin_adjustment';
+  from_partner_id?: string;
+  from_partner_nickname?: string;
+  to_partner_id?: string;
+  to_partner_nickname?: string;
+  transaction_type: 'earn' | 'use' | 'convert_to_balance';
   amount: number;
   points_before: number;
   points_after: number;
@@ -75,9 +79,9 @@ export function PointManagement() {
       
       let pointQuery = supabase
         .from('point_transactions')
-        .select('*');
+        .select('*, from_partner_id, to_partner_id');
 
-      // ✅ 계층 구조 필터링: 시스템관리자가 아니면 하위 파트너들의 회원까지 포함
+      // ✅ 조직격리 로직: 처리자(partner_id) 기반 필터링
       if (authState.user?.level && authState.user.level > 1) {
         // get_hierarchical_partners RPC로 모든 하위 파트너 조회
         const { data: hierarchicalPartners } = await supabase
@@ -90,21 +94,13 @@ export function PointManagement() {
         
         const partnerIds = [authState.user.id, ...childPartnerIds];
         
-        // 자신과 하위 파트너들의 회원 조회
-        const { data: userList } = await supabase
-          .from('users')
-          .select('id')
-          .in('referrer_id', partnerIds);
-        
-        const userIds = userList?.map(u => u.id) || [];
-        
-        if (userIds.length > 0) {
-          pointQuery = pointQuery.in('user_id', userIds);
-        } else {
-          setTransactions([]);
-          setLoading(false);
-          return;
-        }
+        // ✅ 자신과 하위 파트너들이 처리한 포인트 거래만 조회
+        pointQuery = pointQuery.in('partner_id', partnerIds);
+      } else if (authState.user?.level === 1) {
+        // Lv1: 모든 포인트 거래 조회
+      } else {
+        // Lv0: 자신이 처리한 포인트 거래만 조회
+        pointQuery = pointQuery.eq('partner_id', authState.user?.id);
       }
 
       const { data, error } = await pointQuery
@@ -115,7 +111,13 @@ export function PointManagement() {
 
       // 사용자와 파트너 정보를 별도로 조회
       const userIds = [...new Set(data?.map(item => item.user_id).filter(Boolean))];
-      const partnerIds = [...new Set(data?.map(item => item.partner_id).filter(Boolean))];
+      const partnerIds = [...new Set(
+        data?.flatMap(item => [
+          item.partner_id,
+          item.from_partner_id,
+          item.to_partner_id
+        ]).filter(Boolean)
+      )];
 
       const { data: usersData } = await supabase
         .from('users')
@@ -134,7 +136,9 @@ export function PointManagement() {
         ...item,
         user_username: usersMap.get(item.user_id)?.username || '',
         user_nickname: usersMap.get(item.user_id)?.nickname || '',
-        partner_nickname: partnersMap.get(item.partner_id)?.nickname || ''
+        partner_nickname: partnersMap.get(item.partner_id)?.nickname || '',
+        from_partner_nickname: partnersMap.get(item.from_partner_id)?.nickname || '',
+        to_partner_nickname: partnersMap.get(item.to_partner_id)?.nickname || ''
       })) || [];
 
       setTransactions(formattedData);
@@ -287,7 +291,9 @@ export function PointManagement() {
           .insert([{
             user_id: selectedUserId,
             partner_id: authState.user?.id,
-            transaction_type: 'admin_adjustment',
+            from_partner_id: authState.user?.id,  // ✅ 송금자 (관리자)
+            to_partner_id: userData.referrer_id,   // ✅ 수금자 (사용자 소속 파트너)
+            transaction_type: 'earn',
             amount: amount,
             points_before: currentPoints,
             points_after: newPoints,
@@ -351,7 +357,9 @@ export function PointManagement() {
           .insert([{
             user_id: selectedUserId,
             partner_id: authState.user?.id,
-            transaction_type: 'admin_adjustment',
+            from_partner_id: authState.user?.id,  // ✅ 송금자 (관리자)
+            to_partner_id: userData.referrer_id,   // ✅ 수금자 (사용자 소속 파트너)
+            transaction_type: 'earn',
             amount: amount,
             points_before: currentPoints,
             points_after: newPoints,
@@ -364,20 +372,6 @@ export function PointManagement() {
         if (transactionError) {
           console.error('❌ [포인트 지급] 거래내역 생성 실패:', transactionError);
         }
-
-        // 4. 관리자 보유금 변경 로그 기록
-        await supabase.from('partner_balance_logs').insert({
-          partner_id: authState.user?.id,
-          balance_before: currentBalance,
-          balance_after: newAdminBalance,
-          amount: -amount,
-          transaction_type: 'admin_adjustment',
-          from_partner_id: authState.user?.id,  // ✅ 추가: 보낸사람 (관리자)
-          to_partner_id: selectedUserId,         // ✅ 추가: 받는사람 (사용자)
-          processed_by: authState.user?.id,
-          memo: `포인트 지급: ${userData.username} (${userData.nickname})`,
-          created_at: new Date().toISOString()
-        });
 
         toast.success(`${amount.toLocaleString()}P가 지급되었습니다. (보유금: ${newAdminBalance.toLocaleString()}원)`, {
           duration: 3000,
@@ -429,7 +423,9 @@ export function PointManagement() {
           .insert([{
             user_id: selectedUserId,
             partner_id: authState.user?.id,
-            transaction_type: 'admin_adjustment',
+            from_partner_id: authState.user?.id,  // ✅ 송금자 (관리자)
+            to_partner_id: userData.referrer_id,   // ✅ 수금자 (사용자 소속 파트너)
+            transaction_type: 'earn',
             amount: amount,
             points_before: currentPoints,
             points_after: newPoints,
@@ -442,20 +438,6 @@ export function PointManagement() {
         if (transactionError) {
           console.error('❌ [포인트 지급] 거래내역 생성 실패:', transactionError);
         }
-
-        // 4. 관리자 보유금 변경 로그 기록
-        await supabase.from('partner_balance_logs').insert({
-          partner_id: authState.user?.id,
-          balance_before: currentBalance,
-          balance_after: newAdminBalance,
-          amount: -amount,
-          transaction_type: 'admin_adjustment',
-          from_partner_id: authState.user?.id,  // ✅ 추가: 보낸사람 (관리자)
-          to_partner_id: selectedUserId,         // ✅ 추가: 받는사람 (사용자)
-          processed_by: authState.user?.id,
-          memo: `포인트 지급: ${userData.username} (${userData.nickname})`,
-          created_at: new Date().toISOString()
-        });
 
         toast.success(`${amount.toLocaleString()}P가 지급되었습니다. (보유금: ${newAdminBalance.toLocaleString()}원)`, {
           duration: 3000,
@@ -559,6 +541,8 @@ export function PointManagement() {
           .insert([{
             user_id: selectedUserId,
             partner_id: authState.user?.id,
+            from_partner_id: userData.referrer_id,   // ✅ 송금자 (사용자 소속 파트너)
+            to_partner_id: authState.user?.id,       // ✅ 수금자 (관리자)
             transaction_type: 'use',
             amount: -amount,
             points_before: currentPoints,
@@ -619,6 +603,8 @@ export function PointManagement() {
           .insert([{
             user_id: selectedUserId,
             partner_id: authState.user?.id,
+            from_partner_id: userData.referrer_id,   // ✅ 송금자 (사용자 소속 파트너)
+            to_partner_id: authState.user?.id,       // ✅ 수금자 (관리자)
             transaction_type: 'use',
             amount: -amount,
             points_before: currentPoints,
@@ -632,20 +618,6 @@ export function PointManagement() {
         if (transactionError) {
           console.error('❌ [포인트 회수] 거래내역 생성 실패:', transactionError);
         }
-
-        // 4. 관리자 보유금 변경 로그 기록
-        await supabase.from('partner_balance_logs').insert({
-          partner_id: authState.user?.id,
-          balance_before: lv3InvestBalance,
-          balance_after: newInvestBalance,
-          amount: amount,
-          transaction_type: 'admin_adjustment',
-          from_partner_id: selectedUserId,       // ✅ 추가: 보낸사람 (사용자)
-          to_partner_id: authState.user?.id,     // ✅ 추가: 받는사람 (관리자)
-          processed_by: authState.user?.id,
-          memo: `포인트 회수: ${userData.username} (${userData.nickname})`,
-          created_at: new Date().toISOString()
-        });
 
         toast.success(`${amount.toLocaleString()}P가 회수되었습니다. (Lv3 balance 증가)`, {
           duration: 3000,
@@ -691,6 +663,8 @@ export function PointManagement() {
           .insert([{
             user_id: selectedUserId,
             partner_id: authState.user?.id,
+            from_partner_id: userData.referrer_id,   // ✅ 송금자 (사용자 소속 파트너)
+            to_partner_id: authState.user?.id,       // ✅ 수금자 (관리자)
             transaction_type: 'use',
             amount: -amount,
             points_before: currentPoints,
@@ -704,20 +678,6 @@ export function PointManagement() {
         if (transactionError) {
           console.error('❌ [포인트 회수] 거래내역 생성 실패:', transactionError);
         }
-
-        // 4. 관리자 보유금 변경 로그 기록
-        await supabase.from('partner_balance_logs').insert({
-          partner_id: authState.user?.id,
-          balance_before: currentBalance,
-          balance_after: newAdminBalance,
-          amount: amount,
-          transaction_type: 'admin_adjustment',
-          from_partner_id: selectedUserId,       // ✅ 추가: 보낸사람 (사용자)
-          to_partner_id: authState.user?.id,     // ✅ 추가: 받는사람 (관리자)
-          processed_by: authState.user?.id,
-          memo: `포인트 회수: ${userData.username} (${userData.nickname})`,
-          created_at: new Date().toISOString()
-        });
 
         toast.success(`${amount.toLocaleString()}P가 회수되었습니다. (보유금: ${newAdminBalance.toLocaleString()}원)`, {
           duration: 3000,
@@ -917,20 +877,6 @@ export function PointManagement() {
         return;
       }
 
-      // 관리자 보유금 변경 로그 기록
-      await supabase.from('partner_balance_logs').insert({
-        partner_id: authState.user?.id,
-        balance_before: adminBalance,
-        balance_after: newAdminBalance,
-        amount: amount,
-        transaction_type: 'admin_adjustment',
-        from_partner_id: selectedUserId,       // ✅ 추가: 보낸사람 (사용자)
-        to_partner_id: authState.user?.id,     // ✅ 추가: 받는사람 (관리자)
-        processed_by: authState.user?.id,
-        memo: `포인트 회수: ${userData.username} (${userData.nickname})`,
-        created_at: new Date().toISOString()
-      });
-
       // 2-3. 포인트 거래 내역 생성
       const { data: transactionData, error: transactionError } = await supabase
         .from('point_transactions')
@@ -1090,8 +1036,7 @@ export function PointManagement() {
     const typeMap: Record<string, string> = {
       'earn': t.pointManagement.typeEarn,
       'use': t.pointManagement.typeUse,
-      'convert_to_balance': t.pointManagement.typeConvert,
-      'admin_adjustment': t.pointManagement.typeAdjustment
+      'convert_to_balance': t.pointManagement.typeConvert
     };
     return typeMap[type] || type;
   };
@@ -1124,8 +1069,7 @@ export function PointManagement() {
         const badgeStyles = {
           earn: 'px-3 py-1 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-400 border border-emerald-500/50 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]',
           use: 'px-3 py-1 bg-gradient-to-r from-rose-500/20 to-red-500/20 text-rose-400 border border-rose-500/50 rounded-full shadow-[0_0_10px_rgba(244,63,94,0.5)]',
-          convert_to_balance: 'px-3 py-1 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-400 border border-blue-500/50 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]',
-          admin_adjustment: 'px-3 py-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 border border-amber-500/50 rounded-full shadow-[0_0_10px_rgba(251,146,60,0.5)]'
+          convert_to_balance: 'px-3 py-1 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-400 border border-blue-500/50 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]'
         };
         
         return (
@@ -1141,7 +1085,7 @@ export function PointManagement() {
       cell: (row: PointTransaction) => {
         const amount = row.amount;
         const type = row.transaction_type;
-        const isPositive = type === 'earn' || type === 'admin_adjustment';
+        const isPositive = type === 'earn';
         return (
           <span className={`font-mono font-semibold ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
             {isPositive ? '+' : '-'}{Math.abs(amount).toLocaleString()}P
@@ -1170,10 +1114,40 @@ export function PointManagement() {
     {
       key: "memo",
       header: t.pointManagement.memo,
+      cell: (row: PointTransaction) => {
+        // ✅ 자동 생성된 메모 제외
+        const autoGeneratedMemos = [
+          '관리자 포인트 지급 (Lv2)',
+          '관리자 포인트 지급 (Lv3)',
+          '관리자 포인트 지급',
+          '관리자 포인트 회수 (Lv2)',
+          '관리자 포인트 회수 (Lv3)',
+          '관리자 포인트 회수',
+          '포인트 -> 보유금 전환'
+        ];
+        
+        const isAutoGenerated = autoGeneratedMemos.includes(row.memo);
+        const displayMemo = isAutoGenerated ? '' : row.memo;
+        
+        return (
+          <div className="max-w-[200px] truncate text-slate-400" title={displayMemo}>
+            {displayMemo || '-'}
+          </div>
+        );
+      },
+    },
+    {
+      key: "from_partner_nickname",
+      header: "송금자",
       cell: (row: PointTransaction) => (
-        <div className="max-w-[200px] truncate text-slate-400" title={row.memo}>
-          {row.memo}
-        </div>
+        <span className="text-blue-400">{row.from_partner_nickname || '-'}</span>
+      ),
+    },
+    {
+      key: "to_partner_nickname",
+      header: "수금자",
+      cell: (row: PointTransaction) => (
+        <span className="text-green-400">{row.to_partner_nickname || '-'}</span>
       ),
     },
     {
@@ -1204,7 +1178,7 @@ export function PointManagement() {
 
   // 통계 계산
   const totalPointsGiven = transactions
-    .filter(tx => tx.transaction_type === 'earn' || tx.transaction_type === 'admin_adjustment')
+    .filter(tx => tx.transaction_type === 'earn')
     .reduce((sum, tx) => sum + tx.amount, 0);
 
   const totalPointsUsed = transactions
@@ -1781,12 +1755,6 @@ export function PointManagement() {
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                     {t.pointManagement.typeConvert}
-                  </div>
-                </SelectItem>
-                <SelectItem value="admin_adjustment">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-                    {t.pointManagement.typeAdjustment}
                   </div>
                 </SelectItem>
               </SelectContent>

@@ -27,7 +27,6 @@ import { toast } from "sonner@2.0.3";
 import { useMessageQueue } from "../common/MessageQueueProvider";
 import { AnimatedCurrency } from "../common/AnimatedNumber";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { createAdminNotification } from "../../lib/notificationHelper";
 
 interface UserDepositProps {
   user: any;
@@ -80,7 +79,7 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'user_online_deposit')
+        .eq('transaction_type', 'deposit')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -119,7 +118,7 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'user_online_deposit')
+        .eq('transaction_type', 'deposit')
         .in('status', ['pending', 'approved'])
         .limit(1);
 
@@ -181,7 +180,7 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
       const depositData = {
         user_id: user.id,
         partner_id: user.referrer_id || null,
-        transaction_type: 'user_online_deposit',
+        transaction_type: 'deposit',
         amount: depositAmount,
         status: 'pending',
         balance_before: currentBalance,
@@ -213,19 +212,6 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
         .single();
 
       if (error) throw error;
-
-      // ✅ 알림카드에 입금 요청 알림 전송
-      if (user.referrer_id) {
-        await createAdminNotification({
-          user_id: user.id,
-          username: user.username || user.nickname,
-          user_login_id: user.login_id || '',
-          partner_id: user.referrer_id,
-          message: `온라인 입금 요청: ${user.nickname}님 ${depositAmount.toLocaleString()}원`,
-          log_message: `온라인 입금 요청 - ${user.nickname}님: ${depositAmount.toLocaleString()}원`,
-          notification_type: 'online_deposit' as any
-        });
-      }
 
       // 메시지 큐를 통한 실시간 알림 전송
       const success = await sendMessage('deposit_request', {
@@ -360,7 +346,7 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
           const newTransaction = payload.new as any;
           
-          if (newTransaction.transaction_type === 'user_online_deposit') {
+          if (newTransaction.transaction_type === 'deposit') {
             // 즉시 데이터 새로고침
             fetchDepositHistory();
             

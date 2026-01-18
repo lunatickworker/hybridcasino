@@ -321,7 +321,7 @@ export async function calculatePendingDeposits(
         .from('transactions')
         .select('amount')
         .in('user_id', chunk)
-        .eq('transaction_type', 'user_online_deposit')
+        .eq('transaction_type', 'deposit')
         .eq('status', 'pending')
         .gte('created_at', startDate)
         .lte('created_at', endDate);

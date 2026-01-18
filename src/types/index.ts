@@ -47,7 +47,7 @@ export interface Partner {
   menu_permissions?: string[]; // 파트너별 허용된 메뉴 ID 배열
 }
 
-// 파트너 거래 타입 (partner_balance_logs 테이블용)
+// 파트너 거래 타입 (partner_balance_logs 테이블용) - transactions.ts에서 관리
 export type PartnerTransactionType = 
   | 'deposit' 
   | 'withdrawal' 
@@ -56,14 +56,30 @@ export type PartnerTransactionType =
   | 'admin_adjustment' 
   | 'commission' 
   | 'refund' 
-  | 'deposit_to_user' 
-  | 'withdrawal_from_user';
+  | 'admin_deposit_send'
+  | 'admin_withdrawal_send'
+  | 'partner_deposit'
+  | 'partner_withdrawal';
 
+// Transaction 인터페이스 - transactions.ts에서 import
 export interface Transaction {
   id: string;
   user_id: string;
   partner_id?: string;
-  transaction_type: 'user_online_deposit' | 'user_online_withdrawal' | 'partner_online_deposit' | 'partner_online_withdrawal' | 'partner_manual_deposit' | 'partner_manual_withdrawal' | 'point_conversion' | 'admin_adjustment' | 'admin_deposit' | 'admin_withdrawal' | 'admin_deposit_initial';
+  transaction_type: 
+    | 'deposit' 
+    | 'withdrawal' 
+    | 'admin_deposit' 
+    | 'admin_withdrawal' 
+    | 'admin_adjustment' 
+    | 'commission' 
+    | 'refund' 
+    | 'admin_deposit_send'
+    | 'admin_withdrawal_send'
+    | 'partner_deposit'
+    | 'partner_withdrawal'
+    | 'partner_deposit_request'
+    | 'partner_withdrawal_request';
   amount: number;
   status: 'pending' | 'approved' | 'rejected' | 'completed';
   balance_before: number;

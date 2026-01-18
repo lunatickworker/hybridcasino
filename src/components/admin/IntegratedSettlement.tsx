@@ -279,11 +279,11 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       allTransactions = transactionsData || [];
       // console.log 제거
       
-      // ✅ partner_balance_logs 조회 (관리자입금/관리자출금용) - 전체입출금내역과 동일한 방식
+      // ✅ partner_balance_logs 조회 (관리자입금/관리자출금용) - 정산페이지와 동일한 방식
       let partnerBalanceLogsQuery = supabase
         .from('partner_balance_logs')
         .select('*')
-        .in('transaction_type', ['deposit', 'withdrawal']);
+        .in('transaction_type', ['admin_deposit_send', 'admin_withdrawal_send', 'commission', 'refund']);
       
       // ✅ Lv2 이상: partner_id, from_partner_id, to_partner_id 중 하나라도 매칭되면 조회
       if (user.level > 1) {
@@ -305,12 +305,12 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       if (balanceLogsError) throw balanceLogsError;
       
       // 관리자 입금/출금 통계
-      const adminDeposits = partnerBalanceLogs?.filter(l => l.transaction_type === 'deposit') || [];
-      const adminWithdrawals = partnerBalanceLogs?.filter(l => l.transaction_type === 'withdrawal') || [];
+      const adminDeposits = partnerBalanceLogs?.filter(l => l.transaction_type === 'admin_deposit_send') || [];
+      const adminWithdrawals = partnerBalanceLogs?.filter(l => l.transaction_type === 'admin_withdrawal_send') || [];
       
       // ✅ transactions 테이블의 partner_deposit도 포함
       const partnerDepositFromTransactions = allTransactions?.filter(t => 
-        t.transaction_type === 'partner_online_deposit' && t.status === 'completed'
+        t.transaction_type === 'partner_deposit' && t.status === 'completed'
       ) || [];
       
       // ✅ 관리자 입금 로그 (transactions + partner_balance_logs 통합)
@@ -574,30 +574,30 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
     // ✅ 파트너 거래 필터링 (partner_deposit, partner_withdrawal은 partner_id 사용)
     const partnerTransactions = transactions.filter(t => 
-      (t.transaction_type === 'partner_online_deposit' || t.transaction_type === 'partner_online_withdrawal') && 
+      (t.transaction_type === 'partner_deposit' || t.transaction_type === 'partner_withdrawal') && 
       relevantPartnerIdsForTransactions.includes(t.partner_id)
     );
 
     // ✅ 사용자 입출금: 사용자 요청 + 관리자 강제입출금 (입출금관리 페이지와 동기화)
     const deposit = userTransactions
-      .filter(t => t.transaction_type === 'user_online_deposit' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const withdrawal = userTransactions
-      .filter(t => t.transaction_type === 'user_online_withdrawal' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     // ✅ 관리자 입출금: 파트너 요청 + 파트너 강제입출금 (입출금관리 페이지의 관리자입금/관리자출금 필터 로직 그대로 사용)
-    // 1️⃣ transactions 테이블에서 파트너 요청 집계 (partner_online_deposit, partner_online_withdrawal)
+    // 1️⃣ transactions 테이블에서 파트너 요청 집계 (partner_deposit, partner_withdrawal)
     const adminDepositFromTransactions = partnerTransactions
-      .filter(t => t.transaction_type === 'partner_online_deposit' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const adminWithdrawalFromTransactions = partnerTransactions
-      .filter(t => t.transaction_type === 'partner_online_withdrawal' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    // 2️⃣ partner_balance_logs 테이블에서 파트너 강제입출금 집계 (deposit, withdrawal)
+    // 2️⃣ partner_balance_logs 테이블에서 관리자 입출금 집계
     // ✅ Lv2 이상: partner_id, from_partner_id, to_partner_id 중 하나라도 매칭되면 포함
     // 모든 관련 파트너 ID를 한 번에 조회 (중복 방지)
     const relevantBalanceLogs = partnerBalanceLogs.filter(l => 
@@ -607,30 +607,30 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     );
     
     const adminDepositFromLogs = relevantBalanceLogs
-      .filter(l => l.transaction_type === 'deposit')
+      .filter(l => l.transaction_type === 'admin_deposit_send')
       .reduce((sum, l) => sum + (l.amount || 0), 0);
 
     const adminWithdrawalFromLogs = relevantBalanceLogs
-      .filter(l => l.transaction_type === 'withdrawal')
+      .filter(l => l.transaction_type === 'admin_withdrawal_send')
       .reduce((sum, l) => sum + (l.amount || 0), 0);
 
-    // 3️⃣ 관리자입금/출금 합산 (입출금관리 페이지의 관리자입금/관리자출금 필터와 동일한 방식)
+    // 3️⃣ 관리자입금/출금 합산 (정산페이지와 동일한 방식)
     const adminDeposit = adminDepositFromTransactions + adminDepositFromLogs;
     const adminWithdrawal = adminWithdrawalFromTransactions + adminWithdrawalFromLogs;
     
-    // 4️⃣ 관리자신청금/출금 (transactions의 partner_online_deposit/partner_online_withdrawal)
+    // 4️⃣ 관리자신청금/출금 (transactions의 partner_deposit/partner_withdrawal)
     // 입출금관리 페이지의 "관리자입금신청/관리자출금신청"과 동일하게 transactions에서 집계
     const partnerRequestDeposit = partnerTransactions
-      .filter(t => t.transaction_type === 'partner_online_deposit' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const partnerRequestWithdrawal = partnerTransactions
-      .filter(t => t.transaction_type === 'partner_online_withdrawal' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
     
     // ✅ 관리자 입금 상세 로그 (transactions 테이블 포함)
     const adminDepositFromTransactionsDetails = partnerTransactions
-      .filter(t => t.transaction_type === 'partner_online_deposit' && t.status === 'completed')
+      .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed')
       .map(t => ({
         source: 'transactions',
         id: t.id,
@@ -647,11 +647,11 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     const userPointTrans = pointTransactions.filter(pt => relevantUserIdsForTransactions.includes(pt.user_id));
 
     const pointGiven = userPointTrans
-      .filter(pt => pt.type === 'commission_earned')
+      .filter(pt => pt.transaction_type === 'earn')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
     const pointRecovered = userPointTrans
-      .filter(pt => pt.type === 'point_to_balance')
+      .filter(pt => pt.transaction_type === 'convert_to_balance')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
     // ✅ 포인트 거래의 입출금 (transaction_type이 deposit/withdrawal인 경우)

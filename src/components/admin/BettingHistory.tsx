@@ -48,29 +48,9 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [bettingRecords, setBettingRecords] = useState<BettingRecord[]>([]);
-  const [dateFilter, setDateFilter] = useState("today"); // ✅ 기본값을 "오늘"로 설정
+  const [dateFilter, setDateFilter] = useState("today"); // ✅ 기본값을 "오늘"로 변경
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
-
-  // ✅ 증분 업데이트를 위한 마지막 동기화 시간
-  const getLastSyncTime = () => {
-    try {
-      const key = `betting_history_last_sync_${user.id}`;
-      const lastSync = localStorage.getItem(key);
-      return lastSync ? new Date(lastSync) : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const setLastSyncTime = (time: Date) => {
-    try {
-      const key = `betting_history_last_sync_${user.id}`;
-      localStorage.setItem(key, time.toISOString());
-    } catch {
-      // localStorage 사용 불가능한 경우 무시
-    }
-  };
 
   // 날짜 포맷 (이미지와 동일: 2025년10월24일 08:19:52)
   const formatKoreanDate = (dateStr: string) => {
@@ -117,9 +97,8 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       // 2. 1초 대기 (DB INSERT 완료 대기)
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // 3. 마지막 동기화 시간 업데이트 및 증분 데이터만 로드
-      setLastSyncTime(new Date());
-      await loadBettingData(true); // isIncremental = true
+      // 3. DB에서 데이터 로드
+      await loadBettingData();
       
       toast.success(t.bettingHistory.refreshSuccess);
     } catch (error) {
@@ -131,26 +110,11 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   };
 
   // ✅ 데이터 로드 - 조회만 담당 (내부용)
-  const loadBettingData = async (isIncremental: boolean = false) => {
+  const loadBettingData = async () => {
     try {
-      console.log(`🔄 베팅 데이터 로드 시작 (증분: ${isIncremental})`);
+      console.log('🔄 베팅 데이터 로드 시작');
       
       const dateRange = getDateRange(dateFilter);
-      let incrementalFilter: { start: string; end: string } | null = null;
-
-      // ✅ 증분 업데이트 모드: 마지막 동기화 시간 이후의 데이터만
-      if (isIncremental) {
-        const lastSync = getLastSyncTime();
-        if (lastSync) {
-          console.log('⏰ 마지막 동기화 시간:', lastSync.toISOString());
-          incrementalFilter = {
-            start: lastSync.toISOString(),
-            end: new Date().toISOString()
-          };
-        } else {
-          console.log('ℹ️ 마지막 동기화 시간 없음 - 전체 로드');
-        }
-      }
 
       // ✅ Get allowed partner IDs by permission level
       let allowedPartnerIds: string[] = [];
@@ -220,8 +184,6 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       }
       
       console.log('👥 Child partner IDs count:', allowedPartnerIds.length);
-      console.log('📌 Allowed partner IDs:', allowedPartnerIds); // ✅ 디버깅 추가
-      console.log('📌 User level:', user.level); // ✅ 디버깅 추가
 
       // ✅ Data query (filtered by level)
       let query = supabase
@@ -229,8 +191,11 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         .select('*');
 
       if (user.level === 1) {
-        // 시스템관리자: 모든 데이터 조회 가능 (필터 없음)
-        console.log('🔍 System Admin: Query ALL data (no filters)');
+        // 시스템관리자: 모든 데이터 조회 가능
+        if (allowedPartnerIds.length > 0) {
+          query = query.in('partner_id', allowedPartnerIds);
+        }
+        console.log('🔍 System Admin: Query all partner data');
       } else {
         // Regular admin: filter by child user IDs
         const { data: usersData } = await supabase
@@ -240,7 +205,6 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         
         const userIds = usersData?.map(u => u.id) || [];
         console.log('👤 하위 회원 ID 개수:', userIds.length);
-        console.log('📌 User IDs:', userIds); // ✅ 디버깅 추가
         
         if (userIds.length > 0) {
           query = query.in('user_id', userIds);
@@ -253,15 +217,8 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         }
       }
       
-      // ✅ 증분 업데이트 모드 또는 날짜 필터 적용
-      if (incrementalFilter) {
-        // 증분 모드: 마지막 동기화 시간 이후의 데이터만
-        query = query
-          .gte('played_at', incrementalFilter.start)
-          .lte('played_at', incrementalFilter.end);
-        console.log('📊 증분 필터 적용:', incrementalFilter.start, '~', incrementalFilter.end);
-      } else if (dateRange) {
-        // 일반 모드: 날짜 필터 적용
+      // 날짜 필터가 있을 때만 적용
+      if (dateRange) {
         query = query
           .gte('played_at', dateRange.start)
           .lte('played_at', dateRange.end);
@@ -280,7 +237,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         throw error;
       }
 
-      console.log('✅ 베팅 데이터 로드 성공:', data?.length || 0, '건 (증분:', isIncremental, ')');
+      console.log('✅ 베팅 데이터 로드 성공:', data?.length || 0, '건');
       
       // 🔍 디버깅: 첫 번째 레코드 출력
       if (data && data.length > 0) {
@@ -361,26 +318,8 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       
       console.log('📋 매핑된 첫 레코드:', mappedData[0]);
       
-      // ✅ 증분 업데이트: 기존 데이터와 merge
-      if (isIncremental && mappedData.length > 0) {
-        console.log('🔀 증분 업데이트: 기존 데이터와 merge');
-        
-        // 새 데이터를 맨 앞에 추가 (최신순 유지)
-        const newIds = new Set(mappedData.map(m => m.id));
-        const existingFiltered = bettingRecords.filter(record => !newIds.has(record.id));
-        const mergedData = [...mappedData, ...existingFiltered];
-        
-        console.log(`📊 merge 결과: 새 데이터 ${mappedData.length}개 + 기존 ${existingFiltered.length}개 = 총 ${mergedData.length}개`);
-        setBettingRecords(mergedData);
-      } else {
-        // 전체 로드: 기존 데이터 대체
-        console.log('🔄 전체 로드: 기존 데이터 대체');
-        setBettingRecords(mappedData);
-        // 마지막 동기화 시간 업데이트 (초기 로드 시)
-        if (!isIncremental) {
-          setLastSyncTime(new Date());
-        }
-      }
+      // 데이터 상태 업데이트
+      setBettingRecords(mappedData);
     } catch (error) {
       console.error('❌ 베팅 데이터 로드 오류:', error);
       toast.error(t.bettingHistory.loadFailed);
@@ -496,13 +435,17 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         .filter(r => r.game_type === 'slot')
         .reduce((sum, r) => sum + Math.abs(parseFloat(r.bet_amount?.toString() || '0')), 0);
 
+      // ✅ 누락된 게임내역 카운트
+      const missingGameInfo = filteredRecords.filter(r => !r.game_title || !r.provider_name).length;
+
       return {
         totalBets: filteredRecords.length,
         totalBetAmount,
         totalWinAmount,
         netProfit: totalBetAmount - totalWinAmount,  // ✅ 순손익 = 총 베팅액 - 당첨액
         casinoBetAmount,  // ✅ 카지노 베팅액
-        slotBetAmount     // ✅ 슬롯 베팅액
+        slotBetAmount,     // ✅ 슬롯 베팅액
+        missingGameInfo    // ✅ 누락된 게임내역
       };
     } else {
       return {
@@ -511,7 +454,8 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         totalWinAmount: 0,
         netProfit: 0,
         casinoBetAmount: 0,
-        slotBetAmount: 0
+        slotBetAmount: 0,
+        missingGameInfo: 0
       };
     }
   }, [filteredRecords]);
@@ -731,6 +675,12 @@ export function BettingHistory({ user }: BettingHistoryProps) {
           value={`₩${stats.slotBetAmount.toLocaleString()}`}
           icon={CreditCard}
           color="cyan"
+        />
+        <MetricCard
+          title="누락된 게임내역"
+          value={stats.missingGameInfo.toLocaleString()}
+          icon={CreditCard}
+          color="yellow"
         />
       </div>
 

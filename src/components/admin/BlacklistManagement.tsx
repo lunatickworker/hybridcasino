@@ -126,7 +126,7 @@ export function BlacklistManagement() {
         throw new Error(data.error || '블랙리스트 해제 실패');
       }
 
-      toast.success(t('blacklist.restoreSuccess', { username: user.username }));
+      toast.success(`${user.username} 사용자의 블랙리스트가 해제되었습니다.`);
       
       // 목록에서 해당 사용자 제거
       setBlacklistedUsers(prev => prev.filter(u => u.user_id !== user.user_id));

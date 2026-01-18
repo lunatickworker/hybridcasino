@@ -36,7 +36,7 @@ interface ForceTransactionModalProps {
     type: 'deposit' | 'withdrawal';
     amount: number;
     memo: string;
-    apiType?: 'invest' | 'oroplay';
+    apiType?: 'invest' | 'oroplay' | 'familyapi' | 'honorapi';
   }) => Promise<void>;
   onTypeChange: (type: 'deposit' | 'withdrawal') => void;
   currentUserLevel?: number; // Lv1인지 확인용
@@ -44,6 +44,7 @@ interface ForceTransactionModalProps {
   currentUserInvestBalance?: number; // Lv1/Lv2의 invest API balance
   currentUserOroplayBalance?: number; // Lv1/Lv2의 oroplay API balance
   currentUserFamilyapiBalance?: number; // Lv1/Lv2의 familyapi API balance
+  currentUserHonorapiBalance?: number; // Lv1/Lv2의 honorapi API balance
   useGmsMoney?: boolean; // ✅ GMS 머니 모드 (API 선택 없이 GMS로만 처리)
 }
 
@@ -61,19 +62,27 @@ export function ForceTransactionModal({
   currentUserInvestBalance = 0,
   currentUserOroplayBalance = 0,
   currentUserFamilyapiBalance = 0,
+  currentUserHonorapiBalance = 0,
   useGmsMoney = false
 }: ForceTransactionModalProps) {
   const { t } = useLanguage();
-  const { useInvestApi, useOroplayApi } = useBalance(); // ✅ API 활성화 상태
+  const { useInvestApi, useOroplayApi, useFamilyApi, useHonorApi } = useBalance(); // ✅ API 활성화 상태
   const [selectedTargetId, setSelectedTargetId] = useState('');
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
-  // ✅ 기본 API 선택: oroplay (UserManagement와 동일)
-  const defaultApiType = 'oroplay';
-  const [apiType, setApiType] = useState<'invest' | 'oroplay'>(defaultApiType);
+  // ✅ 활성화된 API 목록 (동적)
+  const activeApis: Array<'invest' | 'oroplay' | 'familyapi' | 'honorapi'> = [];
+  if (useInvestApi) activeApis.push('invest');
+  if (useOroplayApi) activeApis.push('oroplay');
+  if (useFamilyApi) activeApis.push('familyapi');
+  if (useHonorApi) activeApis.push('honorapi');
+  
+  // ✅ 기본 API 선택: 활성화된 첫 번째 API (또는 oroplay)
+  const defaultApiType: 'invest' | 'oroplay' | 'familyapi' | 'honorapi' = activeApis.length > 0 ? activeApis[0] : 'oroplay';
+  const [apiType, setApiType] = useState<'invest' | 'oroplay' | 'familyapi' | 'honorapi'>(defaultApiType);
 
   // 금액 단축 버튼 (포인트 모달과 동일하게 4개씩)
   const amountShortcuts = [
@@ -94,8 +103,8 @@ export function ForceTransactionModal({
   const currentBalance = selectedTarget ? parseFloat(selectedTarget.balance?.toString() || '0') : 0;
   const isTargetFixed = !!propSelectedTarget;
   
-  // ✅ API 선택 기능 제거 - 완전히 숨김
-  const showApiSelector = false;
+  // ✅ API 선택 기능: 활성화된 API가 2개 이상일 때만 표시
+  const showApiSelector = activeApis.length > 1;
 
   // 금액 단축 버튼 클릭 (누적 더하기)
   const handleAmountShortcut = (value: number) => {
@@ -136,9 +145,24 @@ export function ForceTransactionModal({
     if (type === 'deposit') {
       // Lv1 → Lv2 입금: 선택한 API 보유금 기준
       if (currentUserLevel === 1 && selectedTarget?.level === 2) {
-        const selectedBalance = apiType === 'invest' ? currentUserInvestBalance : currentUserOroplayBalance;
+        const getApiBalance = (api: string) => {
+          switch(api) {
+            case 'invest': return currentUserInvestBalance;
+            case 'oroplay': return currentUserOroplayBalance;
+            case 'familyapi': return currentUserFamilyapiBalance;
+            case 'honorapi': return currentUserHonorapiBalance;
+            default: return 0;
+          }
+        };
+        const selectedBalance = getApiBalance(apiType);
         if (amountNum > selectedBalance) {
-          const apiName = apiType === 'invest' ? 'Invest' : 'OroPlay';
+          const apiNames: Record<string, string> = {
+            'invest': 'Invest',
+            'oroplay': 'OroPlay',
+            'familyapi': 'Family',
+            'honorapi': 'Honor'
+          };
+          const apiName = apiNames[apiType] || apiType;
           errorMessage = `${apiName} API 보유금이 부족합니다. (입금 가능: ${selectedBalance.toLocaleString()}원)`;
         }
       }
@@ -205,7 +229,7 @@ export function ForceTransactionModal({
         type,
         amount: submitAmount,
         memo,
-        apiType: showApiSelector ? apiType : undefined
+        apiType: showApiSelector ? apiType : activeApis.length > 0 ? activeApis[0] : undefined
       });
 
       // 초기화
@@ -357,125 +381,38 @@ export function ForceTransactionModal({
           {/* 관리자 보유금 (입금 시에만 표시) */}
           {type === 'deposit' && (
             <div className="p-3 bg-emerald-900/20 rounded-lg border border-emerald-700/50">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-base text-emerald-400">💰 관리자 보유금</span>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">관리자 보유금:</span>
+                <span className="font-mono text-emerald-400 font-bold text-base">
+                  {(() => {
+                    let total = 0;
+                    if (useInvestApi) total += currentUserInvestBalance;
+                    if (useOroplayApi) total += currentUserOroplayBalance;
+                    if (useFamilyApi) total += currentUserFamilyapiBalance;
+                    if (useHonorApi) total += currentUserHonorapiBalance;
+                    return total.toLocaleString();
+                  })()}원
+                </span>
               </div>
-              {/* Lv1: API별 보유금 표시 (✅ 비활성화된 API 숨김) */}
-              {currentUserLevel === 1 ? (
-                <div className="space-y-1.5">
-                  {useInvestApi && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-400">Invest API:</span>
-                      <span className={`font-mono text-base ${
-                        isLv1ToLv2 && apiType === 'invest' ? 'text-emerald-400 font-bold' : 'text-emerald-400/60'
-                      }`}>
-                        {currentUserInvestBalance.toLocaleString()}원
-                      </span>
-                    </div>
-                  )}
-                  {useOroplayApi && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-400">OroPlay API:</span>
-                      <span className={`font-mono text-base ${
-                        isLv1ToLv2 && apiType === 'oroplay' ? 'text-emerald-400 font-bold' : 'text-emerald-400/60'
-                      }`}>
-                        {currentUserOroplayBalance.toLocaleString()}원
-                      </span>
-                    </div>
-                  )}
-                  {isLv1ToLv2 ? (
-                    <div className="pt-1.5 mt-1.5 border-t border-emerald-700/30 flex items-center justify-between">
-                      <span className="text-base text-emerald-400">입금 가능:</span>
-                      <span className="font-mono text-emerald-400 font-bold text-base">
-                        {(apiType === 'invest' ? currentUserInvestBalance : currentUserOroplayBalance).toLocaleString()}원
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="pt-1.5 mt-1.5 border-t border-emerald-700/30 flex items-center justify-between">
-                      <span className="text-base text-emerald-400">입금 가능:</span>
-                      <span className="font-mono text-emerald-400 font-bold text-base">
-                        {(() => {
-                          const balances = [];
-                          if (useInvestApi) balances.push(currentUserInvestBalance);
-                          if (useOroplayApi) balances.push(currentUserOroplayBalance);
-                          return balances.length > 0 ? Math.min(...balances).toLocaleString() : '0';
-                        })()}원
-                      </span>
-                    </div>
-                  )}
-                  <p className="text-xs text-slate-500 mt-1.5">
-                    {isLv1ToLv2 
-                      ? `※ 선택한 API 보유금에서만 입금됩니다.`
-                      : useInvestApi && useOroplayApi
-                        ? `※ 두 API 중 가장 작은 보유금을 기준으로 입금 제한됩니다.`
-                        : `※ 활성화된 API 보유금을 기준으로 입금 제한됩니다.`}
-                  </p>
-                </div>
-              ) : currentUserLevel === 2 ? (
-                <div className="space-y-1.5">
-                  {/* ✅ Lv2: 활성화된 모든 API 보유금 총합 표시 */}
-                  {useInvestApi && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-400">Invest API:</span>
-                      <span className="font-mono text-base text-emerald-400/60">
-                        {currentUserInvestBalance.toLocaleString()}원
-                      </span>
-                    </div>
-                  )}
-                  {useOroplayApi && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-slate-400">OroPlay API:</span>
-                      <span className="font-mono text-base text-emerald-400/60">
-                        {currentUserOroplayBalance.toLocaleString()}원
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-400">Family API:</span>
-                    <span className="font-mono text-base text-emerald-400/60">
-                      {currentUserFamilyapiBalance.toLocaleString()}원
-                    </span>
-                  </div>
-                  <div className="pt-1.5 mt-1.5 border-t border-emerald-700/30 flex items-center justify-between">
-                    <span className="text-base text-emerald-400">활성화된 API 총합:</span>
-                    <span className="font-mono text-emerald-400 font-bold text-base">
-                      {(() => {
-                        let total = 0;
-                        if (useInvestApi) total += currentUserInvestBalance;
-                        if (useOroplayApi) total += currentUserOroplayBalance;
-                        total += currentUserFamilyapiBalance; // Family는 항상 포함
-                        return total.toLocaleString();
-                      })()}원
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1.5">
-                    ※ 운영사는 외부 API와 자동 동기화되어 무제한 입금 가능합니다.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <span className="text-base text-slate-400">사용 가능:</span>
-                  <span className="font-mono text-emerald-400 text-base">
-                    {currentUserBalance.toLocaleString()}원
-                  </span>
-                </div>
-              )}
             </div>
           )}
 
-          {/* ✅ API 선택 (Lv1 → Lv2 입출금만) - 비활성화된 API 숨김 */}
+          {/* ✅ API 선택 (활성화된 API가 2개 이상일 때만) - 비활성화됨 */}
+          {/* 
           {showApiSelector && (
             <div className="grid gap-2">
               <Label htmlFor="api-type-select" className="text-base">
                 {type === 'deposit' ? '입금할' : '회수할'} API 선택
               </Label>
-              <Select value={apiType} onValueChange={(v: 'invest' | 'oroplay') => setApiType(v)}>
+              <Select value={apiType} onValueChange={(v: any) => setApiType(v)}>
                 <SelectTrigger id="api-type-select" className="input-premium h-10 text-base">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-slate-800 border-slate-700">
                   {useInvestApi && <SelectItem value="invest" className="text-base py-2">Invest API</SelectItem>}
                   {useOroplayApi && <SelectItem value="oroplay" className="text-base py-2">OroPlay API</SelectItem>}
+                  {useFamilyApi && <SelectItem value="familyapi" className="text-base py-2">Family API</SelectItem>}
+                  {useHonorApi && <SelectItem value="honorapi" className="text-base py-2">Honor API</SelectItem>}
                 </SelectContent>
               </Select>
               <p className="text-xs text-slate-500">
@@ -485,6 +422,7 @@ export function ForceTransactionModal({
               </p>
             </div>
           )}
+          */}
 
           {/* 금액 */}
           <div className="grid gap-2">

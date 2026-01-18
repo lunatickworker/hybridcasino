@@ -89,10 +89,32 @@ export function getStatusText(status: string): string {
 // 트랜잭션 타입 텍스트
 export function getTransactionTypeText(type: string): string {
   const typeMap = {
-    deposit: '입금',
-    withdrawal: '출금',
-    point_conversion: '포인트전환',
-    admin_adjustment: '관리자조정',
+    deposit: '온라인 입금 신청',
+    withdrawal: '온라인 출금 신청',
+    point_conversion: '포인트 전환',
+    admin_adjustment: '강제 입금',
+    admin_deposit: '수동 입금',
+    admin_deposit_initial: '수동 입금',
+    admin_deposit_send: '파트너 충전',
+    admin_deposit_receive: '파트너 충전',
+    admin_withdrawal: '수동 출금',
+    admin_withdrawal_initial: '수동 출금',
+    admin_withdrawal_send: '파트너 환전',
+    admin_withdrawal_receive: '파트너 환전',
+    partner_deposit: '온라인 입금 신청',
+    partner_withdrawal: '온라인 출금 신청',
+    partner_online_deposit: '온라인 입금',
+    partner_online_withdrawal: '온라인 출금',
+    partner_manual_deposit: '수동 충전',
+    partner_manual_withdrawal: '수동 환전',
+    user_online_deposit: '온라인 입금',
+    user_online_withdrawal: '온라인 출금',
+    deposit_to_user: '회원 입금',
+    withdrawal_from_user: '회원 출금',
+    commission: '커미션',
+    refund: '환불',
+    earn: '포인트 획득',
+    use: '포인트 사용',
   };
   return typeMap[type as keyof typeof typeMap] || type;
 }

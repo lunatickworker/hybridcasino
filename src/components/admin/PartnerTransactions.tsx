@@ -10,6 +10,8 @@ import { toast } from "sonner@2.0.3";
 import { CreditCard, ArrowUpDown, DollarSign, Search, Calendar } from "lucide-react";
 import { MetricCard } from "./MetricCard";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { TransactionType, PARTNER_BALANCE_TABLE_TYPES, TRANSACTION_CONFIG } from "../../types/transactions";
+import { TransactionBadge } from "../common/TransactionBadge";
 
 interface PartnerTransaction {
   id: string;
@@ -64,17 +66,26 @@ export function PartnerTransactions() {
         return;
       }
 
-      // ✅ 파트너 입출금 내역 조회 (from/to가 null이어도 포함)
+      const currentPartnerId = authState.user.id;
+      const userLevel = authState.user.level || 1;
+
+      console.log('🔍 [PartnerTransactions] fetchTransactions 호출', { currentPartnerId, userLevel });
+
+      // ✅ 기본 쿼리 - select 최적화
       let query = supabase
         .from('partner_balance_logs')
-        .select('*')
-        .in('transaction_type', ['deposit', 'withdrawal']);
+        .select('id,transaction_type,status,amount,partner_id,from_partner_id,to_partner_id,created_at,processed_at,processed_by,memo,balance_before,balance_after');
 
-      // 시스템관리자(level 1)가 아닌 경우 자신과 연관된 내역만 필터링
-      if (authState.user.level !== 1) {
-        const currentPartnerId = authState.user.id;
-        // ✅ partner_id, from_partner_id, to_partner_id 중 하나라도 자신이면 조회
-        query = query.or(`partner_id.eq.${currentPartnerId},from_partner_id.eq.${currentPartnerId},to_partner_id.eq.${currentPartnerId}`);
+      // 🔐 레벨 기반 권한 필터
+      if (userLevel === 1) {
+        // Lv1: 모든 거래 조회 (admin_adjustment는 생성 안 함)
+        console.log('🔧 [PartnerTransactions] Lv1 필터 적용: 모든 거래 조회');
+      } else {
+        // Lv2+: 자신이 송수신한 거래만 + 거래 타입 필터
+        console.log('🔧 [PartnerTransactions] Lv2+ 필터 적용');
+        query = query
+          .in('transaction_type', PARTNER_BALANCE_TABLE_TYPES)
+          .or(`partner_id.eq.${currentPartnerId},from_partner_id.eq.${currentPartnerId},to_partner_id.eq.${currentPartnerId}`);
       }
 
       // 날짜 필터 적용
@@ -89,23 +100,7 @@ export function PartnerTransactions() {
         .order('created_at', { ascending: sortOrder === 'oldest' })
         .limit(1000);
 
-      console.log('🔍 [PartnerTransactions] 조회 결과:', {
-        count: logsData?.length || 0,
-        currentPartnerId: authState.user.level !== 1 ? authState.user.id : 'ALL',
-        userLevel: authState.user.level,
-        startDate,
-        endDate,
-        sample: logsData?.slice(0, 2).map(d => ({
-          id: d.id,
-          partner_id: d.partner_id,
-          from_partner_id: d.from_partner_id,
-          to_partner_id: d.to_partner_id,
-          transaction_type: d.transaction_type,
-          amount: d.amount,
-          created_at: d.created_at
-        })),
-        error
-      });
+      console.log('📊 [PartnerTransactions] 쿼리 결과', { logsData, error });
 
       if (error) {
         console.error('partner_balance_logs 조회 오류:', error);
@@ -169,12 +164,13 @@ export function PartnerTransactions() {
         t.created_at && t.created_at.startsWith(today)
       );
 
+      // 금액의 부호(amount) 기반 집계로 모든 관련 transaction_type 포함
       const deposits = todayTransactions
-        .filter(t => t.transaction_type === 'deposit')
-        .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+        .filter(t => Number(t.amount) > 0)
+        .reduce((sum, t) => sum + Number(t.amount), 0);
 
       const withdrawals = todayTransactions
-        .filter(t => t.transaction_type === 'withdrawal')
+        .filter(t => Number(t.amount) < 0)
         .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
 
       setStats({
@@ -221,24 +217,38 @@ export function PartnerTransactions() {
   // 거래 유형 표시
   const getTransactionTypeBadge = (type: string) => {
     const badgeStyles: { [key: string]: { text: string; className: string } } = {
-      deposit: { 
-        text: t.partnerTransactions.deposit, 
-        className: 'px-3 py-1 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-400 border border-emerald-500/50 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]' 
+      admin_deposit_send: {
+        text: '수동 충전',
+        className: 'px-3 py-1 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-400 border border-blue-500/50 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]'
       },
-      withdrawal: { 
-        text: t.partnerTransactions.withdrawal, 
-        className: 'px-3 py-1 bg-gradient-to-r from-rose-500/20 to-red-500/20 text-rose-400 border border-rose-500/50 rounded-full shadow-[0_0_10px_rgba(244,63,94,0.5)]' 
+
+      admin_withdrawal_send: {
+        text: '수동 환전',
+        className: 'px-3 py-1 bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-400 border border-orange-500/50 rounded-full shadow-[0_0_10px_rgba(234,88,12,0.5)]'
       },
-      admin_adjustment: { 
-        text: t.partnerTransactions.adminAdjustment, 
-        className: 'px-3 py-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-400 border border-amber-500/50 rounded-full shadow-[0_0_10px_rgba(251,146,60,0.5)]' 
+
+      partner_deposit: {
+        text: '파트너 충전',
+        className: 'px-3 py-1 bg-gradient-to-r from-emerald-500/20 to-teal-500/20 text-emerald-400 border border-emerald-500/50 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+      },
+      partner_withdrawal: {
+        text: '파트너 환전',
+        className: 'px-3 py-1 bg-gradient-to-r from-rose-500/20 to-red-500/20 text-rose-400 border border-rose-500/50 rounded-full shadow-[0_0_10px_rgba(244,63,94,0.5)]'
+      },
+      partner_deposit_request: {
+        text: '온라인 입금요청',
+        className: 'px-3 py-1 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-400 border border-yellow-500/50 rounded-full shadow-[0_0_10px_rgba(234,179,8,0.5)]'
+      },
+      partner_withdrawal_request: {
+        text: '온라인 출금요청',
+        className: 'px-3 py-1 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-400 border border-yellow-500/50 rounded-full shadow-[0_0_10px_rgba(234,179,8,0.5)]'
       },
       commission: { 
-        text: t.partnerTransactions.commission, 
+        text: '커미션', 
         className: 'px-3 py-1 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 text-blue-400 border border-blue-500/50 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]' 
       },
       refund: { 
-        text: t.partnerTransactions.refund, 
+        text: '환불', 
         className: 'px-3 py-1 bg-gradient-to-r from-purple-500/20 to-violet-500/20 text-purple-400 border border-purple-500/50 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.5)]' 
       }
     };
@@ -303,7 +313,7 @@ export function PartnerTransactions() {
       key: 'transaction_type',
       header: t.partnerTransactions.transactionType,
       cell: (row: PartnerTransaction) => (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
           {getTransactionTypeBadge(row.transaction_type)}
           {row.api_type && (
             <Badge className={`px-3 py-1.5 text-base ${
@@ -510,11 +520,11 @@ export function PartnerTransactions() {
             </SelectTrigger>
             <SelectContent className="bg-slate-800 border-slate-700">
               <SelectItem value="all">{t.partnerTransactions.allTypes}</SelectItem>
-              <SelectItem value="deposit">{t.partnerTransactions.deposit}</SelectItem>
-              <SelectItem value="withdrawal">{t.partnerTransactions.withdrawal}</SelectItem>
-              <SelectItem value="admin_adjustment">{t.partnerTransactions.adminAdjustment}</SelectItem>
-              <SelectItem value="commission">{t.partnerTransactions.commission}</SelectItem>
-              <SelectItem value="refund">{t.partnerTransactions.refund}</SelectItem>
+              {PARTNER_BALANCE_TABLE_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {TRANSACTION_CONFIG[type as TransactionType]?.label || type}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 

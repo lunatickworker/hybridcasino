@@ -96,7 +96,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'user_online_deposit')
+        .eq('transaction_type', 'deposit')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -134,7 +134,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'user_online_deposit')
+        .eq('transaction_type', 'deposit')
         .in('status', ['pending', 'approved'])
         .limit(1);
 
@@ -211,7 +211,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
       const depositData = {
         user_id: user.id,
         partner_id: user.referrer_id || null,
-        transaction_type: 'user_online_deposit',
+        transaction_type: 'deposit',
         amount: amount,
         status: 'pending',
         balance_before: currentBalance,
@@ -359,7 +359,7 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
           const newTransaction = payload.new as any;
           
-          if (newTransaction.transaction_type === 'user_online_deposit') {
+          if (newTransaction.transaction_type === 'deposit') {
             // 즉시 데이터 새로고침
             loadDepositRecords();
             

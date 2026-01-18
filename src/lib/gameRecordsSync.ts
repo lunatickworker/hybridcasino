@@ -17,9 +17,9 @@ const lastSyncTime: { [key: string]: number } = {
 
 // 동기화 간격 (밀리초)
 const SYNC_INTERVALS = {
-  invest: 30000,     // 30초
-  oroplay: 30000,    // 30초
-  familyapi: 3600000 // 1시간
+  invest: 30000,    // 30초
+  oroplay: 4000,    // 4초
+  familyapi: 4000   // 4초
 };
 
 /**
@@ -66,33 +66,33 @@ function startInvestSync(partnerId: string) {
 }
 
 /**
- * OroPlay API 동기화 시작 (30초 간격)
+ * OroPlay API 동기화 시작 (4초 간격)
  */
 function startOroPlaySync(partnerId: string) {
   // 즉시 한번 실행
   syncApiGameRecords('oroplay', partnerId);
   
-  // 30초마다 반복 실행
+  // 4초마다 반복 실행
   syncTimers.oroplay = window.setInterval(() => {
     syncApiGameRecords('oroplay', partnerId);
   }, SYNC_INTERVALS.oroplay);
 
-  console.log('✅ OroPlay API 동기화 시작 (30초 간격)');
+  console.log('✅ OroPlay API 동기화 시작 (4초 간격)');
 }
 
 /**
- * FamilyAPI 동기화 시작 (1시간 간격)
+ * FamilyAPI 동기화 시작 (4초 간격)
  */
 function startFamilyApiSync(partnerId: string) {
   // 즉시 한번 실행
   syncApiGameRecords('familyapi', partnerId);
   
-  // 1시간마다 반복 실행
+  // 4초마다 반복 실행
   syncTimers.familyapi = window.setInterval(() => {
     syncApiGameRecords('familyapi', partnerId);
   }, SYNC_INTERVALS.familyapi);
 
-  console.log('✅ FamilyAPI 동기화 시작 (1시간 간격)');
+  console.log('✅ FamilyAPI 동기화 시작 (4초 간격)');
 }
 
 /**

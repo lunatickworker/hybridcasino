@@ -25,14 +25,74 @@ interface NotificationsModalProps {
   onClose: () => void;
   onNotificationCountChange: (count: number) => void;
   currentPartnerId: string; // 현재 로그인한 관리자 ID
+  onRouteChange?: (route: string) => void; // 거래 페이지로 이동
 }
 
-export function NotificationsModal({ isOpen, onClose, onNotificationCountChange, currentPartnerId }: NotificationsModalProps) {
+export function NotificationsModal({ isOpen, onClose, onNotificationCountChange, currentPartnerId, onRouteChange }: NotificationsModalProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [filteredNotifications, setFilteredNotifications] = useState<Notification[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+
+  const handleNotificationClick = async (notification: Notification) => {
+    console.log('📌📌📌 [알림 클릭 시작]', {
+      id: notification.id,
+      notification_type: notification.notification_type,
+      has_onRouteChange: !!onRouteChange,
+      current_hash: window.location.hash
+    });
+    
+    // 1. 알림 읽음 처리
+    if (!notification.is_read) {
+      await handleMarkAsRead(notification.id);
+    }
+
+    // 2. 거래 페이지로 이동
+    if (onRouteChange) {
+      try {
+        const contentData = notification.content ? JSON.parse(notification.content) : {};
+        
+        console.log('📌 [알림 클릭]', {
+          notification_type: notification.notification_type,
+          content: contentData
+        });
+        
+        // 알림 타입에 따라 다른 탭으로 이동
+        let route = '#/admin/transactions';
+        if (notification.notification_type === 'deposit') {
+          console.log('💰 [입금신청으로 이동]');
+          route = '#/admin/transactions#deposit-request';
+        } else if (notification.notification_type === 'withdrawal') {
+          console.log('💸 [출금신청으로 이동]');
+          route = '#/admin/transactions#withdrawal-request';
+        } else {
+          console.log('📋 [거래 내역으로 이동]');
+        }
+        
+        console.log('🔗 [라우팅 호출 전]', { 
+          route, 
+          current_hash: window.location.hash,
+          type_of_onRouteChange: typeof onRouteChange
+        });
+        onRouteChange(route);
+        
+        console.log('🔗 [라우팅 호출 후]', { 
+          hash_after_call: window.location.hash
+        });
+        
+        // 모달 닫기 (약간 지연 후)
+        setTimeout(() => {
+          console.log('🔗 [모달 닫음]', { hash: window.location.hash });
+          onClose();
+        }, 200);
+      } catch (error) {
+        console.error('알림 클릭 처리 중 오류:', error);
+      }
+    } else {
+      console.log('⚠️ onRouteChange가 없습니다!');
+    }
+  };
 
   // 알림 목록 로드
   const loadNotifications = async () => {
@@ -138,6 +198,29 @@ export function NotificationsModal({ isOpen, onClose, onNotificationCountChange,
     if (success) {
       toast.success('모든 알림을 읽음 처리했습니다.');
       loadNotifications();
+    }
+  };
+
+  // 전체 삭제 처리
+  const handleDeleteAll = async () => {
+    if (!window.confirm('모든 알림을 삭제하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('recipient_id', currentPartnerId);
+
+      if (error) throw error;
+
+      toast.success('모든 알림이 삭제되었습니다.');
+      loadNotifications();
+      onNotificationCountChange(0);
+    } catch (error) {
+      console.error('❌ 전체 알림 삭제 실패:', error);
+      toast.error('알림 삭제에 실패했습니다.');
     }
   };
 
@@ -262,12 +345,22 @@ export function NotificationsModal({ isOpen, onClose, onNotificationCountChange,
                 <CheckCheck className="w-4 h-4 mr-2" />
                 전체 읽음
               </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDeleteAll}
+                className="text-slate-300 hover:text-red-400 hover:bg-red-900/20"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                전체 삭제
+              </Button>
             </div>
           </div>
         </div>
 
         {/* 알림 목록 */}
-        <div className="overflow-y-auto h-[calc(100vh-200px)] p-4 space-y-3">
+        <div className="overflow-y-auto h-[calc(100vh-200px)] divide-y divide-slate-700">
           {loading ? (
             <div className="text-center py-12 text-slate-400">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
@@ -285,71 +378,61 @@ export function NotificationsModal({ isOpen, onClose, onNotificationCountChange,
               return (
                 <div
                   key={notification.id}
-                  className={`p-4 rounded-lg border transition-all ${
+                  onClick={() => handleNotificationClick(notification)}
+                  className={`px-6 py-3 transition-all cursor-pointer hover:bg-slate-800/50 flex items-center justify-between gap-3 ${
                     notification.is_read
-                      ? 'bg-slate-800/50 border-slate-700/50'
-                      : 'bg-slate-800 border-blue-500/30 shadow-lg'
+                      ? 'bg-slate-900/30'
+                      : 'bg-slate-800/50 border-l-2 border-blue-500'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex items-center gap-2 flex-1">
-                      <Badge className={`${getTypeColor(notification.notification_type)} text-xs border`}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 text-sm">
+                      {!notification.is_read && (
+                        <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></div>
+                      )}
+                      <Badge className={`${getTypeColor(notification.notification_type)} text-xs border flex-shrink-0`}>
                         {getTypeName(notification.notification_type)}
                       </Badge>
-                      {!notification.is_read && (
-                        <Badge className="bg-blue-600 text-white text-xs">새 알림</Badge>
-                      )}
-                    </div>
-                    <div className="flex gap-1">
-                      {!notification.is_read && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleMarkAsRead(notification.id)}
-                          className="h-8 px-2 text-blue-400 hover:text-blue-300 hover:bg-slate-700"
-                        >
-                          <CheckCheck className="w-4 h-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(notification.id)}
-                        className="h-8 px-2 text-red-400 hover:text-red-300 hover:bg-slate-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      <span className="text-slate-400 flex-shrink-0">
+                        {contentData.username || '알 수 없음'}
+                      </span>
+                      <span className="text-slate-100 truncate">
+                        {notification.title}
+                      </span>
+                      <span className="text-xs text-slate-500 flex-shrink-0">
+                        {formatDistanceToNow(new Date(notification.created_at), { 
+                          addSuffix: true,
+                          locale: ko 
+                        })}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-slate-400">사용자:</span>
-                      <span className="text-slate-100 font-medium">{contentData.username || '알 수 없음'}</span>
-                      <span className="text-slate-500">({contentData.user_login_id || '-'})</span>
-                    </div>
-
-                    <div className="bg-slate-900/50 rounded p-3 space-y-1 border border-slate-700/50">
-                      <div className="text-sm">
-                        <span className="text-slate-400">알림 내용:</span>
-                        <p className="text-slate-100 mt-1">{notification.title}</p>
-                      </div>
-                      {contentData.log_message && contentData.log_message !== notification.title && (
-                        <div className="text-sm text-slate-300 mt-2 border-t border-slate-700/50 pt-2">
-                          <span className="text-slate-400">상세 로그:</span>
-                          <p className="mt-1 leading-relaxed">
-                            {contentData.log_message.replace(/Lv\d+\s*/g, '')}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="text-xs text-slate-500">
-                      {formatDistanceToNow(new Date(notification.created_at), { 
-                        addSuffix: true,
-                        locale: ko 
-                      })}
-                    </div>
+                  <div className="flex gap-1 flex-shrink-0">
+                    {!notification.is_read && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMarkAsRead(notification.id);
+                        }}
+                        className="h-6 px-2 text-blue-400 hover:text-blue-300 hover:bg-slate-700"
+                      >
+                        <CheckCheck className="w-3 h-3" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(notification.id);
+                      }}
+                      className="h-6 px-2 text-red-400 hover:text-red-300 hover:bg-slate-700"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   </div>
                 </div>
               );

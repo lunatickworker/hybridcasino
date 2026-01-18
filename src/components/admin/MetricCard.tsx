@@ -9,7 +9,6 @@ interface MetricCardProps {
   color?: 'blue' | 'green' | 'red' | 'purple' | 'orange' | 'cyan' | 'teal' | 'gold' | 'rose' | 'sapphire' | 'emerald' | 'amber' | 'ruby' | 'pink';
   onClick?: () => void;
   className?: string;
-  badgeCount?: number; // optional notification badge count
 }
 
 export function MetricCard({
@@ -19,8 +18,7 @@ export function MetricCard({
   icon: Icon,
   color = 'purple',
   onClick,
-  className,
-  badgeCount = 0
+  className
 }: MetricCardProps) {
   // 이미지와 동일한 그라디언트 스타일
   const gradientClasses = {
@@ -50,14 +48,6 @@ export function MetricCard({
       )}
       onClick={onClick}
     >
-      {/* 배지: 우상단 */}
-      {badgeCount > 0 && (
-        <div className="absolute top-3 right-3 z-20">
-          <div className="inline-flex items-center justify-center h-7 min-w-[28px] px-2 rounded-full bg-red-500 text-white text-sm font-semibold shadow-md">
-            {badgeCount}
-          </div>
-        </div>
-      )}
       {/* 배경 패턴 */}
       <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
       

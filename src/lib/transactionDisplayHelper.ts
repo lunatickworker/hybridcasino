@@ -1,30 +1,36 @@
 /**
  * 거래유형 Display 로직
  * 
- * 정확한 발신자/수신자 규칙:
+ * Transactionrull.md 기반 거래 표시 규칙:
  * 
- * 온라인 입금 (partner_online_deposit):
- * - 본사(Lv3) → 운영사(Lv2): 본사 "온라인 입금", 운영사 "온라인 입금"
- * - 부본사(Lv4) → 본사(Lv3): 부본사 "온라인 입금", 본사 "온라인 출금"
- * - 총판(Lv5) → 부본사(Lv4): 총판 "온라인 입금", 부본사 "온라인 출금"
- * - 매장(Lv6) → 총판(Lv5): 매장 "온라인 입금", 총판 "온라인 출금"
+ * ===== Lv2(운영사) 특별 규칙 =====
+ * 충전 (admin_deposit_send):
+ * - Lv2 → Lv3~6: 모두 "수동 충전"
  * 
- * 온라인 출금 (partner_online_withdrawal):
- * - 본사(Lv3) → 운영사(Lv2): 본사 "온라인 출금", 운영사 "온라인 출금"
- * - 부본사(Lv4) → 본사(Lv3): 부본사 "온라인 출금", 본사 "온라인 입금"
- * - 총판(Lv5) → 부본사(Lv4): 총판 "온라인 출금", 부본사 "온라인 입금"
- * - 매장(Lv6) → 총판(Lv5): 매장 "온라인 출금", 총판 "온라인 입금"
+ * 환전 (admin_withdraw_send):
+ * - Lv2 → Lv3~6: 모두 "수동 환전"
+ * 
+ * ===== 기타 거래 (Lv3~6) =====
+ * 충전 (admin_deposit_send):
+ * - 송신자: "파트너 환전" (감소), 수신자: "파트너 충전" (증가)
+ * 
+ * 환전 (admin_withdraw_send):
+ * - 송신자: "파트너 충전" (증가), 수신자: "파트너 환전" (감소)
  */
 
 interface TransactionDisplayContext {
   transactionType: string;
-  fromPartnerLevel?: number; // 발신자 파트너 레벨 (없으면 회원)
-  toPartnerLevel?: number;   // 수신자 파트너 레벨 (없으면 회원)
+  fromPartnerLevel?: number; // 발신자 파트너 레벨
+  toPartnerLevel?: number;   // 수신자 파트너 레벨
   isFromRecord: boolean;      // 발신자 기준 기록인지 여부
 }
 
 /**
  * 거래 Display 메시지 결정
+ * 
+ * Transactionrull.md 규칙 적용:
+ * 1. admin_deposit_send (충전): Lv2 특별규칙 / Lv3+ 반대 표시
+ * 2. admin_withdraw_send (환전): Lv2 특별규칙 / Lv3+ 반대 표시
  */
 export function getTransactionDisplay(context: TransactionDisplayContext): string {
   const {
@@ -34,113 +40,103 @@ export function getTransactionDisplay(context: TransactionDisplayContext): strin
     isFromRecord
   } = context;
 
-  // ===== 온라인 입금 (user_online_deposit, partner_online_deposit) =====
+  // ===== admin_deposit_send (파트너 충전) =====
+  if (transactionType === 'admin_deposit_send') {
+    // Lv2 특별 규칙: 모두 "수동 충전"
+    if (fromPartnerLevel === 2) {
+      return '수동 충전';
+    }
+    
+    // Lv3+ 규칙: 송신자 "파트너 환전", 수신자 "파트너 충전"
+    if (fromPartnerLevel && fromPartnerLevel >= 3) {
+      return isFromRecord ? '파트너 환전' : '파트너 충전';
+    }
+    
+    return '수동 충전';
+  }
+
+  // ===== admin_withdraw_send (파트너 환전) =====
+  if (transactionType === 'admin_withdraw_send') {
+    // Lv2 특별 규칙: 모두 "수동 환전"
+    if (fromPartnerLevel === 2) {
+      return '수동 환전';
+    }
+    
+    // Lv3+ 규칙: 송신자 "파트너 충전", 수신자 "파트너 환전"
+    if (fromPartnerLevel && fromPartnerLevel >= 3) {
+      return isFromRecord ? '파트너 충전' : '파트너 환전';
+    }
+    
+    return '수동 환전';
+  }
+
+  // ===== 기타 거래 유형 (현기존 로직 유지) =====
   if (transactionType === 'user_online_deposit') {
     return '온라인 입금';
   }
 
-  if (transactionType === 'partner_online_deposit') {
-    // 규칙:
-    // - 상위 레벨 → 하위 레벨: 발신자 "온라인 입금", 수신자 "온라인 출금"
-    // - 동일/다른 경우: 발신자 "온라인 입금", 수신자 "온라인 입금"
-    
-    const isSenderHigher = (fromPartnerLevel || 0) > (toPartnerLevel || 0);
-    
-    if (isFromRecord) {
-      return '온라인 입금'; // 발신자는 항상 "온라인 입금"
-    } else {
-      // 수신자: 발신자가 상위 레벨이면 반대로 표시
-      return isSenderHigher ? '온라인 출금' : '온라인 입금';
-    }
-  }
-
-  // ===== 온라인 출금 (user_online_withdrawal, partner_online_withdrawal) =====
   if (transactionType === 'user_online_withdrawal') {
     return '온라인 출금';
   }
 
-  if (transactionType === 'partner_online_withdrawal') {
-    // 규칙:
-    // - 상위 레벨 → 하위 레벨: 발신자 "온라인 출금", 수신자 "온라인 입금"
-    // - 동일/다른 경우: 발신자 "온라인 출금", 수신자 "온라인 출금"
-    
+  if (transactionType === 'partner_online_deposit') {
     const isSenderHigher = (fromPartnerLevel || 0) > (toPartnerLevel || 0);
-    
     if (isFromRecord) {
-      return '온라인 출금'; // 발신자는 항상 "온라인 출금"
+      return '온라인 입금';
     } else {
-      // 수신자: 발신자가 상위 레벨이면 반대로 표시
+      return isSenderHigher ? '온라인 출금' : '온라인 입금';
+    }
+  }
+
+  if (transactionType === 'partner_online_withdrawal') {
+    const isSenderHigher = (fromPartnerLevel || 0) > (toPartnerLevel || 0);
+    if (isFromRecord) {
+      return '온라인 출금';
+    } else {
       return isSenderHigher ? '온라인 입금' : '온라인 출금';
     }
   }
 
-  // ===== 수동 충전 (partner_manual_deposit) =====
-  if (transactionType === 'partner_manual_deposit') {
-    // 규칙:
-    // - 운영사(Lv2) → 회원: "수동 충전" / "수동 충전"
-    // - 본사(Lv3+) → 회원: "수동 환전" / "수동 충전"
-    
-    if (fromPartnerLevel === 2) {
-      // 운영사
-      return '수동 충전';
-    } else if (fromPartnerLevel && fromPartnerLevel >= 3) {
-      // 본사 이상
-      return isFromRecord ? '수동 환전' : '수동 충전';
-    }
-    return '수동 충전';
-  }
-
-  // ===== 수동 환전 (partner_manual_withdrawal) =====
-  if (transactionType === 'partner_manual_withdrawal') {
-    // 규칙:
-    // - 운영사(Lv2) → 회원: "수동 환전" / "수동 환전"
-    // - 본사(Lv3+) → 회원: "수동 충전" / "수동 환전"
-    
-    if (fromPartnerLevel === 2) {
-      // 운영사
-      return '수동 환전';
-    } else if (fromPartnerLevel && fromPartnerLevel >= 3) {
-      // 본사 이상
-      return isFromRecord ? '수동 충전' : '수동 환전';
-    }
-    return '수동 환전';
-  }
-
-  // ===== 파트너 충전 (partner_balance_logs에만 기록, partner_deposit) =====
-  // ===== 파트너 충전 (partner_balance_logs에만 기록, partner_deposit) =====
   if (transactionType === 'partner_deposit') {
-    // 규칙:
-    // - 운영사(Lv2) → 본사(Lv3): "파트너 충전" / "파트너 충전"
-    // - 본사(Lv3) → 부본사(Lv4): "파트너 환전" / "파트너 충전"
-    // - 부본사(Lv4) → 총판(Lv5): "파트너 환전" / "파트너 충전"
-    // - 총판(Lv5) → 매장(Lv6): "파트너 환전" / "파트너 충전"
-    
     if (fromPartnerLevel === 2) {
-      // 운영사
       return '파트너 충전';
     } else if (fromPartnerLevel && fromPartnerLevel >= 3) {
-      // 본사 이상
       return isFromRecord ? '파트너 환전' : '파트너 충전';
     }
     return '파트너 충전';
   }
 
-  // ===== 파트너 환전 (partner_balance_logs에만 기록, partner_withdrawal) =====
   if (transactionType === 'partner_withdrawal') {
-    // 규칙:
-    // - 운영사(Lv2) → 본사(Lv3): "파트너 환전" / "파트너 환전"
-    // - 본사(Lv3) → 부본사(Lv4): "파트너 충전" / "파트너 환전"
-    // - 부본사(Lv4) → 총판(Lv5): "파트너 충전" / "파트너 환전"
-    // - 총판(Lv5) → 매장(Lv6): "파트너 충전" / "파트너 환전"
-    
     if (fromPartnerLevel === 2) {
-      // 운영사
       return '파트너 환전';
     } else if (fromPartnerLevel && fromPartnerLevel >= 3) {
-      // 본사 이상
       return isFromRecord ? '파트너 충전' : '파트너 환전';
     }
     return '파트너 환전';
+  }
+
+  if (transactionType === 'admin_deposit') {
+    return '수동 충전';
+  }
+
+  if (transactionType === 'admin_withdrawal') {
+    return '수동 환전';
+  }
+
+  if (transactionType === 'admin_adjustment') {
+    return '시스템 조정';
+  }
+
+  if (transactionType === 'commission') {
+    return '커미션';
+  }
+
+  if (transactionType === 'refund') {
+    return '환불';
+  }
+
+  if (transactionType === 'point_conversion') {
+    return '포인트 전환';
   }
 
   // 기본값
@@ -157,11 +153,18 @@ export function getSimpleTransactionDisplay(transactionType: string): string {
     'user_online_withdrawal': '온라인 출금',
     'partner_online_deposit': '온라인 입금',
     'partner_online_withdrawal': '온라인 출금',
-    'partner_manual_deposit': '수동 충전',
-    'partner_manual_withdrawal': '수동 환전',
     'partner_deposit': '파트너 충전',
     'partner_withdrawal': '파트너 환전',
-    'admin_adjustment': '관리자 조정',
+    'admin_deposit_send': '수동 충전',
+    'admin_deposit_receive': '수동 충전',
+    'admin_deposit': '수동 충전',
+    'admin_withdraw_send': '수동 환전',
+    'admin_withdrawal_send': '수동 환전',
+    'admin_withdrawal_receive': '수동 환전',
+    'admin_withdrawal': '수동 환전',
+    'admin_adjustment': '시스템 조정',
+    'commission': '커미션',
+    'refund': '환불',
     'point_conversion': '포인트 전환',
   };
 

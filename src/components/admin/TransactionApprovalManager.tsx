@@ -8,11 +8,12 @@ import { ArrowDownCircle, ArrowUpCircle, AlertCircle, RefreshCw, Search } from '
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner@2.0.3';
 import { formatCurrency } from '../../lib/utils';
+import { TransactionType, TRANSACTION_CONFIG } from '../../types/transactions';
 
 interface Transaction {
   id: string;
   user_id: string;
-  transaction_type: 'deposit' | 'withdrawal' | 'admin_deposit' | 'admin_withdrawal';
+  transaction_type: TransactionType;
   amount: number;
   status: 'pending' | 'approved' | 'rejected' | 'processing' | 'completed' | 'failed';
   created_at: string;
@@ -264,13 +265,7 @@ export function TransactionApprovalManager({ user }: TransactionApprovalManagerP
 
   // 거래 유형 텍스트 변환
   const getTransactionTypeText = (type: string) => {
-    const typeMap: Record<string, string> = {
-      deposit: '입금',
-      withdrawal: '출금',
-      admin_deposit: '관리자 입금',
-      admin_withdrawal: '관리자 출금'
-    };
-    return typeMap[type] || type;
+    return TRANSACTION_CONFIG[type as TransactionType]?.label || type;
   };
 
   return (

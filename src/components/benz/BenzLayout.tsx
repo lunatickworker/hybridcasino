@@ -37,62 +37,6 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   const inactivityTimerRef = useRef<NodeJS.Timeout>(); // ⏰ 비활성 타이머
 
   // ==========================================================================
-  // 브라우저 탭/종료 시 세션 정리
-  // ==========================================================================
-  useEffect(() => {
-    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
-      try {
-        // 1. 게임 윈도우 강제 종료
-        const gameWindows = (window as any).gameWindows as Map<number, Window>;
-        if (gameWindows && gameWindows.size > 0) {
-          const sessionIds = Array.from(gameWindows.keys());
-          sessionIds.forEach(sessionId => {
-            const gameWindow = gameWindows.get(sessionId);
-            if (gameWindow && !gameWindow.closed) {
-              gameWindow.close();
-            }
-          });
-        }
-
-        // 2. 활성 게임 세션 강제 종료
-        if (user?.id) {
-          await supabase
-            .from('game_launch_sessions')
-            .update({ 
-              status: 'force_ended', 
-              ended_at: new Date().toISOString() 
-            })
-            .eq('user_id', user.id)
-            .eq('status', 'active');
-        }
-
-        // 3. 사용자 오프라인 처리
-        if (user?.id) {
-          await supabase
-            .from('users')
-            .update({ is_online: false })
-            .eq('id', user.id);
-        }
-
-        // 4. 로그아웃 처리
-        console.log('🔴 [브라우저 종료] 로그아웃 처리');
-        onLogout();
-      } catch (error) {
-        console.error('❌ [Benz beforeunload] 세션 정리 오류:', error);
-        // 에러 발생해도 로그아웃 시도
-        try {
-          onLogout();
-        } catch (logoutErr) {
-          console.error('❌ 로그아웃 실패:', logoutErr);
-        }
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [user?.id, onLogout]);
-
-  // ==========================================================================
   // 화면 크기 감지
   // ==========================================================================
   useEffect(() => {
@@ -527,66 +471,64 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   }, [user?.id]);
 
   // ==========================================================================
-  // 3분 후 자동 로그아웃
+  // 3분 후 자동 로그아웃 (비활성화됨)
   // ==========================================================================
-  // 🔔 3분 자동 로그아웃 (임시 비활성화 - 2026-01-15)
-  // ==========================================================================
-  // useEffect(() => {
-  //   if (!user?.id) return;
+  /* useEffect(() => {
+    if (!user?.id) return;
 
-  //   console.log('⏰ [Benz 자동 로그아웃] 3분 타이머 시작');
+    console.log('⏰ [Benz 자동 로그아웃] 3분 타이머 시작');
 
-  //   // 3분 = 180초 = 180000ms
-  //   inactivityTimerRef.current = setTimeout(() => {
-  //     console.log('⏰ [Benz 자동 로그아웃] 3분 경과 - 로그아웃 실행');
-  //     toast.info('로그아웃 되었습니다.');
-  //     onLogout();
-  //   }, 180000);
+    // 3분 = 180초 = 180000ms
+    inactivityTimerRef.current = setTimeout(() => {
+      console.log('⏰ [Benz 자동 로그아웃] 3분 경과 - 로그아웃 실행');
+      toast.info('세션이 만료되었습니다.');
+      onLogout();
+    }, 180000);
 
-  //   return () => {
-  //     if (inactivityTimerRef.current) {
-  //       console.log('⏰ [Benz 자동 로그아웃] 타이머 정리');
-  //       clearTimeout(inactivityTimerRef.current);
-  //     }
-  //   };
-  // }, [user?.id, onLogout]);
+    return () => {
+      if (inactivityTimerRef.current) {
+        console.log('⏰ [Benz 자동 로그아웃] 타이머 정리');
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, [user?.id, onLogout]); */
 
   // ==========================================================================
-  // 온라인 상태 모니터링 (Realtime) - 임시 비활성화 (출금 API 호출 방지)
+  // 온라인 상태 모니터링 (Realtime)
   // ==========================================================================
-  // useEffect(() => {
-  //   if (!user?.id) return;
+  useEffect(() => {
+    if (!user?.id) return;
 
-  //   onlineChannelRef.current = supabase
-  //     .channel(`benz_online_status_${user.id}`)
-  //     .on(
-  //       'postgres_changes',
-  //       {
-  //         event: 'UPDATE',
-  //         schema: 'public',
-  //         table: 'users',
-  //         filter: `id=eq.${user.id}`
-  //       },
-  //       async (payload) => {
-  //         const { new: newUser } = payload as any;
-  //         
-  //         if (!newUser.is_online) {
-  //           // toast.error('다른 기기에서 로그인되어 로그아웃됩니다.'); // ✅ 토스트 메시지 제거
-  //           setTimeout(() => {
-  //             onLogout();
-  //           }, 1000);
-  //         }
-  //       }
-  //     )
-  //     .subscribe();
+    onlineChannelRef.current = supabase
+      .channel(`benz_online_status_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${user.id}`
+        },
+        async (payload) => {
+          const { new: newUser } = payload as any;
+          
+          if (!newUser.is_online) {
+            // toast.error('다른 기기에서 로그인되어 로그아웃됩니다.'); // ✅ 토스트 메시지 제거
+            setTimeout(() => {
+              onLogout();
+            }, 1000);
+          }
+        }
+      )
+      .subscribe();
 
-  //   return () => {
-  //     if (onlineChannelRef.current) {
-  //       supabase.removeChannel(onlineChannelRef.current);
-  //       onlineChannelRef.current = null;
-  //     }
-  //   };
-  // }, [user?.id, onLogout]);
+    return () => {
+      if (onlineChannelRef.current) {
+        supabase.removeChannel(onlineChannelRef.current);
+        onlineChannelRef.current = null;
+      }
+    };
+  }, [user?.id, onLogout]);
 
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#141414' }}>

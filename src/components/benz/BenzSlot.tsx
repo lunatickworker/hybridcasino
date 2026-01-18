@@ -158,88 +158,39 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
   
   // 🆕 providers 로드 완료 후 localStorage에서 선택한 provider 자동 로드
   useEffect(() => {
-    const savedProvider = localStorage.getItem('benz_selected_provider');
-    if (savedProvider) {
-      try {
-        const providerData = JSON.parse(savedProvider);
-        console.log('📦 [BenzSlot] localStorage에서 provider 읽음:', providerData);
-        
-        // providers 배열에서 매칭되는 provider 찾기
-        let matchingProvider = null;
-        
-        if (providers.length > 0) {
-          // 1️⃣ ID로 직접 매칭
-          matchingProvider = providers.find(p => p.id === providerData.id);
+    if (providers.length > 0) {
+      const savedProvider = localStorage.getItem('benz_selected_provider');
+      if (savedProvider) {
+        try {
+          const providerData = JSON.parse(savedProvider);
           
-          // 2️⃣ provider_ids 배열 매칭
-          if (!matchingProvider && providerData.provider_ids) {
-            matchingProvider = providers.find(p => {
-              if (!p.provider_ids) return false;
+          // providers 배열에서 매칭되는 provider 찾기 (통합된 provider 기준)
+          const matchingProvider = providers.find(p => {
+            // ID로 매칭
+            if (p.id === providerData.id) return true;
+            
+            // provider_ids 배열에 포함되어 있는지 체크
+            if (p.provider_ids && providerData.provider_ids) {
               return p.provider_ids.some(id => providerData.provider_ids.includes(id));
-            });
+            }
+            
+            return false;
+          });
+          
+          if (matchingProvider) {
+            console.log('🎯 [BenzSlot] localStorage에서 선택한 provider 자동 로드:', matchingProvider);
+            handleProviderClick(matchingProvider);
           }
           
-          // 3️⃣ 이름으로 매칭
-          if (!matchingProvider) {
-            const savedName = (providerData.name_ko || providerData.name || '').toLowerCase();
-            matchingProvider = providers.find(p => {
-              const providerName = (p.name_ko || p.name || '').toLowerCase();
-              return providerName === savedName;
-            });
-          }
+          // localStorage 클리어
+          localStorage.removeItem('benz_selected_provider');
+        } catch (e) {
+          console.error('localStorage provider 파싱 오류:', e);
+          localStorage.removeItem('benz_selected_provider');
         }
-        
-        // 🆕 매칭 실패해도 localStorage의 provider를 직접 사용
-        if (!matchingProvider) {
-          console.warn('⚠️ [BenzSlot] providers에서 매칭 실패. localStorage의 provider 직접 사용');
-          matchingProvider = providerData;
-        }
-        
-        if (matchingProvider) {
-          console.log('✅ [BenzSlot] 선택된 provider:', matchingProvider);
-          setSelectedProvider(matchingProvider);
-          // 게임 로드도 직접 호출
-          loadGames(matchingProvider);
-        }
-        
-        // localStorage 클리어
-        localStorage.removeItem('benz_selected_provider');
-      } catch (e) {
-        console.error('❌ localStorage provider 파싱 오류:', e);
-        localStorage.removeItem('benz_selected_provider');
       }
     }
   }, [providers]);
-
-  // ⭐ HEARTBEAT: 30초마다 last_activity_at 업데이트 (게임 진행 중 자동 종료 방지)
-  useEffect(() => {
-    const heartbeatInterval = setInterval(async () => {
-      try {
-        // 현재 active 세션 확인
-        const activeSession = await gameApi.checkActiveSession(user.id);
-        
-        if (activeSession?.isActive && activeSession.session_id) {
-          // ✅ 게임 진행 중이면 last_activity_at 업데이트
-          const { error } = await supabase
-            .from('game_launch_sessions')
-            .update({
-              last_activity_at: new Date().toISOString()
-            })
-            .eq('id', activeSession.session_id);
-          
-          if (!error) {
-            console.log(`💓 [Heartbeat] 게임 진행 감지 - last_activity_at 업데이트 (세션: ${activeSession.session_id})`);
-          } else {
-            console.error('❌ [Heartbeat] 업데이트 실패:', error);
-          }
-        }
-      } catch (error) {
-        console.error('❌ [Heartbeat] 오류:', error);
-      }
-    }, 30 * 1000); // 30초마다 실행
-    
-    return () => clearInterval(heartbeatInterval);
-  }, [user.id]);
 
   const loadProviders = async () => {
     if (!user) return;
@@ -254,8 +205,8 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
       // 🔥 카지노 게임사 제외 필터링 (DB에 type이 잘못 저장된 경우 대비)
       const CASINO_PROVIDERS = [
         'evolution', 'ezugi', 'microgaming', 'asia', 'sa',
-        'dream gaming', 'playace', 'pragmatic live', 'sexy',
-        '에볼루션', '이주기', '마이크로', '아시아', '드림 게이밍', 
+        'dream', 'playace', 'pragmatic live', 'sexy',
+        '에볼루션', '이주기', '마이크로', '아시아', '드림', 
         '플레이', '프라그마틱 라이브', '섹시'
       ];
       
@@ -269,14 +220,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
         }
         
         // 카지노 게임사는 제외
-        // ⭐ 더 정확한 필터링: 'dream'이 아닌 'dream gaming' 또는 '드림 게이밍'로 검사
-        const isCasinoProvider = CASINO_PROVIDERS.some(casino => {
-          if (casino === 'dream gaming' && name.includes('dream')) {
-            return name.includes('gaming') || name.includes('게이밍');
-          }
-          return name.includes(casino.toLowerCase());
-        });
-        return !isCasinoProvider;
+        return !CASINO_PROVIDERS.some(casino => name.includes(casino.toLowerCase()));
       });
       
       console.log('🎰 [BenzSlot] API 응답 게임사:', slotOnlyProviders.length, '개');
@@ -661,12 +605,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                 (window as any).gameWindowCheckers?.delete(sessionId);
               }
               
-              // ⭐ Heartbeat 정리
-              const heartbeat = (handleGameWindowClose as any)._heartbeat;
-              if (heartbeat) {
-                clearInterval(heartbeat);
-              }
-              
               (window as any).gameWindows?.delete(sessionId);
               
               if ((window as any).syncBalanceAfterGame) {
@@ -721,24 +659,7 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
             }
           }, 1000);
           
-          // ⭐ Heartbeat: 30초마다 게임 세션 활동 업데이트 (5분 자동 종료 방지)
-          const heartbeat = setInterval(async () => {
-            try {
-              if (gameWindow && !gameWindow.closed) {
-                await supabase
-                  .from('game_launch_sessions')
-                  .update({
-                    last_activity_at: new Date().toISOString()
-                  })
-                  .eq('id', sessionId);
-              }
-            } catch (error) {
-              console.error('❌ [Heartbeat] 활동 업데이트 실패:', error);
-            }
-          }, 30 * 1000); // 30초마다
-          
           (window as any).gameWindowCheckers.set(sessionId, checkGameWindow);
-          Object.defineProperty(handleGameWindowClose, '_heartbeat', { value: heartbeat });
         }
         
         setLaunchingGameId(null);
@@ -872,22 +793,6 @@ export function BenzSlot({ user, onRouteChange }: BenzSlotProps) {
                 // 무시
               }
             }, 1000);
-            
-            // ⭐ Heartbeat: 30초마다 게임 세션 활동 업데이트 (5분 자동 종료 방지)
-            const heartbeat = setInterval(async () => {
-              try {
-                if (gameWindow && !gameWindow.closed) {
-                  await supabase
-                    .from('game_launch_sessions')
-                    .update({
-                      last_activity_at: new Date().toISOString()
-                    })
-                    .eq('id', sessionId);
-                }
-              } catch (error) {
-                console.error('❌ [Heartbeat] 활동 업데이트 실패:', error);
-              }
-            }, 30 * 1000); // 30초마다
             
             (window as any).gameWindowCheckers.set(sessionId, checkGameWindow);
           }

@@ -577,7 +577,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const withdrawal = userTransactions
-      .filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_manual_withdrawal') && t.status === 'completed')
+      .filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     // ✅ 관리자 입출금: 파트너 요청 + 파트너 강제입출금 (입출금관리 페이지의 관리자입금/관리자출금 필터 로직 그대로 사용)
@@ -649,11 +649,11 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
     // ✅ 포인트 거래의 입출금 (transaction_type이 deposit/withdrawal인 경우)
     const pointDeposit = userPointTrans
-      .filter(pt => pt.transaction_type === 'deposit' || pt.transaction_type === 'admin_deposit_initial' || pt.transaction_type === 'partner_manual_deposit')
+      .filter(pt => pt.transaction_type === 'deposit' || pt.transaction_type === 'admin_deposit')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
     const pointWithdrawal = userPointTrans
-      .filter(pt => pt.transaction_type === 'withdrawal' || pt.transaction_type === 'partner_manual_withdrawal')
+      .filter(pt => pt.transaction_type === 'withdrawal' || pt.transaction_type === 'admin_withdrawal')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
     // console.log 제거

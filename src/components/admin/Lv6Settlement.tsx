@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, RefreshCw, Search, ChevronDown, ChevronRight, TrendingUp, Wallet, Coins, ArrowUpRight, ArrowDownRight, Activity, DollarSign, Gift, Percent, X } from "lucide-react";
+import { Calendar as CalendarIcon, RefreshCw, Search, ChevronDown, ChevronRight, TrendingUp, Wallet, Coins, ArrowUpRight, ArrowDownRight, Activity, DollarSign, Gift, Percent } from "lucide-react";
 import { LoadingSpinner } from "../common/LoadingSpinner";
 import { DateRange } from "react-day-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -121,13 +121,6 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     fetchSettlementData();
   }, [dateRange]);
 
-  // ✅ 검색/필터 변경 시 통계 재계산
-  useEffect(() => {
-    if (data.length > 0) {
-      calculateSummary(data);
-    }
-  }, [codeSearch]);
-
   const toggleRow = (id: string) => {
     const newExpanded = new Set(expandedRows);
     if (newExpanded.has(id)) {
@@ -181,8 +174,8 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     const s: SummaryStats = {
       totalBalance: filtered.reduce((sum, r) => sum + r.balance, 0),
       totalPoints: filtered.reduce((sum, r) => sum + r.points, 0),
-      onlineDeposit: filtered.reduce((sum, r) => sum + r.onlineDeposit + r.partnerCharge, 0),
-      onlineWithdrawal: filtered.reduce((sum, r) => sum + r.onlineWithdrawal + r.partnerExchange, 0),
+      onlineDeposit: filtered.reduce((sum, r) => sum + r.onlineDeposit, 0),
+      onlineWithdrawal: filtered.reduce((sum, r) => sum + r.onlineWithdrawal, 0),
       manualCharge: filtered.reduce((sum, r) => sum + r.manualCharge, 0),
       manualExchange: filtered.reduce((sum, r) => sum + r.manualExchange, 0),
       partnerCharge: filtered.reduce((sum, r) => sum + r.partnerCharge, 0),
@@ -311,11 +304,12 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
         dateRange: { from: dateRange.from.toISOString(), to: dateRange.to.toISOString() }
       });
 
-      // ✅ partner_balance_logs 조회 - 전체입출금내역과 동일한 방식
+      // ✅ partner_balance_logs 조회 - 온라인 입출금, 파트너 충환전
+      // Lv6Settlement: deposit, withdrawal(온라인) + partner_deposit, partner_withdrawal(파트너 충환전)
       let partnerBalanceLogsQuery = supabase
         .from('partner_balance_logs')
         .select('*')
-        .in('transaction_type', ['deposit', 'withdrawal']);
+        .in('transaction_type', ['deposit', 'withdrawal', 'partner_deposit', 'partner_withdrawal']);
       
       if (user.level === 6) {
         partnerBalanceLogsQuery = partnerBalanceLogsQuery.eq('partner_id', user.id);
@@ -418,7 +412,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       const row = calculateRowData(partner.id, partner.username, partner.level, partner.balance || 0, 0,
         partner.casino_rolling_commission || 0, partner.casino_losing_commission || 0,
         partner.slot_rolling_commission || 0, partner.slot_losing_commission || 0,
-        depositWithdrawalTransactions, pointTransactions, gameRecords, partnerBalanceLogs, partners, users);
+        depositWithdrawalTransactions, pointTransactions, gameRecords, partners, users, partnerBalanceLogs);
       rows.push({
         ...row,
         type: 'partner',
@@ -434,7 +428,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
         userItem.casino_losing_commission || userItem.casino_losing_rate || 0,
         userItem.slot_rolling_commission || userItem.slot_rolling_rate || 0,
         userItem.slot_losing_commission || userItem.slot_losing_rate || 0,
-        depositWithdrawalTransactions, pointTransactions, gameRecords, partnerBalanceLogs, partners, users);
+        depositWithdrawalTransactions, pointTransactions, gameRecords, partners, users, partnerBalanceLogs);
       rows.push({
         ...row,
         type: 'member',
@@ -459,9 +453,9 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     transactions: any[],
     pointTransactions: any[],
     gameRecords: any[],
-    partnerBalanceLogs: any[],
     partners: any[],
-    users: any[]
+    users: any[],
+    partnerBalanceLogs: any[]
   ): SettlementRow => {
     // ✅ 수정: 직속 회원 데이터 합산
     // 각 파트너 행은 "해당 파트너의 직속 회원들"의 게임 데이터를 기반으로 계산
@@ -479,44 +473,54 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
     const userTransactions = transactions.filter(t => relevantUserIdsForTransactions.includes(t.user_id));
 
     // 파트너의 경우 본인의 잔액 로그만 계산
-    const relevantPartnerIdsForTransactions: string[] = level === 6 ? [entityId] : [];
-    const partnerTransactionsFromTable = transactions.filter(t => (t.transaction_type === 'partner_online_deposit' || t.transaction_type === 'partner_online_withdrawal') && relevantPartnerIdsForTransactions.includes(t.partner_id));
+    const relevantPartnerIdsForTransactions: string[] = level > 0 ? [entityId] : [];
 
-    // ✅ 온라인 입출금: 사용자 직접 입금/출금 + 파트너 온라인 입출금 (user_online_deposit/partner_online_deposit)
+    // ✅ 온라인 입출금: 사용자 직접 입금/출금 + 파트너 요청
     const onlineDeposit = userTransactions
-      .filter(t => (t.transaction_type === 'user_online_deposit' || t.transaction_type === 'partner_online_deposit') && t.status === 'completed')
+      .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const onlineWithdrawal = userTransactions
-      .filter(t => (t.transaction_type === 'user_online_withdrawal' || t.transaction_type === 'partner_online_withdrawal') && t.status === 'completed')
+      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ 3️⃣ 수동 충전 (Guidelines.md Phase 2: partner_manual_deposit)
-    const manualCharge = userTransactions
-      .filter(t => t.transaction_type === 'partner_manual_deposit' && t.status === 'completed')
+    // ✅ 온라인 입출금 = 사용자 직접 입출금만 (partner_deposit/partner_withdrawal은 파트너 충환전으로 분류)
+    const totalOnlineDeposit = onlineDeposit;
+    const totalOnlineWithdrawal = onlineWithdrawal;
+
+    // ✅ 수동 충환전: Admin 거래 + 파트너 충환전 (admin_deposit, admin_deposit_send, partner_deposit, admin_withdrawal, admin_withdrawal_send, partner_withdrawal)
+    const adminDepositFiltered = userTransactions
+      .filter(t => (t.transaction_type === 'admin_deposit' || t.transaction_type === 'admin_deposit_send') && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    // ✅ 4️⃣ 수동 환전 (Guidelines.md Phase 2: partner_manual_withdrawal)
-    const manualExchange = userTransactions
-      .filter(t => t.transaction_type === 'partner_manual_withdrawal' && t.status === 'completed')
+    const partnerDepositFiltered = userTransactions
+      .filter(t => t.transaction_type === 'partner_deposit' && t.status === 'completed')
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    const manualChargeTransactions = adminDepositFiltered + partnerDepositFiltered;
+
+    const adminWithdrawalFiltered = userTransactions
+      .filter(t => (t.transaction_type === 'admin_withdrawal' || t.transaction_type === 'admin_withdrawal_send') && t.status === 'completed')
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ 5️⃣ 파트너 충전 (Guidelines.md: partner_balance_logs - deposit 만)
-    const partnerChargeFromBalanceLogs = partnerBalanceLogs
-      .filter(pbl => pbl.to_partner_id === entityId && pbl.transaction_type === 'deposit')
-      .reduce((sum, pbl) => sum + (pbl.amount || 0), 0);
+    const partnerWithdrawalFiltered = userTransactions
+      .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed')
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    const partnerCharge = partnerChargeFromBalanceLogs;
+    const manualExchangeTransactions = adminWithdrawalFiltered + partnerWithdrawalFiltered;
 
-    // ✅ 6️⃣ 파트너 환전 (Guidelines.md: partner_balance_logs - withdrawal 만)
-    const partnerExchangeFromBalanceLogs = partnerBalanceLogs
-      .filter(pbl => pbl.from_partner_id === entityId && pbl.transaction_type === 'withdrawal')
-      .reduce((sum, pbl) => sum + Math.abs(pbl.amount || 0), 0);
+    // ✅ 파트너 충환전: partner_balance_logs에서 조회 (추가 거래)
+    // Lv6Settlement는 파트너 간 거래를 partner_balance_logs에서도 조회 가능
+    const partnerChargeFiltered = partnerBalanceLogs
+      .filter(l => l.transaction_type === 'partner_deposit');
+    const partnerCharge = partnerChargeFiltered.reduce((sum, l) => sum + (l.amount || 0), 0);
 
-    const partnerExchange = partnerExchangeFromBalanceLogs;
+    const partnerExchangeFiltered = partnerBalanceLogs
+      .filter(l => l.transaction_type === 'partner_withdrawal');
+    const partnerExchange = partnerExchangeFiltered.reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
 
-    // ✅ 입출차액 = (온라인 입금 + 수동 충전 + 파트너 충전) - (온라인 출금 + 수동 환전 + 파트너 환전)
-    const depositWithdrawalDiff = onlineDeposit + manualCharge + partnerCharge - onlineWithdrawal - manualExchange - partnerExchange;
+    // ✅ 현금정산 = (수동충전 + 파트너충전) - (수동환전 + 파트너환전)
+    const depositWithdrawalDiff = (manualChargeTransactions + partnerCharge) - (manualExchangeTransactions + partnerExchange);
 
     // ✅ 게임 기록 (직속 회원 데이터 합산)
     const relevantGameRecords = gameRecords.filter(gr => relevantUserIdsForTransactions.includes(gr.user_id));
@@ -539,18 +543,16 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       });
     }
 
-    // ✅ GGR 게임별 계산
-    const casinoGgr = casinoBet - casinoWin;  // 카지노 GGR
-    const slotGgr = slotBet - slotWin;        // 슬롯 GGR
-    const ggr = casinoGgr + slotGgr;          // 합계 GGR
+    const casinoWinLoss = casinoBet + casinoWin;
+    const slotWinLoss = slotBet + slotWin;
+    const ggr = casinoWinLoss + slotWinLoss;
 
     const casinoTotalRolling = casinoBet * (casinoRollingRate / 100);
     const slotTotalRolling = slotBet * (slotRollingRate / 100);
     const totalRolling = casinoTotalRolling + slotTotalRolling;
 
-    // ✅ 루징 가능 금액 = 게임별 GGR - 게임별 롤링금 (중요: 게임타입별로 개별 계산!)
-    const casinoLosableAmount = Math.max(0, casinoGgr - casinoTotalRolling);
-    const slotLosableAmount = Math.max(0, slotGgr - slotTotalRolling);
+    const casinoLosableAmount = Math.max(0, casinoWinLoss - casinoTotalRolling);
+    const slotLosableAmount = Math.max(0, slotWinLoss - slotTotalRolling);
     const casinoTotalLosing = casinoLosableAmount * (casinoLosingRate / 100);
     const slotTotalLosing = slotLosableAmount * (slotLosingRate / 100);
     const totalLosing = casinoTotalLosing + slotTotalLosing;
@@ -571,8 +573,8 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
       points,
       onlineDeposit,
       onlineWithdrawal,
-      manualCharge,
-      manualExchange,
+      manualCharge: manualChargeTransactions,
+      manualExchange: manualExchangeTransactions,
       partnerCharge,
       partnerExchange,
       depositWithdrawalDiff,
@@ -725,15 +727,7 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
 
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-2.5 h-6 w-6 text-slate-400" />
-            <Input placeholder="코드 검색..." className="pl-10 pr-10 input-premium" value={codeSearch} onChange={(e) => setCodeSearch(e.target.value)} />
-            {codeSearch && (
-              <button
-                onClick={() => setCodeSearch("")}
-                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200 transition-colors"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            )}
+            <Input placeholder="코드 검색..." className="pl-10 input-premium" value={codeSearch} onChange={(e) => setCodeSearch(e.target.value)} />
           </div>
 
           <Button onClick={toggleExpandAll} variant="outline" className="h-10">
@@ -847,7 +841,11 @@ export function Lv6Settlement({ user }: Lv6SettlementProps) {
                     const bgColor = getRowBackgroundColor(row.level);
                     return (
                       <tr key={row.id} className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors" style={{ backgroundColor: bgColor }}>
-                        <td className="px-4 py-3 text-slate-300 sticky left-0 z-10 whitespace-nowrap" style={{ backgroundColor: bgColor }}>
+                        <td 
+                          className="px-4 py-3 text-slate-300 sticky left-0 z-10 whitespace-nowrap cursor-pointer" 
+                          style={{ backgroundColor: bgColor }}
+                          onClick={() => row.hasChildren && toggleRow(row.id)}
+                        >
                           <div className="flex items-center gap-1">
                             {row.hasChildren && (
                               expandedRows.has(row.id) ? (

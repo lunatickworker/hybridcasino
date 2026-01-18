@@ -5,6 +5,9 @@
 
 import { maskSensitiveData, maskAuthHeader, isProduction } from './logSecurityUtil';
 
+// ✅ 개발 환경에서 네트워크 로깅 비활성화 (너무 많은 로그 발생)
+const ENABLE_NETWORK_LOGGING = false;
+
 /**
  * Fetch 요청 인터셉터 설정
  * - Authorization 헤더 마스킹
@@ -12,6 +15,11 @@ import { maskSensitiveData, maskAuthHeader, isProduction } from './logSecurityUt
  * - 프로덕션 환경에서만 적용
  */
 export function setupNetworkLogging() {
+  // ✅ 네트워크 로깅이 비활성화되면 원본 fetch 그대로 사용
+  if (!ENABLE_NETWORK_LOGGING) {
+    return;
+  }
+
   // 원본 fetch 저장
   const originalFetch = window.fetch;
 
@@ -20,16 +28,42 @@ export function setupNetworkLogging() {
     const [resource, config] = args;
     const url = typeof resource === 'string' ? resource : resource?.url;
 
-    // 원본 fetch 호출
-    return originalFetch.apply(this, args).then((response: Response) => {
-      // ❌ 에러 응답만 로깅 (개발 편의성)
-      if (!response.ok) {
-        console.warn('⚠️ [Network Response]', {
-          status: response.status,
-          statusText: response.statusText,
-          url: response.url
+    // 요청 로그
+    const requestLog = {
+      method: config?.method || 'GET',
+      url: url,
+      headers: config?.headers || {}
+    };
+
+    // 프로덕션 환경에서만 민감한 정보 마스킹
+    if (isProduction()) {
+      if (requestLog.headers['Authorization']) {
+        requestLog.headers['Authorization'] = maskAuthHeader(requestLog.headers['Authorization']);
+      }
+      
+      // 마스킹된 데이터
+      const maskedHeaders = maskSensitiveData(requestLog.headers);
+      
+      // 요청 로그 출력
+      if (config?.body) {
+        console.log('📤 [Network Request]', {
+          method: requestLog.method,
+          url: requestLog.url,
+          headers: maskedHeaders
         });
       }
+    } else {
+      console.log('📤 [Network Request]', requestLog);
+    }
+
+    // 원본 fetch 호출
+    return originalFetch.apply(this, args).then((response: Response) => {
+      // 응답 로그 (상태 코드만)
+      console.log('📥 [Network Response]', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url
+      });
 
       return response;
     }).catch((error: Error) => {

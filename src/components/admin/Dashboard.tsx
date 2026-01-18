@@ -561,16 +561,14 @@ export function Dashboard({ user }: DashboardProps) {
         // 입금 계산
         const deposits = transData
           .filter(t => 
-            (t.transaction_type === 'user_online_deposit' && ['approved', 'completed'].includes(t.status)) ||
-            (t.transaction_type === 'admin_adjustment' && t.amount > 0 && ['approved', 'completed'].includes(t.status))
+            (t.transaction_type === 'deposit' && ['approved', 'completed'].includes(t.status))
           )
           .reduce((sum, t) => sum + Number(t.amount), 0);
         
         // 출금 계산
         const withdrawals = transData
           .filter(t => 
-            (t.transaction_type === 'user_online_withdrawal' && ['approved', 'completed'].includes(t.status)) ||
-            (t.transaction_type === 'admin_adjustment' && t.amount < 0 && ['approved', 'completed'].includes(t.status))
+            (t.transaction_type === 'withdrawal' && ['approved', 'completed'].includes(t.status))
           )
           .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
       }
@@ -693,7 +691,7 @@ export function Dashboard({ user }: DashboardProps) {
         const { data: depositData } = await supabase
           .from('transactions')
           .select('amount, created_at')
-          .in('transaction_type', ['user_online_deposit'])
+          .in('transaction_type', ['deposit', 'partner_deposit'])
           .in('status', ['approved', 'completed'])
           .in('user_id', directUserIds)
           .gte('created_at', todayStartISO);
@@ -707,7 +705,7 @@ export function Dashboard({ user }: DashboardProps) {
         const { data: withdrawalData } = await supabase
           .from('transactions')
           .select('amount, created_at')
-          .in('transaction_type', ['user_online_withdrawal'])
+          .in('transaction_type', ['withdrawal', 'partner_withdrawal'])
           .in('status', ['approved', 'completed'])
           .in('user_id', directUserIds)
           .gte('created_at', todayStartISO);
@@ -721,7 +719,7 @@ export function Dashboard({ user }: DashboardProps) {
         const { data: depositData } = await supabase
           .from('transactions')
           .select('amount, created_at')
-          .in('transaction_type', ['user_online_deposit'])
+          .in('transaction_type', ['deposit', 'partner_deposit'])
           .in('status', ['approved', 'completed'])
           .in('user_id', subPartnerUserIds)
           .gte('created_at', todayStartISO);
@@ -735,7 +733,7 @@ export function Dashboard({ user }: DashboardProps) {
         const { data: withdrawalData } = await supabase
           .from('transactions')
           .select('amount, created_at')
-          .in('transaction_type', ['user_online_withdrawal', 'partner_online_withdrawal'])
+          .in('transaction_type', ['withdrawal', 'partner_withdrawal'])
           .in('status', ['approved', 'completed'])
           .in('user_id', subPartnerUserIds)
           .gte('created_at', todayStartISO);
@@ -946,8 +944,8 @@ export function Dashboard({ user }: DashboardProps) {
           filter: `id=eq.${user.id}`
         },
         (payload) => {
-          // 보유금 변경 감지 - 즉시 갱신
-          loadDashboardStats();
+          console.log('💰 [대시보드] partners 보유금 변경 감지:', payload.new);
+          loadDashboardStats(); // 즉시 갱신
         }
       )
       .subscribe();

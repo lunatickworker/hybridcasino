@@ -7,7 +7,7 @@ export interface NotificationData {
   partner_id: string; // 알림을 받을 관리자 ID (사용자의 referrer_id)
   message: string;
   log_message?: string;
-  notification_type: 'balance_insufficient' | 'game_error' | 'api_error' | 'system_error' | 'online_deposit' | 'online_withdrawal';
+  notification_type: 'balance_insufficient' | 'game_error' | 'api_error' | 'system_error';
 }
 
 /**
@@ -16,7 +16,7 @@ export interface NotificationData {
 export async function createAdminNotification(data: NotificationData) {
   try {
     const { error } = await supabase
-      .from('realtime_notifications')
+      .from('notifications')
       .insert({
         recipient_type: 'partner',
         recipient_id: data.partner_id, // ✅ 관리자 ID로 설정
@@ -27,7 +27,7 @@ export async function createAdminNotification(data: NotificationData) {
           user_login_id: data.user_login_id,
           log_message: data.log_message || data.message,
         }),
-        status: 'pending',
+        is_read: false,
       });
 
     if (error) {
@@ -49,10 +49,10 @@ export async function createAdminNotification(data: NotificationData) {
 export async function getUnreadNotificationCount(partnerId?: string) {
   try {
     let query = supabase
-      .from('realtime_notifications')
+      .from('notifications')
       .select('*', { count: 'exact', head: true })
       .eq('recipient_type', 'partner')
-      .eq('status', 'pending');
+      .eq('is_read', false);
 
     // partnerId가 제공되면 해당 파트너의 알림만 조회
     if (partnerId) {
@@ -79,9 +79,9 @@ export async function getUnreadNotificationCount(partnerId?: string) {
 export async function markNotificationAsRead(notificationId: string) {
   try {
     const { error } = await supabase
-      .from('realtime_notifications')
+      .from('notifications')
       .update({ 
-        status: 'read',
+        is_read: true,
         read_at: new Date().toISOString()
       })
       .eq('id', notificationId);
@@ -104,13 +104,13 @@ export async function markNotificationAsRead(notificationId: string) {
 export async function markAllNotificationsAsRead(partnerId?: string) {
   try {
     let query = supabase
-      .from('realtime_notifications')
+      .from('notifications')
       .update({ 
-        status: 'read',
+        is_read: true,
         read_at: new Date().toISOString()
       })
       .eq('recipient_type', 'partner')
-      .eq('status', 'pending');
+      .eq('is_read', false);
 
     // partnerId가 제공되면 해당 파트너의 알림만 업데이트
     if (partnerId) {

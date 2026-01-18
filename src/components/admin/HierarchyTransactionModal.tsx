@@ -10,6 +10,7 @@ import { Partner } from './partner/types';
 import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { depositPartnerToChild, withdrawPartnerToChild } from '../../lib/operatorManualTransferUsage';
 
 interface HierarchyTransactionModalProps {
   open: boolean;
@@ -120,137 +121,37 @@ export function HierarchyTransactionModal({
   };
 
   const handleDeposit = async (amountNum: number) => {
-    if (!parentPartner) throw new Error('직속 상위 파트너 정보가 없습니다');
+    // 통합 로직 사용
+    const result = await depositPartnerToChild(
+      currentUser.id,
+      currentUser.level,
+      targetPartner.id,
+      amountNum,
+      memo
+    );
 
-    // 1. 직속 상위 잔고 차감
-    if (parentPartner.level === 2) {
-      // Lv2: invest_balance, oroplay_balance, familyapi_balance 차감
-      const balanceField = walletType === 'invest' ? 'invest_balance' : walletType === 'oroplay' ? 'oroplay_balance' : 'familyapi_balance';
-      const newBalance = (parentPartner[balanceField] || 0) - amountNum;
-
-      const { error: parentError } = await supabase
-        .from('partners')
-        .update({ [balanceField]: newBalance })
-        .eq('id', parentPartner.id);
-
-      if (parentError) throw parentError;
-    } else if (parentPartner.level >= 3) {
-      // Lv3~7: balance 차감
-      const newBalance = (parentPartner.balance || 0) - amountNum;
-
-      const { error: parentError } = await supabase
-        .from('partners')
-        .update({ balance: newBalance })
-        .eq('id', parentPartner.id);
-
-      if (parentError) throw parentError;
+    if (!result.success) {
+      throw new Error(result.message);
     }
 
-    // 2. 대상 파트너 잔고 증가
-    if (targetPartner.level === 2) {
-      // Lv2: invest_balance, oroplay_balance, familyapi_balance 증가
-      const balanceField = walletType === 'invest' ? 'invest_balance' : walletType === 'oroplay' ? 'oroplay_balance' : 'familyapi_balance';
-      const newBalance = (targetPartner[balanceField] || 0) + amountNum;
-
-      const { error: targetError } = await supabase
-        .from('partners')
-        .update({ [balanceField]: newBalance })
-        .eq('id', targetPartner.id);
-
-      if (targetError) throw targetError;
-    } else if (targetPartner.level >= 3) {
-      // Lv3~7: balance 증가
-      const newBalance = (targetPartner.balance || 0) + amountNum;
-
-      const { error: targetError } = await supabase
-        .from('partners')
-        .update({ balance: newBalance })
-        .eq('id', targetPartner.id);
-
-      if (targetError) throw targetError;
-    }
-
-    // 3. 트랜잭션 기록 생성
-    await createTransactionRecord('deposit', amountNum, parentPartner.id, targetPartner.id);
+    console.log('✅ 파트너 입금 처리 완료:', { transactionId: result.transactionId, amount: amountNum });
   };
 
   const handleWithdrawal = async (amountNum: number) => {
-    // 1. 대상 파트너 잔고 차감
-    if (targetPartner.level === 2) {
-      // Lv2: invest_balance + oroplay_balance + familyapi_balance 중에서 차감
-      // 간단히 invest_balance부터 차감
-      let remaining = amountNum;
-      let newInvestBalance = targetPartner.invest_balance || 0;
-      let newOroplayBalance = targetPartner.oroplay_balance || 0;
-      let newFamilyapiBalance = targetPartner.familyapi_balance || 0;
+    // 통합 로직 사용
+    const result = await withdrawPartnerToChild(
+      currentUser.id,
+      currentUser.level,
+      targetPartner.id,
+      amountNum,
+      memo
+    );
 
-      if (newInvestBalance >= remaining) {
-        newInvestBalance -= remaining;
-      } else {
-        remaining -= newInvestBalance;
-        newInvestBalance = 0;
-        if (newOroplayBalance >= remaining) {
-          newOroplayBalance -= remaining;
-        } else {
-          remaining -= newOroplayBalance;
-          newOroplayBalance = 0;
-          if (newFamilyapiBalance >= remaining) {
-            newFamilyapiBalance -= remaining;
-          } else {
-            remaining -= newFamilyapiBalance;
-            newFamilyapiBalance = 0;
-          }
-        }
-      }
-
-      const { error: targetError } = await supabase
-        .from('partners')
-        .update({ 
-          invest_balance: newInvestBalance,
-          oroplay_balance: newOroplayBalance,
-          familyapi_balance: newFamilyapiBalance
-        })
-        .eq('id', targetPartner.id);
-
-      if (targetError) throw targetError;
-    } else if (targetPartner.level >= 3) {
-      // Lv3~7: balance 차감
-      const newBalance = (targetPartner.balance || 0) - amountNum;
-
-      const { error: targetError } = await supabase
-        .from('partners')
-        .update({ balance: newBalance })
-        .eq('id', targetPartner.id);
-
-      if (targetError) throw targetError;
+    if (!result.success) {
+      throw new Error(result.message);
     }
 
-    // 2. 실행자(상위) 잔고 증가
-    if (currentUser.level === 2) {
-      // Lv2: invest_balance 또는 oroplay_balance 증가
-      const balanceField = walletType === 'invest' ? 'invest_balance' : walletType === 'oroplay' ? 'oroplay_balance' : 'familyapi_balance';
-      const newBalance = (currentUser[balanceField] || 0) + amountNum;
-
-      const { error: executorError } = await supabase
-        .from('partners')
-        .update({ [balanceField]: newBalance })
-        .eq('id', currentUser.id);
-
-      if (executorError) throw executorError;
-    } else if (currentUser.level >= 3) {
-      // Lv3~7: balance 증가
-      const newBalance = (currentUser.balance || 0) + amountNum;
-
-      const { error: executorError } = await supabase
-        .from('partners')
-        .update({ balance: newBalance })
-        .eq('id', currentUser.id);
-
-      if (executorError) throw executorError;
-    }
-
-    // 3. 트랜잭션 기록 생성
-    await createTransactionRecord('withdrawal', amountNum, targetPartner.id, currentUser.id);
+    console.log('✅ 파트너 출금 처리 완료:', { transactionId: result.transactionId, amount: amountNum });
   };
 
   const createTransactionRecord = async (
@@ -259,7 +160,8 @@ export function HierarchyTransactionModal({
     fromId: string,
     toId: string
   ) => {
-    const { error } = await supabase
+    // ✅ partner_transactions 기록 (기존)
+    const { error: txError } = await supabase
       .from('partner_transactions')
       .insert({
         partner_id: targetPartner.id,
@@ -284,7 +186,39 @@ export function HierarchyTransactionModal({
         status: 'completed'
       });
 
-    if (error) throw error;
+    if (txError) throw txError;
+
+    // ✅ partner_balance_logs 기록 (액션을 한 쪽만 1건 기록)
+    const getBalanceBefore = (partner: Partner) => {
+      if (partner.level === 2) {
+        return (partner.invest_balance || 0) + (partner.oroplay_balance || 0) + (partner.familyapi_balance || 0);
+      }
+      return partner.balance || 0;
+    };
+
+    const balanceBefore = getBalanceBefore(currentUser);
+    const balanceAfter = type === 'deposit' 
+      ? balanceBefore - amountNum 
+      : balanceBefore + amountNum;
+
+    const transactionType = type === 'deposit' ? 'admin_withdrawal_send' : 'admin_deposit_send';
+
+    const { error: logError } = await supabase
+      .from('partner_balance_logs')
+      .insert({
+        partner_id: currentUser.id,  // ✅ 액션을 한 쪽의 ID
+        transaction_type: transactionType,
+        amount: type === 'deposit' ? -amountNum : amountNum,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        from_partner_id: type === 'deposit' ? currentUser.id : targetPartner.id,
+        to_partner_id: type === 'deposit' ? targetPartner.id : currentUser.id,
+        processed_by: currentUser.id,
+        memo: memo || `${targetPartner.nickname}에게 ${type === 'deposit' ? '입금' : '출금'} - ${amountNum.toLocaleString()}원`,
+        sync_source: null  // ✅ 수동 입력이므로 NULL (auto-trigger 아님)
+      });
+
+    if (logError) throw logError;
   };
 
   const showWalletSelector = () => {

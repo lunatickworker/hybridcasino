@@ -58,7 +58,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'user_online_withdrawal')
+        .eq('transaction_type', 'withdrawal')
         .in('status', ['pending', 'approved'])
         .limit(1);
 
@@ -106,7 +106,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'user_online_withdrawal')
+        .eq('transaction_type', 'withdrawal')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -116,6 +116,38 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
       console.error('출금 내역 조회 실패:', error);
     } finally {
       setIsLoadingHistory(false);
+    }
+  };
+
+  // active 세션 체크 및 보유금 동기화
+  const checkAndSyncBalance = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data: activeSession, error: sessionError } = await supabase
+        .from('game_launch_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (sessionError) {
+        console.error('❌ active 세션 조회 오류:', sessionError);
+        return;
+      }
+
+      if (activeSession) {
+        console.log(`🔄 [출금 페이지] active 세션 감지 - API 출금 + 보유금 동기화 실행`);
+        
+        const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
+        await syncBalanceOnSessionEnd(user.id, activeSession.api_type);
+        
+        await loadUserBalance();
+        
+        console.log('✅ [출금 페이지] API 출금 + 보유금 동기화 완료');
+      }
+    } catch (error) {
+      console.error('❌ 보유금 동기화 오류:', error);
     }
   };
 
@@ -243,7 +275,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
       const withdrawData = {
         user_id: user.id,
         partner_id: user.referrer_id || null,
-        transaction_type: 'user_online_withdrawal',
+        transaction_type: 'withdrawal',
         amount: amount,
         status: 'pending',
         balance_before: balance,
@@ -382,8 +414,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
   };
 
   useEffect(() => {
-    // ⚠️ checkAndSyncBalance() 제거 - 출금 페이지 진입 시 자동 출금 방지 (2026-01-15)
-    // checkAndSyncBalance();
+    checkAndSyncBalance();
     checkWithdrawStatus();
     loadUserBalance();
     loadWithdrawRecords();
@@ -402,7 +433,7 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
         const newTx = payload.new as any;
         
         // 출금 거래만 처리
-        if (newTx.transaction_type === 'user_online_withdrawal') {
+        if (newTx.transaction_type === 'withdrawal') {
           // 거래 목록 새로고침
           loadWithdrawRecords();
           checkWithdrawStatus();

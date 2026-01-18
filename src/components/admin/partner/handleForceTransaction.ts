@@ -1,5 +1,6 @@
 import { supabase } from '../../../lib/supabase';
 import { toast } from 'sonner@2.0.3';
+import { depositLv1ToLv2, withdrawLv1ToLv2 } from '../../../lib/operatorManualTransferUsage';
 
 interface ForceTransactionData {
   targetId: string;
@@ -18,14 +19,29 @@ export async function handleForceTransaction(
   fetchPartners: () => void
 ) {
   try {
-    console.log('💰 [파트너 강제 입출금] 시작:', data);
+    console.log('� [handleForceTransaction] 함수 시작:', {
+      data,
+      authUserId,
+      type: data.type,
+      apiType: data.apiType
+    });
 
     // 1. 대상 파트너 정보 조회
+    console.log('🔍 대상 파트너 조회 중...');
+
     const { data: targetPartner, error: targetError } = await supabase
       .from('partners')
       .select('id, nickname, balance, level, partner_type, invest_balance, oroplay_balance')
       .eq('id', data.targetId)
       .single();
+
+    console.log('📊 대상 파트너 조회 결과:', {
+      success: !targetError,
+      partnerId: targetPartner?.id,
+      nickname: targetPartner?.nickname,
+      level: targetPartner?.level,
+      error: targetError?.message
+    });
 
     if (targetError || !targetPartner) {
       toast.error(t.partnerManagement.targetPartnerFetchError);
@@ -34,11 +50,21 @@ export async function handleForceTransaction(
     }
 
     // 2. 관리자 정보 조회
+    console.log('🔍 관리자 정보 조회 중...');
+
     const { data: adminPartner, error: adminError } = await supabase
       .from('partners')
       .select('balance, level, nickname, partner_type, invest_balance, oroplay_balance')
       .eq('id', authUserId)
       .single();
+
+    console.log('📊 관리자 정보 조회 결과:', {
+      success: !adminError,
+      partnerId: authUserId,
+      nickname: adminPartner?.nickname,
+      level: adminPartner?.level,
+      error: adminError?.message
+    });
 
     if (adminError || !adminPartner) {
       toast.error(t.partnerManagement.adminInfoFetchError);
@@ -52,12 +78,14 @@ export async function handleForceTransaction(
     const isLv1ToLv3 = isSystemAdmin && targetPartner.level === 3;
     const isLv2ToLv3 = adminPartner.level === 2 && targetPartner.level === 3;
 
-    console.log('📊 [파트너 강제 입출금] 상황:', {
+    console.log('📋 [파트너 강제 입출금] 상황 분석:', {
       isLv1ToLv2,
       isLv2ToLv3,
+      isLv1ToLv3,
       adminLevel: adminPartner.level,
       targetLevel: targetPartner.level,
-      apiType: data.apiType
+      apiType: data.apiType,
+      transactionType: data.type
     });
 
     // 3. 출금 시 대상 파트너 보유금 검증
@@ -119,90 +147,25 @@ export async function handleForceTransaction(
       }
     }
 
-    // ✅ 5. Lv1 → Lv2 입금은 외부 API 호출 없이 DB만 업데이트
+    // ✅ 5. Lv1 → Lv2 입금은 통합 로직 사용
     if (isLv1ToLv2 && data.type === 'deposit' && data.apiType) {
-      console.log('✅ [Lv1→Lv2 입금] Lv1의 api_configs 차감 + Lv2 지갑 증가');
+      console.log('✅ [Lv1→Lv2 입금] 통합 로직 사용');
       
-      const balanceField = data.apiType === 'invest' ? 'invest_balance' : 'oroplay_balance';
-      const currentBalance = (data.apiType === 'invest' ? targetPartner.invest_balance : targetPartner.oroplay_balance) || 0;
-      const newBalance = currentBalance + data.amount;
+      const result = await depositLv1ToLv2(
+        authUserId,
+        data.targetId,
+        data.apiType,
+        data.amount,
+        data.memo
+      );
 
-      // ✅ 1) Lv1의 api_configs.balance 차감
-      const { data: apiConfig, error: apiConfigError } = await supabase
-        .from('api_configs')
-        .select('balance')
-        .eq('partner_id', authUserId)
-        .eq('api_provider', data.apiType)
-        .maybeSingle();
-
-      if (apiConfigError || !apiConfig) {
-        toast.error('API 설정을 찾을 수 없습니다.');
-        console.error('❌ API 설정 조회 실패:', apiConfigError);
+      if (!result.success) {
+        toast.error(result.message);
+        console.error('❌ Lv1→Lv2 입금 실패:', result.error);
         return;
       }
 
-      const lv1NewBalance = (apiConfig.balance || 0) - data.amount;
-
-      const { error: lv1UpdateError } = await supabase
-        .from('api_configs')
-        .update({ 
-          balance: lv1NewBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('partner_id', authUserId)
-        .eq('api_provider', data.apiType);
-
-      if (lv1UpdateError) {
-        toast.error('Lv1 API 잔고 차감 실패');
-        console.error('❌ Lv1 api_configs 업데이트 실패:', lv1UpdateError);
-        return;
-      }
-
-      console.log(`✅ Lv1 api_configs.${data.apiType}.balance 차감:`, {
-        before: apiConfig.balance,
-        after: lv1NewBalance,
-        amount: -data.amount
-      });
-
-      // ✅ 2) Lv2 partners 테이블 API별 잔고 증가
-      const { error: updateError } = await supabase
-        .from('partners')
-        .update({ 
-          [balanceField]: newBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', data.targetId);
-
-      if (updateError) {
-        toast.error(t.partnerManagement.lv2BalanceUpdateError);
-        console.error('❌ Lv2 partners 업데이트 실패:', updateError);
-        return;
-      }
-
-      console.log(`✅ Lv2 partners.${balanceField} 증가:`, {
-        before: currentBalance,
-        after: newBalance,
-        amount: data.amount
-      });
-
-      // 로그 기록
       const apiName = data.apiType === 'invest' ? 'Invest' : 'OroPlay';
-      await supabase
-        .from('partner_balance_logs')
-        .insert({
-          partner_id: data.targetId,
-          balance_before: currentBalance,
-          balance_after: newBalance,
-          amount: data.amount,
-          transaction_type: 'deposit',
-          from_partner_id: authUserId,
-          to_partner_id: data.targetId,
-          processed_by: authUserId,
-          api_type: data.apiType,
-          memo: `[${apiName} API 할당] ${adminPartner.nickname}으로부터 ${data.amount.toLocaleString()}원 할당${data.memo ? `: ${data.memo}` : ''}`,
-          created_at: new Date().toISOString()
-        });
-
       toast.success(t.partnerManagement.apiAllocationSuccess
         .replace('{{nickname}}', targetPartner.nickname)
         .replace('{{apiName}}', apiName)
@@ -212,90 +175,25 @@ export async function handleForceTransaction(
       return;
     }
 
-    // ✅ 6. Lv1 → Lv2 출금도 외부 API 호출 없이 DB만 업데이트
+    // ✅ 6. Lv1 → Lv2 출금은 통합 로직 사용
     if (isLv1ToLv2 && data.type === 'withdrawal' && data.apiType) {
-      console.log('✅ [Lv1→Lv2 출금] Lv1의 api_configs 증가 + Lv2 지갑 차감');
+      console.log('✅ [Lv1→Lv2 출금] 통합 로직 사용');
 
-      const balanceField = data.apiType === 'invest' ? 'invest_balance' : 'oroplay_balance';
-      const currentBalance = (data.apiType === 'invest' ? targetPartner.invest_balance : targetPartner.oroplay_balance) || 0;
-      const newBalance = currentBalance - data.amount;
+      const result = await withdrawLv1ToLv2(
+        authUserId,
+        data.targetId,
+        data.apiType,
+        data.amount,
+        data.memo
+      );
 
-      // ✅ 1) Lv2 partners 테이블 API별 잔고 차감
-      const { error: updateError } = await supabase
-        .from('partners')
-        .update({ 
-          [balanceField]: newBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', data.targetId);
-
-      if (updateError) {
-        toast.error(t.partnerManagement.lv2WithdrawalDeductError);
-        console.error('❌ Lv2 partners 업데이트 실패:', updateError);
+      if (!result.success) {
+        toast.error(result.message);
+        console.error('❌ Lv1→Lv2 출금 실패:', result.error);
         return;
       }
 
-      console.log(`✅ Lv2 partners.${balanceField} 차감:`, {
-        before: currentBalance,
-        after: newBalance,
-        amount: -data.amount
-      });
-
-      // ✅ 2) Lv1의 api_configs.balance 증가
-      const { data: apiConfig, error: apiConfigError } = await supabase
-        .from('api_configs')
-        .select('balance')
-        .eq('partner_id', authUserId)
-        .eq('api_provider', data.apiType)
-        .maybeSingle();
-
-      if (apiConfigError || !apiConfig) {
-        toast.error('API 설정을 찾을 수 없습니다.');
-        console.error('❌ API 설정 조회 실패:', apiConfigError);
-        return;
-      }
-
-      const lv1NewBalance = (apiConfig.balance || 0) + data.amount;
-
-      const { error: lv1UpdateError } = await supabase
-        .from('api_configs')
-        .update({ 
-          balance: lv1NewBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('partner_id', authUserId)
-        .eq('api_provider', data.apiType);
-
-      if (lv1UpdateError) {
-        toast.error('Lv1 API 잔고 증가 실패');
-        console.error('❌ Lv1 api_configs 업데이트 실패:', lv1UpdateError);
-        return;
-      }
-
-      console.log(`✅ Lv1 api_configs.${data.apiType}.balance 증가:`, {
-        before: apiConfig.balance,
-        after: lv1NewBalance,
-        amount: data.amount
-      });
-
-      // 로그 기록
       const apiName = data.apiType === 'invest' ? 'Invest' : 'OroPlay';
-      await supabase
-        .from('partner_balance_logs')
-        .insert({
-          partner_id: data.targetId,
-          balance_before: currentBalance,
-          balance_after: newBalance,
-          amount: -data.amount,
-          transaction_type: 'withdrawal',
-          from_partner_id: data.targetId,
-          to_partner_id: authUserId,
-          processed_by: authUserId,
-          api_type: data.apiType,
-          memo: `[${apiName} API 회수] ${adminPartner.nickname}이(가) ${data.amount.toLocaleString()}원 회수${data.memo ? `: ${data.memo}` : ''}`,
-          created_at: new Date().toISOString()
-        });
-
       toast.success(t.partnerManagement.apiRecoveryCompletedFromPartner
         .replace('{{nickname}}', targetPartner.nickname)
         .replace('{{apiName}}', apiName)
@@ -336,7 +234,7 @@ export async function handleForceTransaction(
             balance_before: targetBalanceBefore,
             balance_after: targetBalanceAfter,
             amount: data.amount,
-            transaction_type: 'deposit',
+            transaction_type: 'admin_deposit_receive',  // ✅ Lv3 입금
             from_partner_id: authUserId,
             to_partner_id: data.targetId,
             processed_by: authUserId,
@@ -369,7 +267,7 @@ export async function handleForceTransaction(
             balance_before: targetPartner.balance,
             balance_after: targetNewBalance,
             amount: data.amount,
-            transaction_type: 'deposit',
+            transaction_type: 'admin_deposit_receive',  // ✅ Lv2→Lv4~6 입금
             from_partner_id: authUserId,
             to_partner_id: data.targetId,
             processed_by: authUserId,
@@ -405,9 +303,7 @@ export async function handleForceTransaction(
             balance_before: targetPartner.balance,
             balance_after: targetNewBalance,
             amount: data.amount,
-            transaction_type: 'deposit',
-            from_partner_id: authUserId,
-            to_partner_id: data.targetId,
+            transaction_type: 'admin_deposit_receive',  // ✅ 일반 강제 입금
             processed_by: authUserId,
             memo: data.memo || null,  // ✅ 사용자 입력 메모만 저장
             created_at: new Date().toISOString()
@@ -440,7 +336,7 @@ export async function handleForceTransaction(
             balance_before: targetBalanceBefore,
             balance_after: targetBalanceAfter,
             amount: -data.amount,
-            transaction_type: 'withdrawal',
+            transaction_type: 'admin_withdrawal_receive',  // ✅ Lv3 회수
             from_partner_id: data.targetId,
             to_partner_id: authUserId,
             processed_by: authUserId,
@@ -473,7 +369,7 @@ export async function handleForceTransaction(
             balance_before: targetPartner.balance,
             balance_after: targetNewBalance,
             amount: -data.amount,
-            transaction_type: 'withdrawal',
+            transaction_type: 'admin_withdrawal_initial',
             from_partner_id: data.targetId,
             to_partner_id: authUserId,
             processed_by: authUserId,
@@ -509,7 +405,7 @@ export async function handleForceTransaction(
             balance_before: targetPartner.balance,
             balance_after: targetNewBalance,
             amount: -data.amount,
-            transaction_type: 'withdrawal',
+            transaction_type: 'admin_withdrawal_initial',
             from_partner_id: data.targetId,
             to_partner_id: authUserId,
             processed_by: authUserId,

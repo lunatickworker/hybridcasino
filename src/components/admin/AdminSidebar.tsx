@@ -136,10 +136,6 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
   });
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loadingMenus, setLoadingMenus] = useState(true);
-  
-  // ✅ 중복 로드 방지를 위한 상태 (Lv2 메뉴 새로고침 문제 해결)
-  const [lastLoadedMenuPermissions, setLastLoadedMenuPermissions] = useState<string>('');
-  const [isLoadingMenus, setIsLoadingMenus] = useState(false);
 
   // ✅ 현재 경로의 메뉴가 속한 그룹을 자동으로 펼치기
   useEffect(() => {
@@ -168,63 +164,76 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
     }
   }, [currentRoute, menuItems]);
 
-  // ✅ 메뉴 변경 감지 - Realtime 구독 (Lv1은 구독 불필요, Lv2+만 구독)
   useEffect(() => {
-    if (!user?.id || user.level === 1) {
-      // Lv1은 메뉴 권한 변경 감지 불필요 (모든 메뉴 접근 가능)
-      loadMenusFromDB(); // 초기 로드만 수행
-      return;
-    }
-
-    // Lv2+ : 초기 로드 및 권한 변경 감지
     loadMenusFromDB();
 
-    // ✅ 제한된 Realtime 구독: menu_permissions 변경만 감지
-    // 필터: `deleted=false`로 업데이트 전용 이벤트만 감지 (balance 등 다른 필드 변경 제외)
+    // ✅ Realtime 구독 1: partners 테이블의 menu_permissions 변경 감지 (가장 중요!)
     const partnersChannel = supabase
-      .channel(`admin_sidebar_menu_${user.id}`)
+      .channel('partners_menu_changes')
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
           table: 'partners',
-          filter: `id=eq.${user.id}` // 본인 파트너만 감시
+          filter: `id=eq.${user.id}`
         },
         (payload) => {
-          // ✅ 메뉴 권한(menu_permissions)이 실제로 변경된 경우만 리로드
-          const oldMenuPermissions = JSON.stringify(payload.old?.menu_permissions || []);
-          const newMenuPermissions = JSON.stringify(payload.new?.menu_permissions || []);
-          
-          if (oldMenuPermissions !== newMenuPermissions) {
-            console.log('🔄 [AdminSidebar] Lv2+ 메뉴 권한 변경 감지:', {
-              userId: user.id,
-              oldCount: payload.old?.menu_permissions?.length || 0,
-              newCount: payload.new?.menu_permissions?.length || 0
-            });
-            loadMenusFromDB(); // 메뉴 다시 로드
-          }
-          // ✅ 무시된 UPDATE는 로그 출력 안 함 (너무 많은 로그 방지)
+          console.log('🔄 [AdminSidebar] 본인 파트너 정보 변경 감지:', payload);
+          // 메뉴 다시 로드
+          loadMenusFromDB();
+        }
+      )
+      .subscribe();
+
+    // ✅ Realtime 구독 2: 메뉴 권한 변경 감지 (legacy)
+    const permissionsChannel = supabase
+      .channel('menu_permissions_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'partner_menu_permissions',
+          filter: `partner_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('🔄 메뉴 권한 변경 감지:', payload);
+          // 메뉴 다시 로드
+          loadMenusFromDB();
+        }
+      )
+      .subscribe();
+
+    // ✅ Realtime 구독 3: 메뉴 마스터 데이터 변경 감지
+    const menuMasterChannel = supabase
+      .channel('menu_master_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'menu_permissions'
+        },
+        (payload) => {
+          console.log('🔄 메뉴 마스터 변경 감지:', payload);
+          // 메뉴 다시 로드
+          loadMenusFromDB();
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(partnersChannel);
+      supabase.removeChannel(permissionsChannel);
+      supabase.removeChannel(menuMasterChannel);
     };
-  }, [user.id, user.level, language]);
+  }, [user.id, language]);
 
   const loadMenusFromDB = async () => {
     if (!user?.id) return;
     
-    // ✅ 이미 로딩 중이면 중복 요청 방지
-    if (isLoadingMenus) {
-      console.log('⏭️ [AdminSidebar] 메뉴 로드 이미 진행 중 - 중복 요청 무시');
-      return;
-    }
-    
-    setIsLoadingMenus(true);
-    
+    setLoadingMenus(true);
     try {
       // ✅ 1단계: 해당 파트너의 menu_permissions JSONB 조회
       console.log('📋 [메뉴 로드] 시작:', {
@@ -244,17 +253,20 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
         console.error('❌ 파트너 메뉴 권한 조회 실패:', partnerError);
       }
       
+      console.log('📋 [메뉴 로드] DB 조회 결과:', {
+        partnerData,
+        menu_permissions_type: typeof partnerData?.menu_permissions,
+        menu_permissions_isArray: Array.isArray(partnerData?.menu_permissions),
+        menu_permissions_value: partnerData?.menu_permissions
+      });
+      
       const allowedMenuPaths = partnerData?.menu_permissions || [];
-      const allowedMenuPathsJson = JSON.stringify(allowedMenuPaths);
-      
-      // ✅ 메뉴 권한이 변경되지 않았으면 로드 스킵 (중복 렌더링 방지)
-      if (allowedMenuPathsJson === lastLoadedMenuPermissions) {
-        console.log('⏭️ [AdminSidebar] 메뉴 권한 미변경 - 로드 스킵');
-        setIsLoadingMenus(false);
-        return;
-      }
-      
-      setLastLoadedMenuPermissions(allowedMenuPathsJson);
+      console.log('✅ [메뉴 로드] 허용된 메뉴 경로:', {
+        allowedMenuPaths,
+        count: allowedMenuPaths.length,
+        isArray: Array.isArray(allowedMenuPaths),
+        isEmpty: allowedMenuPaths.length === 0
+      });
       
       // ✅ 2단계: DB에서 메뉴 데이터 조회 (is_visible = true인 메뉴만)
       console.log('📋 [메뉴 로드] DB에서 메뉴 조회 시작');
@@ -326,7 +338,6 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       }]);
     } finally {
       setLoadingMenus(false);
-      setIsLoadingMenus(false);
     }
   };
 

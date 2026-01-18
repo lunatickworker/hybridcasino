@@ -63,14 +63,6 @@
       },
       "scripts": {
             "dev": "vite",
-            "dev:benz": "vite --mode benz",
-            "dev:user": "vite --mode user",
-            "dev:m": "vite --mode m",
-            "dev:admin": "vite --mode admin",
-            "build": "vite build",
-            "build:benz": "vite build --mode benz",
-            "build:user": "vite build --mode user",
-            "build:m": "vite build --mode m",
-            "build:admin": "vite build --mode admin"
+            "build": "vite build"
       }
 }

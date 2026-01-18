@@ -14,7 +14,6 @@ import { supabase } from '../../lib/supabase';
 import { useMessageQueue } from '../common/MessageQueueProvider';
 import { AnimatedCurrency } from '../common/AnimatedNumber';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { createAdminNotification } from '../../lib/notificationHelper';
 
 interface User {
   id: string;
@@ -84,7 +83,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'user_online_withdrawal')
+        .eq('transaction_type', 'withdrawal')
         .in('status', ['pending', 'approved'])
         .limit(1);
 
@@ -113,7 +112,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         .from('transactions')
         .select('*')
         .eq('user_id', user.id)
-        .eq('transaction_type', 'user_online_withdrawal')
+        .eq('transaction_type', 'withdrawal')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -189,7 +188,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
       const withdrawData = {
         user_id: user.id,
         partner_id: user.referrer_id || null,
-        transaction_type: 'user_online_withdrawal',
+        transaction_type: 'withdrawal',
         amount: withdrawAmount,
         status: 'pending',
         balance_before: currentBalance,
@@ -212,19 +211,6 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         .single();
 
       if (insertError) throw insertError;
-
-      // ✅ 알림카드에 출금 요청 알림 전송
-      if (user.referrer_id) {
-        await createAdminNotification({
-          user_id: user.id,
-          username: user.username || user.nickname,
-          user_login_id: user.login_id || '',
-          partner_id: user.referrer_id,
-          message: `온라인 출금 요청: ${user.nickname}님 ${withdrawAmount.toLocaleString()}원`,
-          log_message: `온라인 출금 요청 - ${user.nickname}님: ${withdrawAmount.toLocaleString()}원`,
-          notification_type: 'online_withdrawal' as any
-        });
-      }
 
       // 메시지 큐를 통한 실시간 알림 전송
       const success = await sendMessage('withdrawal_request', {
@@ -340,7 +326,40 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
 
   const currentAmount = parseFloat(amount) || 0;
 
+  // active 세션 체크 및 보유금 동기화
+  const checkAndSyncBalance = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data: activeSession, error: sessionError } = await supabase
+        .from('game_launch_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (sessionError) {
+        console.error('❌ active 세션 조회 오류:', sessionError);
+        return;
+      }
+
+      if (activeSession) {
+        console.log(`🔄 [출금 페이지] active 세션 감지 - API 출금 + 보유금 동기화 실행`);
+        
+        const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
+        await syncBalanceOnSessionEnd(user.id, activeSession.api_type);
+        
+        await fetchCurrentBalance();
+        
+        console.log('✅ [출금 페이지] API 출금 + 보유금 동기화 완료');
+      }
+    } catch (error) {
+      console.error('❌ 보유금 동기화 오류:', error);
+    }
+  };
+
   useEffect(() => {
+    checkAndSyncBalance();
     checkWithdrawStatus();
     fetchWithdrawHistory();
     fetchCurrentBalance();
@@ -359,7 +378,7 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
           const newTransaction = payload.new as any;
           
-          if (newTransaction.transaction_type === 'user_online_withdrawal') {
+          if (newTransaction.transaction_type === 'withdrawal') {
             fetchWithdrawHistory();
             checkWithdrawStatus();
             

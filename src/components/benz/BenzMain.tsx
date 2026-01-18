@@ -37,6 +37,8 @@ interface Game {
 
 export function BenzMain({ user, onRouteChange }: BenzMainProps) {
   console.log('🚀🚀🚀 [BenzMain] 컴포넌트 렌더링됨! user:', user?.login_id);
+  console.log('👤 [BenzMain] user 전체 정보:', user);
+  console.log('📍 [BenzMain] user 타입:', typeof user, 'user 존재?', !!user);
   
   const [casinoProviders, setCasinoProviders] = useState<GameProvider[]>([]);
   const [slotProviders, setSlotProviders] = useState<GameProvider[]>([]);
@@ -248,8 +250,8 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       
       const CASINO_PROVIDERS = [
         'evolution', 'ezugi', 'microgaming', 'asia', 'sa',
-        'dream gaming', 'playace', 'pragmatic live', 'sexy',
-        '에볼루션', '이주기', '마이크로', '아시아', '드림 게이밍', 
+        'dream', 'playace', 'pragmatic live', 'sexy',
+        '에볼루션', '이주기', '마이크로', '아시아', '드림', 
         '플레이', '프라그마틱 라이브', '섹시'
       ];
       
@@ -277,14 +279,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         }
         
         // 카지노 게임사는 제외
-        // ⭐ 더 정확한 필터링: 'dream'이 아닌 'dream gaming' 또는 '드림 게이밍'로 검사
-        const isCasinoProvider = CASINO_PROVIDERS.some(casino => {
-          if (casino === 'dream gaming' && name.includes('dream')) {
-            return name.includes('gaming') || name.includes('게이밍');
-          }
-          return name.includes(casino.toLowerCase());
-        });
-        return !isCasinoProvider;
+        return !CASINO_PROVIDERS.some(casino => name.includes(casino.toLowerCase()));
       });
       
       // 🆕 카지노 게임사 통합 (같은 이름끼리 합치기)
@@ -482,7 +477,6 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
 
   // ✨ 게임 실행 핸들러 - 메인 페이지에서 바로 게임 실행
   const handleProviderClick = async (provider: GameProvider, type: 'casino' | 'slot') => {
-    console.log(`🎯 [BenzMain] handleProviderClick 호출됨 - provider: ${provider.name_ko || provider.name}, type: ${type}`);
     // 🚫 점검중인 게임사는 클릭 불가
     if (provider.status === 'maintenance') {
       toast.warning('현재 점검 중인 게임사입니다.');
@@ -872,7 +866,6 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
     
     // ===== 슬롯 게임사 =====
     if (type === 'slot') {
-      console.log(`🎰 [BenzMain] 슬롯 게임사 클릭 - provider: ${provider.name_ko || provider.name}`);
       // ⭐ Skywind
       if (providerName.includes('skywind') || providerNameKo.includes('스카이윈드')) {
         console.log('🎰 [BenzMain] Skywind 바로 실행');
@@ -900,9 +893,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       }
       
       // ⭐ 다른 슬롯 게임사들 - 페이지로 이동
-      console.log('💾 [BenzMain] localStorage에 provider 저장:', provider);
       localStorage.setItem('benz_selected_provider', JSON.stringify(provider));
-      console.log('🔀 [BenzMain] 라우트 변경: /benz/slot');
       onRouteChange('/benz/slot');
       return;
     }

@@ -23,13 +23,13 @@ const monitorSessionStates = async () => {
     const fourMinutesAgo = new Date(now.getTime() - 4 * 60 * 1000);
 
     // 1. active → paused (4분 베팅 없음) ⭐ paused 상태로 변경
-    // ✅ 간단한 쿼리: users 중첩 조인 제거 및 필터 단순화
+    // Use explicit select without relation and use `not(..., 'is', null)` to avoid duplicate/ambiguous REST params
     const { data: activeSessions } = await supabase
       .from('game_launch_sessions')
-      .select('id, user_id, status, last_bet_at')
+      .select('id, status, user_id, last_bet_at')
       .eq('status', 'active')
-      .lt('last_bet_at', fourMinutesAgo.toISOString())
-      .not('last_bet_at', 'is', null); // last_bet_at이 NOT NULL인 경우만
+      .not('last_bet_at', 'is', null)
+      .lt('last_bet_at', fourMinutesAgo.toISOString());
 
     if (activeSessions && activeSessions.length > 0) {
       for (const session of activeSessions) {
@@ -43,15 +43,14 @@ const monitorSessionStates = async () => {
           })
           .eq('id', session.id);
 
-        console.log(`✅ active → paused: session_id=${session.id}`);
+        console.log(`✅ active → paused: user_id=${session.user_id}`);
       }
     }
 
     // 2. paused → active (베팅 재개)
-    // ✅ 간단한 쿼리: users 중첩 조인 제거
     const { data: pausedSessions } = await supabase
       .from('game_launch_sessions')
-      .select('id, user_id, status')
+      .select('id, status, user_id, last_bet_at')
       .eq('status', 'paused');
 
     if (pausedSessions && pausedSessions.length > 0) {
@@ -64,7 +63,7 @@ const monitorSessionStates = async () => {
           .gte('played_at', new Date(now.getTime() - 30 * 1000).toISOString())
           .limit(1);
 
-        if (recentBets && recentBets.length > 0) {
+          if (recentBets && recentBets.length > 0) {
           // paused → active 전환 (베팅 재개)
           await supabase
             .from('game_launch_sessions')
@@ -76,7 +75,7 @@ const monitorSessionStates = async () => {
             })
             .eq('id', session.id);
 
-          console.log(`✅ paused → active: user=${session.users?.username}`);
+            console.log(`✅ paused → active: user_id=${session.user_id}`);
         }
       }
     }

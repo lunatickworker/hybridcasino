@@ -157,13 +157,6 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
     setCurrentPage(1);
   }, [itemsPerPage]);
 
-  // ✅ 페이지/아이템수 변경 시 통계 재계산
-  useEffect(() => {
-    if (data.length > 0) {
-      calculateSummary(data);
-    }
-  }, [currentPage, itemsPerPage]);
-
   const fetchSettlementData = async () => {
     if (!dateRange?.from || !dateRange?.to) return;
     
@@ -268,24 +261,57 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
       if (gameError) throw gameError;
       console.log('✅ 게임 기록:', gameRecords?.length || 0, '개');
 
-      // 5. partner_balance_logs에서 본인 관련 관리자 입출금 조회
-      let partnerBalanceLogsQuery = supabase
-        .from('partner_balance_logs')
-        .select('*')
-        .gte('created_at', dateRange.from.toISOString())
-        .lte('created_at', dateRange.to.toISOString());
-
-      if (user.level > 1) {
-        partnerBalanceLogsQuery = partnerBalanceLogsQuery.or(
-          `partner_id.in.(${allowedPartnerIds.join(',')}),` +
-          `from_partner_id.in.(${allowedPartnerIds.join(',')}),` +
-          `to_partner_id.in.(${allowedPartnerIds.join(',')})`
-        );
+      // 5. partner_balance_logs에서 입출금 거래 조회
+      // Lv2: to_partner_id = 자신 (모든 거래)
+      // Lv3+: 보낸 거래(from_partner_id=자신, to_partner_id=null) + 받은 거래(to_partner_id=자신)
+      let partnerBalanceLogs;
+      
+      if (user.level === 2) {
+        // Lv2: 모든 거래를 받는 거래 기준으로 표시
+        const partnerBalanceLogsQuery = supabase
+          .from('partner_balance_logs')
+          .select('id,transaction_id,transaction_type,amount,partner_id,from_partner_id,to_partner_id,created_at,processed_by,memo,balance_before,balance_after')
+          .in('transaction_type', ['admin_deposit', 'admin_withdrawal', 'commission', 'refund'])
+          .eq('to_partner_id', user.id)
+          .gte('created_at', dateRange.from.toISOString())
+          .lte('created_at', dateRange.to.toISOString());
+        
+        const { data: result, error: balanceLogsError } = await partnerBalanceLogsQuery;
+        partnerBalanceLogs = result;
+        if (balanceLogsError) throw balanceLogsError;
+        
+        console.log('🔍 [AdvancedSettlement Lv2] 쿼리 결과:', {
+          count: partnerBalanceLogs.length,
+          sample: partnerBalanceLogs.slice(0, 2)
+        });
+      } else {
+        // Lv3+: 두 개의 쿼리 병렬 실행
+        // Q1: 자신이 보낸 거래 (from_partner_id = 자신, to_partner_id = null)
+        const sentQuery = supabase
+          .from('partner_balance_logs')
+          .select('*')
+          .in('transaction_type', ['admin_deposit_send', 'admin_withdrawal_send', 'partner_deposit', 'partner_withdrawal'])
+          .eq('from_partner_id', user.id)
+          .is('to_partner_id', null)
+          .gte('created_at', dateRange.from.toISOString())
+          .lte('created_at', dateRange.to.toISOString());
+        
+        // Q2: 자신이 받은 거래 (to_partner_id = 자신)
+        const receivedQuery = supabase
+          .from('partner_balance_logs')
+          .select('*')
+          .in('transaction_type', ['admin_deposit_send', 'admin_withdrawal_send', 'partner_deposit', 'partner_withdrawal'])
+          .eq('to_partner_id', user.id)
+          .gte('created_at', dateRange.from.toISOString())
+          .lte('created_at', dateRange.to.toISOString());
+        
+        const [sentRes, receivedRes] = await Promise.all([sentQuery, receivedQuery]);
+        
+        if (sentRes.error) throw sentRes.error;
+        if (receivedRes.error) throw receivedRes.error;
+        
+        partnerBalanceLogs = [...(sentRes.data || []), ...(receivedRes.data || [])];
       }
-
-      const { data: partnerBalanceLogs, error: balanceLogsError } = await partnerBalanceLogsQuery;
-
-      if (balanceLogsError) throw balanceLogsError;
       console.log('✅ 파트너 잔고 로그:', partnerBalanceLogs?.length || 0, '개');
 
       // 6. 본인 커미션 정보 조회
@@ -356,59 +382,110 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
       const dayEnd = endOfDay(day);
 
       // 해당 날짜의 거래만 필터링
+      // UTC 시간을 KST로 변환하여 비교
       const dayTransactions = transactions.filter(t => {
         const tDate = new Date(t.created_at);
-        return tDate >= dayStart && tDate <= dayEnd;
+        const kstDate = new Date(tDate.getTime() + 9 * 60 * 60 * 1000);
+        return kstDate >= dayStart && kstDate <= dayEnd;
       });
 
       const dayPointTransactions = pointTransactions.filter(pt => {
         const ptDate = new Date(pt.created_at);
-        return ptDate >= dayStart && ptDate <= dayEnd;
+        const kstDate = new Date(ptDate.getTime() + 9 * 60 * 60 * 1000);
+        return kstDate >= dayStart && kstDate <= dayEnd;
       });
 
       const dayGameRecords = gameRecords.filter(gr => {
         const grDate = new Date(gr.played_at);
-        return grDate >= dayStart && grDate <= dayEnd;
+        const kstDate = new Date(grDate.getTime() + 9 * 60 * 60 * 1000);
+        return kstDate >= dayStart && kstDate <= dayEnd;
       });
 
       // 해당 날짜의 partner_balance_logs
+      // UTC 시간을 KST로 변환한 후 날짜 비교
       const dayPartnerBalanceLogs = partnerBalanceLogs.filter(l => {
         const lDate = new Date(l.created_at);
-        return lDate >= dayStart && lDate <= dayEnd;
+        // UTC를 KST로 변환 (9시간 추가)
+        const kstDate = new Date(lDate.getTime() + 9 * 60 * 60 * 1000);
+        return kstDate >= dayStart && kstDate <= dayEnd;
       });
 
-      // 입출금 계산 - 사용자 직접 입금/출금만 (user_online_deposit/user_online_withdrawal)
+      // 입출금 계산 - 사용자 직접 입금/출금만 (deposit/withdrawal)
       const deposit = dayTransactions
-        .filter(t => t.transaction_type === 'user_online_deposit' && t.status === 'completed')
+        .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
       const withdrawal = dayTransactions
-        .filter(t => t.transaction_type === 'user_online_withdrawal' && t.status === 'completed')
+        .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-      // ✅ 수동 입금 (Guidelines.md 기준)
-      // 📊 데이터 소스: transactions 테이블
-      // 🎯 조건: transaction_type = 'partner_manual_deposit' AND status = 'completed'
-      // 💰 계산식: SUM(amount)
-      const adminDeposit = dayTransactions
-        .filter(t => t.transaction_type === 'partner_manual_deposit' && t.status === 'completed')
+      // 관리자 입금/출금: 수동 충전/환전 (admin_deposit, admin_deposit_send, admin_withdrawal, admin_withdrawal_send)
+      // transactions에서 admin_deposit/admin_withdrawal 조회
+      const adminDepositFromTransactions = dayTransactions
+        .filter(t => t.transaction_type === 'admin_deposit' && t.status === 'completed')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-      // ✅ 수동 출금 (Guidelines.md 기준)
-      // 📊 데이터 소스: transactions 테이블
-      // 🎯 조건: transaction_type = 'partner_manual_withdrawal' AND status = 'completed'
-      // 💰 계산식: SUM(|amount|) // 절대값
-      const adminWithdrawal = dayTransactions
-        .filter(t => t.transaction_type === 'partner_manual_withdrawal' && t.status === 'completed')
+      const adminWithdrawalFromTransactions = dayTransactions
+        .filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'completed')
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-      // 포인트 계산
+      // admin_deposit_send와 admin_withdrawal_send 계산
+      // Transactionrull.md 규칙 적용:
+      // - admin_deposit_send: 양수(수신자 perspective)만 더하기
+      // - admin_withdrawal_send: 음수(수신자 perspective)만 더하기
+      const adminDepositFromPartnerBalanceLogs = dayPartnerBalanceLogs
+        .filter(l => l.transaction_type === 'admin_deposit_send' && (l.amount || 0) > 0)
+        .reduce((sum, l) => sum + (l.amount || 0), 0);
+
+      const adminWithdrawalFromPartnerBalanceLogs = dayPartnerBalanceLogs
+        .filter(l => l.transaction_type === 'admin_withdrawal_send' && Math.abs(l.amount || 0) > 0)
+        .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
+
+      // 🔍 디버깅
+      const adminWithdrawalSendRecords = dayPartnerBalanceLogs.filter(l => l.transaction_type === 'admin_withdrawal_send');
+      if (adminWithdrawalSendRecords.length > 0) {
+        console.log('📊 [AdvancedSettlement] admin_withdrawal_send 기록:', {
+          총레코드: adminWithdrawalSendRecords.length,
+          필터링된금액: adminWithdrawalFromPartnerBalanceLogs,
+          샘플데이터: adminWithdrawalSendRecords.map(r => ({
+            from_partner_id: r.from_partner_id,
+            to_partner_id: r.to_partner_id,
+            amount: r.amount,
+            created_at: r.created_at
+          }))
+        });
+      }
+
+      // AdvancedSettlement는 adminDeposit/adminWithdrawal 합산
+      const adminDeposit = adminDepositFromTransactions + adminDepositFromPartnerBalanceLogs;
+      const adminWithdrawal = adminWithdrawalFromTransactions + adminWithdrawalFromPartnerBalanceLogs;
+
+      // 🔍 디버그 로그
+      if (dayPartnerBalanceLogs.length > 0) {
+        const adminDepositSendRecords = dayPartnerBalanceLogs.filter(l => l.transaction_type === 'admin_deposit_send');
+        console.log('📊 [AdvancedSettlement] 해당 날짜의 partner_balance_logs:', {
+          total: dayPartnerBalanceLogs.length,
+          adminDepositSend: adminDepositSendRecords.length,
+          adminWithdrawalSend: dayPartnerBalanceLogs.filter(l => l.transaction_type === 'admin_withdrawal_send').length,
+          adminDepositAmount: adminDepositFromPartnerBalanceLogs,
+          adminWithdrawalAmount: adminWithdrawalFromPartnerBalanceLogs,
+          adminDepositSendSampleData: adminDepositSendRecords.map(r => ({
+            transaction_type: r.transaction_type,
+            amount: r.amount,
+            balance_before: r.balance_before,
+            balance_after: r.balance_after,
+            created_at: r.created_at
+          }))
+        });
+      }
+
+      // 포인트 계산: earn (지급), convert_to_balance (회수)
       const pointGiven = dayPointTransactions
-        .filter(pt => pt.type === 'admin_give')
+        .filter(pt => pt.transaction_type === 'earn')
         .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
       const pointRecovered = dayPointTransactions
-        .filter(pt => pt.type === 'admin_deduct')
+        .filter(pt => pt.transaction_type === 'convert_to_balance')
         .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
       // 베팅 데이터 계산 - 절대값 사용

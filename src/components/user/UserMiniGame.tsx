@@ -79,36 +79,6 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
     }
   }, [selectedProvider]);
 
-  // ⭐ HEARTBEAT: 30초마다 last_activity_at 업데이트 (게임 진행 중 자동 종료 방지)
-  useEffect(() => {
-    const heartbeatInterval = setInterval(async () => {
-      try {
-        // 현재 active 세션 확인
-        const activeSession = await gameApi.checkActiveSession(user.id);
-        
-        if (activeSession?.isActive && activeSession.session_id) {
-          // ✅ 게임 진행 중이면 last_activity_at 업데이트
-          const { error } = await supabase
-            .from('game_launch_sessions')
-            .update({
-              last_activity_at: new Date().toISOString()
-            })
-            .eq('id', activeSession.session_id);
-          
-          if (!error) {
-            console.log(`💓 [Heartbeat] 게임 진행 감지 - last_activity_at 업데이트 (세션: ${activeSession.session_id})`);
-          } else {
-            console.error('❌ [Heartbeat] 업데이트 실패:', error);
-          }
-        }
-      } catch (error) {
-        console.error('❌ [Heartbeat] 오류:', error);
-      }
-    }, 30 * 1000); // 30초마다 실행
-    
-    return () => clearInterval(heartbeatInterval);
-  }, [user.id]);
-
   const initializeData = async () => {
     if (!isMountedRef.current) return;
     
@@ -460,12 +430,6 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
                 (window as any).gameWindowCheckers?.delete(sessionId);
               }
               
-              // ⭐ Heartbeat 정리
-              const heartbeat = (handleGameWindowClose as any)._heartbeat;
-              if (heartbeat) {
-                clearInterval(heartbeat);
-              }
-              
               (window as any).gameWindows?.delete(sessionId);
               await (window as any).syncBalanceAfterGame?.(sessionId);
               
@@ -484,25 +448,6 @@ export function UserMiniGame({ user, onRouteChange }: UserMiniGameProps) {
                 // 무시
               }
             }, 1000);
-            
-            // ⭐ Heartbeat: 30초마다 게임 세션 활동 업데이트 (5분 자동 종료 방지)
-            const heartbeat = setInterval(async () => {
-              try {
-                if (gameWindow && !gameWindow.closed) {
-                  await supabase
-                    .from('game_launch_sessions')
-                    .update({
-                      last_activity_at: new Date().toISOString()
-                    })
-                    .eq('id', sessionId);
-                }
-              } catch (error) {
-                console.error('❌ [Heartbeat] 활동 업데이트 실패:', error);
-              }
-            }, 30 * 1000); // 30초마다
-            
-            (window as any).gameWindowCheckers.set(sessionId, checkGameWindow);
-            Object.defineProperty(handleGameWindowClose, '_heartbeat', { value: heartbeat });
             
             (window as any).gameWindowCheckers.set(sessionId, checkGameWindow);
           }

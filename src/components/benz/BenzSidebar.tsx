@@ -46,6 +46,8 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
   const [showLoginMessage, setShowLoginMessage] = useState(false);
 
   const handleMenuClick = (path: string) => {
+    console.log('🔘 [BenzSidebar] 메뉴 클릭:', { path, userExists: !!user });
+    
     // 로그인이 필요한 메뉴 체크
     const requiresLogin = [
       '/benz/deposit', 
@@ -59,12 +61,14 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
     ];
     
     if (requiresLogin.includes(path) && !user) {
+      console.log('❌ [BenzSidebar] 로그인 필요:', path);
       // 로그인 필요 메시지 표시
       setShowLoginMessage(true);
       setTimeout(() => setShowLoginMessage(false), 3000);
       return;
     }
     
+    console.log('✅ [BenzSidebar] 라우팅 호출:', { path, method: 'onRouteChange' });
     // 정상 라우팅
     onRouteChange(path);
   };

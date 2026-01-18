@@ -419,6 +419,53 @@ export async function updateOroplayBalance(partnerId: string, balance: number): 
 }
 
 /**
+ * HonorAPI 잔액 업데이트 (api_configs + partners 동기화)
+ * @param partnerId - Lv1 파트너 ID
+ * @param balance - 새로운 잔액
+ */
+export async function updateHonorBalance(partnerId: string, balance: number): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('api_configs')
+      .update({
+        balance: balance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('partner_id', partnerId)
+      .eq('api_provider', 'honorapi');
+
+    if (error) {
+      console.error('❌ [API Config] HonorAPI 잔액 업데이트 실패:', error);
+      return false;
+    }
+    
+    // ✅ Lv1 업데이트 시 Lv2도 동기화
+    const { data: lv2Partners } = await supabase
+      .from('partners')
+      .select('id')
+      .eq('level', 2);
+    
+    if (lv2Partners && lv2Partners.length > 0) {
+      for (const lv2 of lv2Partners) {
+        await supabase
+          .from('partners')
+          .update({
+            honorapi_balance: balance,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', lv2.id);
+      }
+      console.log(`✅ [API Config] 운영사 honorapi_balance 동기화 완료: ${balance.toLocaleString()}`);
+    }
+
+    return true;
+  } catch (err) {
+    console.error('❌ [API Config] HonorAPI 잔액 업데이트 예외:', err);
+    return false;
+  }
+}
+
+/**
  * 파트너의 Invest + OroPlay 잔액 동시 조회
  * @param partnerId - 파트너 ID
  * @returns { investBalance, oroplayBalance }

@@ -29,67 +29,10 @@ import { setupNetworkLogging } from './lib/networkLoggingInterceptor';
 // ✅ 앱 시작 시 네트워크 로깅 초기화 (민감한 정보 마스킹)
 setupNetworkLogging();
 
-// 🌍 환경 변수 또는 URL 해시에서 사이트 타입 읽기
-const getSiteTypeFromEnv = () => {
-  // 1. 환경 변수에서 명시적으로 설정된 경우 우선
-  const envValue = import.meta.env.VITE_SITE_TYPE;
-  if (envValue && envValue.toLowerCase() !== 'benz') {
-    console.log('✅ SITE_TYPE from env:', envValue);
-    return envValue.toLowerCase();
-  }
-
-  // 2. URL 해시에서 감지 (단일 도메인 & Vercel 배포 환경에서 동작)
-  if (typeof window !== 'undefined') {
-    const hash = window.location.hash.toLowerCase();
-    const pathname = window.location.pathname.toLowerCase();
-    
-    console.log('🔍 Detecting SITE_TYPE - Hash:', hash, 'Pathname:', pathname);
-    
-    // 해시 기반 감지 (해시가 있는 경우만 체크)
-    if (hash && hash !== '#' && hash !== '#/') {
-      if (hash.startsWith('#/user')) {
-        console.log('✅ Detected USER site from hash');
-        return 'user';
-      } else if (hash.startsWith('#/m')) {
-        console.log('✅ Detected M site from hash');
-        return 'm';
-      } else if (hash.startsWith('#/admin')) {
-        console.log('✅ Detected ADMIN site from hash');
-        return 'admin';
-      } else if (hash.startsWith('#/benz')) {
-        console.log('✅ Detected BENZ site from hash');
-        return 'benz';
-      }
-    }
-    
-    // 도메인 기반 감지 (여러 도메인 사용 시) - 매우 구체적으로 설정
-    const hostname = window.location.hostname.toLowerCase();
-    if (hostname.includes('usersite') || hostname.includes('user-site') || hostname === 'user.example.com') {
-      console.log('✅ Detected USER site from domain');
-      return 'user';
-    } else if (hostname.includes('msite') || hostname.includes('m-site') || hostname === 'm.example.com') {
-      console.log('✅ Detected M site from domain');
-      return 'm';
-    } else if (hostname === 'admin.example.com' || hostname === 'admin-site.com') {
-      console.log('✅ Detected ADMIN site from domain');
-      return 'admin';
-    }
-    
-    console.log('⚠️ No match detected, using default benz');
-  }
-
-  // 3. 기본값: benz
-  return 'benz';
-};
-
-const SITE_TYPE = getSiteTypeFromEnv().toLowerCase();
-console.log('🌍 FINAL SITE_TYPE:', SITE_TYPE);
-
 function AppContent() {
   const { authState, logout } = useAuth();
   const [, forceUpdate] = useState({});
   const [benzModals, setBenzModals] = useState({ login: false, signup: false });
-  const [benzRoute, setBenzRoute] = useState(() => sessionStorage.getItem('benz_internal_route') || '#/benz');
 
   // Favicon 초기화 (도메인/라우트별 자동 설정)
   useEffect(() => {
@@ -99,26 +42,8 @@ function AppContent() {
   // 초기 리다이렉트 처리 (useEffect로 이동하여 render phase 오류 방지)
   useEffect(() => {
     if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
-      // 환경 변수에 따라 기본 경로 결정
-      const defaultPath = 
-        SITE_TYPE === 'm' ? '#/m' : 
-        SITE_TYPE === 'user' ? '#/user' : 
-        SITE_TYPE === 'admin' ? '#/admin' : 
-        '#/benz';
-      window.location.hash = defaultPath;
+      window.location.hash = '#/benz';
     }
-  }, []);
-
-  // ⭐ benzRoute 상태 - sessionStorage의 실제 라우트를 추적
-  // 라우트 변경 시 커스텀 이벤트로 업데이트
-  useEffect(() => {
-    const handleBenzRouteChange = (e: Event) => {
-      const event = e as CustomEvent;
-      setBenzRoute(event.detail || '#/benz');
-    };
-
-    window.addEventListener('benzRouteChange', handleBenzRouteChange);
-    return () => window.removeEventListener('benzRouteChange', handleBenzRouteChange);
   }, []);
 
   useEffect(() => {
@@ -128,36 +53,32 @@ function AppContent() {
   }, []);
 
   const handleNavigate = (route: string) => {
+    console.log('🔄 [App] 네비게이션 시작:', { route });
+    
     // route가 이미 #으로 시작하면 그대로 사용, 아니면 #을 추가
     const hashRoute = route.startsWith('#') ? route : `#${route}`;
     
     // ✅ Benz 페이지에서는 주소창에 #/benz만 표시 (라우트 숨김)
     if (hashRoute.startsWith('#/benz')) {
-      // 내부 상태는 유지하고, 주소창은 #/benz만 표시
-      window.history.replaceState({ benz_route: hashRoute }, '', window.location.pathname + '#/benz');
+      console.log('🔄 [App] Benz 라우팅:', { hashRoute });
+      // sessionStorage에 실제 라우트 저장
       sessionStorage.setItem('benz_internal_route', hashRoute);
-      // ⭐ 커스텀 이벤트 발생 - App에서 감지하여 benzRoute 업데이트
-      window.dispatchEvent(new CustomEvent('benzRouteChange', { detail: hashRoute }));
+      // 주소창은 #/benz만 표시
+      window.history.replaceState({ benz_route: hashRoute }, '', window.location.pathname + '#/benz');
+      forceUpdate({});
       return;
     }
     
-    // ✅ /admin/transactions#deposit-request 같은 형식의 URL에서 앵커 추출
-    const anchorMatch = hashRoute.match(/#(.*)#(.*)$/);
-    if (anchorMatch) {
-      // #/admin/transactions#deposit-request -> #/admin/transactions, deposit-request 분리
-      const [, path, anchor] = anchorMatch;
-      window.location.hash = `#${path}`;
-      // 약간의 지연 후 앵커를 다시 추가 (TransactionManagement에서 hashchange 이벤트 감지)
-      setTimeout(() => {
-        window.location.hash = `#${path}#${anchor}`;
-      }, 50);
-    } else {
-      window.location.hash = hashRoute;
-    }
+    // ✅ 해시 한 번에 설정 (두 번의 변경으로 인한 문제 해결)
+    // /admin/transactions#deposit-request 형식도 그대로 설정
+    window.location.hash = hashRoute;
+    console.log('🔗 [App] 해시 설정 완료:', { hashRoute });
+    
+    forceUpdate({});
   };
 
   // Hash 기반 라우팅 사용
-  const currentHash = window.location.hash || `#/${SITE_TYPE}`;
+  const currentHash = window.location.hash || '#/admin';
   const currentPath = currentHash.substring(1); // # 제거
 
   const isBenzPage = currentPath.startsWith('/benz');
@@ -166,33 +87,21 @@ function AppContent() {
   const isSample1Page = currentPath.startsWith('/sample1');
   const isAdminPage = currentPath.startsWith('/admin');
 
-  // 🌍 환경 변수에 따라 허용된 페이지만 렌더링
-  // 예: VITE_SITE_TYPE=benz인 경우 benz 페이지만 접근 가능
-  // admin 페이지는 항상 접근 가능
-  const allowedPage = SITE_TYPE === 'benz' ? 'benz' : SITE_TYPE === 'user' ? 'user' : SITE_TYPE === 'm' ? 'm' : SITE_TYPE === 'admin' ? 'admin' : 'benz';
-  
-  // 현재 경로가 허용된 페이지가 아니면 기본 페이지로 리다이렉트
-  // 주의: SITE_TYPE이 비어있으면 '#/benz'로 이동
-  console.log('🔍 Route check - SITE_TYPE:', SITE_TYPE, 'currentPath:', currentPath, 'isBenzPage:', isBenzPage);
-  
-  if (SITE_TYPE === 'benz' && !isBenzPage && !isAdminPage) {
-    console.log('❌ Redirecting to benz (not benz page)');
-    window.location.hash = '#/benz';
-  } else if (SITE_TYPE === 'user' && !isUserPage && !isAdminPage) {
-    console.log('❌ Redirecting to user (not user page)');
-    window.location.hash = '#/user';
-  } else if (SITE_TYPE === 'm' && !isMPage && !isAdminPage) {
-    console.log('❌ Redirecting to m (not m page)');
-    window.location.hash = '#/m';
-  } else if (SITE_TYPE === 'admin' && !isAdminPage) {
-    console.log('❌ Redirecting to admin (not admin page)');
-    window.location.hash = '#/admin';
-  }
-
   // Benz 페이지 라우팅 (기본 도메인)
   if (isBenzPage) {
-    // ⭐ benzRoute state를 사용하여 라우트 변경 감지
-    const currentRoute = benzRoute.substring(1); // # 제거
+    // 주소창에는 #/benz만 표시되지만, 내부적으로는 sessionStorage에서 실제 라우트 가져오기
+    let currentRoute = sessionStorage.getItem('benz_internal_route') || currentPath;
+    
+    // ✅ '#'을 제거하여 정규화
+    if (currentRoute.startsWith('#')) {
+      currentRoute = currentRoute.substring(1);
+    }
+    
+    console.log('🔄 [App/Benz] currentRoute 정규화:', { 
+      storageValue: sessionStorage.getItem('benz_internal_route'),
+      currentPath,
+      finalRoute: currentRoute 
+    });
 
     // 사용자 세션 확인
     const userSessionString = localStorage.getItem('user_session');
@@ -258,11 +167,7 @@ function AppContent() {
         console.error('로그아웃 처리 오류:', error);
       } finally {
         localStorage.removeItem('user_session');
-        // ⭐ 마스킹 유지하면서 메인으로 강제 이동
-        sessionStorage.setItem('benz_internal_route', '#/benz');
-        // ⭐ 커스텀 이벤트 발생 - App에서 감지하여 benzRoute 업데이트
-        window.dispatchEvent(new CustomEvent('benzRouteChange', { detail: '#/benz' }));
-        // ✅ 상태 업데이트 (중요: 로그아웃 반영)
+        window.location.hash = '#/benz';
         forceUpdate({});
       }
     };
@@ -656,38 +561,6 @@ function AppContent() {
           )}
         </WebSocketProvider>
         <Toaster position="top-right" />
-      </>
-    );
-  }
-
-  // Admin 페이지 라우팅
-  if (isAdminPage) {
-    const currentRoute = isAdminPage && currentPath !== '/admin' && currentPath !== '/admin/'
-      ? currentPath
-      : '/admin/dashboard';
-
-    const isAuthenticated = authState.isAuthenticated && authState.user;
-
-    return (
-      <>
-        {!isAuthenticated ? (
-          <AdminLogin onLoginSuccess={() => {
-            window.location.hash = '#/admin/dashboard';
-            forceUpdate({});
-          }} />
-        ) : (
-          <WebSocketProvider>
-            <BalanceProvider user={authState.user}>
-              <SessionTimeoutManager />
-              <MessageQueueProvider userType="admin" userId={authState.user.id}>
-                <AdminLayout currentRoute={currentRoute} onNavigate={handleNavigate}>
-                  <AdminRoutes currentRoute={currentRoute} user={authState.user} />
-                </AdminLayout>
-              </MessageQueueProvider>
-            </BalanceProvider>
-          </WebSocketProvider>
-        )}
-        <Toaster position="bottom-right" />
       </>
     );
   }

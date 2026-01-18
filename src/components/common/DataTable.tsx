@@ -152,8 +152,8 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
       )}
 
       {/* 테이블 */}
-      <div className="table-premium rounded-lg overflow-hidden overflow-x-auto">
-        <Table className="min-w-full">
+      <div className="table-premium rounded-lg overflow-hidden">
+        <Table>
           <TableHeader>
             <TableRow className="border-slate-700/50 hover:bg-transparent">
               {columns.map((column, index) => {
@@ -164,7 +164,7 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
                   <TableHead
                     key={index}
                     className={cn(
-                      "text-[#94a3b8] font-semibold text-center text-xl py-5 px-4 whitespace-nowrap",
+                      "whitespace-nowrap text-[#94a3b8] font-semibold text-center text-xl py-5 px-4",
                       column.sortable && "cursor-pointer hover:bg-slate-700/50",
                       column.className
                     )}
@@ -209,7 +209,7 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
                     onClick={() => onRowClick?.(row, startIndex + rowIndex)}
                   >
                     {columns.map((column, colIndex) => (
-                      <TableCell key={`${uniqueKey}-col-${colIndex}`} className={cn("text-center whitespace-normal", column.className || "")}>
+                      <TableCell key={`${uniqueKey}-col-${colIndex}`} className={cn("text-center", column.className)}>
                         {column.render
                           ? column.render(getCellValue(row, column), row, startIndex + rowIndex)
                           : column.cell
