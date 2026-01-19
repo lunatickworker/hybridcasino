@@ -297,19 +297,21 @@ export function PartnerManagementV2() {
 
             {/* 상태 */}
             <div className="min-w-[65px] flex-shrink-0 -ml-1.5">
-              {partner.status === 'active' ? (
-                <Badge className="px-4 py-2.5 bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 text-base">
-                  {statusTexts[partner.status]}
-                </Badge>
-              ) : partner.status === 'inactive' ? (
-                <Badge className="px-4 py-2.5 bg-slate-500/30 text-slate-300 border border-slate-500/50 text-base">
-                  {statusTexts[partner.status]}
-                </Badge>
-              ) : (
-                <Badge className="px-4 py-2.5 bg-red-500/30 text-red-300 border border-red-500/50 text-base">
-                  {statusTexts[partner.status]}
-                </Badge>
-              )}
+              {(() => {
+                return partner.status === 'active' ? (
+                  <Badge className="px-4 py-2.5 bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 text-base">
+                    {statusTexts[partner.status]}
+                  </Badge>
+                ) : partner.status === 'inactive' ? (
+                  <Badge className="px-4 py-2.5 bg-slate-500/30 text-slate-300 border border-slate-500/50 text-base">
+                    {statusTexts[partner.status]}
+                  </Badge>
+                ) : (
+                  <Badge className="px-4 py-2.5 bg-red-500/30 text-red-300 border border-red-500/50 text-base">
+                    {statusTexts[partner.status]}
+                  </Badge>
+                );
+              })()}
             </div>
 
             {/* 보유금 */}

@@ -1,10 +1,10 @@
-import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+import { createClient } from "@supabase/supabase-js";
 import {
   handleBalanceCallback,
   handleChangeBalanceCallback,
   handleChangeBalanceSlotCallback
-} from "./familycallback.ts";
-import { executeAutoSettlement } from "./auto-settlement.ts";
+} from "./familycallback";
+import { executeAutoSettlement } from "./auto-settlement";
 
 // =====================================================
 // 상수 정의
@@ -15,8 +15,8 @@ const FAMILYAPI_BASE_URL = 'https://api.xtreem.cc';
 
 // Supabase Admin Client (Secrets에서 환경 변수 가져오기)
 const supabase = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
 // =====================================================
@@ -358,57 +358,125 @@ async function getHonorApiAgentBalance(apiKey: string): Promise<number> {
 async function syncOroplayBets(): Promise<any> {
   console.log('🎰 [OroPlay Sync] 베팅 기록 동기화 시작');
 
-  // 1. 모든 Lv1 파트너 조회 (OroPlay API config가 있는 파트너)
-  const { data: lv1Partners, error: partnersError } = await supabase
+  // 1. 로그인한 Lv2 파트너 조회 (활성 세션이 있는 Lv2만)
+  const { data: activeLv2Partners, error: partnersError } = await supabase
     .from('partners')
-    .select('id, nickname')
-    .eq('level', 1)
-    .eq('status', 'active');
+    .select('id, nickname, parent_id')
+    .eq('level', 2)
+    .eq('status', 'active')
+    .not('parent_id', 'is', null);
 
-  if (partnersError || !lv1Partners || lv1Partners.length === 0) {
-    return { success: true, message: 'No active Lv1 partners', synced: 0 };
+  if (partnersError || !activeLv2Partners || activeLv2Partners.length === 0) {
+    return { success: true, message: 'No active Lv2 partners', synced: 0 };
   }
 
-  console.log(`📋 ${lv1Partners.length}개 Lv1 파트너 발견`);
+  console.log(`📋 ${activeLv2Partners.length}개 활성 Lv2 파트너 발견`);
 
   let totalSynced = 0;
   let totalErrors = 0;
 
-  for (const partner of lv1Partners) {
+  for (const lv2Partner of activeLv2Partners) {
     try {
-      console.log(`\n🔄 Partner ${partner.id} (${partner.nickname}) 동기화 시작...`);
+      console.log(`\n🔄 [${lv2Partner.nickname}] Lv2 로그인 감지, OroPlay 베팅 동기화 시작...`);
 
-      // 1. OroPlay 토큰 가져오기
-      let token: string;
-      try {
-        token = await getOroPlayToken(partner.id);
-      } catch (tokenError: any) {
-        console.log(`⚠️ Partner ${partner.id}: 토큰 없음 - ${tokenError.message}`);
+      // 1. Lv2 자신의 OroPlay API 설정 확인
+      let oroConfig = await supabase
+        .from('api_configs')
+        .select('is_active')
+        .eq('partner_id', lv2Partner.id)
+        .eq('api_provider', 'oroplay')
+        .maybeSingle();
+
+      // Lv2에 설정이 없으면 Lv1(parent_id)에서 찾기
+      let partnerId = lv2Partner.id;
+      if (!oroConfig.data && lv2Partner.parent_id) {
+        console.log(`   🔍 Lv2(${lv2Partner.id})에 OroPlay 설정 없음, Lv1(${lv2Partner.parent_id})에서 찾는 중...`);
+        oroConfig = await supabase
+          .from('api_configs')
+          .select('is_active')
+          .eq('partner_id', lv2Partner.parent_id)
+          .eq('api_provider', 'oroplay')
+          .maybeSingle();
+        partnerId = lv2Partner.parent_id;
+      }
+
+      if (!oroConfig.data || oroConfig.data.is_active === false) {
+        console.log(`   ⏭️ OroPlay API 설정 없음 또는 비활성화됨 - 동기화 건너뜀`);
         continue;
       }
 
-      // 2. 최근 동기화 시간 확인 (4초 전부터 조회)
+      // 2. OroPlay 토큰 가져오기
+      let token: string;
+      try {
+        token = await getOroPlayToken(partnerId);
+      } catch (tokenError: any) {
+        console.log(`⚠️ OroPlay 토큰 없음 - ${tokenError.message}`);
+        continue;
+      }
+
+      // 2-1. Lv2 조직의 모든 회원 조회 (재귀적)
+      const getAllDescendantUsers = async (partnerId: string): Promise<any[]> => {
+        // 1. 현재 파트너의 직속 사용자 조회
+        const { data: directUsers } = await supabase
+          .from('users')
+          .select('id, username, referrer_id')
+          .eq('referrer_id', partnerId);
+
+        if (!directUsers || directUsers.length === 0) {
+          return [];
+        }
+
+        // 2. 현재 파트너의 하위 파트너 조회
+        const { data: childPartners } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('parent_id', partnerId);
+
+        if (!childPartners || childPartners.length === 0) {
+          return directUsers;
+        }
+
+        // 3. 각 하위 파트너의 사용자도 재귀 조회
+        const allUsers = [...directUsers];
+        for (const child of childPartners) {
+          const childUsers = await getAllDescendantUsers(child.id);
+          allUsers.push(...childUsers);
+        }
+
+        return allUsers;
+      };
+
+      // Lv2 조직의 모든 회원 조회
+      const lv2OrganizationUsers = await getAllDescendantUsers(lv2Partner.id);
+      console.log(`   👥 ${lv2Partner.nickname} 조직 회원: ${lv2OrganizationUsers.length}명`);
+
+      if (lv2OrganizationUsers.length === 0) {
+        console.log(`   ⏭️ 조직 내 회원 없음 - 동기화 건너뜀`);
+        continue;
+      }
+
+      // 3. 최근 동기화 시간 확인 (4초 전부터 조회)
       const startDate = new Date(Date.now() - 4000).toISOString();
 
-      // 3. 배팅 내역 조회
+      // 4. 배팅 내역 조회
       const result = await getBettingHistory(token, startDate, 1000);
 
       if (!result || !result.histories || result.histories.length === 0) {
-        console.log(`ℹ️ Partner ${partner.id}: 새 베팅 기록 없음`);
+        console.log(`ℹ️ 새 베팅 기록 없음`);
         continue;
       }
 
-      console.log(`📊 Partner ${partner.id}: ${result.histories.length}개 베팅 기록 수신`);
+      console.log(`📊 ${result.histories.length}개 베팅 기록 수신`);
 
-      // 4. status=1 (완료된 배팅만) 필터링
+      // 5. status=1 (완료된 배팅만) 필터링
       const completedBets = result.histories.filter((bet: any) => bet.status === 1);
       console.log(`   ✅ 완료된 배팅: ${completedBets.length}건`);
 
-      // 5. 이미 저장된 트랜잭션 ID 조회 (중복 제거) - CRITICAL: api_type도 함께 확인
+      // 6. 이미 저장된 트랜잭션 ID 조회 (중복 제거) - CRITICAL: api_type도 함께 확인
       const { data: existingOroplayRecords } = await supabase
         .from('game_records')
         .select('external_txid')
-        .eq('partner_id', partner.id)
+        .eq('partner_id', lv2Partner.id)
         .eq('api_type', 'oroplay');
 
       // ✅ 타입 변환: 모든 ID를 문자열로 통일하여 비교 (BigInt 안전성)
@@ -426,27 +494,23 @@ async function syncOroplayBets(): Promise<any> {
       console.log(`   🆕 신규 베팅: ${newCompletedBets.length}건, 건너뜀: ${skippedOroplayCount}건`);
 
       if (newCompletedBets.length === 0) {
-        console.log(`ℹ️ Partner ${partner.id}: 신규 베팅 기록 없음 (모두 기존 데이터)`);
+        console.log(`ℹ️ 신규 베팅 기록 없음 (모두 기존 데이터)`);
         continue;
       }
 
-      // 5. 사용자 매핑
-      const { data: allUsers } = await supabase
-        .from('users')
-        .select('id, username');
+      // 7. 사용자 매핑 (Lv2 조직 회원만)
+      const userMap = new Map<string, any>();
+      lv2OrganizationUsers.forEach((u: any) => {
+        userMap.set(u.username, { id: u.id, referrer_id: u.referrer_id });
+      });
 
-      const userMap = new Map<string, string>();
-      if (allUsers) {
-        allUsers.forEach((u: any) => {
-          userMap.set(u.username, u.id);
-        });
-      }
+      console.log(`   📊 OroPlay userMap 생성됨: ${userMap.size}명`);
 
-      // 6. game_records에 저장
+      // 8. game_records에 저장
       for (const bet of newCompletedBets) {
         try {
-          const userId = userMap.get(bet.userCode);
-          if (!userId) {
+          const userInfo = userMap.get(bet.userCode);
+          if (!userInfo) {
             continue;
           }
 
@@ -502,10 +566,10 @@ async function syncOroplayBets(): Promise<any> {
             .from('game_records')
             .insert({
               api_type: 'oroplay',
-              partner_id: partner.id,
+              partner_id: userInfo.referrer_id,
               external_txid: bet.id,
               username: bet.userCode,
-              user_id: userId,
+              user_id: userInfo.id,
               game_id: gameData?.id || null,
               provider_id: gameData?.provider_id || null,
               provider_name: finalProviderName, // ✅ NULL 방지
@@ -535,10 +599,10 @@ async function syncOroplayBets(): Promise<any> {
         }
       }
 
-      console.log(`✅ Partner ${partner.id}: 동기화 완료`);
+      console.log(`✅ ${lv2Partner.nickname} OroPlay 동기화 완료`);
 
     } catch (error) {
-      console.error(`❌ Partner ${partner.id} 동기화 에러:`, error);
+      console.error(`❌ ${lv2Partner.nickname} OroPlay 동기화 에러:`, error);
       totalErrors++;
     }
   }
@@ -549,7 +613,7 @@ async function syncOroplayBets(): Promise<any> {
     success: true,
     synced: totalSynced,
     errors: totalErrors,
-    partners: lv1Partners.length
+    partners: activeLv2Partners.length
   };
 }
 
@@ -559,36 +623,50 @@ async function syncOroplayBets(): Promise<any> {
 async function syncInvestBets(): Promise<any> {
   console.log('🎰 [Invest Sync] 베팅 기록 동기화 시작');
 
-  // 1. 모든 Lv1 파트너 조회 (Invest API config가 있는 파트너)
-  const { data: lv1Partners, error: partnersError } = await supabase
+  // 1. 로그인한 Lv2 파트너 조회 (활성 세션이 있는 Lv2만)
+  const { data: activeLv2Partners, error: partnersError } = await supabase
     .from('partners')
-    .select('id, nickname')
-    .eq('level', 1)
-    .eq('status', 'active');
+    .select('id, nickname, parent_id')
+    .eq('level', 2)
+    .eq('status', 'active')
+    .not('parent_id', 'is', null);
 
-  if (partnersError || !lv1Partners || lv1Partners.length === 0) {
-    return { success: true, message: 'No active Lv1 partners', synced: 0 };
+  if (partnersError || !activeLv2Partners || activeLv2Partners.length === 0) {
+    return { success: true, message: 'No active Lv2 partners', synced: 0 };
   }
 
-  console.log(`📋 ${lv1Partners.length}개 Lv1 파트너 발견`);
+  console.log(`📋 ${activeLv2Partners.length}개 활성 Lv2 파트너 발견`);
 
   let totalSynced = 0;
   let totalErrors = 0;
 
-  for (const partner of lv1Partners) {
+  for (const lv2Partner of activeLv2Partners) {
     try {
-      console.log(`\n🔄 Partner ${partner.id} (${partner.nickname}) Invest 동기화 시작...`);
+      console.log(`\n🔄 [${lv2Partner.nickname}] Lv2 로그인 감지, Invest 베팅 동기화 시작...`);
 
-      // Invest API 설정 확인
-      const { data: investConfig } = await supabase
+      // 1. Lv2 자신의 Invest API 설정 확인
+      let investConfig = await supabase
         .from('api_configs')
         .select('opcode, secret_key, is_active')
-        .eq('partner_id', partner.id)
+        .eq('partner_id', lv2Partner.id)
         .eq('api_provider', 'invest')
         .maybeSingle();
 
-      if (!investConfig || investConfig.is_active === false) {
-        console.log(`⚠️ Partner ${partner.id}: Invest API 설정 없음 또는 비활성화`);
+      // Lv2에 설정이 없으면 Lv1(parent_id)에서 찾기
+      let partnerId = lv2Partner.id;
+      if (!investConfig.data && lv2Partner.parent_id) {
+        console.log(`   🔍 Lv2(${lv2Partner.id})에 Invest 설정 없음, Lv1(${lv2Partner.parent_id})에서 찾는 중...`);
+        investConfig = await supabase
+          .from('api_configs')
+          .select('opcode, secret_key, is_active')
+          .eq('partner_id', lv2Partner.parent_id)
+          .eq('api_provider', 'invest')
+          .maybeSingle();
+        partnerId = lv2Partner.parent_id;
+      }
+
+      if (!investConfig.data || investConfig.data.is_active === false) {
+        console.log(`⚠️ Invest API 설정 없음 또는 비활성화`);
         continue;
       }
 
@@ -598,10 +676,10 @@ async function syncInvestBets(): Promise<any> {
       console.log(`📅 조회 기간: ${startDate} ~ 현재`);
 
       // TODO: Invest API 베팅 내역 조회 및 저장 로직 구현
-      console.log(`✅ Partner ${partner.id}: Invest 동기화 완료 (구현 필요)`);
+      console.log(`✅ Partner ${partnerId}: Invest 동기화 완료 (구현 필요)`);
 
     } catch (error) {
-      console.error(`❌ Partner ${partner.id} Invest 동기화 에러:`, error);
+      console.error(`❌ ${lv2Partner.nickname} Invest 동기화 에러:`, error);
       totalErrors++;
     }
   }
@@ -612,7 +690,7 @@ async function syncInvestBets(): Promise<any> {
     success: true,
     synced: totalSynced,
     errors: totalErrors,
-    partners: lv1Partners.length
+    partners: activeLv2Partners.length
   };
 }
 
@@ -622,44 +700,58 @@ async function syncInvestBets(): Promise<any> {
 async function syncFamilyapiBets(): Promise<any> {
   console.log('🎰 [FamilyAPI Sync] 베팅 기록 동기화 시작');
 
-  // 1. 모든 Lv1 파트너 조회 (FamilyAPI config가 있는 파트너)
-  const { data: lv1Partners, error: partnersError } = await supabase
+  // 1. 로그인한 Lv2 파트너 조회 (활성 세션이 있는 Lv2만)
+  const { data: activeLv2Partners, error: partnersError } = await supabase
     .from('partners')
-    .select('id, nickname')
-    .eq('level', 1)
-    .eq('status', 'active');
+    .select('id, nickname, parent_id')
+    .eq('level', 2)
+    .eq('status', 'active')
+    .not('parent_id', 'is', null);
 
-  if (partnersError || !lv1Partners || lv1Partners.length === 0) {
-    return { success: true, message: 'No active Lv1 partners', synced: 0 };
+  if (partnersError || !activeLv2Partners || activeLv2Partners.length === 0) {
+    return { success: true, message: 'No active Lv2 partners', synced: 0 };
   }
 
-  console.log(`📋 ${lv1Partners.length}개 Lv1 파트너 발견`);
+  console.log(`📋 ${activeLv2Partners.length}개 활성 Lv2 파트너 발견`);
 
   let totalSynced = 0;
   let totalErrors = 0;
 
-  for (const partner of lv1Partners) {
+  for (const lv2Partner of activeLv2Partners) {
     try {
-      console.log(`\n🔄 Partner ${partner.id} (${partner.nickname}) FamilyAPI 동기화 시작...`);
+      console.log(`\n🔄 [${lv2Partner.nickname}] Lv2 로그인 감지, FamilyAPI 베팅 동기화 시작...`);
 
-      // FamilyAPI 설정 확인
-      const { data: familyConfig } = await supabase
+      // 1. Lv2 자신의 FamilyAPI 설정 확인
+      let familyConfig = await supabase
         .from('api_configs')
         .select('api_key, token, is_active')
-        .eq('partner_id', partner.id)
+        .eq('partner_id', lv2Partner.id)
         .eq('api_provider', 'familyapi')
         .maybeSingle();
 
-      if (!familyConfig || familyConfig.is_active === false) {
-        console.log(`⚠️ Partner ${partner.id}: FamilyAPI 설정 없음 또는 비활성화`);
+      // Lv2에 설정이 없으면 Lv1(parent_id)에서 찾기
+      let partnerId = lv2Partner.id;
+      if (!familyConfig.data && lv2Partner.parent_id) {
+        console.log(`   🔍 Lv2(${lv2Partner.id})에 FamilyAPI 설정 없음, Lv1(${lv2Partner.parent_id})에서 찾는 중...`);
+        familyConfig = await supabase
+          .from('api_configs')
+          .select('api_key, token, is_active')
+          .eq('partner_id', lv2Partner.parent_id)
+          .eq('api_provider', 'familyapi')
+          .maybeSingle();
+        partnerId = lv2Partner.parent_id;
+      }
+
+      if (!familyConfig.data || familyConfig.data.is_active === false) {
+        console.log(`⚠️ FamilyAPI 설정 없음 또는 비활성화`);
         continue;
       }
 
       // TODO: FamilyAPI 베팅 내역 조회 및 저장 로직 구현
-      console.log(`✅ Partner ${partner.id}: FamilyAPI 동기화 완료 (구현 필요)`);
+      console.log(`✅ Partner ${partnerId}: FamilyAPI 동기화 완료 (구현 필요)`);
 
     } catch (error) {
-      console.error(`❌ Partner ${partner.id} FamilyAPI 동기화 에러:`, error);
+      console.error(`❌ ${lv2Partner.nickname} FamilyAPI 동기화 에러:`, error);
       totalErrors++;
     }
   }
@@ -670,7 +762,7 @@ async function syncFamilyapiBets(): Promise<any> {
     success: true,
     synced: totalSynced,
     errors: totalErrors,
-    partners: lv1Partners.length
+    partners: activeLv2Partners.length
   };
 }
 
@@ -720,41 +812,96 @@ async function getHonorApiTransactions(
 async function syncHonorapiBets(): Promise<any> {
   console.log('🎰 [HonorAPI Sync] 베팅 기록 동기화 시작');
 
-  // 1. 모든 Lv1 파트너 조회 (HonorAPI config가 있는 파트너)
-  const { data: lv1Partners, error: partnersError } = await supabase
+  // 1. 로그인한 Lv2 파트너 조회 (활성 세션이 있는 Lv2만)
+  const { data: activeLv2Partners, error: partnersError } = await supabase
     .from('partners')
-    .select('id, nickname')
-    .eq('level', 1)
-    .eq('status', 'active');
+    .select('id, nickname, parent_id')
+    .eq('level', 2)
+    .eq('status', 'active')
+    .not('parent_id', 'is', null);
 
-  if (partnersError || !lv1Partners || lv1Partners.length === 0) {
-    return { success: true, message: 'No active Lv1 partners', synced: 0 };
+  if (partnersError || !activeLv2Partners || activeLv2Partners.length === 0) {
+    return { success: true, message: 'No active Lv2 partners', synced: 0 };
   }
 
-  console.log(`📋 ${lv1Partners.length}개 Lv1 파트너 발견`);
+  console.log(`📋 ${activeLv2Partners.length}개 활성 Lv2 파트너 발견`);
 
   let totalSynced = 0;
   let totalErrors = 0;
 
-  for (const partner of lv1Partners) {
+  for (const lv2Partner of activeLv2Partners) {
     try {
-      console.log(`\n🔄 Partner ${partner.id} (${partner.nickname}) HonorAPI 동기화 시작...`);
+      console.log(`\n🔄 [${lv2Partner.nickname}] Lv2 로그인 감지, HonorAPI 베팅 동기화 시작...`);
 
-      // HonorAPI 설정 확인
-      const { data: honorConfig } = await supabase
+      // 1. Lv2 자신의 HonorAPI 설정 확인
+      let honorConfig = await supabase
         .from('api_configs')
         .select('api_key, is_active')
-        .eq('partner_id', partner.id)
+        .eq('partner_id', lv2Partner.id)
         .eq('api_provider', 'honorapi')
         .maybeSingle();
 
-      if (!honorConfig || honorConfig.is_active === false) {
-        console.log(`⚠️ Partner ${partner.id}: HonorAPI 설정 없음 또는 비활성화`);
+      // Lv2에 설정이 없으면 Lv1(parent_id)에서 찾기
+      let partnerId = lv2Partner.id;
+      if (!honorConfig.data && lv2Partner.parent_id) {
+        console.log(`   🔍 Lv2(${lv2Partner.id})에 HonorAPI 설정 없음, Lv1(${lv2Partner.parent_id})에서 찾는 중...`);
+        honorConfig = await supabase
+          .from('api_configs')
+          .select('api_key, is_active')
+          .eq('partner_id', lv2Partner.parent_id)
+          .eq('api_provider', 'honorapi')
+          .maybeSingle();
+        partnerId = lv2Partner.parent_id;
+      }
+
+      if (!honorConfig.data || honorConfig.data.is_active === false) {
+        console.log(`⚠️ HonorAPI 설정 없음 또는 비활성화`);
         continue;
       }
 
-      if (!honorConfig.api_key) {
-        console.log(`⚠️ Partner ${partner.id}: HonorAPI api_key 없음`);
+      if (!honorConfig.data.api_key) {
+        console.log(`⚠️ HonorAPI api_key 없음`);
+        continue;
+      }
+
+      // 1-1. Lv2 조직의 모든 회원 조회 (재귀적)
+      const getAllDescendantUsers = async (partnerId: string): Promise<any[]> => {
+        // 1. 현재 파트너의 직속 사용자 조회
+        const { data: directUsers } = await supabase
+          .from('users')
+          .select('id, username, referrer_id')
+          .eq('referrer_id', partnerId);
+
+        if (!directUsers || directUsers.length === 0) {
+          return [];
+        }
+
+        // 2. 현재 파트너의 하위 파트너 조회
+        const { data: childPartners } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('parent_id', partnerId);
+
+        if (!childPartners || childPartners.length === 0) {
+          return directUsers;
+        }
+
+        // 3. 각 하위 파트너의 사용자도 재귀 조회
+        const allUsers = [...directUsers];
+        for (const child of childPartners) {
+          const childUsers = await getAllDescendantUsers(child.id);
+          allUsers.push(...childUsers);
+        }
+
+        return allUsers;
+      };
+
+      // Lv2 조직의 모든 회원 조회
+      const lv2OrganizationUsers = await getAllDescendantUsers(lv2Partner.id);
+      console.log(`   👥 ${lv2Partner.nickname} 조직 회원: ${lv2OrganizationUsers.length}명`);
+
+      if (lv2OrganizationUsers.length === 0) {
+        console.log(`   ⏭️ 조직 내 회원 없음 - 동기화 건너뜀`);
         continue;
       }
 
@@ -762,7 +909,7 @@ async function syncHonorapiBets(): Promise<any> {
       const { data: lastRecord } = await supabase
         .from('game_records')
         .select('external_txid, played_at')
-        .eq('partner_id', partner.id)
+        .eq('partner_id', lv2Partner.id)
         .eq('api_type', 'honorapi')
         .order('external_txid', { ascending: false })
         .limit(1)
@@ -771,7 +918,7 @@ async function syncHonorapiBets(): Promise<any> {
       const lastExternalTxid = lastRecord?.external_txid || 0;
       const lastPlayedAt = lastRecord?.played_at ? new Date(lastRecord.played_at) : new Date(0);
 
-      console.log(`📍 Partner ${partner.id}: 마지막 external_txid=${lastExternalTxid}, played_at=${lastPlayedAt.toISOString()}`);
+      console.log(`📍 마지막 external_txid=${lastExternalTxid}, played_at=${lastPlayedAt.toISOString()}`);
 
       // 3. 조회 기간 설정: 마지막 played_at 기준으로 1분 전부터 현재까지
       // (네트워크 지연, 클라이언트 타임 차이 등 고려하여 1분 여유)
@@ -785,7 +932,7 @@ async function syncHonorapiBets(): Promise<any> {
 
       // 4. 트랜잭션 조회
       const result = await getHonorApiTransactions(
-        honorConfig.api_key,
+        honorConfig.data.api_key,
         startTime,
         endTime,
         1,
@@ -795,11 +942,11 @@ async function syncHonorapiBets(): Promise<any> {
       const transactions = result.data || [];
 
       if (transactions.length === 0) {
-        console.log(`ℹ️ Partner ${partner.id}: 새 베팅 기록 없음`);
+        console.log(`ℹ️ Partner ${lv2Partner.id}: 새 베팅 기록 없음`);
         continue;
       }
 
-      console.log(`📊 Partner ${partner.id}: ${transactions.length}개 트랜잭션 수신`);
+      console.log(`📊 Partner ${lv2Partner.id}: ${transactions.length}개 트랜잭션 수신`);
 
       // 4. bet 타입만 필터링
       const betTransactions = transactions.filter((tx: any) => tx.type === 'bet' && tx.details?.game);
@@ -809,7 +956,7 @@ async function syncHonorapiBets(): Promise<any> {
       const { data: existingRecords } = await supabase
         .from('game_records')
         .select('external_txid')
-        .eq('partner_id', partner.id)
+        .eq('partner_id', lv2Partner.id)
         .eq('api_type', 'honorapi')
         .gte('played_at', new Date(lastPlayedAt.getTime() - 300000).toISOString()); // 최근 5분 데이터만
 
@@ -832,21 +979,17 @@ async function syncHonorapiBets(): Promise<any> {
       console.log(`   🆕 신규 베팅 트랜잭션: ${newBetTransactions.length}건, 건너뜀: ${skippedCount}건`);
 
       if (newBetTransactions.length === 0) {
-        console.log(`ℹ️ Partner ${partner.id}: 신규 베팅 기록 없음 (모두 기존 데이터)`);
+        console.log(`ℹ️ 신규 베팅 기록 없음 (모두 기존 데이터)`);
         continue;
       }
 
-      // 7. 사용자 매핑
-      const { data: allUsers } = await supabase
-        .from('users')
-        .select('id, username, referrer_id');
-
+      // 7. 사용자 매핑 (Lv2 조직 회원만)
       const userMap = new Map<string, any>();
-      if (allUsers) {
-        allUsers.forEach((u: any) => {
-          userMap.set(u.username, { id: u.id, referrer_id: u.referrer_id });
-        });
-      }
+      lv2OrganizationUsers.forEach((u: any) => {
+        userMap.set(u.username, { id: u.id, referrer_id: u.referrer_id });
+      });
+
+      console.log(`   📊 HonorAPI userMap 생성됨: ${userMap.size}명`);
 
       // 8. game_records에 저장
       for (const tx of newBetTransactions) {
@@ -947,11 +1090,11 @@ async function syncHonorapiBets(): Promise<any> {
         }
       }
 
-      console.log(`✅ Partner ${partner.id}: 동기화 완료 (신규: ${newBetTransactions.length}, 저장: ${totalSynced})`);
+      console.log(`✅ ${lv2Partner.nickname} HonorAPI 동기화 완료 (신규: ${newBetTransactions.length})`);
 
 
     } catch (error) {
-      console.error(`❌ Partner ${partner.id} HonorAPI 동기화 에러:`, error);
+      console.error(`❌ ${lv2Partner.nickname} HonorAPI 동기화 에러:`, error);
       totalErrors++;
     }
   }
@@ -962,7 +1105,7 @@ async function syncHonorapiBets(): Promise<any> {
     success: true,
     synced: totalSynced,
     errors: totalErrors,
-    partners: lv1Partners.length
+    partners: activeLv2Partners.length
   };
 }
 
@@ -970,20 +1113,27 @@ async function syncHonorapiBets(): Promise<any> {
 // Lv2 파트너 보유금 동기화
 // =====================================================
 async function syncLv2Balances(): Promise<any> {
-  console.log('⏰ [Lv2 Balance Sync] 3초 주기로 시작됨 -', new Date().toISOString());
+  console.log('⏰ [Lv2 Balance Sync] 시작 -', new Date().toISOString());
 
-  // Lv2 파트너 목록 조회
+  // Lv2 파트너 목록 조회 (level = 2, status = 'active')
   const { data: lv2Partners, error: partnersError } = await supabase
     .from('partners')
-    .select('id, nickname, parent_id')
+    .select('id, nickname, parent_id, level, status')
     .eq('level', 2)
     .eq('status', 'active');
 
-  if (partnersError || !lv2Partners || lv2Partners.length === 0) {
+  if (partnersError) {
+    console.error('❌ [Lv2 Balance Sync] Lv2 파트너 조회 에러:', partnersError);
+    return { success: false, message: 'Failed to fetch Lv2 partners', error: partnersError };
+  }
+
+  if (!lv2Partners || lv2Partners.length === 0) {
+    console.log('⚠️ [Lv2 Balance Sync] 활성 Lv2 파트너가 없습니다');
     return { success: true, message: 'No active Lv2 partners', synced: 0 };
   }
 
-  console.log(`📋 ${lv2Partners.length}개 Lv2 파트너 발견`);
+  console.log(`📋 [Lv2 Balance Sync] ${lv2Partners.length}개 Lv2 파트너 발견`);
+  lv2Partners.forEach(p => console.log(`   - ${p.id} (${p.nickname}, level=${p.level})`));
 
   let totalSynced = 0;
   let totalErrors = 0;
@@ -997,11 +1147,12 @@ async function syncLv2Balances(): Promise<any> {
   // 각 Lv2 파트너별로 처리
   for (const partner of lv2Partners) {
     try {
+      console.log(`\n🔄 [Lv2 Balance Sync] Partner ${partner.id} (${partner.nickname}) 처리 중...`);
+
       if (!partner.parent_id) {
+        console.log(`   ⏭️ Partner ${partner.id}: parent_id가 없어서 건너뜀`);
         continue;
       }
-
-      console.log(`\n🔄 Partner ${partner.id} (${partner.nickname}) 처리 중...`);
 
       const balances: any = {};
 
@@ -1019,7 +1170,7 @@ async function syncLv2Balances(): Promise<any> {
 
         if (investConfig && investConfig.is_active !== false) {
           // Dynamic import to avoid circular dependency
-          const investModule = await import('https://deno.land/x/invest_api@v1.0.0/mod.ts').catch(() => null);
+          // const investModule = await import('./invest-api.js').catch(() => null);
           
           // Note: Invest API는 별도 모듈이 필요하므로 여기서는 스킵
           // 실제 구현 시에는 invest 토큰 조회 및 잔고 조회 로직 추가
@@ -1037,24 +1188,47 @@ async function syncLv2Balances(): Promise<any> {
       // ========================================
       try {
         // ✅ Lv2 자신의 OroPlay API 설정 확인
-        const { data: oroConfig } = await supabase
+        let oroConfig = await supabase
           .from('api_configs')
           .select('is_active')
           .eq('partner_id', partner.id)
           .eq('api_provider', 'oroplay')
           .maybeSingle();
 
-        if (oroConfig && oroConfig.is_active !== false) {
-          const oroToken = await getOroPlayToken(partner.id);
-          const oroBalance = await getAgentBalance(oroToken);
-          balances.oroplay_balance = oroBalance;
-          console.log(`💰 Partner ${partner.id} OroPlay: ${oroBalance}`);
-          syncResults.oroplay.synced++;
+        // Lv2에 설정이 없으면 Lv1(parent_id)에서 찾기
+        if (!oroConfig.data && partner.parent_id) {
+          console.log(`   🔍 Partner ${partner.id} OroPlay 설정이 Lv2에 없음, Lv1에서 찾는 중...`);
+          oroConfig = await supabase
+            .from('api_configs')
+            .select('is_active')
+            .eq('partner_id', partner.parent_id)
+            .eq('api_provider', 'oroplay')
+            .maybeSingle();
+        }
+
+        console.log(`   📍 Partner ${partner.id} OroPlay 설정:`, oroConfig.data);
+
+        if (oroConfig.data && oroConfig.data.is_active !== false) {
+          console.log(`   🔍 Partner ${partner.id} OroPlay 토큰 조회 중...`);
+          // Lv2에 설정이 있으면 Lv2 ID 사용, 없으면 Lv1 ID 사용
+          const credentialPartnerId = oroConfig.data ? partner.id : partner.parent_id;
+          const oroToken = await getOroPlayToken(credentialPartnerId);
+          console.log(`   ✅ Partner ${partner.id} OroPlay 토큰 획득:`, oroToken ? '성공' : '실패');
+          
+          if (oroToken) {
+            const oroBalance = await getAgentBalance(oroToken);
+            console.log(`   💰 Partner ${partner.id} OroPlay 잔고: ${oroBalance}`);
+            balances.oroplay_balance = oroBalance;
+            syncResults.oroplay.synced++;
+          } else {
+            console.log(`   ❌ Partner ${partner.id} OroPlay 토큰이 없음`);
+            syncResults.oroplay.errors++;
+          }
         } else {
-          console.log(`⏭️ Partner ${partner.id}: OroPlay API 비활성화됨 - 동기화 건너뜀`);
+          console.log(`   ⏭️ Partner ${partner.id}: OroPlay API 비활성화됨 또는 설정 없음`);
         }
       } catch (oroError: any) {
-        console.log(`⚠️ Partner ${partner.id}: OroPlay 동기화 실패 - ${oroError.message}`);
+        console.error(`   ❌ Partner ${partner.id}: OroPlay 동기화 실패 - ${oroError.message}`);
         syncResults.oroplay.errors++;
       }
 
@@ -1063,24 +1237,39 @@ async function syncLv2Balances(): Promise<any> {
       // ========================================
       try {
         // ✅ Lv2 자신의 FamilyAPI 설정 확인
-        const { data: familyConfig } = await supabase
+        let familyConfig = await supabase
           .from('api_configs')
           .select('api_key, is_active')
           .eq('partner_id', partner.id)
           .eq('api_provider', 'familyapi')
           .maybeSingle();
 
-        if (familyConfig && familyConfig.api_key && familyConfig.is_active !== false) {
-          const familyToken = await getFamilyApiToken(partner.id);
-          const familyBalance = await getFamilyApiAgentBalance(familyConfig.api_key, familyToken);
+        // Lv2에 설정이 없으면 Lv1(parent_id)에서 찾기
+        if (!familyConfig.data && partner.parent_id) {
+          console.log(`   🔍 Partner ${partner.id} FamilyAPI 설정이 Lv2에 없음, Lv1에서 찾는 중...`);
+          familyConfig = await supabase
+            .from('api_configs')
+            .select('api_key, is_active')
+            .eq('partner_id', partner.parent_id)
+            .eq('api_provider', 'familyapi')
+            .maybeSingle();
+        }
+
+        if (familyConfig.data && familyConfig.data.api_key && familyConfig.data.is_active !== false) {
+          // Lv2에 설정이 있으면 Lv2 ID 사용, 없으면 Lv1 ID 사용
+          const credentialPartnerId = familyConfig.data ? partner.id : partner.parent_id;
+          const familyToken = await getFamilyApiToken(credentialPartnerId);
+          const familyBalance = await getFamilyApiAgentBalance(familyConfig.data.api_key, familyToken);
           balances.familyapi_balance = familyBalance;
-          console.log(`💰 Partner ${partner.id} FamilyAPI: ${familyBalance}`);
+          console.log(`   💰 Partner ${partner.id} FamilyAPI: ${familyBalance}`);
           syncResults.familyapi.synced++;
-        } else if (familyConfig && familyConfig.is_active === false) {
-          console.log(`⏭️ Partner ${partner.id}: FamilyAPI 비활성화됨 - 동기화 건너뜀`);
+        } else if (familyConfig.data && familyConfig.data.is_active === false) {
+          console.log(`   ⏭️ Partner ${partner.id}: FamilyAPI 비활성화됨 - 동기화 건너뜀`);
+        } else {
+          console.log(`   ⏭️ Partner ${partner.id}: FamilyAPI 설정 없음`);
         }
       } catch (familyError: any) {
-        console.log(`⚠️ Partner ${partner.id}: FamilyAPI 동기화 실패 - ${familyError.message}`);
+        console.log(`   ⚠️ Partner ${partner.id}: FamilyAPI 동기화 실패 - ${familyError.message}`);
         syncResults.familyapi.errors++;
       }
 
@@ -1089,30 +1278,46 @@ async function syncLv2Balances(): Promise<any> {
       // ========================================
       try {
         // ✅ Lv2 자신의 HonorAPI 설정 확인
-        const { data: honorConfig } = await supabase
+        let honorConfig = await supabase
           .from('api_configs')
           .select('api_key, is_active')
           .eq('partner_id', partner.id)
           .eq('api_provider', 'honorapi')
           .maybeSingle();
 
-        if (honorConfig && honorConfig.api_key && honorConfig.is_active !== false) {
-          const honorBalance = await getHonorApiAgentBalance(honorConfig.api_key);
+        // Lv2에 설정이 없으면 Lv1(parent_id)에서 찾기
+        if (!honorConfig.data && partner.parent_id) {
+          console.log(`   🔍 Partner ${partner.id} HonorAPI 설정이 Lv2에 없음, Lv1에서 찾는 중...`);
+          honorConfig = await supabase
+            .from('api_configs')
+            .select('api_key, is_active')
+            .eq('partner_id', partner.parent_id)
+            .eq('api_provider', 'honorapi')
+            .maybeSingle();
+        }
+
+        if (honorConfig.data && honorConfig.data.api_key && honorConfig.data.is_active !== false) {
+          const honorBalance = await getHonorApiAgentBalance(honorConfig.data.api_key);
           balances.honorapi_balance = honorBalance;
-          console.log(`💰 Partner ${partner.id} HonorAPI: ${honorBalance}`);
+          console.log(`   💰 Partner ${partner.id} HonorAPI: ${honorBalance}`);
           syncResults.honorapi.synced++;
-        } else if (honorConfig && honorConfig.is_active === false) {
-          console.log(`⏭️ Partner ${partner.id}: HonorAPI 비활성화됨 - 동기화 건너뜀`);
+        } else if (honorConfig.data && honorConfig.data.is_active === false) {
+          console.log(`   ⏭️ Partner ${partner.id}: HonorAPI 비활성화됨 - 동기화 건너뜀`);
+        } else {
+          console.log(`   ⏭️ Partner ${partner.id}: HonorAPI 설정 없음`);
         }
       } catch (honorError: any) {
-        console.log(`⚠️ Partner ${partner.id}: HonorAPI 동기화 실패 - ${honorError.message}`);
+        console.log(`   ⚠️ Partner ${partner.id}: HonorAPI 동기화 실패 - ${honorError.message}`);
         syncResults.honorapi.errors++;
       }
 
       // ========================================
       // 5. DB 업데이트 (수집된 잔고들을 한 번에 업데이트)
       // ========================================
+      console.log(`   📊 Partner ${partner.id} 수집된 잔고:`, JSON.stringify(balances));
+      
       if (Object.keys(balances).length > 0) {
+        console.log(`   🔄 Partner ${partner.id} DB 업데이트 시작...`);
         const { error: updateError } = await supabase
           .from('partners')
           .update({
@@ -1122,11 +1327,14 @@ async function syncLv2Balances(): Promise<any> {
           .eq('id', partner.id);
 
         if (updateError) {
-          console.error(`❌ Partner ${partner.id} 업데이트 에러:`, updateError);
+          console.error(`   ❌ Partner ${partner.id} 업데이트 에러:`, updateError);
           totalErrors++;
         } else {
+          console.log(`   ✅ Partner ${partner.id} DB 업데이트 완료`);
           totalSynced++;
         }
+      } else {
+        console.log(`   ⚠️ Partner ${partner.id}: 수집된 잔고가 없어서 DB 업데이트 스킵`);
       }
 
     } catch (error) {
@@ -1154,7 +1362,7 @@ async function syncLv2Balances(): Promise<any> {
 // =====================================================
 // 메인 핸들러
 // =====================================================
-Deno.serve(async (req: Request) => {
+export default async function handler(req: Request): Promise<Response> {
   // OPTIONS 요청 처리 (CORS preflight)
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1168,7 +1376,7 @@ Deno.serve(async (req: Request) => {
   console.log(`📍 Method: ${req.method}`);
   console.log(`📍 Path: ${path}`);
   console.log(`📍 Full URL: ${req.url}`);
-  console.log(`📍 Headers:`, Object.fromEntries(req.headers.entries()));
+  console.log(`📍 Headers:`, Object.fromEntries(req.headers as any));
   
   // Body 복제 (한 번만 읽을 수 있으므로)
   const clonedReq = req.clone();
@@ -1259,10 +1467,10 @@ Deno.serve(async (req: Request) => {
 
       // Bearer 토큰 추출
       const token = authHeader.replace('Bearer ', '');
-      const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+      const anonKey = process.env.SUPABASE_ANON_KEY;
       
       // Anon Key 또는 Service Role Key 확인
-      if (token !== anonKey && token !== Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')) {
+      if (token !== anonKey && token !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
         console.error('❌ Invalid authorization token');
         return new Response(
           JSON.stringify({ code: 401, message: 'Invalid authorization token' }),
@@ -1328,4 +1536,4 @@ Deno.serve(async (req: Request) => {
       { status: 500, headers: corsHeaders }
     );
   }
-});
+}

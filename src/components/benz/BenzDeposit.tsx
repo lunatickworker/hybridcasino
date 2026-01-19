@@ -221,7 +221,9 @@ export function BenzDeposit({ user, onRouteChange }: BenzDepositProps) {
         bank_holder: accountInfo?.bank_holder || '미확인',
         memo: `입금자 계좌: ${depositAccount}${memo ? ` | ${memo}` : ''}`,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        from_partner_id: user.referrer_id, // ✅ 보낸사람 (담당 파트너)
+        to_partner_id: user.referrer_id // ✅ 받는사람 (담당 파트너)
       };
 
       console.log('💰 입금 신청 데이터:', {

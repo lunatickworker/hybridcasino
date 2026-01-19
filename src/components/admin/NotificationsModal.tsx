@@ -105,6 +105,7 @@ export function NotificationsModal({ isOpen, onClose, onNotificationCountChange,
         .select('*')
         .eq('recipient_type', 'partner')
         .eq('recipient_id', currentPartnerId)
+        .not('notification_type', 'in', '(partner_deposit_request,partner_withdrawal_request)')
         .order('created_at', { ascending: false })
         .limit(100);
 

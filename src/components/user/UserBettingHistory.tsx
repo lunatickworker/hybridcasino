@@ -2,7 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { RefreshCw, Gamepad2, TrendingUp, TrendingDown, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { RefreshCw, Gamepad2, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -166,8 +166,7 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
     totalBets: records.length,
     totalBetAmount: records.reduce((sum, r) => sum + Math.abs(Number(r.bet_amount) || 0), 0),
     totalWinAmount: records.reduce((sum, r) => sum + (Number(r.win_amount) || 0), 0),
-    netProfit: 0,
-    missingRecords: 0  // 🆕 누락된 게임내역 카운트
+    netProfit: 0
   };
   // ✅ 손익 = 당첨금액 - 베팅금액 (가장 직관적인 계산)
   stats.netProfit = records.reduce((sum, r) => {
@@ -175,14 +174,6 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
     const betAmount = Math.abs(Number(r.bet_amount) || 0);
     return sum + (winAmount - betAmount);
   }, 0);
-  
-  // 🆕 누락된 게임내역 = game_title이나 provider_name이 없는 기록
-  stats.missingRecords = records.filter(r => 
-    !r.game_title || 
-    !r.provider_name || 
-    r.game_title.startsWith('Game ') || 
-    r.provider_name.startsWith('Provider ')
-  ).length;
 
   // 상태 배지
   const getStatusBadge = (winAmount: number, betAmount: number) => {
@@ -260,27 +251,6 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
                   {stats.netProfit >= 0 ? '+' : ''}₩{formatMoney(stats.netProfit)}
                 </div>
                 <div className="text-base text-slate-400">순 손익</div>
-              </CardContent>
-            </Card>
-
-            {/* 🆕 누락된 게임내역 카드 */}
-            <Card className="border-0" style={{
-              background: stats.missingRecords > 0 
-                ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.1) 100%)'
-                : 'linear-gradient(135deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)',
-              border: stats.missingRecords > 0 
-                ? '1px solid rgba(239, 68, 68, 0.3)'
-                : '1px solid rgba(193, 154, 107, 0.2)',
-              borderRadius: '8px'
-            }}>
-              <CardContent className="p-4 text-center">
-                <AlertCircle 
-                  className={`w-8 h-8 mx-auto mb-2 ${stats.missingRecords > 0 ? 'text-red-400' : 'text-slate-500'}`} 
-                />
-                <div className={`text-2xl font-bold ${stats.missingRecords > 0 ? 'text-red-400' : 'text-slate-400'}`}>
-                  {stats.missingRecords}건
-                </div>
-                <div className="text-base text-slate-400">누락된 게임내역</div>
               </CardContent>
             </Card>
           </div>

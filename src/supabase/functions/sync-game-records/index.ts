@@ -340,6 +340,164 @@ async function syncFamilyApiGameRecords(apiConfig: any) {
 }
 
 // ============================================
+// HonorAPI 동기화
+// ============================================
+async function syncHonorGameRecords(apiConfig: any) {
+  console.log('🎮 [HONOR-SYNC] 동기화 시작');
+  
+  const { api_key, partner_id } = apiConfig;
+  
+  if (!api_key) {
+    console.warn('⚠️ [HONOR-SYNC] API_KEY 없음');
+    return;
+  }
+
+  try {
+    // UTC 시간 포맷팅
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const now = new Date();
+    const thirtyFourSecondsAgo = new Date(now.getTime() - 34000);
+    
+    const formatUTC = (date: Date) => {
+      return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+    };
+
+    const startTime = formatUTC(thirtyFourSecondsAgo);
+    const endTime = formatUTC(now);
+
+    console.log(`📅 [HONOR-SYNC] 조회 기간: ${startTime} ~ ${endTime}`);
+
+    // HonorAPI 트랜잭션 조회
+    const params = new URLSearchParams({
+      start: startTime,
+      end: endTime,
+      page: '1',
+      perPage: '1000'
+    });
+
+    const response = await fetch(`https://api.honorlink.org/api/transactions?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${api_key}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HonorAPI 호출 실패: ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    if (!result.data || result.data.length === 0) {
+      console.log('ℹ️ [HONOR-SYNC] 새 데이터 없음');
+      return;
+    }
+
+    const transactions = result.data || [];
+    console.log(`📊 [HONOR-SYNC] ${transactions.length}건 수신`);
+
+    // bet 타입만 필터링
+    const betTransactions = transactions.filter((tx: any) => tx.type === 'bet' && tx.details?.game);
+    console.log(`   ✅ 베팅 트랜잭션: ${betTransactions.length}건`);
+
+    // 사용자 매핑
+    const { data: allUsers } = await supabase
+      .from('users')
+      .select('id, username, referrer_id');
+
+    const userMap = new Map();
+    if (allUsers) {
+      allUsers.forEach((u: any) => {
+        userMap.set(u.username, { id: u.id, referrer_id: u.referrer_id });
+      });
+    }
+
+    // 데이터 저장
+    let successCount = 0;
+    let skipCount = 0;
+
+    for (const tx of betTransactions) {
+      try {
+        const userInfo = userMap.get(tx.user.username);
+        if (!userInfo) continue;
+
+        // 게임 정보 조회
+        const { data: game } = await supabase
+          .from('honor_games')
+          .select('id, provider_id, name, type')
+          .eq('game_code', tx.details.game.id)
+          .maybeSingle();
+
+        // 제공사 정보 조회
+        let providerName = tx.details.game.vendor || 'Unknown';
+        if (game?.provider_id) {
+          const { data: provider } = await supabase
+            .from('honor_game_providers')
+            .select('name')
+            .eq('id', game.provider_id)
+            .maybeSingle();
+          
+          if (provider?.name) {
+            providerName = provider.name;
+          }
+        }
+
+        const gameTitle = game?.name || tx.details.game.title || tx.details.game.id || 'Unknown Game';
+
+        // 같은 라운드의 win 트랜잭션 찾기
+        const winTx = transactions.find(
+          (t: any) => t.type === 'win' && 
+               t.details?.game?.round === tx.details.game.round &&
+               t.user.username === tx.user.username
+        );
+
+        const winAmount = winTx?.amount || 0;
+        const betAmount = Math.abs(tx.amount);
+        const balanceAfter = tx.before - betAmount + winAmount;
+
+        const { error } = await supabase
+          .from('game_records')
+          .insert({
+            api_type: 'honor',
+            partner_id,
+            external_txid: tx.id,
+            username: tx.user.username,
+            user_id: userInfo.id,
+            game_id: game?.id || null,
+            provider_id: null,
+            provider_name: providerName,
+            game_title: gameTitle,
+            game_type: game?.type || tx.details.game.type || 'slot',
+            bet_amount: betAmount,
+            win_amount: winAmount,
+            balance_before: tx.before,
+            balance_after: balanceAfter,
+            played_at: tx.processed_at,
+            round_id: tx.details.game.round || null
+          });
+
+        if (error) {
+          if (error.code === '23505') {
+            skipCount++;
+          }
+        } else {
+          successCount++;
+        }
+      } catch (err) {
+        console.error('레코드 처리 오류:', err);
+      }
+    }
+
+    console.log(`✅ [HONOR-SYNC] 완료: 성공 ${successCount}건, 중복 ${skipCount}건`);
+  } catch (error) {
+    console.error('❌ [HONOR-SYNC] 오류:', error);
+    throw error;
+  }
+}
+
+// ============================================
 // MD5 해시 생성 (Invest API용)
 // ============================================
 async function generateMd5(text: string): Promise<string> {
@@ -399,6 +557,9 @@ serve(async (req) => {
         break;
       case 'familyapi':
         await syncFamilyApiGameRecords(apiConfig);
+        break;
+      case 'honor':
+        await syncHonorGameRecords(apiConfig);
         break;
       default:
         return new Response(

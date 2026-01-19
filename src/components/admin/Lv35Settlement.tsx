@@ -298,11 +298,11 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       });
 
       // ✅ partner_balance_logs 조회 (온라인 입출금 + 관리자 지급/회수)
-      // Lv35Settlement: deposit, withdrawal(온라인), admin_deposit_send, admin_withdrawal_send(관리자 지급/회수)
+      // Lv35Settlement: partner_deposit, partner_withdrawal(온라인/파트너), admin_deposit_send, admin_withdrawal_send(관리자 지급/회수)
       let partnerBalanceLogsQuery = supabase
         .from('partner_balance_logs')
         .select('*')
-        .in('transaction_type', ['deposit', 'withdrawal', 'admin_deposit_send', 'admin_withdrawal_send'])
+        .in('transaction_type', ['partner_deposit', 'partner_withdrawal', 'admin_deposit_send', 'admin_withdrawal_send'])
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString());
 
@@ -320,7 +320,7 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
       );
       
       // ✅ 정산 계산 (completedTransactions 기반)
-      const rows = processSettlementData(partners || [], users || [], completedTransactions, pointTransactions || [], gameRecords || []);
+      const rows = processSettlementData(partners || [], users || [], completedTransactions, pointTransactions || [], gameRecords || [], partnerBalanceLogs || []);
       setData(rows);
       calculateSummary(rows);
       
@@ -373,7 +373,8 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     users: any[],
     completedTransactions: any[],
     allPointTransactions: any[],
-    gameRecords: any[]
+    gameRecords: any[],
+    partnerBalanceLogs: any[]
   ): SettlementRow[] => {
     // ✅ completedTransactions에서 입출금 트랜잭션만 분리
     const depositWithdrawalTransactions = completedTransactions.filter(t => 
@@ -382,9 +383,6 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     
     // ✅ 포인트 트랜잭션만 필터링
     const pointTransactions = completedTransactions.filter(t => t.is_point_transaction) || allPointTransactions || [];
-    
-    // ✅ partner_balance_logs 분리
-    const partnerBalanceLogs = completedTransactions.filter(t => t.is_partner_transaction) || [];
     
     const rows: SettlementRow[] = [];
 
@@ -467,24 +465,27 @@ export function Lv35Settlement({ user }: Lv35SettlementProps) {
     // 파트너의 경우 본인의 잔액 로그만 계산
     const relevantPartnerIdsForTransactions: string[] = level > 0 ? [entityId] : [];
 
-    // ✅ 온라인 입출금: 사용자 직접 입금/출금만 (deposit/withdrawal)
+    // ✅ 온라인 입금: 사용자 + 파트너 입금 신청 완료 (deposit + partner_deposit_request로 status = completed)
     const onlineDeposit = userTransactions
-      .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
+      .filter(t => t.status === 'completed' && (t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit_request'))
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
+    // ✅ 온라인 출금: 사용자 + 파트너 출금 신청 완료 (withdrawal + partner_withdrawal_request로 status = completed)
     const onlineWithdrawal = userTransactions
-      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
+      .filter(t => t.status === 'completed' && (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal_request'))
       .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
     // ✅ 관리자 지급/회수: partner_balance_logs에서 조회 (admin_deposit_send/admin_withdrawal_send)
     // Lv35Settlement는 Lv3-5의 파트너 레벨 간 거래이므로 partner_balance_logs 사용
-    const adminGivenFiltered = partnerBalanceLogs
-      .filter(l => l.transaction_type === 'admin_deposit_send' && relevantPartnerIdsForTransactions.includes(l.to_partner_id));
-    const adminGiven = adminGivenFiltered.reduce((sum, l) => sum + (l.amount || 0), 0);
+    const adminGiven = partnerBalanceLogs
+      .filter(l => l.transaction_type === 'admin_deposit_send' && 
+        (relevantPartnerIdsForTransactions.includes(l.to_partner_id) || relevantPartnerIdsForTransactions.includes(l.partner_id)))
+      .reduce((sum, l) => sum + (l.amount || 0), 0);
 
-    const adminTakenFiltered = partnerBalanceLogs
-      .filter(l => l.transaction_type === 'admin_withdrawal_send' && relevantPartnerIdsForTransactions.includes(l.from_partner_id));
-    const adminTaken = adminTakenFiltered.reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
+    const adminTaken = partnerBalanceLogs
+      .filter(l => l.transaction_type === 'admin_withdrawal_send' && 
+        (relevantPartnerIdsForTransactions.includes(l.to_partner_id) || relevantPartnerIdsForTransactions.includes(l.partner_id)))
+      .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
 
     // ✅ 게임 기록 (본인 데이터만)
     const relevantGameRecords = gameRecords.filter(gr => relevantUserIdsForTransactions.includes(gr.user_id));

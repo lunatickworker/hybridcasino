@@ -137,7 +137,7 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loadingMenus, setLoadingMenus] = useState(true);
 
-  // ✅ 현재 경로의 메뉴가 속한 그룹을 자동으로 펼치기
+  // ✅ 현재 경로의 메뉴가 속한 그룹을 자동으로 펼치기 (중복 방지)
   useEffect(() => {
     if (currentRoute && menuItems.length > 0) {
       const routeWithoutHash = currentRoute.split('#')[0];
@@ -146,7 +146,6 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       const findParentGroup = (items: MenuItem[]): string | null => {
         for (const item of items) {
           if (item.children && item.children.length > 0) {
-            // 그룹 메뉴인 경우 자식들 중에 일치하는 메뉴가 있는지 확인
             const hasMatchingChild = item.children.some(child => child.path === routeWithoutHash);
             if (hasMatchingChild) {
               return item.id;
@@ -158,66 +157,40 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
 
       const parentGroupId = findParentGroup(menuItems);
       if (parentGroupId && !expandedItems.includes(parentGroupId)) {
-        console.log('🔄 알림 카드 클릭으로 인한 자동 메뉴 펼침:', parentGroupId);
+        console.log('🔄 자동 메뉴 펼침:', parentGroupId);
         setExpandedItems(prev => [...prev, parentGroupId]);
       }
     }
-  }, [currentRoute, menuItems]);
+  }, [currentRoute, menuItems.length]); // menuItems.length 변경만 감지
 
+  // ✅ 초기 메뉴 로드 (한 번만 실행)
   useEffect(() => {
     loadMenusFromDB();
+  }, [user.id]);
 
-    // ✅ Realtime 구독 1: partners 테이블의 menu_permissions 변경 감지 (가장 중요!)
+  // ✅ 언어 변경 시 메뉴 다시 렌더링 (메뉴 아이템 자체는 리로드하지 않음)
+  useEffect(() => {
+    if (menuItems.length > 0) {
+      setMenuItems([...menuItems]); // 리렌더링 트리거
+    }
+  }, [language]);
+
+  // ✅ Realtime 구독: partners 테이블의 menu_permissions 변경만 감지
+  // (불필요한 구독 제거 - menu_master_changes는 모든 메뉴 업데이트 감지하므로 깜박임 유발)
+  useEffect(() => {
     const partnersChannel = supabase
-      .channel('partners_menu_changes')
+      .channel(`partners_menu_changes_${user.id}`)
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
           table: 'partners',
-          filter: `id=eq.${user.id}`
+          filter: `id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('🔄 [AdminSidebar] 본인 파트너 정보 변경 감지:', payload);
-          // 메뉴 다시 로드
-          loadMenusFromDB();
-        }
-      )
-      .subscribe();
-
-    // ✅ Realtime 구독 2: 메뉴 권한 변경 감지 (legacy)
-    const permissionsChannel = supabase
-      .channel('menu_permissions_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'partner_menu_permissions',
-          filter: `partner_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('🔄 메뉴 권한 변경 감지:', payload);
-          // 메뉴 다시 로드
-          loadMenusFromDB();
-        }
-      )
-      .subscribe();
-
-    // ✅ Realtime 구독 3: 메뉴 마스터 데이터 변경 감지
-    const menuMasterChannel = supabase
-      .channel('menu_master_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'menu_permissions'
-        },
-        (payload) => {
-          console.log('🔄 메뉴 마스터 변경 감지:', payload);
-          // 메뉴 다시 로드
+          console.log('🔄 [AdminSidebar] 본인 파트너 메뉴 권한 변경 감지');
+          // 메뉴 권한만 다시 로드 (menu_permissions는 유지)
           loadMenusFromDB();
         }
       )
@@ -225,17 +198,13 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
 
     return () => {
       supabase.removeChannel(partnersChannel);
-      supabase.removeChannel(permissionsChannel);
-      supabase.removeChannel(menuMasterChannel);
     };
-  }, [user.id, language]);
+  }, [user.id]);
 
   const loadMenusFromDB = async () => {
     if (!user?.id) return;
     
-    setLoadingMenus(true);
     try {
-      // ✅ 1단계: 해당 파트너의 menu_permissions JSONB 조회
       console.log('📋 [메뉴 로드] 시작:', {
         userId: user.id,
         userLevel: user.level,
@@ -253,28 +222,17 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
         console.error('❌ 파트너 메뉴 권한 조회 실패:', partnerError);
       }
       
-      console.log('📋 [메뉴 로드] DB 조회 결과:', {
-        partnerData,
-        menu_permissions_type: typeof partnerData?.menu_permissions,
-        menu_permissions_isArray: Array.isArray(partnerData?.menu_permissions),
-        menu_permissions_value: partnerData?.menu_permissions
-      });
-      
       const allowedMenuPaths = partnerData?.menu_permissions || [];
       console.log('✅ [메뉴 로드] 허용된 메뉴 경로:', {
-        allowedMenuPaths,
         count: allowedMenuPaths.length,
-        isArray: Array.isArray(allowedMenuPaths),
         isEmpty: allowedMenuPaths.length === 0
       });
       
-      // ✅ 2단계: DB에서 메뉴 데이터 조회 (is_visible = true인 메뉴만)
-      console.log('📋 [메뉴 로드] DB에서 메뉴 조회 시작');
-      
+      // ✅ DB에서 메뉴 데이터 조회 (is_visible = true인 메뉴만)
       const { data: dbMenus, error: menuError } = await supabase
         .from('menu_permissions')
         .select('*')
-        .eq('is_visible', true)  // is_visible이 true인 메뉴만 조회
+        .eq('is_visible', true)
         .order('display_order', { ascending: true });
       
       if (menuError) {
@@ -297,24 +255,10 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       
       console.log(`✅ [메뉴 로드] ${dbMenus.length}개 메뉴 조회 완료`);
       
-      // ✅ 3단계: 파트너에게 허용된 메뉴만 필터링
-      console.log('📋 [메뉴 로드] 필터링 조건 체크:', {
-        hasAllowedMenuPaths: !!allowedMenuPaths,
-        allowedMenuPathsLength: allowedMenuPaths.length,
-        willFilter: allowedMenuPaths && allowedMenuPaths.length > 0
-      });
-      
-      // allowedMenuPaths가 null/undefined이거나 빈 배열이면 모든 메뉴 표시 (기본값)
+      // ✅ 필터링: 허용된 메뉴만 표시
       const filteredMenus = allowedMenuPaths && allowedMenuPaths.length > 0
         ? dbMenus.filter(menu => allowedMenuPaths.includes(menu.menu_path))
         : dbMenus;
-      
-      console.log('✅ [메뉴 로드] 필터링 결과:', {
-        원본메뉴개수: dbMenus.length,
-        필터링후메뉴개수: filteredMenus.length,
-        필터링됨: dbMenus.length !== filteredMenus.length,
-        필터링된메뉴들: filteredMenus.map(m => m.menu_path)
-      });
       
       const converted = convertDbMenusToMenuItems(filteredMenus);
       const hasDashboard = converted.some(m => m.path === '/admin/dashboard');
@@ -325,7 +269,18 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
         path: '/admin/dashboard',
         minLevel: 6
       };
-      setMenuItems(hasDashboard ? converted : [dashboardMenu, ...converted]);
+      
+      // ✅ 새로운 메뉴가 기존 메뉴와 다를 때만 업데이트
+      const newMenuItems = hasDashboard ? converted : [dashboardMenu, ...converted];
+      const hasChanged = JSON.stringify(menuItems) !== JSON.stringify(newMenuItems);
+      
+      if (hasChanged) {
+        console.log('🔄 메뉴 업데이트됨:', newMenuItems.length);
+        setMenuItems(newMenuItems);
+      } else {
+        console.log('✅ 메뉴 동일함 - 업데이트 스킵');
+      }
+      
       setLoadingMenus(false);
     } catch (error) {
       console.error('❌ 메뉴 로드 실패:', error);
@@ -336,7 +291,6 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
         path: '/admin/dashboard',
         minLevel: 6
       }]);
-    } finally {
       setLoadingMenus(false);
     }
   };

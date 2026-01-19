@@ -428,15 +428,12 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       
       // ✅ 카지노/슬롯 베팅액 분리 집계
       const casinoBetAmount = filteredRecords
-        .filter(r => r.game_type === 'casino' || !r.game_type) // game_type이 없으면 카지노로 간주
+        .filter(r => r.game_type === 'casino')
         .reduce((sum, r) => sum + Math.abs(parseFloat(r.bet_amount?.toString() || '0')), 0);
       
       const slotBetAmount = filteredRecords
         .filter(r => r.game_type === 'slot')
         .reduce((sum, r) => sum + Math.abs(parseFloat(r.bet_amount?.toString() || '0')), 0);
-
-      // ✅ 누락된 게임내역 카운트
-      const missingGameInfo = filteredRecords.filter(r => !r.game_title || !r.provider_name).length;
 
       return {
         totalBets: filteredRecords.length,
@@ -444,8 +441,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         totalWinAmount,
         netProfit: totalBetAmount - totalWinAmount,  // ✅ 순손익 = 총 베팅액 - 당첨액
         casinoBetAmount,  // ✅ 카지노 베팅액
-        slotBetAmount,     // ✅ 슬롯 베팅액
-        missingGameInfo    // ✅ 누락된 게임내역
+        slotBetAmount     // ✅ 슬롯 베팅액
       };
     } else {
       return {
@@ -454,8 +450,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         totalWinAmount: 0,
         netProfit: 0,
         casinoBetAmount: 0,
-        slotBetAmount: 0,
-        missingGameInfo: 0
+        slotBetAmount: 0
       };
     }
   }, [filteredRecords]);
@@ -675,12 +670,6 @@ export function BettingHistory({ user }: BettingHistoryProps) {
           value={`₩${stats.slotBetAmount.toLocaleString()}`}
           icon={CreditCard}
           color="cyan"
-        />
-        <MetricCard
-          title="누락된 게임내역"
-          value={stats.missingGameInfo.toLocaleString()}
-          icon={CreditCard}
-          color="yellow"
         />
       </div>
 

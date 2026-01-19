@@ -1,6 +1,6 @@
 /**
  * 게임 기록 자동 동기화 모듈
- * - Invest, OroPlay, FamilyAPI의 게임 기록을 주기적으로 동기화
+ * - Invest, OroPlay, FamilyAPI, HonorAPI의 게임 기록을 주기적으로 동기화
  */
 
 import { supabase } from './supabase';
@@ -12,20 +12,22 @@ let syncTimers: { [key: string]: number } = {};
 const lastSyncTime: { [key: string]: number } = {
   invest: 0,
   oroplay: 0,
-  familyapi: 0
+  familyapi: 0,
+  honor: 0
 };
 
 // 동기화 간격 (밀리초)
 const SYNC_INTERVALS = {
   invest: 30000,    // 30초
   oroplay: 4000,    // 4초
-  familyapi: 4000   // 4초
+  familyapi: 4000,  // 4초
+  honor: 34000      // 34초
 };
 
 /**
  * 특정 API의 게임 기록 동기화
  */
-async function syncApiGameRecords(apiType: 'invest' | 'oroplay' | 'familyapi', partnerId: string) {
+async function syncApiGameRecords(apiType: 'invest' | 'oroplay' | 'familyapi' | 'honor', partnerId: string) {
   try {
     console.log(`[${new Date().toISOString()}] ${apiType} 게임 기록 동기화 시작`);
 
@@ -96,8 +98,19 @@ function startFamilyApiSync(partnerId: string) {
 }
 
 /**
- * 모든 API 동기화 시작
+ * HonorAPI 동기화 시작 (34초 간격)
  */
+function startHonorSync(partnerId: string) {
+  // 즉시 한번 실행
+  syncApiGameRecords('honor', partnerId);
+  
+  // 34초마다 반복 실행
+  syncTimers.honor = window.setInterval(() => {
+    syncApiGameRecords('honor', partnerId);
+  }, SYNC_INTERVALS.honor);
+
+  console.log('✅ HonorAPI 동기화 시작 (34초 간격)');
+}
 export function startGameRecordsSync(partnerId: string) {
   // 이미 실행 중이면 무시
   if (Object.keys(syncTimers).length > 0) {
@@ -117,6 +130,9 @@ export function startGameRecordsSync(partnerId: string) {
     }
     if (activeApis.includes('familyapi')) {
       startFamilyApiSync(partnerId);
+    }
+    if (activeApis.includes('honor')) {
+      startHonorSync(partnerId);
     }
   });
 }

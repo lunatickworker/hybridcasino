@@ -7,6 +7,8 @@ import * as partnerService from "./partnerService";
 import { toast } from "sonner@2.0.3";
 
 export const usePartnerManagement = () => {
+  console.log('🎯 [usePartnerManagement] 훅 초기화');
+  
   const { authState } = useAuth();
   const { connected, sendMessage } = useWebSocketContext();
 
@@ -141,13 +143,50 @@ export const usePartnerManagement = () => {
 
   // 초기 로드
   useEffect(() => {
-    if (authState.user?.id) {
+    const loadInitialData = async () => {
+      if (!authState.user?.id) {
+        console.log('⚠️ [Init] authState.user?.id 없음');
+        return;
+      }
+
+      console.log('🚀 [Init] 초기 데이터 로드 시작 (userId:', authState.user.id, ')');
+      
       loadSystemDefaultCommissionData();
       loadParentCommissionData();
       fetchPartnersData();
       fetchAdminApiBalancesData();
       fetchCurrentUserBalanceData();
-    }
+      
+      // Pending transfers 초기 로드 - 모든 pending 요청 조회
+      console.log('🔍 [Init] DB에서 pending transfers 쿼리 시작...');
+      try {
+        // 먼저 전체 transactions 확인
+        const allTransactions = await supabase
+          .from('transactions')
+          .select('id, partner_id, transaction_type, status')
+          .limit(10);
+        console.log('📋 [Init] 전체 transactions 샘플:', allTransactions.data);
+
+        // partner_deposit_request/partner_withdrawal_request 찾기
+        const { data, error } = await supabase
+          .from('transactions')
+          .select('id, partner_id, transaction_type, status')
+          .in('transaction_type', ['partner_deposit_request', 'partner_withdrawal_request'])
+          .eq('status', 'pending');
+
+        if (error) {
+          console.error('❌ [Init] Query error:', error);
+          throw error;
+        }
+
+        console.log('📊 [Init] 파트너 데이터 로드 완료');
+
+      } catch (error) {
+        console.error('❌ [Init] 파트너 데이터 로드 실패:', error);
+      }
+    };
+
+    loadInitialData();
   }, [authState.user?.id]);
 
   // Realtime 구독

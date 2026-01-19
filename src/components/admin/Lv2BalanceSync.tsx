@@ -23,7 +23,7 @@ export function Lv2BalanceSync() {
     lastSyncTime: null,
     totalSynced: 0,
     totalErrors: 0,
-    isRunning: false,
+    isRunning: true, // ✅ 초기값을 true로 설정 (항상 실행 상태)
     syncCount: 0
   });
   const [manualSyncing, setManualSyncing] = useState(false);
@@ -45,6 +45,8 @@ export function Lv2BalanceSync() {
         if (session?.access_token) {
           setSessionToken(session.access_token);
           console.log('✅ [Lv2 Balance Auto Sync] 세션 토큰 확인 완료');
+          // ✅ 세션 확인되면 자동 동기화 시작
+          setStats(prev => ({ ...prev, isRunning: true }));
         }
         // 세션이 없어도 경고하지 않음 (이 앱은 partners 테이블로 인증)
       } catch (error) {
@@ -58,8 +60,12 @@ export function Lv2BalanceSync() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.access_token) {
         setSessionToken(session.access_token);
+        // ✅ Lv2 로그인되면 자동 동기화 시작
+        setStats(prev => ({ ...prev, isRunning: true }));
       } else {
         setSessionToken(null);
+        // ✅ 로그아웃되면 자동 동기화 중지
+        setStats(prev => ({ ...prev, isRunning: false }));
       }
     });
 
@@ -296,22 +302,6 @@ export function Lv2BalanceSync() {
         {/* 컨트롤 버튼 */}
         <div className="flex items-center gap-3">
           <Button
-            onClick={toggleAutoSync}
-            className={`flex-1 ${stats.isRunning ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}
-          >
-            {stats.isRunning ? (
-              <>
-                <PauseCircle className="h-4 w-4 mr-2" />
-                자동 동기화 중지
-              </>
-            ) : (
-              <>
-                <PlayCircle className="h-4 w-4 mr-2" />
-                자동 동기화 시작
-              </>
-            )}
-          </Button>
-          <Button
             onClick={handleManualSync}
             disabled={manualSyncing}
             variant="outline"
@@ -323,7 +313,6 @@ export function Lv2BalanceSync() {
           <Button
             onClick={resetStats}
             variant="outline"
-            disabled={stats.isRunning}
           >
             통계 초기화
           </Button>

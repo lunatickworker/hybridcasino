@@ -78,17 +78,12 @@ export const transferBalanceToPartner = async ({
     isLv1ToLv2
   });
 
-  // 2️⃣ 송신자 보유금 검증
-  if (transferMode === 'deposit' && senderLevel !== 1) {
-    if (senderLevel === 2) {
-      const balance = currentPartnerData.oroplay_balance || 0;
-      if (balance < amount) {
-        throw new Error(`SENDER_BALANCE_INSUFFICIENT:OroPlay=${balance},required=${amount}`);
-      }
-    } else if (senderLevel >= 3) {
-      if (currentPartnerData.balance < amount) {
-        throw new Error(`SENDER_BALANCE_INSUFFICIENT:${currentPartnerData.balance}`);
-      }
+  // 2️⃣ 송신자 보유금 검증 (GMS 머니만 체크)
+  // ✅ Lv2는 잔액 검증 없음 - 외부 API와 연동되므로 그냥 기록만 남김
+  if (transferMode === 'deposit' && senderLevel !== 1 && senderLevel !== 2) {
+    // Lv3 이상만 GMS 머니(balance) 체크
+    if (currentPartnerData.balance < amount) {
+      throw new Error(`SENDER_BALANCE_INSUFFICIENT:${currentPartnerData.balance}`);
     }
   }
 
@@ -151,6 +146,11 @@ async function handleDeposit({
     senderBalanceBefore = sender.balance;
     senderBalanceAfter = senderBalanceBefore - amount;
 
+    // ✅ Lv1도 음수 방지 체크
+    if (senderBalanceAfter < 0) {
+      throw new Error(`SENDER_BALANCE_INSUFFICIENT:${senderBalanceBefore}`);
+    }
+
     console.log('🔄 [Lv1 sender update]:', { id: sender.id, before: senderBalanceBefore, after: senderBalanceAfter });
     
     const { error } = await supabase
@@ -164,8 +164,12 @@ async function handleDeposit({
     }
     console.log('✅ Lv1 보유금 차감 완료');
   } else if (sender.level === 2) {
+    // ✅ Lv2: 외부 API 연동이므로 검증 없이 바로 차감 처리
+    // 음수 방지: 0 이상으로 유지 (DB CHECK constraint)
     senderBalanceBefore = sender.balance;
-    senderBalanceAfter = senderBalanceBefore - amount;
+    senderBalanceAfter = Math.max(0, senderBalanceBefore - amount);
+
+    console.log('🔄 [Lv2 sender update (no validation)]:', { id: sender.id, before: senderBalanceBefore, after: senderBalanceAfter, actualDeduct: senderBalanceBefore - amount });
 
     const { error } = await supabase
       .from('partners')
@@ -192,8 +196,13 @@ async function handleDeposit({
     if (logError) throw logError;
     console.log('✅ Lv2 송신자 보유금 차감 + 로그 기록 완료');
   } else if (sender.level >= 3) {
+    // ✅ Lv3+: 음수 방지 체크 필수
     senderBalanceBefore = sender.balance;
     senderBalanceAfter = senderBalanceBefore - amount;
+
+    if (senderBalanceAfter < 0) {
+      throw new Error(`SENDER_BALANCE_INSUFFICIENT:${senderBalanceBefore}`);
+    }
 
     const { error } = await supabase
       .from('partners')
@@ -326,6 +335,11 @@ async function handleWithdrawal({
     receiverBalanceBefore = receiver.balance;
     receiverBalanceAfter = receiverBalanceBefore - amount;
 
+    // ✅ Lv1도 음수 방지 체크
+    if (receiverBalanceAfter < 0) {
+      throw new Error(`TARGET_BALANCE_INSUFFICIENT:${receiverBalanceBefore}`);
+    }
+
     const { error: decreaseError } = await supabase
       .from('partners')
       .update({ balance: receiverBalanceAfter, updated_at: new Date().toISOString() })
@@ -333,9 +347,12 @@ async function handleWithdrawal({
 
     if (decreaseError) throw decreaseError;
   } else if (receiver.level === 2) {
-    // Lv2: balance 차감
+    // ✅ Lv2: 외부 API 연동이므로 검증 없이 바로 차감 처리
+    // 음수 방지: 0 이상으로 유지 (DB CHECK constraint)
     receiverBalanceBefore = receiver.balance;
-    receiverBalanceAfter = receiverBalanceBefore - amount;
+    receiverBalanceAfter = Math.max(0, receiverBalanceBefore - amount);
+
+    console.log('🔄 [Lv2 receiver decrease (no validation)]:', { id: receiver.id, before: receiverBalanceBefore, after: receiverBalanceAfter, actualDeduct: receiverBalanceBefore - amount });
 
     const { error: decreaseError } = await supabase
       .from('partners')
@@ -344,9 +361,13 @@ async function handleWithdrawal({
 
     if (decreaseError) throw decreaseError;
   } else {
-    // Lv3+: balance 차감
+    // ✅ Lv3+: 음수 방지 체크 필수
     receiverBalanceBefore = receiver.balance;
     receiverBalanceAfter = receiverBalanceBefore - amount;
+
+    if (receiverBalanceAfter < 0) {
+      throw new Error(`TARGET_BALANCE_INSUFFICIENT:${receiverBalanceBefore}`);
+    }
 
     const { error: decreaseError } = await supabase
       .from('partners')

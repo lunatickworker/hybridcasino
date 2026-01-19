@@ -22,12 +22,11 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
   const { connected } = useWebSocketContext();
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     const saved = localStorage.getItem('admin-sidebar-open');
-    console.log('🔍 사이드바 초기 상태:', saved);
     return saved !== null ? JSON.parse(saved) : true;
   });
 
+  // ✅ sidebarOpen 상태 변경 시만 저장 (불필요한 저장 방지)
   useEffect(() => {
-    console.log('💾 사이드바 상태 저장:', sidebarOpen);
     localStorage.setItem('admin-sidebar-open', JSON.stringify(sidebarOpen));
   }, [sidebarOpen]);
 
