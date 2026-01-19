@@ -984,9 +984,9 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
                   <col style={{ width: '180px' }} />
                   <col style={{ width: '180px' }} />
                   <col style={{ width: '180px' }} />
-                  <col style={{ width: '135px' }} />
+                  <col style={{ width: '68px' }} />
                   <col style={{ width: '315px' }} />
-                  <col style={{ width: '135px' }} />
+                  <col style={{ width: '68px' }} />
                   <col style={{ width: '180px' }} />
                   <col style={{ width: '158px' }} />
                 </colgroup>
