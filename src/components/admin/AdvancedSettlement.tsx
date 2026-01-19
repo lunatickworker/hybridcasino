@@ -572,7 +572,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         partnerRequestWithdrawal: 0,
         pointGiven,
         pointRecovered,
-        depositWithdrawalDiff: deposit - withdrawal + adminDeposit - adminWithdrawal,
+        depositWithdrawalDiff: deposit - withdrawal + adminDeposit - Math.abs(adminWithdrawal),
         casinoBet,
         casinoWin,
         casinoWinLoss,

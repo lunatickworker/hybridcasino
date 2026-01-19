@@ -1191,42 +1191,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           }
         }
         
-        // 입금 승인: 통합 로직 사용 (보유금 검증 포함)
+        // 입금 승인: 이미 위에서 보유금 처리됨, 별도 로직 불필요 ✅
         if (transaction.transaction_type === 'deposit') {
-          const result = await depositToUser(
-            transaction.user_id,
-            user.id,
-            amount,
-            user.level,
-            memo
-          );
-          
-          if (!result.success) {
-            toast.error(result.message);
-            setRefreshing(false);
-            return;
-          }
-          
-          console.log('✅ 입금 승인 처리 완료:', { transactionId: result.transactionId, amount });
+          console.log('✅ 입금 승인 처리 완료:', { amount });
         }
         
-        // 출금 승인: 통합 로직 사용 (보유금 검증 포함)
+        // 출금 승인: 이미 위에서 보유금 처리됨, 별도 로직 불필요 ✅
         if (transaction.transaction_type === 'withdrawal') {
-          const result = await withdrawFromUser(
-            transaction.user_id,
-            user.id,
-            amount,
-            user.level,
-            memo
-          );
-          
-          if (!result.success) {
-            toast.error(result.message);
-            setRefreshing(false);
-            return;
-          }
-          
-          console.log('✅ 출금 승인 처리 완료:', { transactionId: result.transactionId, amount });
+          console.log('✅ 출금 승인 처리 완료:', { amount });
         }
       }
 
@@ -1621,21 +1593,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             deducted: amount
           });
 
-          // 관리자 잔고 변경 로그 기록 (Lv2는 기록하지 않음)
-          if (user.level !== 2) {
-            await supabase.from('partner_balance_logs').insert({
-              partner_id: responsiblePartnerId,
-              balance_before: currentPartnerBalance,
-              balance_after: newPartnerBalance,
-              amount: -amount,
-              transaction_type: 'deposit_to_user',
-              from_partner_id: responsiblePartnerId,  // ✅ 추가: 보낸사람 (관리자)
-              to_partner_id: transaction.user_id,     // ✅ 추가: 받는사람 (사용자)
-              processed_by: user.id,
-              memo: null,  // ✅ 시스템 메모 제거 (processed_by에 처리자 정보 있음)
-              created_at: new Date().toISOString()
-            });
-          }
+          // ✅ 사용자 거래는 partner_balance_logs에 기록하지 않음 (파트너 거래 로그 테이블이므로)
 
         } else if (transaction.transaction_type === 'withdrawal') {
           // 출금: 관리자 보유금 증가
@@ -1662,21 +1620,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             added: amount
           });
 
-          // 관리자 잔고 변경 로그 기록 (Lv2는 기록하지 않음)
-          if (user.level !== 2) {
-            await supabase.from('partner_balance_logs').insert({
-              partner_id: responsiblePartnerId,
-              balance_before: currentPartnerBalance,
-              balance_after: newPartnerBalance,
-              amount: amount,
-              transaction_type: 'withdrawal_from_user',
-              from_partner_id: transaction.user_id,      // ✅ 추가: 보낸사람 (사용자)
-              to_partner_id: responsiblePartnerId,       // ✅ 추가: 받는사람 (관리자)
-              processed_by: user.id,
-              memo: null,  // ✅ 시스템 메모 제거 (processed_by에 처리자 정보 있음)
-              created_at: new Date().toISOString()
-            });
-          }
+          // ✅ 사용자 거래는 partner_balance_logs에 기록하지 않음 (파트너 거래 로그 테이블이므로)
         }
         }
       }
@@ -1856,55 +1800,22 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       currentPartnerId = partner?.parent_id;
     }
     
-    // 거래 레코드 1: 회원소속 파트너 ID
-    const { error: transactionError1 } = await supabase
-      .from('transactions')
-      .insert({
-        id: transactionId,
-        user_id: userId,
-        partner_id: referrerPartnerId,  // 회원소속 파트너 ID
-        transaction_type: type === 'deposit' ? 'admin_deposit' : 'admin_withdrawal',
-        status: 'completed',
-        amount: type === 'deposit' ? amountNum : -amountNum,
-        balance_before: selectedUser.balance,
-        balance_after: balanceAfter,
-        updated_at: now,
-        external_response: apiResult.data,
-        from_partner_id: type === 'deposit' ? user.id : userId,
-        to_partner_id: type === 'deposit' ? userId : user.id
-      });
+    // 거래 기록: 이제는 저장하지 않음 (partner_balance_logs에 자동 생성되는 것을 방지)
+    // admin_deposit/admin_withdrawal은 회원 거래이므로 기록할 필요 없음
+    // (관리자 파트너 잔고만 업데이트하면 됨)
 
-    console.log('✅ 거래 레코드 1 생성:', transactionId, 'partner_id:', referrerPartnerId);
-    if (transactionError1) throw transactionError1;
-    
-    // 거래 레코드 2: Lv2 ID (Lv2가 있고 referrer와 다를 때만)
-    if (lv2PartnerId && lv2PartnerId !== referrerPartnerId) {
-      const transactionId2 = crypto.randomUUID();
-      const { error: transactionError2 } = await supabase
-        .from('transactions')
-        .insert({
-          id: transactionId2,
-          user_id: userId,
-          partner_id: lv2PartnerId,  // Lv2 ID
-          transaction_type: type === 'deposit' ? 'admin_deposit' : 'admin_withdrawal',
-          status: 'completed',
-          amount: type === 'deposit' ? amountNum : -amountNum,
-          balance_before: selectedUser.balance,
-          balance_after: balanceAfter,
-          updated_at: now,
-          external_response: apiResult.data,
-          from_partner_id: type === 'deposit' ? user.id : userId,
-          to_partner_id: type === 'deposit' ? userId : user.id
-        });
+    // 사용자 잔고 업데이트 (users 테이블)
+    const newUserBalance = type === 'deposit' ? balanceAfter : balanceAfter;
+    const { error: userUpdateError } = await supabase
+      .from('users')
+      .update({
+        balance: newUserBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
 
-      console.log('✅ 거래 레코드 2 생성:', transactionId2, 'partner_id:', lv2PartnerId);
-      if (transactionError2) throw transactionError2;
-    } else {
-      console.log('⚠️ 거래 레코드 2 생성 안 함 (Lv2 없거나 같음):', { lv2PartnerId, referrerPartnerId });
-    }
-
-    // ✅ 트리거가 자동으로 users.balance 업데이트
-    console.log('✅ transactions INSERT 2개 완료 → 트리거가 users.balance 자동 업데이트');
+    if (userUpdateError) throw userUpdateError;
+    console.log('✅ 사용자 잔고 업데이트:', { userId, balance: newUserBalance });
 
     // ✅ Lv2~Lv6 관리자가 사용자에게 입출금하는 경우: GMS 머니(balance) 차감/증가
     if (user.level >= 2 && user.level <= 6) {
@@ -1934,21 +1845,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           console.error(`❌ Lv${user.level} balance 업데이트 실패:`, updateBalanceError);
         } else {
           console.log(`✅ Lv${user.level} balance 업데이트: ${currentBalance} → ${newBalance}`);
-          
-          // 관리자 잔고 변경 로그 기록
-          await supabase
-            .from('partner_balance_logs')
-            .insert({
-              partner_id: user.id,
-              balance_before: currentBalance,
-              balance_after: newBalance,
-              amount: type === 'deposit' ? -amountNum : amountNum,
-              transaction_type: type === 'deposit' ? 'withdrawal' : 'deposit',
-              from_partner_id: type === 'deposit' ? user.id : userId,
-              to_partner_id: type === 'deposit' ? userId : user.id,
-              processed_by: user.id,
-              memo: `[강제${type === 'deposit' ? '입금' : '출금'}] ${selectedUser.username}에게 ${amountNum.toLocaleString()}원 ${type === 'deposit' ? '입금' : '회수'}${memo ? `: ${memo}` : ''}`
-            });
         }
       }
     }

@@ -1367,90 +1367,12 @@ export function UserManagement() {
 
       // 4. 담당 파트너와 실행자 로그 기록
       
-      // ✅ 4-1. 담당 파트너 (referrer_id) 로그만 기록 (balance 변경 없음)
-      console.log(`💼 담당 파트너 Lv${responsiblePartner.level} 로그 기록 시작`);
-      
-      const responsibleBalance = responsiblePartner.balance || 0;
-      
-      if (data.type === 'deposit') {
-        // 로그 기록 (담당 파트너 확인용, balance 변경 없음)
-        await supabase
-          .from('partner_balance_logs')
-          .insert({
-            partner_id: responsiblePartnerId,
-            balance_before: responsibleBalance,
-            balance_after: responsibleBalance,
-            amount: 0,
-            transaction_type: 'user_deposit',
-            from_partner_id: authState.user.id,
-            to_partner_id: null,
-            processed_by: authState.user.id,
-            memo: data.memo || null  // ✅ 사용자 입력 메모만 저장
-          });
+      // ⭐ 담당 파트너 로그 기록 제거: user_deposit/user_withdrawal은 불필요
+      // 회원의 입출금은 transactions 테이블에만 기록되며,
+      // partner_balance_logs는 파트너 간 거래만 기록해야 함
 
-        console.log(`✅ 담당 파트너 Lv${responsiblePartner.level} 로그 기록 완료 (balance 변경 없음)`);
-
-      } else {
-        // 로그 기록 (담당 파트너 확인용, balance 변경 없음)
-        await supabase
-          .from('partner_balance_logs')
-          .insert({
-            partner_id: responsiblePartnerId,
-            balance_before: responsibleBalance,
-            balance_after: responsibleBalance,
-            amount: 0,
-            transaction_type: 'user_withdrawal',
-            from_partner_id: null,
-            to_partner_id: authState.user.id,
-            processed_by: authState.user.id,
-            memo: data.memo || null  // ✅ 사용자 입력 메모만 저장
-          });
-
-        console.log(`✅ 담당 파트너 Lv${responsiblePartner.level} 로그 기록 완료 (balance 변경 없음)`);
-      }
-
-      // ✅ 4-2. 실행자 (adminPartner) 처리
-      
-      // Lv2: 로그만 기록 (balance 변동 없음, 외부 API 동기화)
-      if (adminPartner.level === 2) {
-        console.log(`💼 실행자 Lv2 로그 기록 시작 (balance 변동 없음)`);
-        
-        const currentBalance = adminPartner.balance || 0;
-        
-        if (data.type === 'deposit') {
-          await supabase
-            .from('partner_balance_logs')
-            .insert({
-              partner_id: authState.user.id,
-              balance_before: currentBalance,
-              balance_after: currentBalance,
-              amount: 0,
-              transaction_type: 'user_deposit',
-              from_partner_id: authState.user.id,
-              to_partner_id: responsiblePartnerId,
-              processed_by: authState.user.id,
-              memo: data.memo || null  // ✅ 사용자 입력 메모만 저장
-            });
-
-          console.log(`✅ 실행자 Lv2 로그 기록 완료 (balance 변동 없음)`);
-        } else {
-          await supabase
-            .from('partner_balance_logs')
-            .insert({
-              partner_id: authState.user.id,
-              balance_before: currentBalance,
-              balance_after: currentBalance,
-              amount: 0,
-              transaction_type: 'user_withdrawal',
-              from_partner_id: responsiblePartnerId,
-              to_partner_id: authState.user.id,
-              processed_by: authState.user.id,
-              memo: data.memo || null  // ✅ 사용자 입력 메모만 저장
-            });
-
-          console.log(`✅ 실행자 Lv2 로그 기록 완료 (balance 변동 없음)`);
-        }
-      }
+      // ✅ 4-2. 실행자 (adminPartner) 처리 - user_withdrawal/user_deposit 로그 제거
+      // 회원의 입출금은 transactions 테이블에만 기록. partner_balance_logs는 파트너 간 거래만 기록
       
       // Lv3~6: balance 증감 (GMS 머니)
       if (adminPartner.level >= 3 && adminPartner.level <= 6) {
@@ -1473,22 +1395,9 @@ export function UserManagement() {
             throw updateError;
           }
 
-          // 로그 기록 (실행자에게 기록)
-          await supabase
-            .from('partner_balance_logs')
-            .insert({
-              partner_id: authState.user.id,
-              balance_before: currentBalance,
-              balance_after: newBalance,
-              amount: -data.amount,
-              transaction_type: 'user_deposit',
-              from_partner_id: authState.user.id,
-              to_partner_id: responsiblePartnerId,
-              processed_by: authState.user.id,
-              memo: data.memo || null  // ✅ 사용자 입력 메모만 저장
-            });
-
-          console.log(`✅ 실행자 Lv${adminPartner.level} balance 차감 완료: ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
+          
+          // Lv3~6의 balance 업데이트만 하고 partner_balance_logs 기록 제거
+          // (user_deposit 타입은 사용하지 않음)
 
         } else {
           // ✅ 출금: 실행자 보유금 증가
@@ -1507,22 +1416,9 @@ export function UserManagement() {
             throw updateError;
           }
 
-          // 로그 기록 (실행자에게 기록)
-          await supabase
-            .from('partner_balance_logs')
-            .insert({
-              partner_id: authState.user.id,
-              balance_before: currentBalance,
-              balance_after: newBalance,
-              amount: data.amount,
-              transaction_type: 'user_withdrawal',
-              from_partner_id: responsiblePartnerId,
-              to_partner_id: authState.user.id,
-              processed_by: authState.user.id,
-              memo: data.memo || null  // ✅ 사용자 입력 메모만 저장
-            });
-
-          console.log(`✅ 실행자 Lv${adminPartner.level} balance 증가 완료: ${currentBalance.toLocaleString()} → ${newBalance.toLocaleString()}`);
+          
+          // Lv3~6의 balance 업데이트만 하고 partner_balance_logs 기록 제거
+          // (user_withdrawal 타입은 사용하지 않음)
         }
       }
 
