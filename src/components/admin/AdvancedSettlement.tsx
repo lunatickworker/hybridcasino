@@ -421,19 +421,22 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-      // 수동 입금/출금: 관리자 충전/환전만 (admin_deposit_send, admin_withdrawal_send)
-      // transactions 테이블 필터링 제거 - admin_deposit 미포함
-      const adminDepositFromTransactions = 0;
+      // 수동 입금: admin_deposit 필터링 추가
+      const adminDepositFromTransactions = dayTransactions.filter(t => 
+        t.transaction_type === 'admin_deposit' && 
+        t.status === 'completed'
+      ).reduce((sum, t) => sum + (t.amount || 0), 0);
 
-      const adminWithdrawalFromTransactions = 0;  // admin_withdrawal은 제외
+      const adminWithdrawalFromTransactions = dayTransactions.filter(t => 
+        t.transaction_type === 'admin_withdrawal' && 
+        t.status === 'completed'
+      ).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
       // admin_deposit_send와 admin_withdrawal_send 계산
       // Transactionrull.md 규칙 적용:
       // - admin_deposit_send: 양수(수신자 perspective)만 더하기
       // - admin_withdrawal_send: 음수(수신자 perspective)만 더하기
-      const adminDepositFromPartnerBalanceLogs = dayPartnerBalanceLogs
-        .filter(l => l.transaction_type === 'admin_deposit_send' && (l.amount || 0) > 0)
-        .reduce((sum, l) => sum + (l.amount || 0), 0);
+      const adminDepositFromPartnerBalanceLogs = 0;  // 수동 입금 필터링 제거
 
       const adminWithdrawalFromPartnerBalanceLogs = dayPartnerBalanceLogs
         .filter(l => l.transaction_type === 'admin_withdrawal_send' && Math.abs(l.amount || 0) > 0)
@@ -456,7 +459,8 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
 
       // AdvancedSettlement는 adminDeposit/adminWithdrawal 합산
       const adminDeposit = adminDepositFromTransactions + adminDepositFromPartnerBalanceLogs;
-      const adminWithdrawal = adminWithdrawalFromTransactions + adminWithdrawalFromPartnerBalanceLogs;
+      const totalAdminWithdrawal = adminWithdrawalFromTransactions + adminWithdrawalFromPartnerBalanceLogs;
+      const adminWithdrawal = totalAdminWithdrawal > 0 ? -totalAdminWithdrawal : 0;
 
       // 🔍 디버그 로그
       if (dayPartnerBalanceLogs.length > 0) {

@@ -594,8 +594,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const adminWithdrawalFromTransactions = partnerTransactions
-      .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
+      .filter(t => (t.transaction_type === 'partner_withdrawal' || t.transaction_type === 'admin_withdrawal') && t.status === 'completed')
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
     // 2️⃣ partner_balance_logs 테이블에서 관리자 입출금 집계
     // ✅ Lv2 이상: partner_id, from_partner_id, to_partner_id 중 하나라도 매칭되면 포함

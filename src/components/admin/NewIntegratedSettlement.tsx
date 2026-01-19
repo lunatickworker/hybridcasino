@@ -440,19 +440,34 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       return isRelevant && (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal_request');
     }).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ 수동 입금: partner_balance_logs만 사용 (admin_deposit_send)
-    // transactions 테이블의 admin_deposit은 partner_balance_logs에 중복 저장되므로 제외
-    const manualDeposit = partnerBalanceLogs.filter(pl => 
+    // ✅ 수동 입금: partner_balance_logs + transactions 테이블 사용 (admin_deposit_send + admin_deposit)
+    const manualDepositFromLogs = partnerBalanceLogs.filter(pl => 
       pl.transaction_type === 'admin_deposit_send' &&
       (relevantUserIdsForTransactions.includes(pl.to_partner_id) || relevantUserIdsForTransactions.includes(pl.partner_id))
     ).reduce((sum, pl) => sum + (pl.amount || 0), 0);
+
+    const manualDepositFromTransactions = transactions.filter(t => 
+      t.transaction_type === 'admin_deposit' && 
+      t.status === 'completed' && 
+      relevantUserIdsForTransactions.includes(t.partner_id)
+    ).reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    const manualDeposit = manualDepositFromLogs + manualDepositFromTransactions;
     
-    // ✅ 수동 출금: partner_balance_logs만 사용 (admin_withdrawal_send)
-    // transactions 테이블의 admin_withdrawal은 partner_balance_logs에 중복 저장되므로 제외
-    const manualWithdrawal = partnerBalanceLogs.filter(pl => 
+    // ✅ 수동 출금: partner_balance_logs + transactions 테이블 사용 (admin_withdrawal_send + admin_withdrawal)
+    const manualWithdrawalFromLogs = partnerBalanceLogs.filter(pl => 
       pl.transaction_type === 'admin_withdrawal_send' &&
       (relevantUserIdsForTransactions.includes(pl.to_partner_id) || relevantUserIdsForTransactions.includes(pl.partner_id))
     ).reduce((sum, pl) => sum + Math.abs(pl.amount || 0), 0);
+
+    const manualWithdrawalFromTransactions = transactions.filter(t => 
+      t.transaction_type === 'admin_withdrawal' && 
+      t.status === 'completed' && 
+      relevantUserIdsForTransactions.includes(t.partner_id)
+    ).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+
+    const totalManualWithdrawal = manualWithdrawalFromLogs + manualWithdrawalFromTransactions;
+    const manualWithdrawal = totalManualWithdrawal > 0 ? -totalManualWithdrawal : 0;
     
     const userPointTrans = pointTransactions.filter(pt => relevantUserIdsForTransactions.includes(pt.user_id));
     // ✅ 포인트 필터링: transaction_type 컬럼 사용 (earn = 지급, convert_to_balance = 회수)
