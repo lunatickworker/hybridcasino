@@ -199,8 +199,8 @@ export function UserWithdraw({ user, onRouteChange }: UserWithdrawProps) {
         memo: memo || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        from_partner_id: user.referrer_id, // ✅ 보낸사람 (담당 파트너)
-        to_partner_id: user.referrer_id // ✅ 받는사람 (담당 파트너)
+        from_partner_id: user.referrer_id, // ✅ 담당 파트너 (Lv2 거래 목록에 표시)
+        to_partner_id: user.referrer_id     // ✅ 담당 파트너 (Lv2 거래 목록에 표시)
       };
 
       // 출금 신청 저장

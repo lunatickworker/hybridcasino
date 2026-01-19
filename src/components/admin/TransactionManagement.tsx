@@ -304,31 +304,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             // 1️⃣ transactions 조회
             let transactionsQ = baseTransactionQuery.in('status', ['completed', 'rejected']);
             
-            // 필터 적용: Lv1(필터 없음) / Lv2+(자신의 거래 + 자신이 승인한 거래)
-            let transRes: any;
-            if (user.level === 1) {
-              // Lv1: 제약 없음
-              transRes = await transactionsQ;
-            } else if (user.level > 1) {
-              // Lv2+: 두 가지 경우 모두 조회
-              // 1. 받는 거래: to_partner_id = 본인
-              const receivedTx = await baseTransactionQuery
-                .in('status', ['completed', 'rejected'])
-                .eq('to_partner_id', user.id);
-              
-              // 2. 자신이 승인한 거래: processed_by = 본인
-              const approvedTx = await baseTransactionQuery
-                .in('status', ['completed', 'rejected'])
-                .eq('processed_by', user.id);
-              
-              // 두 결과 합치기 (중복 제거)
-              const combined = [...(receivedTx.data || []), ...(approvedTx.data || [])];
-              const uniqueMap = new Map(combined.map(t => [t.id, t]));
-              const uniqueData = Array.from(uniqueMap.values())
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-              
-              transRes = { data: uniqueData, error: receivedTx.error || approvedTx.error };
+            // 필터 적용: Lv1(필터 없음) / Lv2+(자신의 거래만)
+            if (user.level > 1) {
+              transactionsQ = transactionsQ.eq('to_partner_id', user.id);
             }
+            
+            const transRes = await transactionsQ;
             
             // 2️⃣ partner_balance_logs 조회
             let pblQ = supabase
@@ -2655,8 +2636,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           withdrawal: { text: '온라인 출금 신청', color: 'bg-orange-600' },
           admin_deposit: { text: '수동 입금', color: 'bg-cyan-600' },
           admin_withdrawal: { text: '수동 출금', color: 'bg-orange-600' },
-          partner_deposit_request: { text: '인터넷 입금신청', color: 'bg-cyan-600' },
-          partner_withdrawal_request: { text: '인터넷 출금신청', color: 'bg-pink-600' },
+          partner_deposit_request: { text: '온라인 입금신청', color: 'bg-cyan-600' },
+          partner_withdrawal_request: { text: '온라인 출금신청', color: 'bg-pink-600' },
           point_conversion: { text: '포인트 전환', color: 'bg-purple-600' },
           user_online_withdrawal: { text: '온라인 출금', color: 'bg-orange-600' },
           partner_deposit: { text: '파트너 충전', color: 'bg-cyan-600' },
@@ -3192,6 +3173,30 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   수동 출금
                 </Button>
                 <Button
+                  onClick={() => setTransactionTypeFilter('partner_deposit')}
+                  variant={transactionTypeFilter === 'partner_deposit' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'partner_deposit' 
+                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
+                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
+                  )}
+                >
+                  파트너 충전
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('partner_withdrawal')}
+                  variant={transactionTypeFilter === 'partner_withdrawal' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'partner_withdrawal' 
+                      ? "bg-pink-500/30 border border-pink-400/50 hover:bg-pink-500/40 text-pink-100 shadow-lg" 
+                      : "bg-pink-500/10 border border-pink-400/20 hover:bg-pink-500/20 text-slate-300"
+                  )}
+                >
+                  파트너 환전
+                </Button>
+                <Button
                   onClick={() => setTransactionTypeFilter('admin_request_deposit')}
                   variant={transactionTypeFilter === 'admin_request_deposit' ? 'default' : 'outline'}
                   className={cn(
@@ -3213,7 +3218,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                       : "bg-pink-500/10 border border-pink-400/20 hover:bg-pink-500/20 text-slate-300"
                   )}
                 >
-                  온라인출금신청
+                  관리자 출금요청
                 </Button>
                 <Button
                   onClick={() => setTransactionTypeFilter('point_give')}

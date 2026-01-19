@@ -832,7 +832,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               
               if (isPartnerDepositRequest || isPartnerWithdrawalRequest) {
                 // ✅ 파트너 입출금 신청: 최종 Lv2(to_partner_id)에만 알림
-                const shouldNotify = transaction.to_partner_id === user.id;
+                const shouldNotify = transaction.to_partner_id === user.id || transaction.partner_id === user.id;
 
                 if (shouldNotify) {
                   const memo = transaction.memo || '';
@@ -873,7 +873,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                   await supabase
                     .from('notifications')
                     .insert({
-                      recipient_type: 'partner',
                       recipient_id: transaction.to_partner_id,
                       sender_id: transaction.from_partner_id,
                       notification_type: notificationType,
@@ -933,30 +932,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     }
                   }
                 });
-                
-                // ✅ notifications 테이블에 알림 레코드 생성
-                await supabase
-                  .from('notifications')
-                  .insert({
-                    recipient_type: 'partner',
-                    recipient_id: user.id,
-                    sender_id: transaction.user_id,
-                    notification_type: '입금신청',
-                    title: '새로운 입금 요청',
-                    message: `${formatCurrency(Number(transaction.amount))} 신청`,
-                    data: {
-                      transaction_id: transaction.id,
-                      amount: transaction.amount,
-                      username: username
-                    },
-                    is_read: false,
-                    created_at: new Date().toISOString()
-                  })
-                  .then(() => {
-                    // ✅ 알림 카운터 + 헤더 통계 즉시 갱신
-                    loadNotificationCount();
-                    fetchHeaderStats();
-                  });
+                // ✅ 헤더 통계 즉시 갱신
+                fetchHeaderStats();
               } else if (transaction.transaction_type === 'withdrawal') {
                 toast.warning('새로운 출금 요청이 있습니다.', {
                   description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${username}\n클릭하면 사라집니다.`,
@@ -971,30 +948,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     }
                   }
                 });
-                
-                // ✅ notifications 테이블에 알림 레코드 생성
-                await supabase
-                  .from('notifications')
-                  .insert({
-                    recipient_type: 'partner',
-                    recipient_id: user.id,
-                    sender_id: transaction.user_id,
-                    notification_type: '출금신청',
-                    title: '새로운 출금 요청',
-                    message: `${formatCurrency(Number(transaction.amount))} 신청`,
-                    data: {
-                      transaction_id: transaction.id,
-                      amount: transaction.amount,
-                      username: username
-                    },
-                    is_read: false,
-                    created_at: new Date().toISOString()
-                  })
-                  .then(() => {
-                    // ✅ 알림 카운터 + 헤더 통계 즉시 갱신
-                    loadNotificationCount();
-                    fetchHeaderStats();
-                  });
+                // ✅ 헤더 통계 즉시 갱신
+                fetchHeaderStats();
               }
             }
           }
@@ -2051,7 +2006,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
                       onClick={() => onRouteChange?.('/admin/users')}
                     >
-                      <div className="text-xm text-cyan-300 font-medium text-center mb-1">{t.header.signupApproval}</div>
+                      <div className="text-sm text-cyan-300 font-medium text-center mb-1">{t.header.signupApproval}</div>
                       <div className="text-2xl font-bold text-white text-center">{stats.pending_approvals}</div>
                       {stats.pending_approvals > 0 && (
                         <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
@@ -2070,7 +2025,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
                       onClick={() => onRouteChange?.('/admin/customer-service')}
                     >
-                      <div className="text-xm text-purple-300 font-medium text-center mb-1">{t.header.customerInquiry}</div>
+                      <div className="text-sm text-purple-300 font-medium text-center mb-1">{t.header.customerInquiry}</div>
                       <div className="text-2xl font-bold text-white text-center">{stats.pending_messages}</div>
                       {stats.pending_messages > 0 && (
                         <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
@@ -2081,7 +2036,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 </Tooltip>
               </TooltipProvider>
 
-              {/* 입금대기 */}
+              {/* 입금요청 */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -2089,7 +2044,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
                       onClick={() => onRouteChange?.('/admin/transactions#deposit-request')}
                     >
-                      <div className="text-xm text-emerald-300 font-medium text-center mb-1">{t.dashboard.pendingDeposits}</div>
+                      <div className="text-sm text-emerald-300 font-medium text-center mb-1">{t.dashboard.pendingDeposits}</div>
                       <div className="text-2xl font-bold text-white text-center">{stats.pending_deposits}</div>
                       {stats.pending_deposits > 0 && (
                         <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
@@ -2100,7 +2055,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 </Tooltip>
               </TooltipProvider>
 
-              {/* 출금대기 */}
+              {/* 출금요청 */}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -2108,7 +2063,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
                       onClick={() => onRouteChange?.('/admin/transactions#withdrawal-request')}
                     >
-                      <div className="text-xm text-orange-300 font-medium text-center mb-1">{t.dashboard.pendingWithdrawals}</div>
+                      <div className="text-sm text-orange-300 font-medium text-center mb-1">{t.dashboard.pendingWithdrawals}</div>
                       <div className="text-2xl font-bold text-white text-center">{stats.pending_withdrawals}</div>
                       {stats.pending_withdrawals > 0 && (
                         <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>

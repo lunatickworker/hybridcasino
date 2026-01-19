@@ -48,6 +48,29 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
   const [data, setData] = useState<SettlementRow[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [expandAll, setExpandAll] = useState(false);
+
+  // ✅ 동적 컬럼 너비 계산 함수
+  const calculateColumnWidth = (headerText: string, dataValues: (string | number)[]): number => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return 80; // 기본값
+    
+    ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    
+    // 헤더 너비 계산
+    const headerWidth = ctx.measureText(headerText).width;
+    
+    // 데이터 너비 계산
+    const dataWidths = dataValues.map(val => 
+      ctx.measureText(String(val)).width
+    );
+    
+    const maxDataWidth = dataWidths.length > 0 ? Math.max(...dataWidths) : 0;
+    const maxWidth = Math.max(headerWidth, maxDataWidth);
+    
+    // 패딩 추가 (px-4 = 32px)
+    return Math.ceil(maxWidth + 32);
+  };
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [summary, setSummary] = useState<SummaryStats>({ totalBalance: 0, totalPoints: 0, onlineDeposit: 0, onlineWithdrawal: 0, manualDeposit: 0, manualWithdrawal: 0, pointGiven: 0, pointRecovered: 0, depositWithdrawalDiff: 0, casinoBet: 0, casinoWin: 0, slotBet: 0, slotWin: 0, ggr: 0, totalRolling: 0, totalLosing: 0, individualRolling: 0, individualLosing: 0 });
@@ -647,13 +670,13 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       
       // 모든 거래를 조회 (조직격리는 나중에 displayPartnerId로 처리)
       const pblQ1 = supabase.from('partner_balance_logs').select('*')
-        .in('transaction_type', ['admin_deposit', 'admin_deposit_send', 'admin_withdrawal', 'admin_withdrawal_send', 'partner_deposit', 'partner_withdrawal'])
+        .in('transaction_type', ['admin_deposit_send', 'admin_withdrawal_send', 'partner_deposit', 'partner_withdrawal'])
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString());
       
       // Lv1→Lv2: from_partner_id IS NULL인 거래
       const pblQ2 = supabase.from('partner_balance_logs').select('*')
-        .in('transaction_type', ['admin_deposit', 'admin_deposit_send', 'admin_withdrawal', 'admin_withdrawal_send', 'partner_deposit', 'partner_withdrawal'])
+        .in('transaction_type', ['admin_deposit_send', 'admin_withdrawal_send', 'partner_deposit', 'partner_withdrawal'])
         .is('from_partner_id', null)
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString());
@@ -753,8 +776,15 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     setDateFilterType(type);
   };
 
-  // ✅ 모든 레벨에서 NewIntegratedSettlement 페이지 표시
-  // Lv3~Lv5 사용자와 Lv6 사용자도 동일한 페이지 사용
+  // Lv3~Lv5 사용자는 Lv35Settlement 페이지로 리다이렉트
+  if ([3, 4, 5].includes(user.level)) {
+    return <Lv35Settlement user={user} />;
+  }
+
+  // Lv6 사용자는 Lv6Settlement 페이지로 리다이렉트
+  if (user.level === 6) {
+    return <Lv6Settlement user={user} />;
+  }
 
   // 공베팅 요율 계산
   const gongBetRateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
@@ -939,17 +969,17 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
               <table className="w-full" style={{ tableLayout: 'auto' }}>
                 <thead>
                   <tr className="border-b border-slate-700">
-                    <th className="px-4 py-3 text-center text-white font-normal sticky left-0 bg-slate-900 z-10 whitespace-nowrap">등급</th>
-                    <th className="px-4 py-3 text-center text-white font-normal bg-slate-900 whitespace-nowrap">아이디</th>
+                    <th className="px-4 py-3 text-center text-white font-normal sticky left-0 bg-slate-900 z-10 whitespace-nowrap" style={{ minWidth: calculateColumnWidth('등급', data.map(r => r.levelName)) }}>등급</th>
+                    <th className="px-4 py-3 text-center text-white font-normal bg-slate-900 whitespace-nowrap" style={{ minWidth: calculateColumnWidth('아이디', data.map(r => r.username)) }}>아이디</th>
                     <th className="px-4 py-0 text-center text-white font-normal bg-slate-800/70 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">정산 기준</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">카지노</div><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">슬롯</div><div className="flex-1 py-2 whitespace-nowrap">루징</div></div></div></th>
                     {visibleRows.some(r => r.level === 2) && <th className="px-4 py-0 text-center text-white font-normal bg-indigo-950/60 whitespace-nowrap" style={{ minWidth: '160px' }}><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">보유자산</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">머니</div><div className="flex-1 py-2 whitespace-nowrap">포인트</div></div></div></th>}
                     <th className="px-4 py-0 text-center text-white font-normal bg-orange-950/60 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">온라인 입출금</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">입금</div><div className="flex-1 py-2 whitespace-nowrap">출금</div></div></div></th>
-                    <th className="px-4 py-0 text-center text-white font-normal bg-rose-950/60 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">{user.level === 6 ? '파트너 충환전' : '수동 입출금'}</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">{user.level === 6 ? '충전' : '수동 입금'}</div><div className="flex-1 py-2 whitespace-nowrap">{user.level === 6 ? '환전' : '수동 출금'}</div></div></div></th>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-rose-950/60 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">수동 입출금</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">수동 입금</div><div className="flex-1 py-2 whitespace-nowrap">수동 출금</div></div></div></th>
                     <th className="px-4 py-0 text-center text-white font-normal bg-green-950/60 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">포인트 관리</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">지급</div><div className="flex-1 py-2 whitespace-nowrap">회수</div></div></div></th>
-                    <th className="px-4 py-3 text-center text-white font-normal bg-cyan-950/60 whitespace-nowrap" style={{ minWidth: '120px' }}>입출차액</th>
-                    <th className="px-4 py-0 text-center text-white font-normal bg-blue-950/60"><div className="flex flex-col"><div className="py-1 border-b border-slate-700/50 whitespace-nowrap">게임 실적</div><div className="flex"><div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>카지노 베팅</div>{/* {casinoGongBetEnabled && <div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>카지노 공베팅</div>} */}<div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>카지노 당첨</div><div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>슬롯 베팅</div>{/* {slotGongBetEnabled && <div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>슬롯 공베팅</div>} */}<div className="py-1 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>슬롯 당첨</div></div></div></th>
-                    <th className="px-4 py-3 text-center text-white font-normal bg-amber-950/60 whitespace-nowrap">GGR</th>
-                    <th className="px-4 py-0 text-center text-white font-normal bg-teal-950/60 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">실정산</div><div className="flex"><div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>총 롤링</div>{/* {cutRollingEnabled && <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>절삭 롤링금</div>} */}<div className="py-2 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>총 루징</div></div></div></th>
+                    <th className="px-4 py-3 text-center text-white font-normal bg-cyan-950/60 whitespace-nowrap" style={{ minWidth: calculateColumnWidth('입출차액', data.map(r => formatNumber(r.depositWithdrawalDiff))) }}>입출차액</th>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-blue-950/60"><div className="flex flex-col"><div className="py-1 border-b border-slate-700/50 whitespace-nowrap">게임 실적</div><div className="flex"><div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>카지노 베팅</div>{casinoGongBetEnabled && <div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>카지노 공베팅</div>}<div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>카지노 당첨</div><div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>슬롯 베팅</div>{slotGongBetEnabled && <div className="py-1 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>슬롯 공베팅</div>}<div className="py-1 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>슬롯 당첨</div></div></div></th>
+                    <th className="px-4 py-3 text-center text-white font-normal bg-amber-950/60 whitespace-nowrap" style={{ minWidth: calculateColumnWidth('GGR', data.map(r => formatNumber(r.ggr))) }}>GGR</th>
+                    <th className="px-4 py-0 text-center text-white font-normal bg-teal-950/60 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">실정산</div><div className="flex"><div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>총 롤링</div>{cutRollingEnabled && <div className="py-2 border-r border-slate-700/50 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>절삭 롤링금</div>}<div className="py-2 whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>총 루징</div></div></div></th>
                     <th className="px-4 py-0 text-center text-white font-normal bg-emerald-950/70 whitespace-nowrap"><div className="flex flex-col"><div className="py-2 border-b border-slate-700/50 whitespace-nowrap">코드별 실정산</div><div className="flex"><div className="flex-1 py-2 border-r border-slate-700/50 whitespace-nowrap">롤링</div><div className="flex-1 py-2 whitespace-nowrap">루징</div></div></div></th>
 
 
@@ -970,9 +1000,9 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
                         <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-emerald-400 font-asiahead">{formatNumber(row.manualDeposit)}</div><div className="flex-1 text-rose-400 font-asiahead">{formatNumber(row.manualWithdrawal)}</div></div></td>
                         <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-blue-400 font-asiahead">{formatNumber(row.pointGiven)}</div><div className="flex-1 text-orange-400 font-asiahead">{formatNumber(row.pointRecovered)}</div></div></td>
                         <td className={cn("px-4 py-3 text-center font-asiahead whitespace-nowrap", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>{formatNumber(row.depositWithdrawalDiff)}</td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex"><div className="text-center text-cyan-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.casinoBet)}</div>{/* {casinoGongBetEnabled && <div className="text-center text-orange-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.casinoGongBetAmount)}</div>} */}<div className="text-center text-purple-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.casinoWin)}</div><div className="text-center text-cyan-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.slotBet)}</div>{/* {slotGongBetEnabled && <div className="text-center text-green-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.slotGongBetAmount)}</div>} */}<div className="text-center text-purple-400 font-asiahead py-1 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.slotWin)}</div></div></td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex"><div className="text-center text-cyan-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.casinoBet)}</div>{casinoGongBetEnabled && <div className="text-center text-orange-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.casinoGongBetAmount)}</div>}<div className="text-center text-purple-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.casinoWin)}</div><div className="text-center text-cyan-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.slotBet)}</div>{slotGongBetEnabled && <div className="text-center text-green-400 font-asiahead py-1 border-r border-slate-700/50 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.slotGongBetAmount)}</div>}<div className="text-center text-purple-400 font-asiahead py-1 text-sm whitespace-nowrap" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.slotWin)}</div></div></td>
                         <td className="px-4 py-3 text-center text-amber-400 font-asiahead whitespace-nowrap">{formatNumber(row.ggr)}</td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex divide-x divide-slate-700/50"><div className="text-teal-400 font-asiahead" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.totalRolling)}</div>{/* {cutRollingEnabled && <div className="text-teal-400 font-asiahead" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.cutRollingAmount)}</div>} */}<div className="text-teal-400 font-asiahead" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.totalLosing)}</div></div></td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex divide-x divide-slate-700/50"><div className="text-teal-400 font-asiahead" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.totalRolling)}</div>{cutRollingEnabled && <div className="text-teal-400 font-asiahead" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.cutRollingAmount)}</div>}<div className="text-teal-400 font-asiahead" style={{ flexBasis: '120px', flexShrink: 0 }}>{formatNumber(row.totalLosing)}</div></div></td>
                         <td className="px-4 py-3 text-center whitespace-nowrap"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-green-400 font-asiahead font-semibold">{formatNumber(row.individualRolling)}</div><div className="flex-1 text-green-400 font-asiahead font-semibold">{formatNumber(row.individualLosing)}</div></div></td>
 
 

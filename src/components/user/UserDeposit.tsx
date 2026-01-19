@@ -142,13 +142,16 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
   // 입금 신청
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🟡 [UserDeposit] 입금신청 버튼 클릭됨 - 시작');
 
     if (!user?.id) {
+      console.log('❌ [UserDeposit] 로그인 안됨');
       toast.error(t.user.loginFailed);
       return;
     }
 
     if (!amount) {
+      console.log('❌ [UserDeposit] 금액 미입력');
       toast.error(t.user.fillAllFields);
       return;
     }
@@ -156,21 +159,29 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
     // 중복 신청 방지
     const canDeposit = await checkPendingDeposit();
     if (!canDeposit) {
+      console.log('❌ [UserDeposit] 중복 신청 감지');
       return;
     }
 
     const depositAmount = parseFloat(amount);
     if (depositAmount < 10000) {
+      console.log('❌ [UserDeposit] 최소 금액 미만:', depositAmount);
       toast.error(t.user.minimumDeposit || '최소 입금 금액은 10,000원입니다.');
       return;
     }
 
     if (depositAmount > 10000000) {
+      console.log('❌ [UserDeposit] 최대 금액 초과:', depositAmount);
       toast.error(t.user.maximumDeposit || '최대 입금 금액은 10,000,000원입니다.');
       return;
     }
 
     setIsSubmitting(true);
+    console.log('🟡 [UserDeposit] 입금신청 데이터 준비 중:', {
+      user_id: user.id,
+      amount: depositAmount,
+      timestamp: new Date().toISOString()
+    });
 
     try {
       // 현재 잔고 재조회
@@ -191,8 +202,8 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
         memo: memo.trim() || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        from_partner_id: user.referrer_id, // ✅ 보낸사람 (담당 파트너)
-        to_partner_id: user.referrer_id // ✅ 받는사람 (담당 파트너)
+        from_partner_id: user.referrer_id, // ✅ 담당 파트너 (Lv2 거래 목록에 표시)
+        to_partner_id: user.referrer_id     // ✅ 담당 파트너 (Lv2 거래 목록에 표시)
       };
 
       console.log('💰 입금 신청 데이터:', {
@@ -205,13 +216,29 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
       });
 
       // 데이터베이스에 입금 신청 기록
+      console.log('🟡 [UserDeposit] transactions 테이블 INSERT 시작');
       const { data: insertedData, error } = await supabase
         .from('transactions')
         .insert([depositData])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [UserDeposit] transactions INSERT 실패:', {
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          timestamp: new Date().toISOString()
+        });
+        throw error;
+      }
+
+      console.log('✅ [UserDeposit] transactions INSERT 성공:', {
+        transaction_id: insertedData.id,
+        status: insertedData.status,
+        amount: insertedData.amount,
+        timestamp: new Date().toISOString()
+      });
 
       // 메시지 큐를 통한 실시간 알림 전송
       const success = await sendMessage('deposit_request', {
