@@ -99,15 +99,18 @@ export function AdminRoutes({ currentRoute, user }: AdminRoutesProps) {
       return <IntegratedSettlement user={user} />;
     case '/admin/new-integrated-settlement':
     case '/admin/settlement/new':
+      // ✅ 전체 레벨(1~6)에 노출
       return <NewIntegratedSettlement user={user} />;
     case '/admin/lv35-settlement':
     case '/admin/settlement/lv35':
     case '/admin/settlement/head-office':
-      return <Lv35Settlement user={user} />;
+      // ❌ 숨김 처리 (NewIntegratedSettlement로 통합)
+      return <NewIntegratedSettlement user={user} />;
     case '/admin/lv6-settlement':
     case '/admin/settlement/lv6':
     case '/admin/settlement/store':
-      return <Lv6Settlement user={user} />;
+      // ❌ 숨김 처리 (NewIntegratedSettlement로 통합)
+      return <NewIntegratedSettlement user={user} />;
     case '/admin/settlement-history':
     case '/admin/settlement/history':
       return <SettlementHistory user={user} />;

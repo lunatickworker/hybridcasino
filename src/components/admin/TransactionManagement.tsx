@@ -3173,30 +3173,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   수동 출금
                 </Button>
                 <Button
-                  onClick={() => setTransactionTypeFilter('partner_deposit')}
-                  variant={transactionTypeFilter === 'partner_deposit' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'partner_deposit' 
-                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
-                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
-                  )}
-                >
-                  파트너 충전
-                </Button>
-                <Button
-                  onClick={() => setTransactionTypeFilter('partner_withdrawal')}
-                  variant={transactionTypeFilter === 'partner_withdrawal' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'partner_withdrawal' 
-                      ? "bg-pink-500/30 border border-pink-400/50 hover:bg-pink-500/40 text-pink-100 shadow-lg" 
-                      : "bg-pink-500/10 border border-pink-400/20 hover:bg-pink-500/20 text-slate-300"
-                  )}
-                >
-                  파트너 환전
-                </Button>
-                <Button
                   onClick={() => setTransactionTypeFilter('admin_request_deposit')}
                   variant={transactionTypeFilter === 'admin_request_deposit' ? 'default' : 'outline'}
                   className={cn(
@@ -3218,7 +3194,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                       : "bg-pink-500/10 border border-pink-400/20 hover:bg-pink-500/20 text-slate-300"
                   )}
                 >
-                  관리자 출금요청
+                  온라인출금신청
                 </Button>
                 <Button
                   onClick={() => setTransactionTypeFilter('point_give')}

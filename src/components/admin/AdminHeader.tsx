@@ -623,33 +623,45 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           }
 
           // ✅ 파트너 입금 신청: 최종 Lv2(받는사람)에만 리스트 표시
-          let adminDepositQuery = supabase
-            .from('transactions')
-            .select('id', { count: 'exact', head: true })
-            .in('transaction_type', ['partner_deposit_request'])
-            .eq('status', 'pending');
-
-          // ✅ Lv2만 입금신청을 받음 (to_partner_id = Lv2)
+          let adminDepositCount = 0;
           if (user.level === 2) {
-            adminDepositQuery = adminDepositQuery.eq('to_partner_id', user.id);
+            // Lv2: 자신이 받는 입금신청만
+            const { count, error } = await supabase
+              .from('transactions')
+              .select('id', { count: 'exact', head: true })
+              .in('transaction_type', ['partner_deposit_request'])
+              .eq('status', 'pending')
+              .eq('to_partner_id', user.id);
+            
+            if (error) {
+              console.error('❌ 파트너 입금 대기 수 조회 실패:', error);
+            } else {
+              adminDepositCount = count || 0;
+            }
           } else if (user.level === 1) {
-            // Lv1: 직속 Lv2들의 입금신청만 조회 (to_partner_id = Lv2)
+            // Lv1: 직속 Lv2들의 입금신청만 조회
             const { data: lv2Partners } = await supabase
               .from('partners')
               .select('id')
               .eq('level', 2);
             const lv2Ids = lv2Partners?.map(p => p.id) || [];
-            adminDepositQuery = adminDepositQuery.in('to_partner_id', lv2Ids.length > 0 ? lv2Ids : ['']);
-          } else {
-            // Lv3+는 입금신청 조회 안 함
-            adminDepositQuery = adminDepositQuery.eq('to_partner_id', 'nonexistent');
+            
+            if (lv2Ids.length > 0) {
+              const { count, error } = await supabase
+                .from('transactions')
+                .select('id', { count: 'exact', head: true })
+                .in('transaction_type', ['partner_deposit_request'])
+                .eq('status', 'pending')
+                .in('to_partner_id', lv2Ids);
+              
+              if (error) {
+                console.error('❌ 파트너 입금 대기 수 조회 실패:', error);
+              } else {
+                adminDepositCount = count || 0;
+              }
+            }
           }
-
-          const { count: adminDepositCount, error: adminDepositError } = await adminDepositQuery;
-
-          if (adminDepositError) {
-            console.error('❌ 파트너 입금 대기 수 조회 실패:', adminDepositError);
-          }
+          // Lv3+는 adminDepositCount = 0 (쿼리 실행 안 함)
 
           pendingDepositsCount = (userDepositCount || 0) + (adminDepositCount || 0);
           console.log('🔔 입금요청 대기 수 (조직격리 적용):', {
@@ -678,33 +690,45 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           }
 
           // ✅ 파트너 출금 신청: 최종 Lv2(받는사람)에만 리스트 표시
-          let adminWithdrawalQuery = supabase
-            .from('transactions')
-            .select('id', { count: 'exact', head: true })
-            .in('transaction_type', ['partner_withdrawal_request'])
-            .eq('status', 'pending');
-
-          // ✅ Lv2만 출금신청을 받음 (to_partner_id = Lv2)
+          let adminWithdrawalCount = 0;
           if (user.level === 2) {
-            adminWithdrawalQuery = adminWithdrawalQuery.eq('to_partner_id', user.id);
+            // Lv2: 자신이 받는 출금신청만
+            const { count, error } = await supabase
+              .from('transactions')
+              .select('id', { count: 'exact', head: true })
+              .in('transaction_type', ['partner_withdrawal_request'])
+              .eq('status', 'pending')
+              .eq('to_partner_id', user.id);
+            
+            if (error) {
+              console.error('❌ 파트너 출금 대기 수 조회 실패:', error);
+            } else {
+              adminWithdrawalCount = count || 0;
+            }
           } else if (user.level === 1) {
-            // Lv1: 직속 Lv2들의 출금신청만 조회 (to_partner_id = Lv2)
+            // Lv1: 직속 Lv2들의 출금신청만 조회
             const { data: lv2Partners } = await supabase
               .from('partners')
               .select('id')
               .eq('level', 2);
             const lv2Ids = lv2Partners?.map(p => p.id) || [];
-            adminWithdrawalQuery = adminWithdrawalQuery.in('to_partner_id', lv2Ids.length > 0 ? lv2Ids : ['']);
-          } else {
-            // Lv3+는 출금신청 조회 안 함
-            adminWithdrawalQuery = adminWithdrawalQuery.eq('to_partner_id', 'nonexistent');
+            
+            if (lv2Ids.length > 0) {
+              const { count, error } = await supabase
+                .from('transactions')
+                .select('id', { count: 'exact', head: true })
+                .in('transaction_type', ['partner_withdrawal_request'])
+                .eq('status', 'pending')
+                .in('to_partner_id', lv2Ids);
+              
+              if (error) {
+                console.error('❌ 파트너 출금 대기 수 조회 실패:', error);
+              } else {
+                adminWithdrawalCount = count || 0;
+              }
+            }
           }
-
-          const { count: adminWithdrawalCount, error: adminWithdrawalError } = await adminWithdrawalQuery;
-
-          if (adminWithdrawalError) {
-            console.error('❌ 파트너 출금 대기 수 조회 실패:', adminWithdrawalError);
-          }
+          // Lv3+는 adminWithdrawalCount = 0 (쿼리 실행 안 함)
 
           pendingWithdrawalsCount = (userWithdrawalCount || 0) + (adminWithdrawalCount || 0);
           console.log('🔔 출금요청 대기 수 (조직격리 적용):', {
@@ -831,8 +855,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               const isPartnerWithdrawalRequest = transaction.transaction_type === 'partner_withdrawal_request';
               
               if (isPartnerDepositRequest || isPartnerWithdrawalRequest) {
-                // ✅ 파트너 입출금 신청: 최종 Lv2(to_partner_id)에만 알림
-                const shouldNotify = transaction.to_partner_id === user.id || transaction.partner_id === user.id;
+                // ✅ 파트너 입출금 신청: 최종 Lv2(to_partner_id)에만 알림 (신청자 제외)
+                const shouldNotify = transaction.to_partner_id === user.id;
 
                 if (shouldNotify) {
                   const memo = transaction.memo || '';
@@ -2464,8 +2488,14 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 type="text"
                 value={requestAmount}
                 onChange={(e) => handleAmountChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && requestAmount && !isSubmittingRequest) {
+                    handleDepositRequest();
+                  }
+                }}
                 className="bg-slate-700 border-slate-600 text-white"
                 placeholder="입금할 금액을 입력하세요"
+                autoFocus
               />
             </div>
             <div className="text-sm text-slate-400 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
@@ -2511,8 +2541,14 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 type="text"
                 value={requestAmount}
                 onChange={(e) => handleAmountChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && requestAmount && !isSubmittingRequest) {
+                    handleWithdrawalRequest();
+                  }
+                }}
                 className="bg-slate-700 border-slate-600 text-white"
                 placeholder="출금할 금액을 입력하세요"
+                autoFocus
               />
             </div>
             <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-3 space-y-1">
