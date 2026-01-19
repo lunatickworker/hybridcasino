@@ -440,32 +440,19 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       return isRelevant && (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal_request');
     }).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ 수동 입금/출금: 관리자 입금/출금 (admin_deposit, admin_deposit_send, admin_withdrawal, admin_withdrawal_send)
-    const manualDepositFromTransactions = transactions.filter(t => 
-      t.transaction_type === 'admin_deposit' && 
-      t.status === 'completed' && 
-      (relevantUserIdsForTransactions.includes(t.user_id) || relevantUserIdsForTransactions.includes(t.partner_id))
-    ).reduce((sum, t) => sum + (t.amount || 0), 0);
-    
-    const manualDepositFromPartnerLogs = partnerBalanceLogs.filter(pl => 
+    // ✅ 수동 입금: partner_balance_logs만 사용 (admin_deposit_send)
+    // transactions 테이블의 admin_deposit은 partner_balance_logs에 중복 저장되므로 제외
+    const manualDeposit = partnerBalanceLogs.filter(pl => 
       pl.transaction_type === 'admin_deposit_send' &&
       (relevantUserIdsForTransactions.includes(pl.to_partner_id) || relevantUserIdsForTransactions.includes(pl.partner_id))
     ).reduce((sum, pl) => sum + (pl.amount || 0), 0);
     
-    const manualDeposit = manualDepositFromTransactions + manualDepositFromPartnerLogs;
-    
-    const manualWithdrawalFromTransactions = transactions.filter(t => 
-      t.transaction_type === 'admin_withdrawal' && 
-      t.status === 'completed' && 
-      (relevantUserIdsForTransactions.includes(t.user_id) || relevantUserIdsForTransactions.includes(t.partner_id))
-    ).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
-    
-    const manualWithdrawalFromPartnerLogs = partnerBalanceLogs.filter(pl => 
+    // ✅ 수동 출금: partner_balance_logs만 사용 (admin_withdrawal_send)
+    // transactions 테이블의 admin_withdrawal은 partner_balance_logs에 중복 저장되므로 제외
+    const manualWithdrawal = partnerBalanceLogs.filter(pl => 
       pl.transaction_type === 'admin_withdrawal_send' &&
       (relevantUserIdsForTransactions.includes(pl.to_partner_id) || relevantUserIdsForTransactions.includes(pl.partner_id))
     ).reduce((sum, pl) => sum + Math.abs(pl.amount || 0), 0);
-    
-    const manualWithdrawal = manualWithdrawalFromTransactions + manualWithdrawalFromPartnerLogs;
     
     const userPointTrans = pointTransactions.filter(pt => relevantUserIdsForTransactions.includes(pt.user_id));
     // ✅ 포인트 필터링: transaction_type 컬럼 사용 (earn = 지급, convert_to_balance = 회수)
@@ -579,8 +566,9 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     );
     
     // partner_balance_logs 변환 (모든 파트너 거래 - 수동 입출금 및 파트너 요청)
+    // admin_deposit_send는 제외 (수동입금에서 별도 계산)
     let mappedPartnerTransactions = partnerBalanceLogs
-      .filter(pt => ['admin_deposit_send', 'admin_withdrawal_send', 'partner_deposit', 'partner_withdrawal'].includes(pt.transaction_type))
+      .filter(pt => ['admin_withdrawal_send', 'partner_deposit', 'partner_withdrawal'].includes(pt.transaction_type))
       .map(pt => {
         // Lv1→Lv2: from_partner_id가 null이면, to_partner_id를 사용
         let partnerId;

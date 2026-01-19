@@ -271,7 +271,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         const partnerBalanceLogsQuery = supabase
           .from('partner_balance_logs')
           .select('id,transaction_id,transaction_type,amount,partner_id,from_partner_id,to_partner_id,created_at,processed_by,memo,balance_before,balance_after')
-          .in('transaction_type', ['admin_deposit', 'admin_withdrawal', 'commission', 'refund'])
+          .in('transaction_type', ['admin_deposit_send', 'admin_withdrawal_send', 'commission', 'refund'])
           .eq('to_partner_id', user.id)
           .gte('created_at', dateRange.from.toISOString())
           .lte('created_at', dateRange.to.toISOString());
@@ -410,24 +410,22 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         return kstDate >= dayStart && kstDate <= dayEnd;
       });
 
-      // 입출금 계산 - 사용자 직접 입금/출금만 (deposit/withdrawal)
-      const deposit = dayTransactions
-        .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
+      // 입출금 계산 - 사용자 직접 입금/출금만 (deposit/partner_deposit_request/withdrawal만 포함)
+      const depositTransactions = dayTransactions.filter(t => 
+        (t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit_request') && 
+        t.status === 'completed'
+      );
+      const deposit = depositTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
 
       const withdrawal = dayTransactions
         .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-      // 관리자 입금/출금: 수동 충전/환전 (admin_deposit, admin_deposit_send, admin_withdrawal, admin_withdrawal_send)
-      // transactions에서 admin_deposit/admin_withdrawal 조회
-      const adminDepositFromTransactions = dayTransactions
-        .filter(t => t.transaction_type === 'admin_deposit' && t.status === 'completed')
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
+      // 수동 입금/출금: 관리자 충전/환전만 (admin_deposit_send, admin_withdrawal_send)
+      // transactions 테이블 필터링 제거 - admin_deposit 미포함
+      const adminDepositFromTransactions = 0;
 
-      const adminWithdrawalFromTransactions = dayTransactions
-        .filter(t => t.transaction_type === 'admin_withdrawal' && t.status === 'completed')
-        .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+      const adminWithdrawalFromTransactions = 0;  // admin_withdrawal은 제외
 
       // admin_deposit_send와 admin_withdrawal_send 계산
       // Transactionrull.md 규칙 적용:

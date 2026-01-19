@@ -1823,28 +1823,88 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
     // 거래 기록 생성 (관리자 강제 입출금 타입 사용)
     const now = new Date().toISOString();
-    const { error: transactionError } = await supabase
+    const transactionId = crypto.randomUUID();
+    
+    // 회원의 소속 파트너 ID (직접 상위)
+    const referrerPartnerId = selectedUser.referrer_id;
+    console.log('📌 회원의 소속 파트너 ID:', referrerPartnerId);
+    
+    // Lv2 ID 찾기: referrer에서 시작해서 Lv2까지 탐색
+    let lv2PartnerId = null;
+    let currentPartnerId = referrerPartnerId;
+    
+    for (let i = 0; i < 10; i++) {  // 무한 루프 방지 (최대 10단계)
+      if (!currentPartnerId) break;
+      
+      const { data: partner, error: partnerError } = await supabase
+        .from('partners')
+        .select('id, level, parent_id')
+        .eq('id', currentPartnerId)
+        .single();
+      
+      if (partnerError) {
+        console.warn(`⚠️ 파트너 조회 실패 (${currentPartnerId}):`, partnerError);
+        break;
+      }
+      
+      if (partner?.level === 2) {
+        lv2PartnerId = partner.id;
+        console.log('✅ Lv2 ID 찾음:', lv2PartnerId);
+        break;
+      }
+      
+      currentPartnerId = partner?.parent_id;
+    }
+    
+    // 거래 레코드 1: 회원소속 파트너 ID
+    const { error: transactionError1 } = await supabase
       .from('transactions')
       .insert({
-        id: crypto.randomUUID(), // ✅ id 명시적 설정
+        id: transactionId,
         user_id: userId,
-        partner_id: user.id,
+        partner_id: referrerPartnerId,  // 회원소속 파트너 ID
         transaction_type: type === 'deposit' ? 'admin_deposit' : 'admin_withdrawal',
-        status: 'completed', // ✅ 강제 입출금은 즉시 완료 상태
+        status: 'completed',
         amount: type === 'deposit' ? amountNum : -amountNum,
         balance_before: selectedUser.balance,
         balance_after: balanceAfter,
-        updated_at: now, // ✅ updated_at도 설정
+        updated_at: now,
         external_response: apiResult.data,
-        from_partner_id: type === 'deposit' ? user.id : userId,  // ✅ 입금: 관리자가 보냄, 출금: 회원이 보냄
-        to_partner_id: type === 'deposit' ? userId : user.id     // ✅ 입금:회원이 받음, 출금: 관리자가 받음
+        from_partner_id: type === 'deposit' ? user.id : userId,
+        to_partner_id: type === 'deposit' ? userId : user.id
       });
 
-    if (transactionError) throw transactionError;
+    console.log('✅ 거래 레코드 1 생성:', transactionId, 'partner_id:', referrerPartnerId);
+    if (transactionError1) throw transactionError1;
+    
+    // 거래 레코드 2: Lv2 ID (Lv2가 있고 referrer와 다를 때만)
+    if (lv2PartnerId && lv2PartnerId !== referrerPartnerId) {
+      const transactionId2 = crypto.randomUUID();
+      const { error: transactionError2 } = await supabase
+        .from('transactions')
+        .insert({
+          id: transactionId2,
+          user_id: userId,
+          partner_id: lv2PartnerId,  // Lv2 ID
+          transaction_type: type === 'deposit' ? 'admin_deposit' : 'admin_withdrawal',
+          status: 'completed',
+          amount: type === 'deposit' ? amountNum : -amountNum,
+          balance_before: selectedUser.balance,
+          balance_after: balanceAfter,
+          updated_at: now,
+          external_response: apiResult.data,
+          from_partner_id: type === 'deposit' ? user.id : userId,
+          to_partner_id: type === 'deposit' ? userId : user.id
+        });
 
-    // ✅ 트리거가 자동으로 users.balance 업데이트 (251번 SQL)
-    // ✅ Realtime 이벤트 자동 발생 → UserHeader 즉시 업데이트
-    console.log('✅ transactions INSERT 완료 → 트리거가 users.balance 자동 업데이트');
+      console.log('✅ 거래 레코드 2 생성:', transactionId2, 'partner_id:', lv2PartnerId);
+      if (transactionError2) throw transactionError2;
+    } else {
+      console.log('⚠️ 거래 레코드 2 생성 안 함 (Lv2 없거나 같음):', { lv2PartnerId, referrerPartnerId });
+    }
+
+    // ✅ 트리거가 자동으로 users.balance 업데이트
+    console.log('✅ transactions INSERT 2개 완료 → 트리거가 users.balance 자동 업데이트');
 
     // ✅ Lv2~Lv6 관리자가 사용자에게 입출금하는 경우: GMS 머니(balance) 차감/증가
     if (user.level >= 2 && user.level <= 6) {
