@@ -457,9 +457,10 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       relevantUserIdsForTransactions.includes(t.partner_id)
     ).reduce((sum, t) => sum + (t.amount || 0), 0);
 
+    // ✅ admin_deposit_send는 partner_id 기준 필터링
     const manualDepositFromLogs = partnerBalanceLogs.filter(pl => 
       pl.transaction_type === 'admin_deposit_send' &&
-      (relevantUserIdsForTransactions.includes(pl.to_partner_id) || relevantUserIdsForTransactions.includes(pl.partner_id))
+      pl.partner_id && relevantUserIdsForTransactions.includes(pl.partner_id)
     ).reduce((sum, pl) => sum + (pl.amount || 0), 0);
 
     const manualDeposit = manualDepositFromLogs + manualDepositFromUserTransactions + manualDepositFromPartnerTransactions;
@@ -481,9 +482,10 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       relevantUserIdsForTransactions.includes(t.partner_id)
     ).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
+    // ✅ admin_withdrawal_send는 partner_id 기준 필터링
     const manualWithdrawalFromLogs = partnerBalanceLogs.filter(pl => 
       pl.transaction_type === 'admin_withdrawal_send' &&
-      (relevantUserIdsForTransactions.includes(pl.to_partner_id) || relevantUserIdsForTransactions.includes(pl.partner_id))
+      pl.partner_id && relevantUserIdsForTransactions.includes(pl.partner_id)
     ).reduce((sum, pl) => sum + Math.abs(pl.amount || 0), 0);
 
     const totalManualWithdrawal = manualWithdrawalFromLogs + manualWithdrawalFromUserTransactions + manualWithdrawalFromPartnerTransactions;

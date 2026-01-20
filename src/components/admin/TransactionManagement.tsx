@@ -1308,6 +1308,31 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         });
       }
 
+      // ⭐ 출금 승인 전에 잔고 확인 (transaction update 전에)
+      let preApprovedPartnerBalance = null;
+      if (action === 'approve' && transaction.partner_id && 
+          (transaction.transaction_type === 'partner_withdrawal' || transaction.transaction_type === 'partner_withdrawal_request')) {
+        const { data: requestPartnerData, error: requestPartnerError } = await supabase
+          .from('partners')
+          .select('balance, username, nickname')
+          .eq('id', transaction.partner_id)
+          .single();
+
+        if (requestPartnerError || !requestPartnerData) {
+          throw new Error('신청자 정보를 조회할 수 없습니다.');
+        }
+
+        const currentBalance = parseFloat(requestPartnerData.balance?.toString() || '0');
+        const newBalance = currentBalance - amount;
+        
+        // 부동소수점 오류 허용 (±0.01원)
+        if (newBalance < -0.01) {
+          throw new Error(`❌ 잔고 부족: 현재 보유금 ${currentBalance.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원에서 ${amount.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원을 출금할 수 없습니다.`);
+        }
+        
+        preApprovedPartnerBalance = requestPartnerData;
+      }
+
       // DB 상태 업데이트
       const updateData: any = {
         status: action === 'approve' ? 'completed' : 'rejected',
@@ -1330,23 +1355,27 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       if (error) throw error;
 
-      // ✅ 승인인 경우: 처리 로직 (사용자 입출금 vs 관리자 입출금)
+      // ✅ 승인인 경우: 처리 로직 (파트너 출입금 처리)
       if (action === 'approve') {
         const now = new Date().toISOString();
         
-        // ✅ 관리자 입출금 신청 처리
+        // ✅ 파트너 입출금 신청 처리
         if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_withdrawal' || transaction.transaction_type === 'partner_deposit_request' || transaction.transaction_type === 'partner_withdrawal_request') {
           const requestPartnerId = (transaction as any).partner_id;
           
-          // 신청자 현재 보유금 조회
-          const { data: requestPartnerData, error: requestPartnerError } = await supabase
-            .from('partners')
-            .select('balance, username, nickname')
-            .eq('id', requestPartnerId)
-            .single();
+          // 신청자 현재 보유금 조회 (이미 위에서 조회했으면 사용)
+          let requestPartnerData = preApprovedPartnerBalance;
+          if (!requestPartnerData) {
+            const { data: queryData, error: queryError } = await supabase
+              .from('partners')
+              .select('balance, username, nickname')
+              .eq('id', requestPartnerId)
+              .single();
 
-          if (requestPartnerError || !requestPartnerData) {
-            throw new Error('신청자 정보를 조회할 수 없습니다.');
+            if (queryError || !queryData) {
+              throw new Error('신청자 정보를 조회할 수 없습니다.');
+            }
+            requestPartnerData = queryData;
           }
 
           const currentBalance = parseFloat(requestPartnerData.balance?.toString() || '0');
@@ -1356,12 +1385,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             // 입금: 신청자 보유금 증가
             newBalance = currentBalance + amount;
           } else if (transaction.transaction_type === 'partner_withdrawal' || transaction.transaction_type === 'partner_withdrawal_request') {
-            // 출금: 신청자 보유금 차감
+            // 출금: 신청자 보유금 차감 (이미 위에서 잔고 확인했으므로 안전)
             newBalance = currentBalance - amount;
-            
-            if (newBalance < 0) {
-              throw new Error(`잔고가 음수가 될 수 없습니다. (현재: ${currentBalance}, 출금: ${amount})`);
-            }
           }
 
           // 신청자 보유금 업데이트

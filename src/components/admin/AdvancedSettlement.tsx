@@ -433,13 +433,11 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
       ).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
       // admin_deposit_send와 admin_withdrawal_send 계산
-      // Transactionrull.md 규칙 적용:
-      // - admin_deposit_send: 양수(수신자 perspective)만 더하기
-      // - admin_withdrawal_send: 음수(수신자 perspective)만 더하기
       const adminDepositFromPartnerBalanceLogs = 0;  // 수동 입금 필터링 제거
 
+      // ✅ 출금: partner_id 기준 필터링
       const adminWithdrawalFromPartnerBalanceLogs = dayPartnerBalanceLogs
-        .filter(l => l.transaction_type === 'admin_withdrawal_send' && Math.abs(l.amount || 0) > 0)
+        .filter(l => l.transaction_type === 'admin_withdrawal_send' && l.partner_id && Math.abs(l.amount || 0) > 0)
         .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
 
       // 🔍 디버깅
