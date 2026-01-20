@@ -378,22 +378,7 @@ export function PartnerTransferDialog({
 
             {/* 금액 */}
             <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="transfer-amount">금액</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleClearAmount}
-                  className={`h-7 px-2 text-xs text-slate-400 ${
-                    transferMode === 'deposit' 
-                      ? 'hover:text-orange-400 hover:bg-orange-500/10' 
-                      : 'hover:text-red-400 hover:bg-red-500/10'
-                  }`}
-                >
-                  전액삭제
-                </Button>
-              </div>
+              <Label htmlFor="transfer-amount">금액</Label>
               <Input
                 id="transfer-amount"
                 type="text"
@@ -423,6 +408,14 @@ export function PartnerTransferDialog({
                     +{amt >= 10000 ? `${amt / 10000}만` : `${amt / 1000}천`}
                   </Button>
                 ))}
+                {/* 전액삭제 버튼 - grid-cols-4 내에 마지막 위치 */}
+                <Button
+                  type="button"
+                  onClick={handleClearAmount}
+                  className="h-9 transition-all bg-red-600 border border-red-600 text-white hover:bg-red-700 hover:border-red-700 hover:shadow-[0_0_15px_rgba(220,38,38,0.3)] text-xs font-medium"
+                >
+                  전액삭제
+                </Button>
               </div>
             </div>
 

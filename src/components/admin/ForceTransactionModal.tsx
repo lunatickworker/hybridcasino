@@ -472,23 +472,16 @@ export function ForceTransactionModal({
                   +{amt >= 10000 ? `${amt / 10000}만` : `${amt / 1000}천`}
                 </Button>
               ))}
-            </div>
-          </div>
-
-          {/* 전액출금 버튼 (출금 시에만) */}
-          {type === 'withdrawal' && selectedTarget && (
-            <div className="grid gap-2">
+              {/* 전액삭제 버튼 - grid-cols-4 내에 마지막 위치 */}
               <Button
                 type="button"
-                variant="outline"
-                onClick={handleFullWithdrawal}
-                className="w-full h-10 text-base bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40 hover:border-red-500"
+                onClick={handleClearAmount}
+                className="h-10 text-base transition-all bg-red-600 border border-red-600 text-white hover:bg-red-700 hover:border-red-700 hover:shadow-[0_0_15px_rgba(220,38,38,0.3)] font-medium"
               >
-                <Trash2 className="h-5 w-5 mr-2" />
-                전액출금
+                전액삭제
               </Button>
             </div>
-          )}
+          </div>
 
           {/* 에러 메시지 */}
           {errorMessage && (
