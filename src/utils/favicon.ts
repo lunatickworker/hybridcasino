@@ -6,73 +6,52 @@
 export type FaviconType = 'admin' | 'user' | 'indo' | 'sample1' | 'benz';
 
 /**
- * 페이지 메타데이터 (Next.js의 pageMeta 구조 참고)
- * 각 라우트별 파비콘, 제목, 색상 정보 통합
+ * 페이지 메타데이터 (emoji 기반 SVG 동적 생성)
+ * 각 라우트별 제목, 이모지, 색상 정보 통합
  */
 export interface PageMeta {
   title: string;
   emoji: string;
   color: string;
-  favicon: string;
 }
 
 /**
  * 라우트별 페이지 메타데이터 매핑
- * 도메인 + 해시 라우트 모두 지원
+ * Vercel 배포 최적화: 런타임 SVG 생성으로 static 파일 불필요
+ * 개발: localhost#/benz/casino → BENZ 파비콘
+ * 배포: benz.example.com → BENZ 파비콘 (도메인 + 라우트 감지)
  */
 export const pageMeta: Record<FaviconType, PageMeta> = {
   admin: {
-    title: '관리자 시스템 | GMS dmin',
+    title: '관리자 시스템 | GMS Admin',
     emoji: '🔧',
-    color: '#6366f1',
-    favicon: 'admin'
+    color: '#6366f1'
   },
   user: {
     title: '사용자 포털 | GMS User',
     emoji: '👤',
-    color: '#10b981',
-    favicon: 'user'
+    color: '#10b981'
   },
   indo: {
     title: 'INDO CASINO | 최고의 카지노 경험',
     emoji: '🎰',
-    color: '#a855f7',
-    favicon: 'indo'
+    color: '#a855f7'
   },
   sample1: {
     title: 'Sample Casino | Gaming Platform',
     emoji: '🎮',
-    color: '#ec4899',
-    favicon: 'sample1'
+    color: '#ec4899'
   },
   benz: {
-    title: 'BENZ | Premium Casino',
+    title: 'BENZ | Premium Casino Platform',
     emoji: 'BENZ',
-    color: '#d4af37',
-    favicon: 'benz'
+    color: '#d4af37'
   }
 };
 
-// 이전 호환성을 위한 Favicon 이모지 매핑
-const FAVICON_EMOJIS = {
-  admin: pageMeta.admin.emoji,
-  user: pageMeta.user.emoji,
-  indo: pageMeta.indo.emoji,
-  sample1: pageMeta.sample1.emoji,
-  benz: pageMeta.benz.emoji,
-};
-
-// 이전 호환성을 위한 Favicon 색상 매핑
-const FAVICON_COLORS = {
-  admin: pageMeta.admin.color,
-  user: pageMeta.user.color,
-  indo: pageMeta.indo.color,
-  sample1: pageMeta.sample1.color,
-  benz: pageMeta.benz.color,
-};
-
 /**
- * 이모지를 SVG Data URL로 변환
+ * 이모지를 SVG Data URL로 변환 (Vercel 배포 최적화)
+ * 런타임에 SVG 생성하므로 static 파일 불필요
  */
 function emojiToDataUrl(emoji: string, bgColor: string): string {
   const svg = `
