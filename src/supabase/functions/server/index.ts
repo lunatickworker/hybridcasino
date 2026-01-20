@@ -472,11 +472,22 @@ async function syncOroplayBets(): Promise<any> {
       const completedBets = result.histories.filter((bet: any) => bet.status === 1);
       console.log(`   ✅ 완료된 배팅: ${completedBets.length}건`);
 
-      // 6. 이미 저장된 트랜잭션 ID 조회 (중복 제거) - CRITICAL: api_type도 함께 확인
+      // ⚠️ CRITICAL: 사용자 매핑을 먼저 하고 모든 referrer_id 수집
+      const userMap = new Map<string, any>();
+      const partnerIdsToCheck = new Set<string>();
+      lv2OrganizationUsers.forEach((u: any) => {
+        userMap.set(u.username, { id: u.id, referrer_id: u.referrer_id });
+        partnerIdsToCheck.add(u.referrer_id);
+      });
+
+      console.log(`   📊 userMap 생성됨: ${userMap.size}명, 조직 partner_id 목록: ${partnerIdsToCheck.size}개`);
+
+      // 6. 이미 저장된 트랜잭션 ID 조회 (중복 제거)
+      // ✅ FIX: 모든 가능한 partner_id로 조회 (조직 내 모든 파트너)
       const { data: existingOroplayRecords } = await supabase
         .from('game_records')
         .select('external_txid')
-        .eq('partner_id', lv2Partner.id)
+        .in('partner_id', Array.from(partnerIdsToCheck))
         .eq('api_type', 'oroplay');
 
       // ✅ 타입 변환: 모든 ID를 문자열로 통일하여 비교 (BigInt 안전성)
@@ -498,19 +509,15 @@ async function syncOroplayBets(): Promise<any> {
         continue;
       }
 
-      // 7. 사용자 매핑 (Lv2 조직 회원만)
-      const userMap = new Map<string, any>();
-      lv2OrganizationUsers.forEach((u: any) => {
-        userMap.set(u.username, { id: u.id, referrer_id: u.referrer_id });
-      });
-
-      console.log(`   📊 OroPlay userMap 생성됨: ${userMap.size}명`);
-
       // 8. game_records에 저장
       for (const bet of newCompletedBets) {
         try {
           const userInfo = userMap.get(bet.userCode);
           if (!userInfo) {
+            console.warn(`   ⚠️ [CRITICAL] 사용자 매핑 실패: "${bet.userCode}" (userMap 크기: ${userMap.size})`);
+            if (userMap.size > 0) {
+              console.warn(`   ⚠️ [DEBUG] userMap에 있는 username들:`, Array.from(userMap.keys()).slice(0, 5));
+            }
             continue;
           }
 
@@ -590,6 +597,7 @@ async function syncOroplayBets(): Promise<any> {
               totalErrors++;
             }
           } else {
+            console.log(`   ✅ 저장됨: txid="${bet.id}", user="${bet.userCode}", partner_id="${userInfo.referrer_id}", bet=${bet.betAmount}, win=${bet.winAmount}`);
             totalSynced++;
           }
 

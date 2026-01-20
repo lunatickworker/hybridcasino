@@ -394,6 +394,22 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     return allUsers_ids;
   };
 
+  // ✅ 모든 사용자 (직속, 간접 등) 의 게임 기록까지 포함 - partner_id 기준으로 필터링
+  const getAllRelatedUserIds = (partnerId: string, allPartners: any[], allUsers: any[]): string[] => {
+    // 1. 파트너 본인
+    let relatedIds = [partnerId];
+    
+    // 2. 본인의 직속 회원들 (referrer_id = partnerId)
+    const directUsers = allUsers.filter(u => u.referrer_id === partnerId).map(u => u.id);
+    relatedIds = relatedIds.concat(directUsers);
+    
+    // 3. 파트너 아래의 모든 간접 회원들 (통과 파트너들의 회원 포함)
+    const allDescendantUserIds = getAllDescendantUserIds(partnerId, allPartners, allUsers);
+    relatedIds = relatedIds.concat(allDescendantUserIds);
+    
+    return [...new Set(relatedIds)]; // 중복 제거
+  };
+
   const getAllDescendantPartnerIds = (partnerId: string, allPartners: any[]): string[] => {
     const directChildren = allPartners.filter(p => p.parent_id === partnerId);
     let allDescendants = directChildren.map(p => p.id);
@@ -408,21 +424,27 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
   ): SettlementRow => {
     // ✅ 수정: 각 파트너는 본인 + 본인 아래 모든 회원들의 데이터를 합산
     let relevantUserIdsForTransactions: string[] = [];
+    let relevantGameRecordUserIds: string[] = []; // 게임 기록용 필터링
 
     if (level >= 3 && level <= 6) {
       // ✅ 파트너 (Lv3-6): 본인 + 본인 아래의 모든 회원들 (직속 회원 + 간접 회원)
-      const allDescendantUserIds = getAllDescendantUserIds(entityId, users, partners);
+      const allDescendantUserIds = getAllDescendantUserIds(entityId, partners, users);
       relevantUserIdsForTransactions = [entityId, ...allDescendantUserIds];
+      // 게임 기록은 모든 관련 사용자 포함 (partner_id 기준)
+      relevantGameRecordUserIds = getAllRelatedUserIds(entityId, partners, users);
     } else if (level === 2) {
       // ✅ Lv2 (운영사): 본인 + 본인 아래의 모든 회원들
-      const allDescendantUserIds = getAllDescendantUserIds(entityId, users, partners);
+      const allDescendantUserIds = getAllDescendantUserIds(entityId, partners, users);
       relevantUserIdsForTransactions = [entityId, ...allDescendantUserIds];
+      relevantGameRecordUserIds = getAllRelatedUserIds(entityId, partners, users);
     } else if (level === 1) {
       // ✅ Lv1 (시스템관리자): 모든 회원들을 합산
       relevantUserIdsForTransactions = users.map(u => u.id);
+      relevantGameRecordUserIds = users.map(u => u.id);
     } else {
       // Lv0 회원: 본인 데이터만 계산
       relevantUserIdsForTransactions = [entityId];
+      relevantGameRecordUserIds = [entityId];
     }
     const userTransactions = transactions.filter(t => relevantUserIdsForTransactions.includes(t.user_id));
 
@@ -465,6 +487,15 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
 
     const manualDeposit = manualDepositFromLogs + manualDepositFromUserTransactions + manualDepositFromPartnerTransactions;
     
+    // ✅ 수동입금 디버깅: 데이터 크기 확인
+    console.log(`📊 [수동입금 분석] ${username}:`, {
+      manualDepositFromUserTransactions,
+      manualDepositFromPartnerTransactions,
+      manualDepositFromLogs,
+      manualDeposit: manualDeposit,
+      totalManualDepositCount: manualDepositFromLogs > 0 || manualDepositFromUserTransactions > 0 || manualDepositFromPartnerTransactions > 0 ? 1 : 0
+    });
+    
     // ✅ 수동 출금: 회원출금(user_id) + 파트너출금(partner_id) 분리
     // 회원에 대한 강제 출금: user_id로 필터링
     const manualWithdrawalFromUserTransactions = transactions.filter(t => 
@@ -496,14 +527,51 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const pointGiven = userPointTrans.filter(pt => pt.transaction_type === 'earn').reduce((sum, pt) => sum + (pt.amount || 0), 0);
     const pointRecovered = userPointTrans.filter(pt => pt.transaction_type === 'convert_to_balance').reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
-    // 본인의 게임 기록만 계산
-    const relevantGameRecords = gameRecords.filter(gr => relevantUserIdsForTransactions.includes(gr.user_id));
+    // ✅ 게임 기록 필터링: 관련 사용자 ID로 필터링 (partner hierarchy 포함)
+    const relevantGameRecords = gameRecords.filter(gr => relevantGameRecordUserIds.includes(gr.user_id));
+    
+    // ✅ 필터링 상세 디버깅
+    if (gameRecords.length > 0 && relevantGameRecordUserIds.length > 0) {
+      const matchingRecords = gameRecords.filter(gr => relevantGameRecordUserIds.includes(gr.user_id));
+      console.log(`🔍 [calculateRowData 필터링] ${username}:`, {
+        entityId,
+        level,
+        relevantUserIdsForTransactions: relevantUserIdsForTransactions.slice(0, 3),
+        relevantGameRecordUserIds: relevantGameRecordUserIds.slice(0, 3),
+        gameRecordsCount: gameRecords.length,
+        gameRecordUserIds: [...new Set(gameRecords.slice(0, 10).map(gr => gr.user_id))],
+        gameRecordsSample: gameRecords.slice(0, 2).map(gr => ({
+          user_id: gr.user_id,
+          username: gr.username,
+          bet_amount: gr.bet_amount,
+          game_type: gr.game_type
+        })),
+        isMatch: matchingRecords.length > 0,
+        matchCount: matchingRecords.length
+      });
+    }
+    
     const casinoBetRecords = relevantGameRecords.filter(gr => gr.game_type === 'casino');
     const slotBetRecords = relevantGameRecords.filter(gr => gr.game_type === 'slot');
     const casinoBet = Math.abs(casinoBetRecords.reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
     const casinoWin = casinoBetRecords.reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
     const slotBet = Math.abs(slotBetRecords.reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
     const slotWin = slotBetRecords.reduce((sum, gr) => sum + (gr.win_amount || 0), 0);
+    
+    // ✅ 모든 사용자의 게임 데이터 디버깅
+    console.log(`🎮 [calculateRowData] ${username} 게임 기록:`, {
+      entityId,
+      level,
+      relevantUserIdsForTransactions: relevantUserIdsForTransactions.slice(0, 3),
+      totalGameRecordsCount: gameRecords.length,
+      relevantGameRecordsCount: relevantGameRecords.length,
+      casinoBet,
+      casinoWin,
+      slotBet,
+      slotWin,
+      casinoBetRecordsCount: casinoBetRecords.length,
+      slotBetRecordsCount: slotBetRecords.length
+    });
     const casinoWinLoss = casinoBet - casinoWin;
     const slotWinLoss = slotBet - slotWin;
     const ggr = casinoWinLoss + slotWinLoss;
@@ -669,13 +737,30 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
         users = allUsers || [];
         visiblePartnerIdArray = (allPartners || []).map(p => p.id);
       } else if (userLevel === 6) {
-        // ✅ Lv6: 본인(파트너로 표시) + 직접 만든 회원들만 조회
+        // ✅ Lv6: 본인(파트너로 표시) + 직접 만든 회원들 + 하위 회원들 모두
         partners = [user];  // Lv6 본인을 파트너로 표시
         visiblePartnerIdArray = [user.id];
         
-        const { data: visibleUsers, error: usersError } = await supabase.from('users').select('*').eq('referrer_id', user.id).order('username', { ascending: true });
-        if (usersError) throw usersError;
-        users = visibleUsers || [];
+        // Lv6의 모든 하위 사용자 재귀 조회
+        const { data: allDescendantUsers } = await supabase
+          .from('users')
+          .select('id')
+          .eq('referrer_id', user.id);
+        
+        const descendantUserIds = allDescendantUsers?.map(u => u.id) || [];
+        
+        // 모든 사용자의 상세 정보 조회
+        if (descendantUserIds.length > 0) {
+          const { data: visibleUsers, error: usersError } = await supabase
+            .from('users')
+            .select('*')
+            .in('id', descendantUserIds)
+            .order('username', { ascending: true });
+          if (usersError) throw usersError;
+          users = visibleUsers || [];
+        } else {
+          users = [];
+        }
       } else {
         // ✅ Lv2+: 본인 + 하위 파트너와 하위 사용자만
         const visiblePartnerIds = new Set<string>([user.id]);
@@ -684,13 +769,40 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
         partners = (allPartners || []).filter(p => p.level > userLevel && visiblePartnerIds.has(p.id));
         visiblePartnerIdArray = Array.from(visiblePartnerIds);
         
-        const { data: visibleUsers, error: usersError } = await supabase.from('users').select('*').in('referrer_id', visiblePartnerIdArray).order('username', { ascending: true });
-        if (usersError) throw usersError;
-        users = visibleUsers || [];
+        // ✅ FIX: 모든 하위 사용자를 재귀적으로 조회 (직속 회원만 아님)
+        const allDescendantUserIds: string[] = [];
+        for (const partnerId of visiblePartnerIdArray) {
+          const { data: usersForPartner, error: usersError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('referrer_id', partnerId);
+          if (usersError) throw usersError;
+          allDescendantUserIds.push(...(usersForPartner?.map(u => u.id) || []));
+        }
+        
+        // 모든 사용자의 상세 정보 조회
+        if (allDescendantUserIds.length > 0) {
+          const { data: visibleUsers, error: usersError } = await supabase
+            .from('users')
+            .select('*')
+            .in('id', allDescendantUserIds)
+            .order('username', { ascending: true });
+          if (usersError) throw usersError;
+          users = visibleUsers || [];
+        } else {
+          users = [];
+        }
       }
+            const targetUserIds = [...(users?.map(u => u.id) || []), ...(partners?.map(p => p.id) || [])];
       
-      const targetUserIds = [...(users?.map(u => u.id) || []), ...(partners?.map(p => p.id) || [])];
-      
+      console.log('👥 [Users 조회 결과] 상세 디버깅:', {
+        userLevel,
+        usersCount: users.length,
+        partnersCount: partners.length,
+        visiblePartnerIdArray,
+        userIdsSample: users.map(u => u.username).slice(0, 5),
+        targetUserIds: targetUserIds.length
+      });
       
       // ✅ 모든 데이터 조회
       let transactionsQuery = supabase.from('transactions').select('*');
@@ -757,6 +869,23 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
         const { data: grData, error: gameError } = await gameRecordsQuery;
         if (gameError) throw gameError;
         gameRecords = grData || [];
+        
+        // ✅ 게임 기록 디버깅
+        console.log('🎮 [GameRecords 조회 후] 상세 디버깅:', {
+          userOnlyIdsLength: userOnlyIds.length,
+          userOnlyIds: userOnlyIds.slice(0, 3),
+          dateRange: { from: dateRange.from.toISOString(), to: dateRange.to.toISOString() },
+          gameRecordsCount: gameRecords.length,
+          gameRecordsSample: gameRecords.slice(0, 2).map(gr => ({
+            user_id: gr.user_id,
+            game_type: gr.game_type,
+            bet_amount: gr.bet_amount,
+            win_amount: gr.win_amount,
+            played_at: gr.played_at
+          })),
+          casinoCount: gameRecords.filter(gr => gr.game_type === 'casino').length,
+          slotCount: gameRecords.filter(gr => gr.game_type === 'slot').length
+        });
       }
       
       console.log('🔍 [NewIntegratedSettlement] 포인트 조회 결과:', {
@@ -775,6 +904,18 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
         slotBets: gameRecords?.filter(gr => gr.game_type === 'slot').length || 0,
         dateRange: { from: dateRange.from.toISOString(), to: dateRange.to.toISOString() }
       });
+      
+      // ✅ 게임 기록 샘플 확인
+      if (gameRecords && gameRecords.length > 0) {
+        console.log('🎮 [게임 기록 샘플 - 첫 3개]:', gameRecords.slice(0, 3).map(gr => ({
+          user_id: gr.user_id,
+          username: gr.username,
+          game_type: gr.game_type,
+          bet_amount: gr.bet_amount,
+          win_amount: gr.win_amount,
+          played_at: gr.played_at
+        })));
+      }
       
       // ✅ TransactionManagement와 동일한 completedTransactions 생성 (입출금 + 포인트)
       const completedTransactions = getCompletedTransactionsForSettlement(
@@ -1044,14 +1185,14 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
                         <td className="px-4 py-3 text-center text-slate-200 font-asiahead whitespace-nowrap overflow-hidden">{row.username}</td>
                         <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-cyan-400 font-asiahead">{row.casinoRollingRate}%</div><div className="flex-1 text-purple-400 font-asiahead">{row.slotRollingRate}%</div><div className="flex-1 text-orange-400 font-asiahead">{row.casinoLosingRate}%</div></div></td>
                         {row.level === 2 && <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-slate-300 font-asiahead">{formatNumber(row.balance)}</div><div className="flex-1 text-cyan-400 font-asiahead">{formatNumber(row.points)}</div></div></td>}
-                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-emerald-400 font-asiahead">{formatNumber(row.onlineDeposit)}</div><div className="flex-1 text-rose-400 font-asiahead">{formatNumber(-row.onlineWithdrawal)}</div></div></td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-emerald-400 font-asiahead">{formatNumber(row.manualDeposit)}</div><div className="flex-1 text-rose-400 font-asiahead">{formatNumber(row.manualWithdrawal)}</div></div></td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-emerald-400 font-asiahead">{formatNumber(row.onlineDeposit)}</div><div className="flex-1 text-rose-400 font-asiahead">{formatNumber(row.onlineWithdrawal === 0 ? 0 : -row.onlineWithdrawal)}</div></div></td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-emerald-400 font-asiahead">{formatNumber(row.manualDeposit)}</div><div className="flex-1 text-rose-400 font-asiahead">{formatNumber(row.manualWithdrawal === 0 ? 0 : -Math.abs(row.manualWithdrawal))}</div></div></td>
                         <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-blue-400 font-asiahead">{formatNumber(row.pointGiven)}</div><div className="flex-1 text-orange-400 font-asiahead">{formatNumber(row.pointRecovered)}</div></div></td>
                         <td className={cn("px-6 py-3 text-center font-asiahead whitespace-nowrap overflow-hidden min-w-[130px]", row.depositWithdrawalDiff >= 0 ? "text-emerald-400" : "text-rose-400")}>{formatNumber(row.depositWithdrawalDiff)}</td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex gap-0.5"><div className="text-center text-cyan-400 font-asiahead py-1 px-1 border-r border-slate-700/50 text-xs flex-1">{formatNumber(row.casinoBet)}</div><div className="text-center text-purple-400 font-asiahead py-1 px-1 border-r border-slate-700/50 text-xs flex-1">{formatNumber(row.casinoWin)}</div><div className="text-center text-cyan-400 font-asiahead py-1 px-1 border-r border-slate-700/50 text-xs flex-1">{formatNumber(row.slotBet)}</div><div className="text-center text-purple-400 font-asiahead py-1 px-1 text-xs flex-1">{formatNumber(row.slotWin)}</div></div></td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex gap-0.5"><div className="text-center text-cyan-400 font-asiahead py-1 px-1 border-r border-slate-700/50 flex-1">{formatNumber(row.casinoBet)}</div><div className="text-center text-purple-400 font-asiahead py-1 px-1 border-r border-slate-700/50 flex-1">{formatNumber(row.casinoWin)}</div><div className="text-center text-cyan-400 font-asiahead py-1 px-1 border-r border-slate-700/50 flex-1">{formatNumber(row.slotBet)}</div><div className="text-center text-purple-400 font-asiahead py-1 px-1 flex-1">{formatNumber(row.slotWin)}</div></div></td>
                         <td className="px-6 py-3 text-center text-amber-400 font-asiahead whitespace-nowrap overflow-hidden min-w-[130px]">{formatNumber(row.ggr)}</td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex gap-0.5"><div className="flex-1 px-1 border-r border-slate-700/50 text-teal-400 font-asiahead text-xs">{formatNumber(row.totalRolling)}</div><div className="flex-1 px-1 border-r border-slate-700/50 text-teal-400 font-asiahead text-xs">{formatNumber(row.cutRollingAmount)}</div><div className="flex-1 px-1 text-teal-400 font-asiahead text-xs">{formatNumber(row.totalLosing)}</div></div></td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex gap-0.5"><div className="flex-1 px-1 border-r border-slate-700/50 text-green-400 font-asiahead font-semibold text-xs">{formatNumber(row.individualRolling)}</div><div className="flex-1 px-1 text-green-400 font-asiahead font-semibold text-xs">{formatNumber(row.individualLosing)}</div></div></td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex gap-0.5"><div className="flex-1 px-1 border-r border-slate-700/50 text-teal-400 font-asiahead">{formatNumber(row.totalRolling)}</div><div className="flex-1 px-1 border-r border-slate-700/50 text-teal-400 font-asiahead">{formatNumber(row.cutRollingAmount)}</div><div className="flex-1 px-1 text-teal-400 font-asiahead">{formatNumber(row.totalLosing)}</div></div></td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex gap-0.5"><div className="flex-1 px-1 border-r border-slate-700/50 text-green-400 font-asiahead font-semibold">{formatNumber(row.individualRolling)}</div><div className="flex-1 px-1 text-green-400 font-asiahead font-semibold">{formatNumber(row.individualLosing)}</div></div></td>
 
 
                       </tr>

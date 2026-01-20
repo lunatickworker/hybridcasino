@@ -48,7 +48,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [bettingRecords, setBettingRecords] = useState<BettingRecord[]>([]);
-  const [dateFilter, setDateFilter] = useState("today"); // ✅ 기본값을 "오늘"로 변경
+  const [dateFilter, setDateFilter] = useState(""); // ✅ 기본값을 빈 문자열 (전체 기간)
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
@@ -191,12 +191,21 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         .select('*');
 
       if (user.level === 1) {
-        // 시스템관리자: 모든 데이터 조회 가능
-        if (allowedPartnerIds.length > 0) {
-          query = query.in('partner_id', allowedPartnerIds);
-        }
-        console.log('🔍 System Admin: Query all partner data');
+        // 시스템관리자: 모든 데이터 조회 가능 (필터링 없음)
+        console.log('🔍 System Admin: Query ALL game records (no filter)');
       } else {
+        // 🔴 먼저 조직 내 모든 게임 기록이 있는지 확인
+        const { data: allOrgRecords, count: allOrgCount } = await supabase
+          .from('game_records')
+          .select('id', { count: 'exact' })
+          .in('partner_id', allowedPartnerIds)
+          .limit(1);
+        
+        console.log('🔍 [DEBUG] 조직 내 game_records (partner_id 기준):', allOrgCount, '건');
+        if (allOrgRecords && allOrgRecords.length > 0) {
+          console.log('🔍 [DEBUG] 첫 번째 레코드 존재');
+        }
+        
         // Regular admin: filter by child user IDs
         const { data: usersData } = await supabase
           .from('users')
@@ -205,15 +214,17 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         
         const userIds = usersData?.map(u => u.id) || [];
         console.log('👤 하위 회원 ID 개수:', userIds.length);
+        console.log('👤 allowedPartnerIds:', allowedPartnerIds);
+        console.log('👤 usersData:', usersData);
         
         if (userIds.length > 0) {
           query = query.in('user_id', userIds);
-          console.log('🔍 Query with user IDs filter');
+          console.log('🔍 Query with user IDs filter:', userIds);
         } else {
-          // 하위 회원이 없으면 빈 결과 반환
-          console.log('⚠️ 하위 회원이 없습니다.');
-          setBettingRecords([]);
-          return;
+          // ✅ FIX: 하위 회원이 없으면 partner_id로 직접 조회
+          console.log('⚠️ 하위 회원이 없습니다. partner_id로 직접 조회...');
+          query = query.in('partner_id', allowedPartnerIds);
+          console.log('🔍 Query with partner IDs filter:', allowedPartnerIds);
         }
       }
       
@@ -229,6 +240,11 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         .order('played_at', { ascending: false })
         .order('external_txid', { ascending: false })
         .limit(1000);
+
+      console.log('🔍 [BettingHistory] 최종 쿼리 실행 전:');
+      console.log('   - user.level:', user.level);
+      console.log('   - dateRange:', dateRange);
+      console.log('   - query 객체:', query);
 
       const { data, error } = await query;
 

@@ -10,6 +10,7 @@ import { getUserBalanceWithConfig } from "../../lib/investApi";
 import { publicAnonKey } from "../../utils/supabase";
 import { syncBalanceOnSessionEnd } from "../../lib/gameApi";
 import { updateFaviconByRoute } from "../../utils/favicon"; // ✅ 파비콘 업데이트 import
+import { startGameRecordsSync, stopGameRecordsSync } from "../../lib/gameRecordsSync"; // ✅ 베팅 기록 주기 동기화
 
 interface BenzLayoutProps {
   user: any;
@@ -40,6 +41,21 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   const isMountedRef = useRef(true);
   const inactivityTimerRef = useRef<NodeJS.Timeout>(); // ⏰ 비활성 타이머
   const previousRouteRef = useRef(currentRoute); // ✅ 이전 라우트 추적
+
+  // ==========================================================================
+  // 게임 기록 주기 동기화 시작
+  // ==========================================================================
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('🚀 [BenzLayout] 게임 기록 주기 동기화 시작 (partnerId:', user.id, ')');
+    startGameRecordsSync(user.id);
+
+    return () => {
+      console.log('🛑 [BenzLayout] 게임 기록 주기 동기화 중지');
+      stopGameRecordsSync();
+    };
+  }, [user?.id]);
 
   // ==========================================================================
   // 화면 크기 감지

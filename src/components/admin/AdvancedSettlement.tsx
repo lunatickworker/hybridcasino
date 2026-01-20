@@ -206,28 +206,55 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         console.log('✅ 허용된 회원:', allowedUserIds.length, '개');
       }
 
-      // 2. 거래 데이터 조회
-      let transactionsQuery = supabase
-        .from('transactions')
-        .select('*')
-        .gte('created_at', dateRange.from.toISOString())
-        .lte('created_at', dateRange.to.toISOString());
-
+      // 2. 거래 데이터 조회 - 청크 단위로 분할 처리
+      let allTransactions: any[] = [];
+      const CHUNK_SIZE = 50;
+      
       // Lv2~Lv6: 모두 파트너 - 본인(partner_id) 또는 하위 회원들(user_id) 또는 from_partner_id/to_partner_id
       if (allowedUserIds.length > 0) {
-        transactionsQuery = transactionsQuery.or(
-          `user_id.in.(${allowedUserIds.join(',')}),partner_id.in.(${allowedPartnerIds.join(',')}),from_partner_id.in.(${allowedPartnerIds.join(',')}),to_partner_id.in.(${allowedPartnerIds.join(',')})`
-        );
+        // 사용자 ID로 먼저 조회
+        for (let i = 0; i < allowedUserIds.length; i += CHUNK_SIZE) {
+          const chunk = allowedUserIds.slice(i, i + CHUNK_SIZE);
+          const { data } = await supabase
+            .from('transactions')
+            .select('*')
+            .gte('created_at', dateRange.from.toISOString())
+            .lte('created_at', dateRange.to.toISOString())
+            .in('user_id', chunk);
+          if (data) allTransactions.push(...data);
+        }
+        
+        // 파트너 ID로 조회 (user_id가 없는 경우)
+        for (let i = 0; i < allowedPartnerIds.length; i += CHUNK_SIZE) {
+          const chunk = allowedPartnerIds.slice(i, i + CHUNK_SIZE);
+          const { data } = await supabase
+            .from('transactions')
+            .select('*')
+            .gte('created_at', dateRange.from.toISOString())
+            .lte('created_at', dateRange.to.toISOString())
+            .in('partner_id', chunk);
+          if (data) allTransactions.push(...data);
+        }
       } else {
-        transactionsQuery = transactionsQuery.or(
-          `partner_id.in.(${allowedPartnerIds.join(',')}),from_partner_id.in.(${allowedPartnerIds.join(',')}),to_partner_id.in.(${allowedPartnerIds.join(',')})`
-        );
+        // 파트너 ID만으로 조회
+        for (let i = 0; i < allowedPartnerIds.length; i += CHUNK_SIZE) {
+          const chunk = allowedPartnerIds.slice(i, i + CHUNK_SIZE);
+          const { data } = await supabase
+            .from('transactions')
+            .select('*')
+            .gte('created_at', dateRange.from.toISOString())
+            .lte('created_at', dateRange.to.toISOString())
+            .in('partner_id', chunk);
+          if (data) allTransactions.push(...data);
+        }
       }
+      
+      // 중복 제거
+      const uniqueTransactions = Array.from(
+        new Map(allTransactions.map((t: any) => [t.id, t])).values()
+      );
 
-      const { data: transactions, error: transError } = await transactionsQuery;
-
-      if (transError) throw transError;
-      console.log('✅ 거래 데이터:', transactions?.length || 0, '개');
+      console.log('✅ 거래 데이터:', uniqueTransactions.length, '개');
 
       // 3. 포인트 거래 (본인 + 하위 회원)
       const { data: pointTransactions, error: pointError } = await supabase
@@ -323,7 +350,7 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
       const rows = await processDailySettlementData(
         dateRange.from,
         dateRange.to,
-        transactions || [],
+        uniqueTransactions || [],
         pointTransactions || [],
         gameRecords || [],
         partnerBalanceLogs || [],
