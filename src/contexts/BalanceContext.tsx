@@ -432,27 +432,7 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
     loadBalanceFromDB();
   }, [user?.id, loadBalanceFromDB]);
 
-  // ⭐ 주기적 balance 동기화 (Realtime 이벤트 백업)
-  useEffect(() => {
-    if (!user?.id) return;
-
-    console.log('⏰ [BalanceContext] 주기적 balance 동기화 시작 (10초마다)');
-    
-    const interval = setInterval(() => {
-      console.log('🔄 [BalanceContext] 주기적 balance 동기화 수행');
-      if (user.level === 1) {
-        // Lv1은 API 동기화는 하지 않고 DB만 로드
-        loadBalanceFromDB();
-      } else {
-        loadBalanceFromDB();
-      }
-    }, 10000); // 10초마다 동기화
-
-    return () => {
-      console.log('⏰ [BalanceContext] 주기적 동기화 중지');
-      clearInterval(interval);
-    };
-  }, [user?.id, loadBalanceFromDB]);
+  // ❌ 주기적 balance 동기화 제거 (GMS 머니는 동기화 불필요, Realtime 이벤트만 사용)
 
   useEffect(() => {
     if (!user?.id) return;

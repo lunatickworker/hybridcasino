@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
@@ -147,6 +147,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const [displayBalance, setDisplayBalance] = useState<number>(balance);
+  const previousBalanceRef = useRef<number>(balance); // ✅ 이전 balance 값 추적
 
   // =====================================================
   // 알림 개수 로드
@@ -1139,13 +1140,13 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     };
   }, [user.id]);
 
-  // ⭐ balance 변경 감지 및 실시간 업데이트
+  // ⭐ balance 변경 감지 및 실시간 업데이트 (깜박임 방지)
   useEffect(() => {
-    console.log('💰 [AdminHeader] Balance 변경 감지:', {
-      context_balance: balance,
-      display_balance: displayBalance
-    });
-    setDisplayBalance(balance);
+    // 실제로 값이 변경되었을 때만 업데이트
+    if (balance !== previousBalanceRef.current) {
+      previousBalanceRef.current = balance;
+      setDisplayBalance(balance);
+    }
   }, [balance]);
 
   // 베팅 알림 상태
