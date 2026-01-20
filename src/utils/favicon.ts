@@ -46,7 +46,7 @@ export const pageMeta: Record<FaviconType, PageMeta> = {
     favicon: 'sample1'
   },
   benz: {
-    title: 'BENZ | Premium Casino Platform',
+    title: 'BENZ | Premium Casino',
     emoji: 'BENZ',
     color: '#d4af37',
     favicon: 'benz'
