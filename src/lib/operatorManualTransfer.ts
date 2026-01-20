@@ -546,7 +546,6 @@ async function createPartnerTransactionRecord(
 
     return data[1].id;
   }
-  }
 
   // Lv1→Lv2 출금: 송신자(Lv1), 수신자(Lv2) 2개 로그 생성
   if (isLv1ToLv2 && params.type === 'withdrawal') {

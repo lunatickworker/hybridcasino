@@ -689,46 +689,36 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             console.error('❌ 사용자 출금 대기 수 조회 실패:', userWithdrawalError);
           }
 
-          // ✅ 파트너 출금 신청: 최종 Lv2(받는사람)에만 리스트 표시
+          // ✅ 파트너 출금 신청: Lv2만 조회
           let adminWithdrawalCount = 0;
           if (user.level === 2) {
             // Lv2: 자신이 받는 출금신청만
-            const { count, error } = await supabase
+            console.log('🔍 Lv2 ID:', user.id);
+            
+            // to_partner_id 필터 없이 데이터 확인
+            const { data: dataNoFilter } = await supabase
               .from('transactions')
-              .select('id', { count: 'exact', head: true })
-              .in('transaction_type', ['partner_withdrawal_request'])
+              .select('id, to_partner_id, transaction_type, status')
+              .eq('transaction_type', 'partner_withdrawal_request')
+              .eq('status', 'pending');
+            
+            console.log('📊 DB 실제 레코드:', {
+              to_partner_id: dataNoFilter?.[0]?.to_partner_id,
+              userIdMatch: dataNoFilter?.[0]?.to_partner_id === user.id
+            });
+            
+            // to_partner_id 필터 적용
+            const { count, data } = await supabase
+              .from('transactions')
+              .select('id')
+              .eq('transaction_type', 'partner_withdrawal_request')
               .eq('status', 'pending')
               .eq('to_partner_id', user.id);
             
-            if (error) {
-              console.error('❌ 파트너 출금 대기 수 조회 실패:', error);
-            } else {
-              adminWithdrawalCount = count || 0;
-            }
-          } else if (user.level === 1) {
-            // Lv1: 직속 Lv2들의 출금신청만 조회
-            const { data: lv2Partners } = await supabase
-              .from('partners')
-              .select('id')
-              .eq('level', 2);
-            const lv2Ids = lv2Partners?.map(p => p.id) || [];
-            
-            if (lv2Ids.length > 0) {
-              const { count, error } = await supabase
-                .from('transactions')
-                .select('id', { count: 'exact', head: true })
-                .in('transaction_type', ['partner_withdrawal_request'])
-                .eq('status', 'pending')
-                .in('to_partner_id', lv2Ids);
-              
-              if (error) {
-                console.error('❌ 파트너 출금 대기 수 조회 실패:', error);
-              } else {
-                adminWithdrawalCount = count || 0;
-              }
-            }
+            adminWithdrawalCount = count || 0;
+            console.log('✅ 최종 대기:', adminWithdrawalCount);
           }
-          // Lv3+는 adminWithdrawalCount = 0 (쿼리 실행 안 함)
+          // Lv1, Lv3+는 adminWithdrawalCount = 0
 
           pendingWithdrawalsCount = (userWithdrawalCount || 0) + (adminWithdrawalCount || 0);
           console.log('🔔 출금요청 대기 수 (조직격리 적용):', {
@@ -1445,8 +1435,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           balance_after: balance, // 승인 전까지는 동일
           created_at: new Date().toISOString(),
           memo: `[관리자 출금신청] ${user.nickname || user.username} → 본사`,
-          from_partner_id: lv2PartnerId, // ✅ 보낸사람 (본사/Lv2)
-          to_partner_id: user.id         // ✅ 받는사람 (신청자)
+          from_partner_id: user.id,      // ✅ 신청자 (본인/Lv3+)
+          to_partner_id: lv2PartnerId    // ✅ 받는사람 (Lv2)
         })
         .select()
         .single();

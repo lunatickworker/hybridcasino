@@ -306,7 +306,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             
             // 필터 적용: Lv1(필터 없음) / Lv2+(자신의 거래만)
             if (user.level > 1) {
-              transactionsQ = transactionsQ.eq('to_partner_id', user.id);
+              // ✅ partner_withdrawal_request는 partner_id로, 다른 거래는 to_partner_id로 필터
+              transactionsQ = transactionsQ.or(`partner_id.eq.${user.id},to_partner_id.eq.${user.id}`);
             }
             
             const transRes = await transactionsQ;
@@ -408,10 +409,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           }
         })();
       } else if (activeTab === 'deposit-request' || activeTab === 'withdrawal-request') {
-        // 📋 입금신청/출금신청: pending 상태만
+        // 📋 입금신청/출금신청: pending 및 rejected 상태 (Lv3+가 자신의 요청 이력을 볼 수 있도록)
         transactionsResultPromise = (async () => {
           try {
-            let query = baseTransactionQuery.eq('status', 'pending');
+            // ✅ Lv3+는 자신의 pending + rejected 요청을 봄
+            // Lv1-2는 pending만 봄 (관리자 화면)
+            const statuses = (user.level > 2) ? ['pending', 'rejected'] : ['pending'];
+            let query = baseTransactionQuery.in('status', statuses);
             
             // 거래 타입 필터: 회원 거래 + 파트너 거래
             const txnTypes = activeTab === 'deposit-request' 
@@ -428,27 +432,27 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                 query = query.in('partner_id', partnerIds);
               }
             } else if (user.level > 2) {
-              // ✅ Lv3+: 본인 신청은 봄, 다른 파트너 신청은 파트너_입출금만 봄 (조직격리)
+              // ✅ Lv3+: 본인 신청(pending + rejected)은 봄
               // (partner_deposit_request/partner_withdrawal_request는 신청자(partner_id)가 본인인 경우만 조회)
               const partnerFilter = supabase
                 .from('transactions')
                 .select('*')
-                .eq('status', 'pending')
+                .in('status', statuses)
                 .in('transaction_type', txnTypes);
               
               // 복잡한 OR 조건: 
               // (partner_id = 본인) OR (partner_id != 본인 AND transaction_type = 'deposit'/'withdrawal')
               // → 두 개 쿼리로 분리
               
-              // 1. 본인이 보낸 모든 요청
+              // 1. 본인이 보낸 모든 요청 (pending + rejected)
               const ownRequests = await supabase
                 .from('transactions')
                 .select('*')
-                .eq('status', 'pending')
+                .in('status', statuses)
                 .in('transaction_type', txnTypes)
                 .eq('partner_id', user.id);
               
-              // 2. 다른 파트너의 회원 입출금만
+              // 2. 다른 파트너의 회원 입출금만 (pending만)
               const othersUserTransactions = await supabase
                 .from('transactions')
                 .select('*')
@@ -469,11 +473,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             
             const result = await query;
             
-            console.log('🔍 [pending] 최종 결과:', {
+            console.log('🔍 [pending-request] 최종 결과:', {
               activeTab,
               count: (result.data || []).length,
               user_level: user.level,
-              user_id: user.id
+              user_id: user.id,
+              statuses
             });
             
             return result;
@@ -2079,17 +2084,23 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     return searchTerm === '' || String(t.user?.nickname || '').toLowerCase().includes(searchLower);
   };
 
-  const depositRequests = transactions.filter(t => 
-    (t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit_request') && 
-    t.status === 'pending' &&
-    filterBySearch(t)
-  );
+  const depositRequests = transactions.filter(t => {
+    const isRelevantType = t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit_request';
+    // Lv3+는 pending + rejected 모두 봄, Lv1-2는 pending만 봄
+    const isRelevantStatus = user.level > 2 
+      ? (t.status === 'pending' || t.status === 'rejected')
+      : (t.status === 'pending');
+    return isRelevantType && isRelevantStatus && filterBySearch(t);
+  });
 
-  const withdrawalRequests = transactions.filter(t => 
-    (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal_request') && 
-    t.status === 'pending' &&
-    filterBySearch(t)
-  );
+  const withdrawalRequests = transactions.filter(t => {
+    const isRelevantType = t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal_request';
+    // Lv3+는 pending + rejected 모두 봄, Lv1-2는 pending만 봄
+    const isRelevantStatus = user.level > 2 
+      ? (t.status === 'pending' || t.status === 'rejected')
+      : (t.status === 'pending');
+    return isRelevantType && isRelevantStatus && filterBySearch(t);
+  });
 
   // 디버깅 로그
   if (activeTab === 'deposit-request') {
