@@ -145,7 +145,7 @@ export function detectFaviconTypeByDomain(): FaviconType {
  * 현재 경로: #/benz/casino → benz
  */
 export function detectFaviconTypeByRoute(path?: string): FaviconType {
-  const currentPath = path || window.location.hash.substring(1) || '#/admin';
+  const currentPath = path || window.location.hash.substring(1) || '#/benz';
   
   console.log(`🔍 [Favicon] 라우트 감지:`, currentPath);
   
