@@ -2396,7 +2396,69 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         );
       }
     },
-    // 3. 보낸사람
+    // 3. 등급
+    {
+      header: '등급',
+      cell: (row: any) => {
+        let level = '-';
+        
+        // 사용자 거래: 파트너 레벨 표시
+        if (row.user?.referrer?.level) {
+          const levelMap: any = {
+            1: '',
+            2: '',
+            3: '',
+            4: '',
+            5: '',
+            6: ''
+          };
+          level = levelMap[row.user.referrer.level] || `Lv${row.user.referrer.level}`;
+        }
+        // 파트너 거래: 파트너 레벨 표시
+        else if (row.from_partner_level) {
+          const levelMap: any = {
+            1: '',
+            2: '운영사',
+            3: '본사',
+            4: '부본사',
+            5: '총판',
+            6: '매장'
+          };
+          level = levelMap[row.from_partner_level] || `Lv${row.from_partner_level}`;
+        }
+        // partner_level 필드 직접 확인
+        else if (row.partner_level) {
+          const levelMap: any = {
+            1: 'Lv1',
+            2: 'Lv2',
+            3: 'Lv3',
+            4: 'Lv4',
+            5: 'Lv5',
+            6: 'Lv6'
+          };
+          level = levelMap[row.partner_level] || `Lv${row.partner_level}`;
+        }
+        // 요청 파트너의 레벨 (partner_deposit_request, partner_withdrawal_request)
+        else if (row.partner?.level) {
+          const levelMap: any = {
+            1: 'Lv1',
+            2: 'Lv2',
+            3: 'Lv3',
+            4: 'Lv4',
+            5: 'Lv5',
+            6: 'Lv6'
+          };
+          level = levelMap[row.partner.level] || `Lv${row.partner.level}`;
+        }
+        
+        return (
+          <span className="text-blue-300" style={{ fontSize: '15px' }}>
+            {level}
+          </span>
+        );
+      }
+    },
+    // 4. 보낸사람
     {
       header: '보낸사람',
       cell: (row: any) => {
@@ -2463,7 +2525,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         return <span className="text-slate-500" style={{ fontSize: '15px' }}>-</span>;
       }
     },
-    // 4. 받는사람
+    // 5. 받는사람
     {
       header: '받는사람',
       cell: (row: any) => {
@@ -2696,7 +2758,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       },
       className: "text-right"
     },
-    // 7. 신청금액
+    // 7. 금액
     {
       header: t.transactionManagement.amount,
       cell: (row: any) => {
@@ -2902,6 +2964,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         );
       }
     },
+    // 12. 작업
     ...(showActions ? [{
       header: t.transactionManagement.actions,
       cell: (row: Transaction) => {
