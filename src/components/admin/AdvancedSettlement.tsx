@@ -217,13 +217,15 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
           transactionsQuery = transactionsQuery.eq('user_id', 'none');
         }
       } else {
-        // Lv2~Lv5: 본인(partner_id) 또는 하위 회원들(user_id)
+        // Lv2~Lv5: 본인(partner_id) 또는 하위 회원들(user_id) 또는 from_partner_id/to_partner_id
         if (allowedUserIds.length > 0) {
           transactionsQuery = transactionsQuery.or(
-            `user_id.in.(${allowedUserIds.join(',')}),partner_id.in.(${allowedPartnerIds.join(',')})`
+            `user_id.in.(${allowedUserIds.join(',')}),partner_id.in.(${allowedPartnerIds.join(',')}),from_partner_id.in.(${allowedPartnerIds.join(',')}),to_partner_id.in.(${allowedPartnerIds.join(',')})`
           );
         } else {
-          transactionsQuery = transactionsQuery.in('partner_id', allowedPartnerIds);
+          transactionsQuery = transactionsQuery.or(
+            `partner_id.in.(${allowedPartnerIds.join(',')}),from_partner_id.in.(${allowedPartnerIds.join(',')}),to_partner_id.in.(${allowedPartnerIds.join(',')})`
+          );
         }
       }
 
@@ -330,7 +332,9 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         pointTransactions || [],
         gameRecords || [],
         partnerBalanceLogs || [],
-        myCommission
+        myCommission,
+        allowedPartnerIds,
+        allowedUserIds
       );
       
       console.log('✅ 일별 정산 데이터 처리 완료:', rows.length, '개');
@@ -372,7 +376,9 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
     pointTransactions: any[],
     gameRecords: any[],
     partnerBalanceLogs: any[],
-    commission: any
+    commission: any,
+    allowedPartnerIds: string[],
+    allowedUserIds: string[]
   ): Promise<DailySettlementRow[]> => {
     const rows: DailySettlementRow[] = [];
     const days = eachDayOfInterval({ start: fromDate, end: toDate });
@@ -410,74 +416,82 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         return kstDate >= dayStart && kstDate <= dayEnd;
       });
 
-      // 입출금 계산 - 사용자 직접 입금/출금만 (deposit/partner_deposit_request/withdrawal만 포함)
-      const depositTransactions = dayTransactions.filter(t => 
-        (t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit_request') && 
-        t.status === 'completed'
-      );
+      // 입금 계산 - deposit + partner_deposit_request (from_partner_id 또는 to_partner_id 필터링)
+      const depositTransactions = dayTransactions.filter(t => {
+        if (!((t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit_request') && 
+            t.status === 'completed')) return false;
+        
+        if (t.transaction_type === 'partner_deposit_request') {
+          // 파트너 요청: from_partner_id 또는 to_partner_id가 allowedPartnerIds에 포함
+          return allowedPartnerIds.includes(t.from_partner_id) || allowedPartnerIds.includes(t.to_partner_id);
+        } else {
+          // 일반 입금: user_id 또는 partner_id가 해당 ID에 포함
+          return allowedUserIds.includes(t.user_id) || allowedPartnerIds.includes(t.partner_id);
+        }
+      });
       const deposit = depositTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
 
       const withdrawal = dayTransactions
-        .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
+        .filter(t => {
+          if (!((t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal_request') && 
+              t.status === 'completed')) return false;
+          
+          if (t.transaction_type === 'partner_withdrawal_request') {
+            // 파트너 요청: from_partner_id 또는 to_partner_id가 allowedPartnerIds에 포함
+            return allowedPartnerIds.includes(t.from_partner_id) || allowedPartnerIds.includes(t.to_partner_id);
+          } else {
+            // 일반 출금: user_id 또는 partner_id가 해당 ID에 포함
+            return allowedUserIds.includes(t.user_id) || allowedPartnerIds.includes(t.partner_id);
+          }
+        })
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-      // 수동 입금: admin_deposit 필터링 추가
-      const adminDepositFromTransactions = dayTransactions.filter(t => 
-        t.transaction_type === 'admin_deposit' && 
-        t.status === 'completed'
+      // 수동 입금: admin_deposit (회원) + admin_deposit (파트너) + admin_deposit_request + admin_deposit_send
+      // 회원에 대한 강제 입금: user_id 기준
+      const adminDepositFromUserTransactions = dayTransactions.filter(t => 
+        (t.transaction_type === 'admin_deposit' || t.transaction_type === 'admin_deposit_request') && 
+        t.status === 'completed' && 
+        t.user_id === user.id
       ).reduce((sum, t) => sum + (t.amount || 0), 0);
 
-      const adminWithdrawalFromTransactions = dayTransactions.filter(t => 
-        t.transaction_type === 'admin_withdrawal' && 
-        t.status === 'completed'
+      // 파트너에 대한 강제 입금: partner_id 기준
+      const adminDepositFromPartnerTransactions = dayTransactions.filter(t => 
+        (t.transaction_type === 'admin_deposit' || t.transaction_type === 'admin_deposit_request') && 
+        t.status === 'completed' && 
+        !t.user_id && t.partner_id === user.id
+      ).reduce((sum, t) => sum + (t.amount || 0), 0);
+
+      // admin_deposit_send는 partner_id 기준 필터링
+      const adminDepositFromPartnerBalanceLogs = dayPartnerBalanceLogs.filter(pl => 
+        pl.transaction_type === 'admin_deposit_send' &&
+        pl.partner_id === user.id
+      ).reduce((sum, pl) => sum + (pl.amount || 0), 0);
+
+      const adminDeposit = adminDepositFromPartnerBalanceLogs + adminDepositFromUserTransactions + adminDepositFromPartnerTransactions;
+
+      // 수동 출금: admin_withdrawal (회원) + admin_withdrawal (파트너) + admin_withdrawal_request + admin_withdrawal_send
+      // 회원에 대한 강제 출금: user_id 기준
+      const adminWithdrawalFromUserTransactions = dayTransactions.filter(t => 
+        (t.transaction_type === 'admin_withdrawal' || t.transaction_type === 'admin_withdrawal_request') && 
+        t.status === 'completed' && 
+        t.user_id === user.id
       ).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-      // admin_deposit_send와 admin_withdrawal_send 계산
-      const adminDepositFromPartnerBalanceLogs = 0;  // 수동 입금 필터링 제거
+      // 파트너에 대한 강제 출금: partner_id 기준
+      const adminWithdrawalFromPartnerTransactions = dayTransactions.filter(t => 
+        (t.transaction_type === 'admin_withdrawal' || t.transaction_type === 'admin_withdrawal_request') && 
+        t.status === 'completed' && 
+        !t.user_id && t.partner_id === user.id
+      ).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-      // ✅ 출금: partner_id 기준 필터링
-      const adminWithdrawalFromPartnerBalanceLogs = dayPartnerBalanceLogs
-        .filter(l => l.transaction_type === 'admin_withdrawal_send' && l.partner_id && Math.abs(l.amount || 0) > 0)
-        .reduce((sum, l) => sum + Math.abs(l.amount || 0), 0);
+      // admin_withdrawal_send는 partner_id 기준 필터링
+      const adminWithdrawalFromLogs = dayPartnerBalanceLogs.filter(pl => 
+        pl.transaction_type === 'admin_withdrawal_send' &&
+        pl.partner_id === user.id
+      ).reduce((sum, pl) => sum + Math.abs(pl.amount || 0), 0);
 
-      // 🔍 디버깅
-      const adminWithdrawalSendRecords = dayPartnerBalanceLogs.filter(l => l.transaction_type === 'admin_withdrawal_send');
-      if (adminWithdrawalSendRecords.length > 0) {
-        console.log('📊 [AdvancedSettlement] admin_withdrawal_send 기록:', {
-          총레코드: adminWithdrawalSendRecords.length,
-          필터링된금액: adminWithdrawalFromPartnerBalanceLogs,
-          샘플데이터: adminWithdrawalSendRecords.map(r => ({
-            from_partner_id: r.from_partner_id,
-            to_partner_id: r.to_partner_id,
-            amount: r.amount,
-            created_at: r.created_at
-          }))
-        });
-      }
-
-      // AdvancedSettlement는 adminDeposit/adminWithdrawal 합산
-      const adminDeposit = adminDepositFromTransactions + adminDepositFromPartnerBalanceLogs;
-      const totalAdminWithdrawal = adminWithdrawalFromTransactions + adminWithdrawalFromPartnerBalanceLogs;
+      const totalAdminWithdrawal = adminWithdrawalFromLogs + adminWithdrawalFromUserTransactions + adminWithdrawalFromPartnerTransactions;
       const adminWithdrawal = totalAdminWithdrawal > 0 ? -totalAdminWithdrawal : 0;
-
-      // 🔍 디버그 로그
-      if (dayPartnerBalanceLogs.length > 0) {
-        const adminDepositSendRecords = dayPartnerBalanceLogs.filter(l => l.transaction_type === 'admin_deposit_send');
-        console.log('📊 [AdvancedSettlement] 해당 날짜의 partner_balance_logs:', {
-          total: dayPartnerBalanceLogs.length,
-          adminDepositSend: adminDepositSendRecords.length,
-          adminWithdrawalSend: dayPartnerBalanceLogs.filter(l => l.transaction_type === 'admin_withdrawal_send').length,
-          adminDepositAmount: adminDepositFromPartnerBalanceLogs,
-          adminWithdrawalAmount: adminWithdrawalFromPartnerBalanceLogs,
-          adminDepositSendSampleData: adminDepositSendRecords.map(r => ({
-            transaction_type: r.transaction_type,
-            amount: r.amount,
-            balance_before: r.balance_before,
-            balance_after: r.balance_after,
-            created_at: r.created_at
-          }))
-        });
-      }
 
       // 포인트 계산: earn (지급), convert_to_balance (회수)
       const pointGiven = dayPointTransactions

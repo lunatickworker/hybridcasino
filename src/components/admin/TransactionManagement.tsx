@@ -1212,12 +1212,18 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         // ✅ 사용자 입출금: from/to_partner_id는 NULL (사용자 거래는 파트너 ID를 저장하지 않음)
         if (transaction.transaction_type === 'deposit' || transaction.transaction_type === 'withdrawal') {
           return { from_partner_id: null, to_partner_id: null };
-        } else if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') {
-          // ✅ 온라인입금신청/파트너입금신청: 신청자(파트너)가 받는사람
+        } else if (transaction.transaction_type === 'partner_deposit_request' || transaction.transaction_type === 'partner_withdrawal_request') {
+          // ✅ 파트너 요청 거래: 기존 값 유지 (AdminHeader에서 이미 제대로 설정됨)
+          return { 
+            from_partner_id: (transaction as any).from_partner_id,
+            to_partner_id: (transaction as any).to_partner_id
+          };
+        } else if (transaction.transaction_type === 'partner_deposit') {
+          // ✅ 파트너 입금: 신청자(파트너)가 받는사람
           const partnerId = (transaction as any).partner_id;
           return { from_partner_id: user.id, to_partner_id: partnerId };
-        } else if (transaction.transaction_type === 'partner_withdrawal' || transaction.transaction_type === 'partner_withdrawal_request') {
-          // ✅ 온라인출금신청/파트너출금신청: 신청자(파트너)가 보낸사람
+        } else if (transaction.transaction_type === 'partner_withdrawal') {
+          // ✅ 파트너 출금: 신청자(파트너)가 보낸사람
           const partnerId = (transaction as any).partner_id;
           return { from_partner_id: partnerId, to_partner_id: user.id };
         }
@@ -1462,19 +1468,23 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           // ✅ DB 트리거가 자동으로 balance_after를 계산하므로 수동 설정 불필요
           // transactions UPDATE 시 BEFORE UPDATE 트리거가 작동하여 balance_after 재계산
 
-          // 로그 기록 (Lv2는 기록하지 않음)
-          if (user.level !== 2) {
+          // ✅ partner_deposit_request/partner_withdrawal_request는 transactions 테이블에만 기록
+          // partner_balance_logs에는 기록하지 않음 (중복 방지)
+          
+          // 로그 기록: partner_deposit/partner_withdrawal (승인자가 Lv1/Lv2가 아닌 경우만)
+          if (user.level !== 2 && 
+              (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_withdrawal')) {
             await supabase.from('partner_balance_logs').insert([
               {
                 partner_id: requestPartnerId,
                 balance_before: currentBalance,
                 balance_after: newBalance,
-                amount: (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') ? amount : -amount,
-                transaction_type: (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') ? 'deposit' : 'withdrawal',
-                from_partner_id: (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') ? user.id : requestPartnerId,  // ✅ 추가
-                to_partner_id: (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') ? requestPartnerId : user.id,    // ✅ 추가
+                amount: (transaction.transaction_type === 'partner_deposit') ? amount : -amount,
+                transaction_type: (transaction.transaction_type === 'partner_deposit') ? 'deposit' : 'withdrawal',
+                from_partner_id: (transaction.transaction_type === 'partner_deposit') ? user.id : requestPartnerId,
+                to_partner_id: (transaction.transaction_type === 'partner_deposit') ? requestPartnerId : user.id,
                 processed_by_username: user.username,
-                memo: `관리자 ${(transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') ? '입금' : '출금'} 승인 (승인자: ${user.username})`,
+                memo: `관리자 ${(transaction.transaction_type === 'partner_deposit') ? '입금' : '출금'} 승인 (승인자: ${user.username})`,
                 created_at: new Date().toISOString()
               }
             ]);
