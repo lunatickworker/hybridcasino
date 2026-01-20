@@ -447,9 +447,6 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
                  allowedPartnerIds.includes(t.partner_id) ||
                  allowedPartnerIds.includes(t.from_partner_id) ||
                  allowedPartnerIds.includes(t.to_partner_id);
-            // 일반 출금: user_id 또는 partner_id가 해당 ID에 포함
-            return allowedUserIds.includes(t.user_id) || allowedPartnerIds.includes(t.partner_id);
-          }
         })
         .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
