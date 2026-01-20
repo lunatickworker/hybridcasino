@@ -146,6 +146,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   const [isSyncingHonor, setIsSyncingHonor] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [displayBalance, setDisplayBalance] = useState<number>(balance);
 
   // =====================================================
   // 알림 개수 로드
@@ -1137,6 +1138,15 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       supabase.removeChannel(settlementsChannel);
     };
   }, [user.id]);
+
+  // ⭐ balance 변경 감지 및 실시간 업데이트
+  useEffect(() => {
+    console.log('💰 [AdminHeader] Balance 변경 감지:', {
+      context_balance: balance,
+      display_balance: displayBalance
+    });
+    setDisplayBalance(balance);
+  }, [balance]);
 
   // 베팅 알림 상태
   const [bettingAlerts, setBettingAlerts] = useState({
@@ -2348,7 +2358,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                         </div>
                       </div>
                       <div className="text-2xl font-bold text-emerald-400">
-                        {formatCurrency(balance)}
+                        {formatCurrency(displayBalance)}
                       </div>
                     </div>
 

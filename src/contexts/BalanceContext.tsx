@@ -49,6 +49,7 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
   const [useFamilyApi, setUseFamilyApi] = useState<boolean>(true);
   const [useHonorApi, setUseHonorApi] = useState<boolean>(true);
   const isSyncingRef = useRef<boolean>(false);
+  const channelsRef = useRef<any[]>([]);
 
   const loadBalanceFromDB = useCallback(async () => {
     if (!user?.id) {
@@ -56,6 +57,7 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
     }
 
     try {
+      setLoading(true);
       const { data, error: dbError } = await supabase
         .from('partners')
         .select('balance')
@@ -69,6 +71,7 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
         }
         console.error('❌ [Balance] partners 테이블 조회 실패:', dbError);
         setError(dbError.message);
+        setLoading(false);
         return;
       }
 
@@ -230,9 +233,11 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
 
       setLastSyncTime(new Date());
       setError(null);
+      setLoading(false);
     } catch (err: any) {
       console.error('❌ [Balance] DB 조회 오류:', err);
       setError(err.message || 'DB 조회 오류');
+      setLoading(false);
     }
   }, [user]);
 
@@ -425,10 +430,38 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
   useEffect(() => {
     if (!user?.id) return;
     loadBalanceFromDB();
-  }, [user?.id]);
+  }, [user?.id, loadBalanceFromDB]);
+
+  // ⭐ 주기적 balance 동기화 (Realtime 이벤트 백업)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('⏰ [BalanceContext] 주기적 balance 동기화 시작 (10초마다)');
+    
+    const interval = setInterval(() => {
+      console.log('🔄 [BalanceContext] 주기적 balance 동기화 수행');
+      if (user.level === 1) {
+        // Lv1은 API 동기화는 하지 않고 DB만 로드
+        loadBalanceFromDB();
+      } else {
+        loadBalanceFromDB();
+      }
+    }, 10000); // 10초마다 동기화
+
+    return () => {
+      console.log('⏰ [BalanceContext] 주기적 동기화 중지');
+      clearInterval(interval);
+    };
+  }, [user?.id, loadBalanceFromDB]);
 
   useEffect(() => {
     if (!user?.id) return;
+
+    // 이전 구독 정리
+    channelsRef.current.forEach(channel => {
+      supabase.removeChannel(channel);
+    });
+    channelsRef.current = [];
 
     const partnersChannel = supabase
       .channel(`partner_balance_${user.id}`)
@@ -441,6 +474,14 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           filter: `id=eq.${user.id}`
         },
         (payload) => {
+          console.log('🔔 [BalanceContext] Partners 테이블 업데이트 감지:', {
+            balance: payload.new?.balance,
+            invest_balance: payload.new?.invest_balance,
+            oroplay_balance: payload.new?.oroplay_balance,
+            familyapi_balance: payload.new?.familyapi_balance,
+            honorapi_balance: payload.new?.honorapi_balance
+          });
+          
           const newBalance = parseFloat(payload.new?.balance) || 0;
           setBalance(newBalance);
 
@@ -448,13 +489,18 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
             setInvestBalance(parseFloat(payload.new?.invest_balance) || 0);
             setOroplayBalance(parseFloat(payload.new?.oroplay_balance) || 0);
             setFamilyapiBalance(parseFloat(payload.new?.familyapi_balance) || 0);
+            setHonorapiBalance(parseFloat(payload.new?.honorapi_balance) || 0);
           }
 
           setLastSyncTime(new Date());
           setError(null);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 [BalanceContext] Partners 채널 상태:', status);
+      });
+
+    channelsRef.current.push(partnersChannel);
 
     let apiConfigsChannel: any = null;
 
@@ -470,6 +516,11 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
             filter: `partner_id=eq.${user.id}`
           },
           (payload) => {
+            console.log('🔔 [BalanceContext] API Configs 테이블 업데이트 감지:', {
+              api_provider: payload.new?.api_provider,
+              balance: payload.new?.balance
+            });
+            
             const apiProvider = payload.new?.api_provider;
             const newBalance = parseFloat(payload.new?.balance) || 0;
 
@@ -495,14 +546,19 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
             setError(null);
           }
         )
-        .subscribe();
+        .subscribe((status) => {
+          console.log('📡 [BalanceContext] API Configs 채널 상태:', status);
+        });
+
+      channelsRef.current.push(apiConfigsChannel);
     }
 
     return () => {
-      supabase.removeChannel(partnersChannel);
-      if (apiConfigsChannel) {
-        supabase.removeChannel(apiConfigsChannel);
-      }
+      console.log('🧹 [BalanceContext] 채널 정리:', channelsRef.current.length);
+      channelsRef.current.forEach(channel => {
+        supabase.removeChannel(channel);
+      });
+      channelsRef.current = [];
     };
   }, [user?.id, user?.level]);
 
