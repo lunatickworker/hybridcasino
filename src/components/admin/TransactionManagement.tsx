@@ -2499,11 +2499,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           );
         }
         
-        // ✅ partner_deposit_request / partner_withdrawal_request - 승인자(processed_by)
+        // ✅ partner_deposit_request / partner_withdrawal_request - 운영사(processed_by)
         if (row.transaction_type === 'partner_deposit_request' || row.transaction_type === 'partner_withdrawal_request') {
           return (
             <span className="text-blue-400" style={{ fontSize: '15px' }}>
-              {row.processed_by_username || '[승인자]'}
+              {row.processed_by_username || '[운영사]'}
             </span>
           );
         }
@@ -2512,7 +2512,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (row.transaction_type === 'partner_deposit' || row.transaction_type === 'partner_withdrawal') {
           return (
             <span className="text-blue-400" style={{ fontSize: '15px' }}>
-              {row.processed_by_username || '[승인자]'}
+              {row.processed_by_username || '[운영사]'}
             </span>
           );
         }
