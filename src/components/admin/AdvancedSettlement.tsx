@@ -189,7 +189,11 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         // Lv2~Lv5: 하위 파트너 조회 (재귀적으로 모든 하위)
         const descendantPartnerIds = await getDescendantPartnerIds(user.id);
         allowedPartnerIds.push(...descendantPartnerIds);
-        console.log('✅ 허용된 파트너:', allowedPartnerIds.length, '개');
+        console.log('🔍 [AdvancedSettlement] allowedPartnerIds:', {
+          본인: user.id,
+          하위파트너: descendantPartnerIds,
+          전체: allowedPartnerIds
+        });
 
         // 모든 허용된 파트너들의 직속 회원 조회
         const { data: users, error: usersError } = await supabase
@@ -209,24 +213,15 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString());
 
-      // Lv6: 하위 회원들(user_id)의 거래만 조회 (파트너 아님)
-      if (user.level === 6) {
-        if (allowedUserIds.length > 0) {
-          transactionsQuery = transactionsQuery.in('user_id', allowedUserIds);
-        } else {
-          transactionsQuery = transactionsQuery.eq('user_id', 'none');
-        }
+      // Lv2~Lv6: 모두 파트너 - 본인(partner_id) 또는 하위 회원들(user_id) 또는 from_partner_id/to_partner_id
+      if (allowedUserIds.length > 0) {
+        transactionsQuery = transactionsQuery.or(
+          `user_id.in.(${allowedUserIds.join(',')}),partner_id.in.(${allowedPartnerIds.join(',')}),from_partner_id.in.(${allowedPartnerIds.join(',')}),to_partner_id.in.(${allowedPartnerIds.join(',')})`
+        );
       } else {
-        // Lv2~Lv5: 본인(partner_id) 또는 하위 회원들(user_id) 또는 from_partner_id/to_partner_id
-        if (allowedUserIds.length > 0) {
-          transactionsQuery = transactionsQuery.or(
-            `user_id.in.(${allowedUserIds.join(',')}),partner_id.in.(${allowedPartnerIds.join(',')}),from_partner_id.in.(${allowedPartnerIds.join(',')}),to_partner_id.in.(${allowedPartnerIds.join(',')})`
-          );
-        } else {
-          transactionsQuery = transactionsQuery.or(
-            `partner_id.in.(${allowedPartnerIds.join(',')}),from_partner_id.in.(${allowedPartnerIds.join(',')}),to_partner_id.in.(${allowedPartnerIds.join(',')})`
-          );
-        }
+        transactionsQuery = transactionsQuery.or(
+          `partner_id.in.(${allowedPartnerIds.join(',')}),from_partner_id.in.(${allowedPartnerIds.join(',')}),to_partner_id.in.(${allowedPartnerIds.join(',')})`
+        );
       }
 
       const { data: transactions, error: transError } = await transactionsQuery;
@@ -395,6 +390,19 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         return kstDate >= dayStart && kstDate <= dayEnd;
       });
 
+      // 파트너 요청 거래 디버깅
+      const partnerRequestDeposits = dayTransactions.filter(t => t.transaction_type === 'partner_deposit_request');
+      if (partnerRequestDeposits.length > 0) {
+        console.log('🔍 [partner_deposit_request 거래 발견]', {
+          개수: partnerRequestDeposits.length,
+          샘플: partnerRequestDeposits.slice(0, 2).map(t => ({
+            from_partner_id: t.from_partner_id,
+            to_partner_id: t.to_partner_id,
+            amount: t.amount
+          }))
+        });
+      }
+
       const dayPointTransactions = pointTransactions.filter(pt => {
         const ptDate = new Date(pt.created_at);
         const kstDate = new Date(ptDate.getTime() + 9 * 60 * 60 * 1000);
@@ -423,7 +431,17 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         
         if (t.transaction_type === 'partner_deposit_request') {
           // 파트너 요청: from_partner_id 또는 to_partner_id가 allowedPartnerIds에 포함
-          return allowedPartnerIds.includes(t.from_partner_id) || allowedPartnerIds.includes(t.to_partner_id);
+          const isFromPartner = allowedPartnerIds.includes(t.from_partner_id);
+          const isToPartner = allowedPartnerIds.includes(t.to_partner_id);
+          console.log('🔍 [partner_deposit_request 필터링]', {
+            from_partner_id: t.from_partner_id,
+            to_partner_id: t.to_partner_id,
+            allowedPartnerIds,
+            isFromPartner,
+            isToPartner,
+            included: isFromPartner || isToPartner
+          });
+          return isFromPartner || isToPartner;
         } else {
           // 일반 입금: user_id 또는 partner_id가 해당 ID에 포함
           return allowedUserIds.includes(t.user_id) || allowedPartnerIds.includes(t.partner_id);
