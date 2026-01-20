@@ -3151,30 +3151,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   전체
                 </Button>
                 <Button
-                  onClick={() => setTransactionTypeFilter('manual_deposit')}
-                  variant={transactionTypeFilter === 'manual_deposit' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'manual_deposit' 
-                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
-                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
-                  )}
-                >
-                  수동 입금
-                </Button>
-                <Button
-                  onClick={() => setTransactionTypeFilter('manual_withdrawal')}
-                  variant={transactionTypeFilter === 'manual_withdrawal' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'manual_withdrawal' 
-                      ? "bg-orange-500/30 border border-orange-400/50 hover:bg-orange-500/40 text-orange-100 shadow-lg" 
-                      : "bg-orange-500/10 border border-orange-400/20 hover:bg-orange-500/20 text-slate-300"
-                  )}
-                >
-                  수동 출금
-                </Button>
-                <Button
                   onClick={() => setTransactionTypeFilter('admin_request_deposit')}
                   variant={transactionTypeFilter === 'admin_request_deposit' ? 'default' : 'outline'}
                   className={cn(
@@ -3197,6 +3173,30 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   )}
                 >
                   온라인출금신청
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('manual_deposit')}
+                  variant={transactionTypeFilter === 'manual_deposit' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'manual_deposit' 
+                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
+                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
+                  )}
+                >
+                  수동 입금
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('manual_withdrawal')}
+                  variant={transactionTypeFilter === 'manual_withdrawal' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'manual_withdrawal' 
+                      ? "bg-orange-500/30 border border-orange-400/50 hover:bg-orange-500/40 text-orange-100 shadow-lg" 
+                      : "bg-orange-500/10 border border-orange-400/20 hover:bg-orange-500/20 text-slate-300"
+                  )}
+                >
+                  수동 출금
                 </Button>
                 <Button
                   onClick={() => setTransactionTypeFilter('point_give')}
