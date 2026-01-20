@@ -9,6 +9,7 @@ import { toast } from "sonner@2.0.3";
 import { getUserBalanceWithConfig } from "../../lib/investApi";
 import { publicAnonKey } from "../../utils/supabase";
 import { syncBalanceOnSessionEnd } from "../../lib/gameApi";
+import { updateFaviconByRoute } from "../../utils/favicon"; // ✅ 파비콘 업데이트 import
 
 interface BenzLayoutProps {
   user: any;
@@ -52,11 +53,12 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ✅ 메뉴 클릭 시 refreshFlag 토글 + 라우트 변경
+  // ✅ 메뉴 클릭 시 refreshFlag 토글 + 라우트 변경 + 파비콘 업데이트
   const handleRouteChangeWithRefresh = (path: string) => {
     console.log('🔄 [BenzLayout] 메뉴 클릭:', path);
     onRouteChange(path);
     setRefreshFlag(!refreshFlag); // ✅ refreshFlag 토글
+    updateFaviconByRoute(path); // ✅ 파비콘 동시 업데이트 (Vercel 배포 최적화)
   };
 
   // ✅ 라우트 변경 시 로딩 표시
