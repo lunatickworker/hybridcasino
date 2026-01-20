@@ -259,7 +259,13 @@ export function PartnerTransferDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      // 모달이 닫힐 때 입력금액 초기화
+      if (!isOpen) {
+        setTransferAmount('');
+      }
+      onOpenChange(isOpen);
+    }}>
       <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
           <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10">
