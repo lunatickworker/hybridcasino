@@ -2777,9 +2777,9 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       },
       className: "text-right"
     },
-    // 7. 금액
+    // 7. 신청금액
     {
-      header: t.transactionManagement.amount,
+      header: '신청금액',
       cell: (row: any) => {
         // 금액 포맷팅 (원화 표시 없이 숫자만)
         const formatNumberOnly = (num: number) => new Intl.NumberFormat('ko-KR').format(num);
