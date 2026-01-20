@@ -268,6 +268,31 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
       // 현재 잔고 재조회
       await loadUserBalance();
 
+      // Lv2 찾기
+      let lv2PartnerId = user.referrer_id || null;
+      if (user.referrer_id) {
+        let currentPartnerId = user.referrer_id;
+        let loopCount = 0;
+        
+        while (currentPartnerId && loopCount < 10) {
+          loopCount++;
+          const { data: partner } = await supabase
+            .from('partners')
+            .select('id, level, parent_id')
+            .eq('id', currentPartnerId)
+            .single();
+          
+          if (!partner) break;
+          
+          if (partner.level === 2) {
+            lv2PartnerId = partner.id;
+            break;
+          }
+          
+          currentPartnerId = partner.parent_id;
+        }
+      }
+
       // ✅ 출금 후 잔고 계산
       const balanceAfterWithdraw = balance - amount;
 
@@ -285,7 +310,9 @@ export function BenzWithdraw({ user, onRouteChange }: BenzWithdrawProps) {
         bank_holder: bankHolder,
         memo: memo || null,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        from_partner_id: user.referrer_id, // ✅ 담당 파트너
+        to_partner_id: lv2PartnerId        // ✅ Lv2
       };
 
       console.log('💸 출금 신청 데이터:', {

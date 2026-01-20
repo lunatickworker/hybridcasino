@@ -424,28 +424,16 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
         return kstDate >= dayStart && kstDate <= dayEnd;
       });
 
-      // 입금 계산 - deposit + partner_deposit_request (from_partner_id 또는 to_partner_id 필터링)
+      // 입금 계산 - deposit + partner_deposit_request (모두 user_id/partner_id/from_partner_id/to_partner_id 필터링)
       const depositTransactions = dayTransactions.filter(t => {
         if (!((t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit_request') && 
             t.status === 'completed')) return false;
         
-        if (t.transaction_type === 'partner_deposit_request') {
-          // 파트너 요청: from_partner_id 또는 to_partner_id가 allowedPartnerIds에 포함
-          const isFromPartner = allowedPartnerIds.includes(t.from_partner_id);
-          const isToPartner = allowedPartnerIds.includes(t.to_partner_id);
-          console.log('🔍 [partner_deposit_request 필터링]', {
-            from_partner_id: t.from_partner_id,
-            to_partner_id: t.to_partner_id,
-            allowedPartnerIds,
-            isFromPartner,
-            isToPartner,
-            included: isFromPartner || isToPartner
-          });
-          return isFromPartner || isToPartner;
-        } else {
-          // 일반 입금: user_id 또는 partner_id가 해당 ID에 포함
-          return allowedUserIds.includes(t.user_id) || allowedPartnerIds.includes(t.partner_id);
-        }
+        // 모든 필드 확인: user_id, partner_id, from_partner_id, to_partner_id
+        return allowedUserIds.includes(t.user_id) || 
+               allowedPartnerIds.includes(t.partner_id) ||
+               allowedPartnerIds.includes(t.from_partner_id) ||
+               allowedPartnerIds.includes(t.to_partner_id);
       });
       const deposit = depositTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
 
@@ -454,10 +442,11 @@ export default function AdvancedSettlement({ user }: AdvancedSettlementProps) {
           if (!((t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal_request') && 
               t.status === 'completed')) return false;
           
-          if (t.transaction_type === 'partner_withdrawal_request') {
-            // 파트너 요청: from_partner_id 또는 to_partner_id가 allowedPartnerIds에 포함
-            return allowedPartnerIds.includes(t.from_partner_id) || allowedPartnerIds.includes(t.to_partner_id);
-          } else {
+          // 모든 필드 확인: user_id, partner_id, from_partner_id, to_partner_id
+          return allowedUserIds.includes(t.user_id) || 
+                 allowedPartnerIds.includes(t.partner_id) ||
+                 allowedPartnerIds.includes(t.from_partner_id) ||
+                 allowedPartnerIds.includes(t.to_partner_id);
             // 일반 출금: user_id 또는 partner_id가 해당 ID에 포함
             return allowedUserIds.includes(t.user_id) || allowedPartnerIds.includes(t.partner_id);
           }
