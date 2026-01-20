@@ -22,7 +22,7 @@ export interface PageMeta {
  */
 export const pageMeta: Record<FaviconType, PageMeta> = {
   admin: {
-    title: '관리자 시스템 | GMS Admin',
+    title: '관리자 시스템 | GMS dmin',
     emoji: '🔧',
     color: '#6366f1',
     favicon: 'admin'
