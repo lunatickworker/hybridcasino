@@ -193,10 +193,11 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
             
             const newData = payload.new as any;
             
-            // 게임 실행 중이면 세션의 balance_before 사용
+            // 게임 실행 중이면 세션의 balance_before 사용 (DB 업데이트 무시)
             if (activeSessions && activeSessions.length > 0) {
               const sessionBalance = parseFloat(activeSessions[0].balance_before) || 0;
               console.log(`🎮 [Benz Realtime] 게임 실행 중 (status: ${activeSessions[0].status}) - 세션 잔고 사용: ${sessionBalance}원`);
+              console.log(`⚠️ [Benz Realtime] 게임 진행 중이므로 DB balance 업데이트 무시: ${newData.balance}원 → 세션 잔고 유지`);
               
               const newBalance = {
                 balance: sessionBalance,
@@ -206,7 +207,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
               console.log('✅ [Benz Realtime] 보유금 상태 업데이트 (게임 중):', newBalance);
               setUserBalance(newBalance);
             } else {
-              // 게임 실행 중이 아니면 DB 값 그대로 사용
+              // 게임 실행 중이 아니면 DB 값 그대로 사용 (정상 업데이트)
               const newBalance = {
                 balance: parseFloat(newData.balance) || 0,
                 points: parseFloat(newData.points) || 0
