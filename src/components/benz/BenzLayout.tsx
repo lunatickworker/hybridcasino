@@ -3,6 +3,7 @@ import { BenzHeader } from "./BenzHeader";
 import { BenzSidebar } from "./BenzSidebar";
 import { BenzRoutes } from "./BenzRoutes";
 import { BenzMessagePopup } from "./BenzMessagePopup";
+import { LoadingSpinner } from "../common/LoadingSpinner";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import { getUserBalanceWithConfig } from "../../lib/investApi";
@@ -28,6 +29,8 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   const [userBalance, setUserBalance] = useState<UserBalance>({ balance: 0, points: 0 });
   const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' && window.innerWidth >= 768);
   const [showPointDialog, setShowPointDialog] = useState(false); // ⭐ 포인트 모달 상태 관리
+  const [isRouteLoading, setIsRouteLoading] = useState(false); // ✅ 라우트 로딩 상태
+  const [refreshFlag, setRefreshFlag] = useState(false); // ✅ 리플레시 플래그
   const syncingSessionsRef = useRef<Set<number>>(new Set());
   const autoLogoutTimerRef = useRef<NodeJS.Timeout>();
   const sessionChannelRef = useRef<any>(null);
@@ -35,6 +38,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   const balanceChannelRef = useRef<any>(null);
   const isMountedRef = useRef(true);
   const inactivityTimerRef = useRef<NodeJS.Timeout>(); // ⏰ 비활성 타이머
+  const previousRouteRef = useRef(currentRoute); // ✅ 이전 라우트 추적
 
   // ==========================================================================
   // 화면 크기 감지
@@ -47,6 +51,28 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // ✅ 메뉴 클릭 시 refreshFlag 토글 + 라우트 변경
+  const handleRouteChangeWithRefresh = (path: string) => {
+    console.log('🔄 [BenzLayout] 메뉴 클릭:', path);
+    onRouteChange(path);
+    setRefreshFlag(!refreshFlag); // ✅ refreshFlag 토글
+  };
+
+  // ✅ 라우트 변경 시 로딩 표시
+  useEffect(() => {
+    if (previousRouteRef.current !== currentRoute) {
+      setIsRouteLoading(true);
+      previousRouteRef.current = currentRoute;
+      
+      // 300ms 후 로딩 종료
+      const timer = setTimeout(() => {
+        setIsRouteLoading(false);
+      }, 300);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [currentRoute]);
 
   // ==========================================================================
   // 보유금 조회 함수 (게임 중일 때는 세션의 balance_before 사용)
@@ -550,16 +576,23 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         <BenzSidebar 
           user={user}
           currentRoute={currentRoute}
-          onRouteChange={onRouteChange}
+          onRouteChange={handleRouteChangeWithRefresh}
         />
         
         {/* Main Content - BenzRoutes 사용 */}
-        <main className="flex-1 transition-all duration-300 overflow-x-hidden md:ml-80">
+        <main className="flex-1 transition-all duration-300 overflow-x-hidden md:ml-80 relative">
+          {/* ✅ 라우트 변경 시 로딩 표시 */}
+          {isRouteLoading && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
+              <LoadingSpinner />
+            </div>
+          )}
           <BenzRoutes 
             currentRoute={currentRoute}
             user={user}
-            onRouteChange={onRouteChange}
+            onRouteChange={handleRouteChangeWithRefresh}
             onOpenPointModal={() => setShowPointDialog(true)}
+            refreshFlag={refreshFlag}
           />
         </main>
       </div>

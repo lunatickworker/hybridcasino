@@ -12,6 +12,7 @@ import { filterVisibleProviders, filterVisibleGames } from '../../lib/benzGameVi
 interface BenzCasinoProps {
   user: any;
   onRouteChange: (route: string) => void;
+  refreshFlag?: boolean;
 }
 
 interface GameProvider {
@@ -88,7 +89,7 @@ const getRandomCasinoImage = () => {
   return FALLBACK_PROVIDERS[randomIndex].logo_url;
 };
 
-export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
+export function BenzCasino({ user, onRouteChange, refreshFlag }: BenzCasinoProps) {
   const [providers, setProviders] = useState<GameProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<GameProvider | null>(null);
   const [games, setGames] = useState<Game[]>([]);
@@ -105,13 +106,16 @@ export function BenzCasino({ user, onRouteChange }: BenzCasinoProps) {
     selectedProviderRef.current = selectedProvider;
   }, [selectedProvider]);
 
+  // ✅ 메뉴 클릭 시마다 데이터 새로 로드
   useEffect(() => {
+    setLoading(true); // ✅ 명시적으로 로딩 시작
+    console.log('🔄 [BenzCasino] 페이지 진입 - 데이터 로드');
     loadProviders();
     
     return () => {
       isMountedRef.current = false;
     };
-  }, []);
+  }, [refreshFlag]); // ✅ refreshFlag가 변경될 때마다 실행
   
   // ✅ Realtime 구독: partner_game_access 변경 감지
   useEffect(() => {

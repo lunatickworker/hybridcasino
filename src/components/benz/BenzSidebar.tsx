@@ -69,7 +69,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
     }
     
     console.log('✅ [BenzSidebar] 라우팅 호출:', { path, method: 'onRouteChange' });
-    // 정상 라우팅
+    // 정상 라우팅 (페이지 새로고침 제거 - 각 페이지 컴포넌트에서 데이터 로드)
     onRouteChange(path);
   };
 

@@ -19,6 +19,7 @@ interface BenzRoutesProps {
   user: any;
   onRouteChange: (route: string) => void;
   onOpenPointModal?: () => void; // ⭐ 포인트 모달 열기 함수 추가
+  refreshFlag?: boolean; // ✅ 리플레시 플래그
 }
 
 const LoadingFallback = () => (
@@ -27,8 +28,8 @@ const LoadingFallback = () => (
   </div>
 );
 
-export const BenzRoutes = memo(({ currentRoute, user, onRouteChange, onOpenPointModal }: BenzRoutesProps) => {
-  console.log('🔄 [BenzRoutes] 렌더링:', { currentRoute, userExists: !!user });
+export const BenzRoutes = memo(({ currentRoute, user, onRouteChange, onOpenPointModal, refreshFlag }: BenzRoutesProps) => {
+  console.log('🔄 [BenzRoutes] 렌더링:', { currentRoute, userExists: !!user, refreshFlag });
   
   const renderRoute = () => {
     console.log('📍 [BenzRoutes] 라우트 매칭:', { currentRoute });
@@ -37,9 +38,9 @@ export const BenzRoutes = memo(({ currentRoute, user, onRouteChange, onOpenPoint
       case '/benz/featured':
         return <BenzMain user={user} onRouteChange={onRouteChange} />;
       case '/benz/casino':
-        return <BenzCasino user={user} onRouteChange={onRouteChange} />;
+        return <BenzCasino user={user} onRouteChange={onRouteChange} refreshFlag={refreshFlag} />;
       case '/benz/slot':
-        return <BenzSlot user={user} onRouteChange={onRouteChange} />;
+        return <BenzSlot user={user} onRouteChange={onRouteChange} refreshFlag={refreshFlag} />;
       case '/benz/minigame':
         return <BenzMinigame user={user} onRouteChange={onRouteChange} />;
       case '/benz/deposit':
