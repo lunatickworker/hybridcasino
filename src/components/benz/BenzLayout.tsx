@@ -37,7 +37,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   const autoLogoutTimerRef = useRef<NodeJS.Timeout>();
   const sessionChannelRef = useRef<any>(null);
   const onlineChannelRef = useRef<any>(null);
-  const balanceChannelRef = useRef<any>(null);
+  // ⭐ balanceChannelRef 제거 (Realtime 리스너 삭제)
   const isMountedRef = useRef(true);
   const inactivityTimerRef = useRef<NodeJS.Timeout>(); // ⏰ 비활성 타이머
   const previousRouteRef = useRef(currentRoute); // ✅ 이전 라우트 추적
@@ -177,82 +177,16 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
       channelName: `benz_user_balance_${user.id}`
     });
 
-    // 초기 잔고 조회
+    // ✅ 초기 잔고 조회만 수행
+    // ⭐ Realtime 리스너 제거: 게임 중 balance 변경 불필요
+    // - 게임 진행: game_launch_sessions에서 추적
+    // - 게임 종료: syncBalanceOnSessionEnd()로 자동 업데이트
+    // - 불필요한 업데이트로 인한 게임 중단 현상 해결
     fetchBalance();
 
-    // ⭐ Realtime 리스너도 세션 체크 로직 추가
-    balanceChannelRef.current = supabase
-      .channel(`benz_user_balance_${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'users',
-          filter: `id=eq.${user.id}`  // ⭐ filter 복원
-        },
-        async (payload) => {
-          console.log('💰💰💰 [Benz] ========================================');
-          console.log('💰 [Benz] Realtime 보유금 업데이트 수신!!!');
-          console.log('💰 [Benz] Payload:', JSON.stringify(payload, null, 2));
-          console.log('💰 [Benz] isMountedRef.current:', isMountedRef.current);
-          console.log('💰💰💰 [Benz] ========================================');
-          
-          if (isMountedRef.current) {
-            // ⭐⭐⭐ 게임 실행 중인지 확인 (active 또는 ending 상태만 체크)
-            const { data: activeSessions } = await supabase
-              .from('game_launch_sessions')
-              .select('balance_before, status')
-              .eq('user_id', user.id)
-              .in('status', ['active', 'ending']) // error 상태는 제외
-              .limit(1);
-            
-            const newData = payload.new as any;
-            
-            // 게임 실행 중이면 세션의 balance_before 사용 (DB 업데이트 무시)
-            if (activeSessions && activeSessions.length > 0) {
-              const sessionBalance = parseFloat(activeSessions[0].balance_before) || 0;
-              console.log(`🎮 [Benz Realtime] 게임 실행 중 (status: ${activeSessions[0].status}) - 세션 잔고 사용: ${sessionBalance}원`);
-              console.log(`⚠️ [Benz Realtime] 게임 진행 중이므로 DB balance 업데이트 무시: ${newData.balance}원 → 세션 잔고 유지`);
-              
-              const newBalance = {
-                balance: sessionBalance,
-                points: parseFloat(newData.points) || 0
-              };
-              
-              console.log('✅ [Benz Realtime] 보유금 상태 업데이트 (게임 중):', newBalance);
-              setUserBalance(newBalance);
-            } else {
-              // 게임 실행 중이 아니면 DB 값 그대로 사용 (정상 업데이트)
-              const newBalance = {
-                balance: parseFloat(newData.balance) || 0,
-                points: parseFloat(newData.points) || 0
-              };
-              
-              console.log('✅ [Benz Realtime] 보유금 상태 업데이트 (일반):', newBalance);
-              setUserBalance(newBalance);
-            }
-          } else {
-            console.warn('⚠️ [Benz] 컴포넌트 언마운트됨 - 업데이트 스킵');
-          }
-        }
-      )
-      .subscribe((status, err) => {
-        console.log('📡📡📡 [Benz] ========================================');
-        console.log('📡 [Benz] Realtime 구독 상태 변경:', status);
-        if (err) {
-          console.error('❌ [Benz] Realtime 구독 오류:', err);
-        }
-        console.log('📡📡📡 [Benz] ========================================');
-      });
-
     return () => {
-      console.log('🔴 [Benz] 보유금 실시간 구독 해제:', user.id);
+      console.log('🔴 [Benz] 컴포넌트 언마운트:', user.id);
       isMountedRef.current = false;
-      if (balanceChannelRef.current) {
-        supabase.removeChannel(balanceChannelRef.current);
-        balanceChannelRef.current = null;
-      }
     };
   }, [user?.id]);
 
