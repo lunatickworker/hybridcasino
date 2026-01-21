@@ -505,10 +505,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
             // 상태 업데이트
             setUserBalance(newBalance);
             
-            // 관리자 수정 시 토스트 알림
-            if (updatedUser.balance !== userBalance.balance) {
-              toast.info(`보유금이 ${updatedUser.balance}원으로 업데이트되었습니다.`);
-            }
+            // 토스트 메시지 제거 (관리자 지급 시 알림 안 함)
           }
         }
       )
