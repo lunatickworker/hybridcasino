@@ -2731,7 +2731,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           earn: { text: '포인트획득', color: 'bg-amber-600' },
           use: { text: '포인트사용', color: 'bg-purple-600' },
           convert_to_balance: { text: '머니전환', color: 'bg-blue-600' },
-          point_conversion: { text: '포인트전환', color: 'bg-amber-600' },
           commission: { text: '커미션', color: 'bg-violet-600' },
           refund: { text: '환불', color: 'bg-sky-600' }
         };

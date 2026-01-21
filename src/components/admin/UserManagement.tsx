@@ -196,7 +196,7 @@ export function UserManagement() {
         return;
       }
 
-      // ⚡ Lv2~Lv6: 재귀 최적화 - WITH RECURSIVE 쿼리 사용 불가하므로 BFS 방식으로 개선
+      // ⚡ Lv2~Lv6: 재귀 최적화 - 하위 파트너의 모든 사용자 조회
       const getAllDescendants = async (partnerId: string): Promise<string[]> => {
         const queue = [partnerId];
         const visited = new Set<string>([partnerId]);
@@ -230,19 +230,42 @@ export function UserManagement() {
       const descendants = await getAllDescendants(authState.user?.id || '');
       const allowedReferrerIds = [authState.user?.id || '', ...descendants];
 
-      // ⚡ 병렬 조회
-      const [usersResult, partnersResult] = await Promise.all([
-        supabase
+      console.log('🔍 [UserManagement] Lv2+ 디버깅:', {
+        currentUserId: authState.user?.id,
+        descendants: descendants,
+        allowedReferrerIds: allowedReferrerIds,
+        descCount: descendants.length
+      });
+
+      // ⚡ 각 파트너의 모든 사용자 조회 (NewIntegratedSettlement와 동일한 로직)
+      const allUserIds: string[] = [];
+      for (const partnerId of allowedReferrerIds) {
+        const { data: usersForPartner } = await supabase
+          .from('users')
+          .select('id')
+          .eq('referrer_id', partnerId);
+        console.log(`🔍 파트너 ${partnerId}의 사용자:`, usersForPartner?.length || 0);
+        allUserIds.push(...(usersForPartner?.map(u => u.id) || []));
+      }
+
+      console.log('🔍 [UserManagement] 총 조회된 사용자 ID 개수:', allUserIds.length);
+
+      // ⚡ 모든 사용자의 상세 정보 조회
+      let usersResult;
+      if (allUserIds.length > 0) {
+        usersResult = await supabase
           .from('users')
           .select('*')
-          .in('referrer_id', allowedReferrerIds)
-          .order('created_at', { ascending: false })
-          .limit(500), // ⚡ 초기 로드 속도 향상
-        supabase
-          .from('partners')
-          .select('id, username, level')
-          .in('id', allowedReferrerIds)
-      ]);
+          .in('id', allUserIds)
+          .order('created_at', { ascending: false }); // ⭐ limit 제거 - 모든 사용자 조회
+      } else {
+        usersResult = { data: [], error: null };
+      }
+
+      const partnersResult = await supabase
+        .from('partners')
+        .select('id, username, level')
+        .in('id', allowedReferrerIds);
 
       if (usersResult.error) throw usersResult.error;
 

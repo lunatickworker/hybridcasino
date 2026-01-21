@@ -369,7 +369,26 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         syncingSessionsRef.current.add(sessionId);
 
         try {
+          // 1. 세션 종료 처리
           await syncBalanceOnSessionEnd(session.user_id, session.api_type);
+          
+          // 2. ⭐ 보유금 업데이트 (UI 반영)
+          const { data: updatedUser } = await supabase
+            .from('users')
+            .select('balance, points')
+            .eq('id', session.user_id)
+            .single();
+          
+          if (updatedUser) {
+            setUserBalance({
+              balance: updatedUser.balance || 0,
+              points: updatedUser.points || 0
+            });
+            console.log('✅ [보유금 업데이트] UI 반영 완료:', {
+              balance: updatedUser.balance,
+              points: updatedUser.points
+            });
+          }
         } finally {
           syncingSessionsRef.current.delete(sessionId);
         }
@@ -450,7 +469,58 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   }, [user?.id]);
 
   // ==========================================================================
-  // 3분 후 자동 로그아웃 (비활성화됨)
+  // 🆕 보유금 실시간 변경 감지 (관리자 수정 시 자동 반영)
+  // ==========================================================================
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('💰 [Benz 보유금 Realtime] 구독 시작:', user.id);
+
+    const balanceChannelRef = supabase
+      .channel(`benz_user_balance_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${user.id}` // 현재 사용자만 감지
+        },
+        (payload) => {
+          const { new: updatedUser } = payload as any;
+
+          // balance 또는 points 변경 감지
+          if (updatedUser?.balance !== undefined || updatedUser?.points !== undefined) {
+            const newBalance = {
+              balance: updatedUser.balance ?? userBalance.balance,
+              points: updatedUser.points ?? userBalance.points
+            };
+
+            console.log('✅ [Benz 보유금 Realtime] 변경 감지:', {
+              before: userBalance,
+              after: newBalance,
+              changed: updatedUser
+            });
+
+            // 상태 업데이트
+            setUserBalance(newBalance);
+            
+            // 관리자 수정 시 토스트 알림
+            if (updatedUser.balance !== userBalance.balance) {
+              toast.info(`보유금이 ${updatedUser.balance}원으로 업데이트되었습니다.`);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('💰 [Benz 보유금 Realtime] 구독 종료');
+      supabase.removeChannel(balanceChannelRef);
+    };
+  }, [user?.id, userBalance.balance, userBalance.points]);
+
+  // ==========================================================================  // 3분 후 자동 로그아웃 (비활성화됨)
   // ==========================================================================
   /* useEffect(() => {
     if (!user?.id) return;

@@ -262,16 +262,18 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   // =====================================================
   const handleSyncOroplayBalance = async () => {
     if (user.level !== 1 && user.level !== 2) {
+      console.warn('❌ OroPlay 동기화: 권한 없음 (level:', user.level, ')');
       return;
     }
 
     setIsSyncingOroplay(true);
     try {
-      console.log('💰 [AdminHeader] OroPlay 보유금 수동 동기화 시작');
+      console.log('💰 [AdminHeader] OroPlay 보유금 수동 동기화 시작', { userLevel: user.level, userId: user.id });
 
       // Lv1의 토큰 조회 (Lv2도 Lv1의 API 설정 사용)
       let partnerId = user.id;
       if (user.level === 2) {
+        console.log('🔍 Lv2: Lv1 파트너 찾기...');
         // Lv2는 Lv1의 partner_id 찾기
         const { data: lv1Partner } = await supabase
           .from('partners')
@@ -281,51 +283,70 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           .limit(1)
           .maybeSingle(); // ⭐ single() → maybeSingle()
         
+        console.log('✅ Lv1 파트너 조회:', lv1Partner?.id);
+        
         if (!lv1Partner) {
           console.warn('⚠️ 시스템 파트너를 찾을 수 없습니다 (OroPlay 동기화)');
           toast.error('시스템 파트너가 존재하지 않습니다. 시스템 관리자에게 문의하세요.');
+          setIsSyncingOroplay(false);
           return;
         }
         partnerId = lv1Partner.id;
       }
 
+      console.log('🔑 partnerId:', partnerId);
+
       // ✅ OroPlay API 활성화 체크
+      console.log('🔍 OroPlay API 활성화 체크...');
       const isOroPlayActive = await checkApiActiveByPartnerId(partnerId, 'oroplay');
+      console.log('✅ OroPlay API 활성화:', isOroPlayActive);
+      
       if (!isOroPlayActive) {
+        console.warn('⚠️ OroPlay API가 비활성화됨');
         toast.info('OroPlay API가 비활성화되어 있습니다.');
+        setIsSyncingOroplay(false);
         return;
       }
 
       // 토큰 조회 (자동 갱신 포함)
+      console.log('🔍 OroPlay 토큰 조회...');
       const token = await getOroPlayToken(partnerId);
+      console.log('✅ 토큰 획득:', token ? '성공' : '실패');
 
       // GET /agent/balance 호출
+      console.log('🔍 OroPlay 잔고 조회...');
       const balance = await getAgentBalance(token);
-
       console.log('✅ [AdminHeader] OroPlay API 응답:', { balance });
 
       // DB 업데이트
+      console.log('💾 DB 업데이트 시작...');
       if (user.level === 1) {
+        console.log('📝 Lv1 업데이트: updateOroplayBalance 호출');
         // Lv1: 헬퍼 함수 사용 (api_configs + 모든 Lv2 동기화)
         const success = await updateOroplayBalance(user.id, balance);
         if (!success) {
           throw new Error('DB 업데이트 실패');
         }
       } else if (user.level === 2) {
+        console.log('📝 Lv2 업데이트: partners.oroplay_balance 업데이트', { userId: user.id, balance });
         // Lv2: partners.oroplay_balance 업데이트 (자기 자신만)
-        const { error: updateError } = await supabase
+        const { data, error: updateError } = await supabase
           .from('partners')
           .update({
             oroplay_balance: balance,
             updated_at: new Date().toISOString()
           })
-          .eq('id', user.id);
+          .eq('id', user.id)
+          .select();
+
+        console.log('📝 DB 업데이트 결과:', { data, error: updateError });
 
         if (updateError) {
-          throw new Error('DB 업데이트 실패');
+          throw new Error(`DB 업데이트 실패: ${updateError.message}`);
         }
       }
 
+      console.log('✅ 동기화 완료');
       toast.success(`OroPlay 보유금 동기화 완료: ${formatCurrency(balance)}`);
       
       // ✅ BalanceContext 업데이트 (❌ 제거: syncBalance() 호출 시 불필요한 API 호출 방지)
@@ -1284,6 +1305,185 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       supabase.removeChannel(bettingChannel);
     };
   }, [onRouteChange, user.level, allowedPartnerIds]);
+
+  // ✅ API 자동 동기화 (4초 주기) - AdminHeader에서도 실시간 업데이트
+  // ❌ 자동 동기화 비활성화: HonorAPI가 불안정한 값을 반환하여 불필요한 업데이트 발생
+  // 수동 동기화(카드 클릭)만 사용
+  /*
+  useEffect(() => {
+    if (user.level !== 1 && user.level !== 2) {
+      return;
+    }
+
+    console.log('🔄 [AdminHeader] API 자동 동기화 시작 (4초 주기)');
+
+    let isMounted = true;
+    let isAutoSyncing = false;
+    
+    // 마지막 업데이트된 값 캐싱 (불필요한 DB 업데이트 방지)
+    const lastValuesRef = { honorapi: null as number | null, oroplay: null as number | null };
+
+    const performAutoSync = async () => {
+      if (isAutoSyncing || !isMounted) return;
+      isAutoSyncing = true;
+
+      try {
+        let partnerId = user.id;
+        if (user.level === 2) {
+          const { data: lv1Partner } = await supabase
+            .from('partners')
+            .select('id')
+            .eq('level', 1)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          if (!lv1Partner || !isMounted) {
+            isAutoSyncing = false;
+            return;
+          }
+          partnerId = lv1Partner.id;
+        }
+
+        // 활성화된 API만 동기화
+        const { data: honorConfig } = await supabase
+          .from('api_configs')
+          .select('is_active')
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'honorapi')
+          .maybeSingle();
+
+        const { data: oroplayConfig } = await supabase
+          .from('api_configs')
+          .select('is_active')
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'oroplay')
+          .maybeSingle();
+
+        // HonorAPI 동기화
+        if (honorConfig?.is_active !== false && isMounted) {
+          try {
+            console.log('🔄 [AdminHeader] HonorAPI 자동 동기화 (4초 주기)');
+            const credentials = await getLv1HonorApiCredentials(partnerId);
+            if (credentials?.api_key) {
+              const agentInfo = await honorApiModule.getAgentInfo(credentials.api_key);
+              const balance = agentInfo?.hold_amount;
+              
+              // balance가 유효한 숫자이고 변경되었을 때만 업데이트
+              if (typeof balance === 'number' && balance >= 0 && lastValuesRef.honorapi !== balance) {
+                lastValuesRef.honorapi = balance;
+                
+                if (user.level === 1) {
+                  await supabase
+                    .from('api_configs')
+                    .update({
+                      balance: balance,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('partner_id', user.id)
+                    .eq('api_provider', 'honorapi');
+                } else if (user.level === 2) {
+                  await supabase
+                    .from('partners')
+                    .update({
+                      honorapi_balance: balance,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', user.id);
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('⚠️ [AdminHeader] HonorAPI 자동 동기화 실패:', error);
+          }
+        }
+
+        // OroPlay 동기화
+        if (oroplayConfig?.is_active !== false && isMounted) {
+          try {
+            console.log('🔄 [AdminHeader] OroPlay 자동 동기화 (4초 주기)');
+            
+            const { data: config } = await supabase
+              .from('api_configs')
+              .select('token, token_expires_at, client_id, client_secret')
+              .eq('partner_id', partnerId)
+              .eq('api_provider', 'oroplay')
+              .maybeSingle();
+
+            if (config?.client_id && config?.client_secret) {
+              let token = config.token || '';
+              
+              const isTokenExpired = !config.token_expires_at || 
+                new Date(config.token_expires_at).getTime() < Date.now() + 5 * 60 * 1000;
+
+              if (isTokenExpired || !config.token) {
+                const { createOroPlayToken } = await import('../../lib/oroplayApi');
+                const tokenData = await createOroPlayToken(
+                  config.client_id,
+                  config.client_secret
+                );
+                
+                token = tokenData.token;
+
+                await supabase
+                  .from('api_configs')
+                  .update({
+                    token: tokenData.token,
+                    token_expires_at: new Date(tokenData.expiration * 1000).toISOString(),
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('partner_id', partnerId)
+                  .eq('api_provider', 'oroplay');
+              }
+
+              const { getAgentBalance } = await import('../../lib/oroplayApi');
+              const balance = await getAgentBalance(token);
+
+              if (user.level === 1) {
+                await supabase
+                  .from('api_configs')
+                  .update({
+                    balance: balance,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('partner_id', user.id)
+                  .eq('api_provider', 'oroplay');
+              } else if (user.level === 2) {
+                await supabase
+                  .from('partners')
+                  .update({
+                    oroplay_balance: balance,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', user.id);
+              }
+            }
+          } catch (error) {
+            console.warn('⚠️ [AdminHeader] OroPlay 자동 동기화 실패:', error);
+          }
+        }
+      } catch (error) {
+        console.error('❌ [AdminHeader] 자동 동기화 오류:', error);
+      } finally {
+        isAutoSyncing = false;
+      }
+    };
+
+    // 즉시 첫 동기화 실행
+    performAutoSync();
+
+    // 4초마다 동기화
+    const autoSyncInterval = setInterval(() => {
+      performAutoSync();
+    }, 4000);
+
+    return () => {
+      console.log('🧹 [AdminHeader] API 자동 동기화 정리');
+      isMounted = false;
+      clearInterval(autoSyncInterval);
+    };
+  }, [user.id, user.level]);
+  */
 
   const handleLogout = () => {
     logout();

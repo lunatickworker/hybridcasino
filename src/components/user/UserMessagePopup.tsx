@@ -39,7 +39,7 @@ export function UserMessagePopup({ userId }: UserMessagePopupProps) {
     try {
       const { data, error } = await supabase
         .from('messages')
-        .select('*')
+        .select('id,content,receiver_type,receiver_id,sender_type,sender_id,status,parent_id,created_at,read_at')
         .eq('receiver_type', 'user')
         .eq('receiver_id', userId)
         .eq('sender_type', 'partner')

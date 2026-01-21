@@ -189,8 +189,7 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
           filter: `id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('🔄 [AdminSidebar] 본인 파트너 메뉴 권한 변경 감지');
-          // 메뉴 권한만 다시 로드 (menu_permissions는 유지)
+          // 메뉴 권한 변경 감지 시 다시 로드
           loadMenusFromDB();
         }
       )
@@ -205,12 +204,6 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
     if (!user?.id) return;
     
     try {
-      console.log('📋 [메뉴 로드] 시작:', {
-        userId: user.id,
-        userLevel: user.level,
-        username: user.username,
-        nickname: user.nickname
-      });
       
       const { data: partnerData, error: partnerError } = await supabase
         .from('partners')
@@ -223,10 +216,6 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       }
       
       const allowedMenuPaths = partnerData?.menu_permissions || [];
-      console.log('✅ [메뉴 로드] 허용된 메뉴 경로:', {
-        count: allowedMenuPaths.length,
-        isEmpty: allowedMenuPaths.length === 0
-      });
       
       // ✅ DB에서 메뉴 데이터 조회 (is_visible = true인 메뉴만)
       const { data: dbMenus, error: menuError } = await supabase
@@ -241,7 +230,6 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       }
       
       if (!dbMenus || dbMenus.length === 0) {
-        console.warn('⚠️ DB에 메뉴 데이터가 없습니다. 기본 대시보드만 표시합니다.');
         setMenuItems([{
           id: 'dashboard',
           title: t.menu.dashboard,
@@ -253,7 +241,6 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
         return;
       }
       
-      console.log(`✅ [메뉴 로드] ${dbMenus.length}개 메뉴 조회 완료`);
       
       // ✅ 필터링: 허용된 메뉴만 표시
       const filteredMenus = allowedMenuPaths && allowedMenuPaths.length > 0
@@ -275,10 +262,7 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       const hasChanged = JSON.stringify(menuItems) !== JSON.stringify(newMenuItems);
       
       if (hasChanged) {
-        console.log('🔄 메뉴 업데이트됨:', newMenuItems.length);
         setMenuItems(newMenuItems);
-      } else {
-        console.log('✅ 메뉴 동일함 - 업데이트 스킵');
       }
       
       setLoadingMenus(false);

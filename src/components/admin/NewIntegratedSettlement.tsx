@@ -462,61 +462,119 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       return isRelevant && (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal_request');
     }).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ 수동 입금: 회원입금(user_id) + 파트너입금(partner_id) 분리
-    // 회원에 대한 강제 입금: user_id로 필터링
+    // ✅ 수동 입금: 자신 + 하위 회원이 받은 입금, 단 직상위만 카운트
+    // 예: 운영사(Lv2)가 매장 회원에게 10000원 입금 → 매장 정산: 10000, 총판/부본사/본사: 0
+    let directParentId: string | null = null;
+    let parentChain: string[] = []; // 상위 체인
+    
+    if (level === 0) {
+      // 회원(Lv7): 직상위 파트너(referrer_id) = 매장(Level 6)
+      const currentUser = users.find(u => u.id === entityId);
+      directParentId = currentUser?.referrer_id || null;
+    } else if (level >= 3 && level <= 6) {
+      // 파트너(Lv3-6 본사/부본사/총판/매장): 직상위 파트너(parent_id)
+      const currentPartner = partners.find(p => p.id === entityId);
+      directParentId = currentPartner?.parent_id || null;
+      parentChain = currentPartner?.parent_chain || [];
+    } else if (level === 2) {
+      // Lv2(운영사): 직상위 파트너(parent_id)
+      const currentPartner = partners.find(p => p.id === entityId);
+      directParentId = currentPartner?.parent_id || null;
+      parentChain = currentPartner?.parent_chain || [];
+    } else if (level === 1) {
+      // Lv1(시스템관리자): 상위 회원 없음
+      directParentId = null;
+      parentChain = [];
+    }
+
+    // ✅ 상위 체인에 있는 모든 파트너 ID (직상위 포함)
+    const allAncestorIds = directParentId ? [directParentId, ...parentChain] : [];
+
+    // ✅ 직속 자식들만 필터링 (자신이 직상위인 경우만)
+    const directChildUserIds = users.filter(u => u.referrer_id === entityId).map(u => u.id);
+    const directChildPartnerIds = partners.filter(p => p.parent_id === entityId).map(p => p.id);
+
+    // 회원에 대한 강제 입금: 자신이 직상위인 회원들이 받은 입금
     const manualDepositFromUserTransactions = transactions.filter(t => 
       t.transaction_type === 'admin_deposit' && 
       t.status === 'completed' && 
       t.user_id && // 회원 거래
-      relevantUserIdsForTransactions.includes(t.user_id)
+      (
+        // 자신이 받은 입금 또는 자신의 직속 자식이 받은 입금
+        t.user_id === entityId || directChildUserIds.includes(t.user_id)
+      )
     ).reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    // 파트너에 대한 강제 입금: partner_id로 필터링
+    // 파트너에 대한 강제 입금: 자신이 직상위인 파트너들이 받은 입금
     const manualDepositFromPartnerTransactions = transactions.filter(t => 
       t.transaction_type === 'admin_deposit' && 
       t.status === 'completed' && 
       !t.user_id && t.partner_id && // 파트너 거래
-      relevantUserIdsForTransactions.includes(t.partner_id)
+      (
+        // 자신이 받은 입금 또는 자신의 직속 자식이 받은 입금
+        t.partner_id === entityId || directChildPartnerIds.includes(t.partner_id)
+      )
     ).reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    // ✅ admin_deposit_send는 partner_id 기준 필터링
+    // ✅ admin_deposit_send: 자신이 직상위인 파트너들이 받은 입금
     const manualDepositFromLogs = partnerBalanceLogs.filter(pl => 
       pl.transaction_type === 'admin_deposit_send' &&
-      pl.partner_id && relevantUserIdsForTransactions.includes(pl.partner_id)
+      pl.partner_id && 
+      (
+        // 자신이 받은 입금 또는 자신의 직속 자식이 받은 입금
+        pl.partner_id === entityId || directChildPartnerIds.includes(pl.partner_id)
+      )
     ).reduce((sum, pl) => sum + (pl.amount || 0), 0);
 
     const manualDeposit = manualDepositFromLogs + manualDepositFromUserTransactions + manualDepositFromPartnerTransactions;
     
     // ✅ 수동입금 디버깅: 데이터 크기 확인
-    console.log(`📊 [수동입금 분석] ${username}:`, {
+    console.log(`📊 [수동입금 분석] ${username} (Level ${level}, ID ${entityId}):`, {
+      directParentId,
+      parentChain,
+      allAncestorIds,
+      relevantUserIdsForTransactions: relevantUserIdsForTransactions.slice(0, 5),
       manualDepositFromUserTransactions,
       manualDepositFromPartnerTransactions,
       manualDepositFromLogs,
       manualDeposit: manualDeposit,
-      totalManualDepositCount: manualDepositFromLogs > 0 || manualDepositFromUserTransactions > 0 || manualDepositFromPartnerTransactions > 0 ? 1 : 0
+      transactionsCount: transactions.length,
+      adminDepositCount: transactions.filter(t => t.transaction_type === 'admin_deposit').length,
+      adminDepositDetails: transactions.filter(t => t.transaction_type === 'admin_deposit').map(t => ({ user_id: t.user_id?.substring(0,8), partner_id: t.partner_id?.substring(0,8), amount: t.amount })),
+      logsCount: partnerBalanceLogs.length
     });
     
-    // ✅ 수동 출금: 회원출금(user_id) + 파트너출금(partner_id) 분리
-    // 회원에 대한 강제 출금: user_id로 필터링
+    // ✅ 수동 출금: 자신이 직상위인 회원/파트너들이 당한 출금
+    // 회원에 대한 강제 출금: 자신이 직상위인 회원들이 당한 출금
     const manualWithdrawalFromUserTransactions = transactions.filter(t => 
       t.transaction_type === 'admin_withdrawal' && 
       t.status === 'completed' && 
       t.user_id && // 회원 거래
-      relevantUserIdsForTransactions.includes(t.user_id)
+      (
+        // 자신이 당한 출금 또는 자신의 직속 자식이 당한 출금
+        t.user_id === entityId || directChildUserIds.includes(t.user_id)
+      )
     ).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // 파트너에 대한 강제 출금: partner_id로 필터링
+    // 파트너에 대한 강제 출금: 자신이 직상위인 파트너들이 당한 출금
     const manualWithdrawalFromPartnerTransactions = transactions.filter(t => 
       t.transaction_type === 'admin_withdrawal' && 
       t.status === 'completed' && 
       !t.user_id && t.partner_id && // 파트너 거래
-      relevantUserIdsForTransactions.includes(t.partner_id)
+      (
+        // 자신이 당한 출금 또는 자신의 직속 자식이 당한 출금
+        t.partner_id === entityId || directChildPartnerIds.includes(t.partner_id)
+      )
     ).reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
 
-    // ✅ admin_withdrawal_send는 partner_id 기준 필터링
+    // ✅ admin_withdrawal_send: 자신이 직상위인 파트너들이 당한 출금
     const manualWithdrawalFromLogs = partnerBalanceLogs.filter(pl => 
       pl.transaction_type === 'admin_withdrawal_send' &&
-      pl.partner_id && relevantUserIdsForTransactions.includes(pl.partner_id)
+      pl.partner_id && 
+      (
+        // 자신이 당한 출금 또는 자신의 직속 자식이 당한 출금
+        pl.partner_id === entityId || directChildPartnerIds.includes(pl.partner_id)
+      )
     ).reduce((sum, pl) => sum + Math.abs(pl.amount || 0), 0);
 
     const totalManualWithdrawal = manualWithdrawalFromLogs + manualWithdrawalFromUserTransactions + manualWithdrawalFromPartnerTransactions;
@@ -578,22 +636,60 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const casinoTotalRolling = casinoBet * (casinoRollingRate / 100);
     const slotTotalRolling = slotBet * (slotRollingRate / 100);
     const totalRolling = casinoTotalRolling + slotTotalRolling;
-    const casinoLosableAmount = Math.max(0, casinoWinLoss - casinoTotalRolling);
-    const slotLosableAmount = Math.max(0, slotWinLoss - slotTotalRolling);
-    const casinoTotalLosing = casinoLosableAmount * (casinoLosingRate / 100);
-    const slotTotalLosing = slotLosableAmount * (slotLosingRate / 100);
-    const totalLosing = casinoTotalLosing + slotTotalLosing;
-    const individualRolling = totalRolling;
-    const individualLosing = totalLosing;
+    
+    // ✅ 변경: 루징 = (총베팅 - 당점) × 루징률 (공베율 적용 X)
+    const casinoLosing = (casinoBet - casinoWin) * (casinoLosingRate / 100);
+    const slotLosing = (slotBet - slotWin) * (slotLosingRate / 100);
+    const totalLosing = casinoLosing + slotLosing;
+    
+    // ✅ 직속 하위 파트너의 롤링금 및 루징금 합산 계산
+    let directChildRollingSum = 0;
+    let directChildLosingSum = 0;
+    if (level >= 3 && level <= 6) {
+      // 파트너인 경우만 하위 파트너가 있을 수 있음
+      const directChildPartners = partners.filter(p => p.parent_id === entityId);
+      for (const childPartner of directChildPartners) {
+        // 각 직속 하위 파트너의 게임 기록만 필터링
+        const childRelatedUserIds = getAllRelatedUserIds(childPartner.id, partners, users);
+        const childGameRecords = gameRecords.filter(gr => childRelatedUserIds.includes(gr.user_id));
+        
+        const childCasinoBet = Math.abs(childGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
+        const childSlotBet = Math.abs(childGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
+        
+        const childCasinoWin = Math.abs(childGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.win_amount || 0), 0));
+        const childSlotWin = Math.abs(childGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.win_amount || 0), 0));
+        
+        // 자식 파트너의 롤링률 사용
+        const childCasinoRolling = childCasinoBet * ((childPartner.casino_rolling_commission || casinoRollingRate) / 100);
+        const childSlotRolling = childSlotBet * ((childPartner.slot_rolling_commission || slotRollingRate) / 100);
+        
+        directChildRollingSum += childCasinoRolling + childSlotRolling;
+        
+        // 자식 파트너의 루징률 사용
+        const childCasinoLosingRate = childPartner.casinoLosingRate || casinoLosingRate;
+        const childSlotLosingRate = childPartner.slotLosingRate || slotLosingRate;
+        const childCasinoLosing = (childCasinoBet - childCasinoWin) * (childCasinoLosingRate / 100);
+        const childSlotLosing = (childSlotBet - childSlotWin) * (childSlotLosingRate / 100);
+        
+        directChildLosingSum += childCasinoLosing + childSlotLosing;
+      }
+    }
+    
+    // ✅ 코드별 실정산 롤링금 = 총롤링금 - 절삭롤링금 - 하위 롤링금
+    const gongBetRateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
+    const isGongBetApplied = gongBetEnabled && gongBetLevels[level];
+    const gongBetCutRolling = isGongBetApplied ? totalRolling * (gongBetRateNum / 100) : 0;
+    const settledRolling = totalRolling - gongBetCutRolling - directChildRollingSum;
+    
+    // ✅ 코드별 실정산 루징금 = 총루징금 - 하위 루징금
+    const settledLosing = totalLosing - directChildLosingSum;
+    
+    const individualRolling = settledRolling; // 코드별 실정산 롤링 (하위 롤링금 제외)
+    const individualLosing = settledLosing; // 코드별 실정산 루징 (하위 루징금 제외)
+    
     // ✅ 수정: manualWithdrawal은 음수이므로 절댓값으로 변환 후 뺄셈
     // (입금 10000) - (출금 10000) = 0 (올바름)
     const depositWithdrawalDiff = onlineDeposit - onlineWithdrawal + manualDeposit - Math.abs(manualWithdrawal);
-
-    // 공베팅 적용: 해당 레벨이 활성화되어 있고 공베팅이 전체 활성화된 경우
-    const gongBetRateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
-    const isGongBetApplied = gongBetEnabled && gongBetLevels[level];
-    const gongBetAppliedRolling = isGongBetApplied ? totalRolling * (1 - gongBetRateNum / 100) : totalRolling;
-    const gongBetCutRolling = isGongBetApplied ? totalRolling * (gongBetRateNum / 100) : 0;
 
     // ✅ 게임타입별 절삭 롤링금 계산 (공베팅 적용 시 각 게임별로 절삭)
     const casinoGongBetCutRolling = isGongBetApplied ? casinoTotalRolling * (gongBetRateNum / 100) : 0;
@@ -615,7 +711,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       balance, points, onlineDeposit, onlineWithdrawal, manualDeposit, manualWithdrawal,
       pointGiven, pointRecovered, depositWithdrawalDiff, casinoBet, casinoWin, slotBet, slotWin, ggr,
       totalRolling, totalLosing, individualRolling, individualLosing,
-      gongBetAppliedRolling, gongBetCutRolling,
+      gongBetAppliedRolling: settledRolling, gongBetCutRolling,
       casinoGongBetAmount, slotGongBetAmount, cutRollingAmount
     };
   };

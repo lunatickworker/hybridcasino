@@ -454,14 +454,6 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           filter: `id=eq.${user.id}`
         },
         (payload) => {
-          console.log('🔔 [BalanceContext] Partners 테이블 업데이트 감지:', {
-            balance: payload.new?.balance,
-            invest_balance: payload.new?.invest_balance,
-            oroplay_balance: payload.new?.oroplay_balance,
-            familyapi_balance: payload.new?.familyapi_balance,
-            honorapi_balance: payload.new?.honorapi_balance
-          });
-          
           const newBalance = parseFloat(payload.new?.balance) || 0;
           setBalance(newBalance);
 
