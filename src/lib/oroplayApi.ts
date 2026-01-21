@@ -72,12 +72,6 @@ async function apiCall<T = any>(config: ApiConfig, retries = 1): Promise<T> {
     
     clearTimeout(timeoutId);
     
-    const elapsed = Date.now() - startTime;
-    console.log(`✅ [OroPlay] 응답 수신 (${elapsed}ms):`, {
-      status: response.status,
-      ok: response.ok
-    });
-    
     if (!response.ok) {
       if (response.status === 401) {
         throw new Error(`인증 실패 (401): 토큰이 유효하지 않습니다.`);
@@ -87,8 +81,6 @@ async function apiCall<T = any>(config: ApiConfig, retries = 1): Promise<T> {
     }
     
     const data = await response.json();
-    
-    console.log(`📦 [OroPlay] 데이터 파싱 완료 (총 ${Date.now() - startTime}ms)`);
     
     // ⭐ API 응답 검증: RESULT가 false이면 에러
     if (data && typeof data === 'object') {
@@ -228,11 +220,8 @@ async function getPartnerHierarchy(partnerId: string): Promise<string[]> {
  * ⚡ hierarchical credential lookup: Lv6 → Lv5 → ... → Lv1 순서로 credentials 검색
  */
 export async function getOroPlayToken(partnerId: string): Promise<string> {
-  console.log('🔑 [OroPlay] getOroPlayToken 호출 시작:', { partnerId });
-  
   // ⚡ 계층 순서대로 파트너 ID 목록 조회 (자신부터 Lv1까지)
   const hierarchy = await getPartnerHierarchy(partnerId);
-  console.log('🔗 [OroPlay] 검색할 파트너 계층:', hierarchy);
   
   // ⚡ 계층 순서대로 credentials 검색 (Lv6 → ... → Lv1)
   let foundPartnerId: string | null = null;
@@ -249,7 +238,6 @@ export async function getOroPlayToken(partnerId: string): Promise<string> {
     if (!error && data?.client_id && data?.client_secret) {
       config = data;
       foundPartnerId = pid;
-      console.log(`✅ [OroPlay] Credentials 발견: partner_id=${pid}`);
       break;
     }
   }
@@ -273,19 +261,7 @@ export async function getOroPlayToken(partnerId: string): Promise<string> {
     throw new Error('OroPlay client_id 또는 client_secret이 설정되지 않았습니다.');
   }
   
-  console.log('📋 [OroPlay] 기존 토큰 확인:', {
-    partner_id: partnerId,
-    has_token: !!config.token,
-    has_expires_at: !!config.token_expires_at,
-    client_id_length: config.client_id?.length || 0
-  });
-  
   const token = await refreshTokenIfNeeded(foundPartnerId, config);
-  
-  console.log('✅ [OroPlay] 토큰 획득 완료:', {
-    partner_id: foundPartnerId,
-    token_preview: token.substring(0, 20) + '...'
-  });
   
   return token;
 }
@@ -481,19 +457,12 @@ export async function getLaunchUrl(
       theme
     }
   }); // ⭐ 재시도 없이 1회만 시도 (기본값 retries=0)
-  
-  console.log('📊 [OroPlay] getLaunchUrl 응답:', {
-    errorCode: response.errorCode,
-    hasMessage: !!response.message,
-    messageLength: response.message?.length
-  });
 
   if (response.errorCode !== undefined && response.errorCode !== 0) {
     const errorMessage = getErrorMessage(response.errorCode);
-    console.error('❌ ❌ [OroPlay] getLaunchUrl 실패:', {
+    console.error('❌ [OroPlay] getLaunchUrl 실패:', {
       vendorCode,
       gameCode,
-      userCode,
       errorCode: response.errorCode,
       errorMessage
     });

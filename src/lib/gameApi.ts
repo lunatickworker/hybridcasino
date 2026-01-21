@@ -3277,7 +3277,6 @@ async function getTopLevelPartnerId(partnerId: string, retryCount = 0): Promise<
     }
     
     if (data && typeof data === 'string') {
-      console.log('✅ [getTopLevelPartnerId] 최상위 파트너 조회 완료 (단일 쿼리):', data);
       return data;
     }
     
@@ -3472,18 +3471,12 @@ export async function launchGame(
       const userBlockedAccess = blockedAccess?.filter(a => a.user_id === userId) || [];
       const storeBlockedAccess = blockedAccess?.filter(a => !a.user_id) || [];
       
-      if (userBlockedAccess.length > 0 || storeBlockedAccess.length > 0) {
-        console.log('🔍 [partner_game_access] 차단 설정:', {
-          사용자: userBlockedAccess.length,
-          매장: storeBlockedAccess.length
-        });
-      }
+
 
       // ⭐ 차단 여부 확인 (레코드가 있으면 차단됨)
       let isBlocked = false;
       let blockReason = '';
 
-      // 1) 사용자가 제공사를 차단했는지 확인
       const userProviderBlocked = userBlockedAccess?.find(
         access =>
           access.game_provider_id === String(game.provider_id) &&
@@ -3492,10 +3485,8 @@ export async function launchGame(
       if (userProviderBlocked) {
         isBlocked = true;
         blockReason = '사용자가 해당 게임사를 차단했습니다.';
-        console.log('🚫 [사용자] 제공사 차단:', game.provider_id);
       }
 
-      // 2) 사용자가 게임을 차단했는지 확인
       if (!isBlocked) {
         const userGameBlocked = userBlockedAccess?.find(
           access => 
@@ -3505,11 +3496,9 @@ export async function launchGame(
         if (userGameBlocked) {
           isBlocked = true;
           blockReason = '사용자가 해당 게임을 차단했습니다.';
-          console.log('🚫 [사용자] 게임 차단:', gameId);
         }
       }
 
-      // 3) 매장이 제공사를 차단했는지 확인
       if (!isBlocked) {
         const storeProviderBlocked = storeBlockedAccess?.find(
           access =>
@@ -3519,11 +3508,9 @@ export async function launchGame(
         if (storeProviderBlocked) {
           isBlocked = true;
           blockReason = '매장에서 해당 게임사를 차단했습니다.';
-          console.log('🚫 [매장] 제공사 차단:', game.provider_id);
         }
       }
 
-      // 4) 매장이 게임을 차단했는지 확인
       if (!isBlocked) {
         const storeGameBlocked = storeBlockedAccess?.find(
           access => 
@@ -3533,7 +3520,6 @@ export async function launchGame(
         if (storeGameBlocked) {
           isBlocked = true;
           blockReason = '매장에서 해당 게임을 차단했습니다.';
-          console.log('🚫 [매장] 게임 차단:', gameId);
         }
       }
 
@@ -3550,9 +3536,6 @@ export async function launchGame(
         };
       }
 
-      console.log('✅ [partner_game_access] 게임 접근 허용 (차단 없음)');
-    } else {
-      console.log('ℹ️ [partner_game_access] partner_id 없음 - 검증 건너뜀 (파트너 계정)');
     }
 
     // 3. Lv1 파트너 ID 찾기 (referrer_id를 따라 최상위까지 올라감)
@@ -3565,8 +3548,6 @@ export async function launchGame(
         error: '파트너 정보를 찾을 수 없습니다.'
       };
     }
-
-    console.log('✅ 최상위 파트너 ID:', topLevelPartnerId);
 
     // 4. API 활성화 상태 체크
     const { data: apiConfig } = await supabase
@@ -3975,25 +3956,18 @@ async function launchOroPlayGame(
       };
     }
 
-    // ⭐ 3. 회원 생성 API 호출 (이미 존재하면 성공 처리)
-    console.log(`👤 [회원 생성] OroPlay API 회원 생성 시작: ${username}`);
+    // ⭐ 3-4. 회원 생성 + 입금 병행처리
     try {
-      await oroplayApi.createUser(token, username);
-      // createUser는 성공 시 void 반환, 실패 시 throw
-      console.log(`✅ [회원 생성] 회원 생성 완료 (또는 이미 존재)`);
-    } catch (createError) {
-      // errorCode 1 (이미 존재)는 createUser 내부에서 처리됨
-      console.warn(`⚠️ [회원 생성] 오류 (계속 진행):`, createError);
-    }
-
-    // ⭐ 4. GMS 보유금을 API로 입금
-    console.log(`💸 [입금] GMS → API 입금 시작: ${userBalance}원`);
-    try {
-      // ⚡ 입금 전 active 세션 체크 로직 제거 (generateGameLaunchUrl에서 이미 체크함)
-      
       // 최신 잔고로 입금
       finalBalance = userData.balance || 0;
-      const depositResult = await oroplayApi.depositBalance(token, username, finalBalance);
+      
+      // 병행 처리: 회원 생성과 입금을 동시에 진행
+      const [createResult, depositResult] = await Promise.all([
+        // 회원 생성
+        oroplayApi.createUser(token, username).then(() => ({ success: true })).catch(() => ({ success: true })), // errorCode 1(이미 존재) 무시
+        // 입금
+        oroplayApi.depositBalance(token, username, finalBalance)
+      ]);
 
       if (depositResult.success) {
         console.log(`✅ [입금] API 입금 완료: ${finalBalance}원`);
@@ -4004,11 +3978,11 @@ async function launchOroPlayGame(
           error: `입금 실패: ${depositResult.error}`
         };
       }
-    } catch (depositError) {
-      console.error('❌ 입금 중 오류 발생:', depositError);
+    } catch (error) {
+      console.error('❌ 회원생성/입금 중 오류 발생:', error);
       return {
         success: false,
-        error: '입금 처리 중 오류가 발생했습니다.'
+        error: '게임 준비 중 오류가 발생했습니다.'
       };
     }
 
@@ -4017,14 +3991,8 @@ async function launchOroPlayGame(
     let finalVendorCode = game.vendor_code; // casino-playace, slot-pragmatic 등
     let finalGameCode = game.game_code;
     
-    console.log(`🔍 [OroPlay] 게임 실행 준비:`, {
-      vendor_code: game.vendor_code,
-      game_code: game.game_code
-    });
-    
     // ⭐ game_code가 'lobby'인 경우에만 게임 목록 조회 시도
     if (finalGameCode === 'lobby' || finalGameCode === 'Lobby') {
-      console.log(`🔍 [OroPlay] 로비 게임 감지 - 게임 목록 조회 중...`);
       
       try {
         const gamesList = await oroplayApi.getGameList(token, finalVendorCode, 'ko');
@@ -4523,13 +4491,27 @@ async function launchHonorApiGame(
     // ⭐ 2. HonorAPI 설정 조회 (Lv1 partner_id 필요)
     const topLevelPartnerId = await getTopLevelPartnerId(userData.referrer_id);
     
-    const { data: apiConfig, error: configError } = await supabase
-      .from('api_configs')
-      .select('partner_id, api_key, balance')
-      .eq('partner_id', topLevelPartnerId)
-      .eq('api_provider', 'honorapi')
-      .single();
+    // ⭐ 병행 처리: HonorAPI 설정 + vendor_code 조회 동시 진행
+    const [apiConfigResult, providerDataResult] = await Promise.all([
+      // 1. HonorAPI 설정 조회
+      supabase
+        .from('api_configs')
+        .select('partner_id, api_key, balance')
+        .eq('partner_id', topLevelPartnerId)
+        .eq('api_provider', 'honorapi')
+        .single(),
+      // 2. vendor_code 조회 (필요시)
+      game.provider_id ? supabase
+        .from('honor_game_providers')
+        .select('vendor_code')
+        .eq('id', game.provider_id)
+        .single()
+        .then(result => result.data?.vendor_code)
+        .catch(() => null) : Promise.resolve(null)
+    ]);
 
+    const { data: apiConfig, error: configError } = apiConfigResult;
+    
     if (configError || !apiConfig?.api_key) {
       console.error('❌ ❌ HonorAPI 설정 없음:', apiConfig?.api_key);
       return {
@@ -4539,25 +4521,11 @@ async function launchHonorApiGame(
     }
 
     const apiKey = apiConfig.api_key;
-    console.log('✅ HonorAPI 설정 조회 완료');
 
-    // 3. vendor_code 조회 (honor_game_providers 테이블에서)
-    let vendorCode = game.vendor_code;
-    
-    if (!vendorCode && game.honor_game_providers?.vendor_code) {
-      vendorCode = game.honor_game_providers.vendor_code;
-    }
-    
-    if (!vendorCode && game.provider_id) {
-      // provider_id로 조회
-      const { data: providerData } = await supabase
-        .from('honor_game_providers')
-        .select('vendor_code')
-        .eq('id', game.provider_id)
-        .single();
-      
-      vendorCode = providerData?.vendor_code;
-    }
+    // 3. vendor_code 결정
+    let vendorCode = game.vendor_code || 
+                      game.honor_game_providers?.vendor_code || 
+                      providerDataResult;
     
     if (!vendorCode) {
       console.error('❌ vendor_code를 찾을 수 없습니다. 게임 데이터:', game);
@@ -4566,8 +4534,6 @@ async function launchHonorApiGame(
         error: '게임 제공사 정보를 찾을 수 없습니다.'
       };
     }
-
-    console.log(`✅ vendor_code 조회 완료: ${vendorCode}`);
 
     // ⭐ 4. Lv2 파트너의 honorapi_balance 조회 및 검증
     const { data: directParent } = await supabase
