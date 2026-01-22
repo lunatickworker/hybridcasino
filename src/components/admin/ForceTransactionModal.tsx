@@ -269,12 +269,12 @@ export function ForceTransactionModal({
             {type === 'deposit' ? (
               <>
                 <TrendingUp className="h-6 w-6 text-emerald-500" />
-                파트너 입금
+                강제 입금
               </>
             ) : (
               <>
                 <TrendingDown className="h-6 w-6 text-rose-500" />
-                파트너 출금
+                강제 출금
               </>
             )}
           </DialogTitle>
@@ -452,6 +452,17 @@ export function ForceTransactionModal({
               placeholder="금액을 입력하세요"
             />
           </div>
+
+          {/* 출금 시 전액출금 버튼 */}
+          {type === 'withdrawal' && selectedTarget && (
+            <Button
+              type="button"
+              onClick={() => setAmount(selectedTarget.balance.toLocaleString())}
+              className="h-11 text-base font-semibold transition-all bg-gradient-to-r from-red-600 to-rose-600 border border-red-400/80 text-white hover:from-red-500 hover:to-rose-500 hover:border-red-300 hover:shadow-[0_0_25px_rgba(239,68,68,0.7)] w-full backdrop-blur-sm transform hover:scale-102 active:scale-98"
+            >
+              ⚡ 전액출금
+            </Button>
+          )}
 
           {/* 금액 단축 버튼 */}
           <div className="grid gap-2">
