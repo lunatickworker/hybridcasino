@@ -441,9 +441,6 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         clearInterval(autoRefreshIntervalRef.current);
         console.log(`🛑 [BettingHistory] DB 베팅 내역 새로고침 interval 제거 (총 ${refreshCount}회 실행)`);
       }
-      if (honorApiRefreshIntervalRef.current) {
-        clearInterval(honorApiRefreshIntervalRef.current);
-      }
     };
   }, [user.id]); // user.id 변경 시만 재로드
 
