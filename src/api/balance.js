@@ -25,8 +25,10 @@ export default async function handler(req, res) {
       ? req.body 
       : JSON.stringify(req.body);
 
-    console.log('[Vercel Proxy] /balance request:', {
+    console.log('💰 [Vercel Proxy /balance] ===== 콜백 시작 =====');
+    console.log('[Vercel Proxy /balance] 요청 정보:', {
       method: req.method,
+      timestamp: new Date().toISOString(),
       body: bodyString
     });
 
@@ -42,14 +44,20 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     
-    console.log('[Vercel Proxy] /balance response:', {
+    console.log('✅ [Vercel Proxy /balance] 응답:', {
       status: response.status,
-      data
+      timestamp: new Date().toISOString(),
+      data: JSON.stringify(data)
     });
+    console.log('💰 [Vercel Proxy /balance] ===== 콜백 완료 =====');
 
     res.status(response.status).json(data);
   } catch (error) {
-    console.error('[Vercel Proxy] /balance error:', error);
+    console.error('❌ [Vercel Proxy /balance] 에러:', {
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      stack: error.stack
+    });
     res.status(500).json({ error: error.message });
   }
 }

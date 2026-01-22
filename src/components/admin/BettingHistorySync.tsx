@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { supabaseAdmin } from '../../lib/supabaseAdmin';
 import { getGameHistory, getUserBalanceWithConfig } from '../../lib/investApi';
@@ -461,6 +461,18 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
     const completedBets = result.histories.filter((bet: any) => bet.status === 1);
     console.log(`   ✅ 완료된 배팅: ${completedBets.length}건`);
     
+    // ⭐ 5-1. 이미 저장된 txid 조회 (중복 제거)
+    const { data: existingRecords } = await supabase
+      .from('game_records')
+      .select('external_txid')
+      .eq('api_type', 'oroplay')
+      .in('external_txid', completedBets.map(bet => bet.id));
+    
+    const existingTxIds = new Set(
+      existingRecords?.map((r: any) => String(r.external_txid)) || []
+    );
+    console.log(`   📋 기존 저장 건수: ${existingTxIds.size}건`);
+    
     // 6. 사용자 매핑
     const { data: allUsers } = await supabase
       .from('users')
@@ -478,6 +490,11 @@ const syncOroPlayBettingHistory = async (partnerId: string) => {
     let skipCount = 0;
     
     for (const bet of completedBets) {
+      // ⭐ 이미 저장된 txid면 스킵
+      if (existingTxIds.has(String(bet.id))) {
+        skipCount++;
+        continue;
+      }
       try {
         const userId = userMap.get(bet.userCode);
         if (!userId) {
@@ -612,6 +629,22 @@ const syncHonorApiBettingHistory = async (partnerId: string) => {
  */
 export function BettingHistorySync({ user }: BettingHistorySyncProps) {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isMonitoringRef = useRef(false); // 🆕 중복 실행 방지 플래그
+
+  // 🆕 monitorSessionStates를 useCallback으로 감싸기
+  const handleMonitorSessions = useCallback(async () => {
+    // 이미 모니터링 중이면 스킵
+    if (isMonitoringRef.current) {
+      return;
+    }
+    
+    isMonitoringRef.current = true;
+    try {
+      await monitorSessionStates();
+    } finally {
+      isMonitoringRef.current = false;
+    }
+  }, []);
 
   // ✅ 세션 자동 종료만 30초마다 실행 (동기화는 새로고침 버튼으로만)
   useEffect(() => {
@@ -630,11 +663,11 @@ export function BettingHistorySync({ user }: BettingHistorySyncProps) {
     }
 
     // 즉시 1회 실행
-    monitorSessionStates();
+    handleMonitorSessions();
 
     // 30초마다 세션 상태 모니터링 실행
     intervalRef.current = setInterval(() => {
-      monitorSessionStates();
+      handleMonitorSessions();
     }, 30000);
 
     return () => {
@@ -643,7 +676,7 @@ export function BettingHistorySync({ user }: BettingHistorySyncProps) {
         intervalRef.current = null;
       }
     };
-  }, [user.level]);
+  }, [user.level, handleMonitorSessions]);
 
   return null;
 }

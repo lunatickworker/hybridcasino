@@ -1,4 +1,4 @@
-import { SupabaseClient } from "jsr:@supabase/supabase-js@2.49.8";
+import { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 
 // =====================================================
 // FamilyAPI 콜백 핸들러

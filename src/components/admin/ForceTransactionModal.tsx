@@ -269,12 +269,12 @@ export function ForceTransactionModal({
             {type === 'deposit' ? (
               <>
                 <TrendingUp className="h-6 w-6 text-emerald-500" />
-                파트너 입금
+                강제 입금
               </>
             ) : (
               <>
                 <TrendingDown className="h-6 w-6 text-rose-500" />
-                파트너 출금
+                강제 출금
               </>
             )}
           </DialogTitle>
@@ -453,6 +453,17 @@ export function ForceTransactionModal({
             />
           </div>
 
+          {/* 출금 시 전액출금 버튼 */}
+          {type === 'withdrawal' && selectedTarget && (
+            <Button
+              type="button"
+              onClick={() => setAmount(selectedTarget.balance.toLocaleString())}
+              className="h-11 text-base font-semibold transition-all bg-gradient-to-r from-red-600 to-rose-600 border border-red-400/80 text-white hover:from-red-500 hover:to-rose-500 hover:border-red-300 hover:shadow-[0_0_25px_rgba(239,68,68,0.7)] w-full backdrop-blur-sm transform hover:scale-102 active:scale-98"
+            >
+              ⚡ 전액출금
+            </Button>
+          )}
+
           {/* 금액 단축 버튼 */}
           <div className="grid gap-2">
             <Label className="text-slate-400 text-sm">단축 입력 (누적 더하기)</Label>
@@ -472,23 +483,16 @@ export function ForceTransactionModal({
                   +{amt >= 10000 ? `${amt / 10000}만` : `${amt / 1000}천`}
                 </Button>
               ))}
-            </div>
-          </div>
-
-          {/* 전액출금 버튼 (출금 시에만) */}
-          {type === 'withdrawal' && selectedTarget && (
-            <div className="grid gap-2">
+              {/* 전액삭제 버튼 - grid-cols-4 내에 마지막 위치 */}
               <Button
                 type="button"
-                variant="outline"
-                onClick={handleFullWithdrawal}
-                className="w-full h-10 text-base bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40 hover:border-red-500"
+                onClick={handleClearAmount}
+                className="h-10 text-base transition-all bg-red-600 border border-red-600 text-white hover:bg-red-700 hover:border-red-700 hover:shadow-[0_0_15px_rgba(220,38,38,0.3)] font-medium"
               >
-                <Trash2 className="h-5 w-5 mr-2" />
-                전액출금
+                전액삭제
               </Button>
             </div>
-          )}
+          </div>
 
           {/* 에러 메시지 */}
           {errorMessage && (

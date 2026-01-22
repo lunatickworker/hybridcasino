@@ -187,6 +187,31 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
       // 현재 잔고 재조회
       await fetchCurrentBalance();
 
+      // Lv2 찾기
+      let lv2PartnerId = user.referrer_id || null;
+      if (user.referrer_id) {
+        let currentPartnerId = user.referrer_id;
+        let loopCount = 0;
+        
+        while (currentPartnerId && loopCount < 10) {
+          loopCount++;
+          const { data: partner } = await supabase
+            .from('partners')
+            .select('id, level, parent_id')
+            .eq('id', currentPartnerId)
+            .single();
+          
+          if (!partner) break;
+          
+          if (partner.level === 2) {
+            lv2PartnerId = partner.id;
+            break;
+          }
+          
+          currentPartnerId = partner.parent_id;
+        }
+      }
+
       // 입금 신청 데이터 생성
       const depositData = {
         user_id: user.id,
@@ -202,8 +227,8 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
         memo: memo.trim() || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        from_partner_id: user.referrer_id, // ✅ 담당 파트너 (Lv2 거래 목록에 표시)
-        to_partner_id: user.referrer_id     // ✅ 담당 파트너 (Lv2 거래 목록에 표시)
+        from_partner_id: user.referrer_id, // ✅ 담당 파트너
+        to_partner_id: lv2PartnerId        // ✅ Lv2
       };
 
       console.log('💰 입금 신청 데이터:', {
@@ -211,7 +236,8 @@ export function UserDeposit({ user, onRouteChange }: UserDepositProps) {
         user_info: {
           id: user.id,
           username: user.username,
-          referrer_id: user.referrer_id
+          referrer_id: user.referrer_id,
+          lv2PartnerId
         }
       });
 

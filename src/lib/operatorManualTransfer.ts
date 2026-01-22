@@ -8,6 +8,10 @@
  * 4. admin_withdrawal_send (Lv2 → Lv3+ 출금)
  * 5. partner_deposit (Lv3+ → 직속하위 입금)
  * 6. partner_withdrawal (Lv3+ → 직속하위 출금)
+ * 
+ * ✅ partner_balance_logs: 수신자(to_partner_id) 기준의 1개 로그만 저장
+ * - 입금: amount = +양수
+ * - 출금: amount = -음수
  */
 
 import { supabase } from './supabase';
@@ -480,7 +484,6 @@ async function createPartnerTransactionRecord(
   const txId = transactionId || await generateTransactionId();
 
   // Lv1→Lv2 입금: 송신자(Lv1), 수신자(Lv2) 2개 로그 생성
-  // Lv2는 특별: 모든 거래를 받는 거래 기준으로 표시 (to_partner_id = Lv2)
   if (isLv1ToLv2 && params.type === 'deposit') {
     const apiName =
       params.apiType === 'invest'
@@ -493,7 +496,7 @@ async function createPartnerTransactionRecord(
 
     // 1️⃣ Lv1 로그 (송신자: from_partner_id = Lv1)
     const lv1Log = {
-      transaction_id: txId,  // ✅ 거래ID 추가
+      transaction_id: txId,
       partner_id: params.senderId,
       balance_before: 0,
       balance_after: 0,
@@ -507,16 +510,16 @@ async function createPartnerTransactionRecord(
       created_at: new Date().toISOString()
     };
 
-    // 2️⃣ Lv2 로그 (수신자: to_partner_id = Lv2) - Lv2는 특별
+    // 2️⃣ Lv2 로그 (수신자: to_partner_id = Lv2)
     const lv2Log = {
-      transaction_id: txId,  // ✅ 같은 거래ID!
+      transaction_id: txId,
       partner_id: params.targetId,
       balance_before: balances.receiverBefore,
       balance_after: balances.receiverAfter,
       amount: params.amount,
       transaction_type: transactionType,
       from_partner_id: params.senderId,
-      to_partner_id: params.targetId,  // 🔥 Lv2 수신자는 to_partner_id = 자신
+      to_partner_id: params.targetId,
       processed_by: params.senderId,
       api_type: params.apiType,
       memo: `[${apiName} API 할당] ${params.memo || ''}`,
@@ -545,7 +548,6 @@ async function createPartnerTransactionRecord(
   }
 
   // Lv1→Lv2 출금: 송신자(Lv1), 수신자(Lv2) 2개 로그 생성
-  // Lv2는 특별: 모든 거래를 받는 거래 기준으로 표시 (to_partner_id = Lv2)
   if (isLv1ToLv2 && params.type === 'withdrawal') {
     const apiName =
       params.apiType === 'invest'
@@ -558,7 +560,7 @@ async function createPartnerTransactionRecord(
 
     // 1️⃣ Lv1 로그 (송신자: from_partner_id = Lv1)
     const lv1Log = {
-      transaction_id: txId,  // ✅ 거래ID 추가
+      transaction_id: txId,
       partner_id: params.senderId,
       balance_before: 0,
       balance_after: 0,
@@ -572,16 +574,16 @@ async function createPartnerTransactionRecord(
       created_at: new Date().toISOString()
     };
 
-    // 2️⃣ Lv2 로그 (수신자: to_partner_id = Lv2) - Lv2는 특별
+    // 2️⃣ Lv2 로그 (수신자: to_partner_id = Lv2)
     const lv2Log = {
-      transaction_id: txId,  // ✅ 같은 거래ID!
+      transaction_id: txId,
       partner_id: params.targetId,
       balance_before: balances.receiverBefore,
       balance_after: balances.receiverAfter,
       amount: -params.amount,
       transaction_type: transactionType,
       from_partner_id: params.senderId,
-      to_partner_id: params.targetId,  // 🔥 Lv2 수신자는 to_partner_id = 자신
+      to_partner_id: params.targetId,
       processed_by: params.senderId,
       api_type: params.apiType,
       memo: `[${apiName} API 회수] ${params.memo || ''}`,
@@ -610,33 +612,33 @@ async function createPartnerTransactionRecord(
   }
 
   // 일반 파트너 거래 (Lv2→Lv3+, Lv3+→직속하위)
-  // ✅ Lv2 특별 규칙: sender/receiver 모두 to_partner_id = Lv2 (받는 거래 기준)
+  // ✅ 송신자/수신자 2개 로그 저장
   
   // 1️⃣ 송신자 로그
   const senderLog = {
-    transaction_id: txId,  // ✅ 거래ID 추가
+    transaction_id: txId,
     partner_id: params.senderId,
     balance_before: balances.senderBefore || 0,
     balance_after: balances.senderAfter || 0,
     amount: params.type === 'deposit' ? -params.amount : params.amount,
     transaction_type: transactionType,
     from_partner_id: params.senderId,
-    to_partner_id: params.senderLevel === 2 ? params.senderId : null,  // 🔥 Lv2는 항상 to_partner_id = 자신 (받는 거래 기준)
+    to_partner_id: params.senderLevel === 2 ? params.senderId : null,
     processed_by: params.senderId,
     memo: params.memo || null,
     created_at: new Date().toISOString()
   };
 
-  // 2️⃣ 수신자 로그: to_partner_id = receiver (수신자)
+  // 2️⃣ 수신자 로그
   const receiverLog = {
-    transaction_id: txId,  // ✅ 같은 거래ID!
+    transaction_id: txId,
     partner_id: params.targetId,
     balance_before: balances.receiverBefore || 0,
     balance_after: balances.receiverAfter || 0,
     amount: params.type === 'deposit' ? params.amount : -params.amount,
     transaction_type: transactionType,
     from_partner_id: params.senderId,
-    to_partner_id: params.targetId,  // 🔥 수신자(receiver)
+    to_partner_id: params.targetId,
     processed_by: params.senderId,
     memo: params.memo || null,
     created_at: new Date().toISOString()

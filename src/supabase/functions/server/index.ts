@@ -1,10 +1,11 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "npm:@supabase/supabase-js";
 import {
   handleBalanceCallback,
   handleChangeBalanceCallback,
   handleChangeBalanceSlotCallback
-} from "./familycallback";
-import { executeAutoSettlement } from "./auto-settlement";
+} from "./familycallback.ts";
+import { executeAutoSettlement } from "./auto-settlements.ts";
+import { corsHeaders, handleCORSPreflight, createCORSResponse } from "./cors.ts";
 
 // =====================================================
 // 상수 정의
@@ -18,17 +19,6 @@ const supabase = createClient(
   process.env.SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
-
-// =====================================================
-// CORS 헤더
-// =====================================================
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Content-Type': 'application/json',
-  'Accept': 'application/json',
-};
 
 // =====================================================
 // Proxy 호출 헬퍼
@@ -455,8 +445,32 @@ async function syncOroplayBets(): Promise<any> {
         continue;
       }
 
-      // 3. 최근 동기화 시간 확인 (4초 전부터 조회)
-      const startDate = new Date(Date.now() - 4000).toISOString();
+      // ⚠️ CRITICAL: 사용자 매핑을 먼저 하고 모든 referrer_id 수집
+      const userMap = new Map<string, any>();
+      const partnerIdsToCheck = new Set<string>();
+      lv2OrganizationUsers.forEach((u: any) => {
+        userMap.set(u.username, { id: u.id, referrer_id: u.referrer_id });
+        partnerIdsToCheck.add(u.referrer_id);
+      });
+
+      console.log(`   📊 userMap 생성됨: ${userMap.size}명, 조직 partner_id 목록: ${partnerIdsToCheck.size}개`);
+
+      // 3. 최근 동기화 시간 확인 (마지막 동기화 레코드 기반)
+      const { data: lastOroplayRecord } = await supabase
+        .from('game_records')
+        .select('played_at')
+        .eq('api_type', 'oroplay')
+        .in('partner_id', Array.from(partnerIdsToCheck))
+        .order('played_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // 마지막 레코드 기준으로 30초 여유를 두고 조회 (클라이언트 시간차 고려)
+      const baseTime = lastOroplayRecord?.played_at 
+        ? new Date(lastOroplayRecord.played_at).getTime() - 30000
+        : Date.now() - 300000; // 첫 동기화는 5분 전부터
+      
+      const startDate = new Date(baseTime).toISOString();
 
       // 4. 배팅 내역 조회
       const result = await getBettingHistory(token, startDate, 1000);
@@ -472,11 +486,12 @@ async function syncOroplayBets(): Promise<any> {
       const completedBets = result.histories.filter((bet: any) => bet.status === 1);
       console.log(`   ✅ 완료된 배팅: ${completedBets.length}건`);
 
-      // 6. 이미 저장된 트랜잭션 ID 조회 (중복 제거) - CRITICAL: api_type도 함께 확인
+      // 6. 이미 저장된 트랜잭션 ID 조회 (중복 제거)
+      // ✅ FIX: 모든 가능한 partner_id로 조회 (조직 내 모든 파트너)
       const { data: existingOroplayRecords } = await supabase
         .from('game_records')
         .select('external_txid')
-        .eq('partner_id', lv2Partner.id)
+        .in('partner_id', Array.from(partnerIdsToCheck))
         .eq('api_type', 'oroplay');
 
       // ✅ 타입 변환: 모든 ID를 문자열로 통일하여 비교 (BigInt 안전성)
@@ -498,19 +513,15 @@ async function syncOroplayBets(): Promise<any> {
         continue;
       }
 
-      // 7. 사용자 매핑 (Lv2 조직 회원만)
-      const userMap = new Map<string, any>();
-      lv2OrganizationUsers.forEach((u: any) => {
-        userMap.set(u.username, { id: u.id, referrer_id: u.referrer_id });
-      });
-
-      console.log(`   📊 OroPlay userMap 생성됨: ${userMap.size}명`);
-
       // 8. game_records에 저장
       for (const bet of newCompletedBets) {
         try {
           const userInfo = userMap.get(bet.userCode);
           if (!userInfo) {
+            console.warn(`   ⚠️ [CRITICAL] 사용자 매핑 실패: "${bet.userCode}" (userMap 크기: ${userMap.size})`);
+            if (userMap.size > 0) {
+              console.warn(`   ⚠️ [DEBUG] userMap에 있는 username들:`, Array.from(userMap.keys()).slice(0, 5));
+            }
             continue;
           }
 
@@ -590,6 +601,7 @@ async function syncOroplayBets(): Promise<any> {
               totalErrors++;
             }
           } else {
+            console.log(`   ✅ 저장됨: txid="${bet.id}", user="${bet.userCode}", partner_id="${userInfo.referrer_id}", bet=${bet.betAmount}, win=${bet.winAmount}`);
             totalSynced++;
           }
 
@@ -1362,41 +1374,47 @@ async function syncLv2Balances(): Promise<any> {
 // =====================================================
 // 메인 핸들러
 // =====================================================
-export default async function handler(req: Request): Promise<Response> {
-  // OPTIONS 요청 처리 (CORS preflight)
+Deno.serve(async (req: Request): Promise<Response> => {
+  console.log(`\n[${new Date().toISOString()}] ${req.method} ${req.url}`);
+
+  // ⭐ OPTIONS 요청을 가장 먼저 처리 (모든 로직 외부)
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    console.log('✅ [CORS] OPTIONS preflight 응답 200');
+    return new Response(null, {
+      status: 200,
+      headers: corsHeaders,
+    });
   }
 
-  const url = new URL(req.url);
-  const path = url.pathname;
-
-  // ⭐⭐⭐ 모든 요청 로깅 (body 포함)
-  console.log(`\n🌐🌐🌐 [Edge Function] 요청 수신 🌐🌐🌐`);
-  console.log(`📍 Method: ${req.method}`);
-  console.log(`📍 Path: ${path}`);
-  console.log(`📍 Full URL: ${req.url}`);
-  console.log(`📍 Headers:`, Object.fromEntries(req.headers as any));
-  
-  // Body 복제 (한 번만 읽을 수 있으므로)
-  const clonedReq = req.clone();
   try {
-    const body = await clonedReq.text();
-    console.log(`📍 Body (raw):`, body);
-    if (body) {
-      try {
-        const jsonBody = JSON.parse(body);
-        console.log(`📍 Body (JSON):`, jsonBody);
-      } catch {
-        console.log(`📍 Body is not JSON`);
+    const url = new URL(req.url);
+    const path = url.pathname;
+
+    // ⭐⭐⭐ 모든 요청 로깅 (body 포함)
+    console.log(`\n🌐🌐🌐 [Edge Function] 요청 수신 🌐🌐🌐`);
+    console.log(`📍 Method: ${req.method}`);
+    console.log(`📍 Path: ${path}`);
+    console.log(`📍 Full URL: ${req.url}`);
+    console.log(`📍 Headers:`, Object.fromEntries(req.headers as any));
+    
+    // Body 복제 (한 번만 읽을 수 있으므로)
+    const clonedReq = req.clone();
+    try {
+      const body = await clonedReq.text();
+      console.log(`📍 Body (raw):`, body);
+      if (body) {
+        try {
+          const jsonBody = JSON.parse(body);
+          console.log(`📍 Body (JSON):`, jsonBody);
+        } catch {
+          console.log(`📍 Body is not JSON`);
+        }
       }
+    } catch {
+      console.log(`📍 Body: (읽기 실패 또는 없음)`);
     }
-  } catch {
-    console.log(`📍 Body: (읽기 실패 또는 없음)`);
-  }
-  console.log(`🌐🌐🌐 ===============================🌐🌐🌐\n`);
+    console.log(`🌐🌐🌐 ===============================🌐🌐🌐\n`);
 
-  try {
     // Root health check
     if (path === '/' || path === '/server' || path === '/server/' || 
         path === '/functions/v1/server' || path === '/functions/v1/server/') {
@@ -1453,8 +1471,8 @@ export default async function handler(req: Request): Promise<Response> {
       return await handleChangeBalanceSlotCallback(req, supabase, corsHeaders);
     }
 
-    // ✅ Authorization 헤더 검증 (동기화 엔드포인트만)
-    if (path.includes('/sync/')) {
+    // ✅ Authorization 헤더 검증 (동기화 엔드포인트만, OPTIONS 제외)
+    if (path.includes('/sync/') && req.method !== 'OPTIONS') {
       const authHeader = req.headers.get('Authorization');
       
       if (!authHeader) {
@@ -1530,10 +1548,15 @@ export default async function handler(req: Request): Promise<Response> {
     );
 
   } catch (error: any) {
-    console.error('❌ Error:', error);
+    console.error('❌ [Error] 요청 처리 중 오류 발생:', error);
+    console.error('❌ [Error] Stack:', error?.stack);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
+      JSON.stringify({ 
+        success: false, 
+        error: error?.message || 'Internal Server Error',
+        timestamp: new Date().toISOString()
+      }),
       { status: 500, headers: corsHeaders }
     );
   }
-}
+});

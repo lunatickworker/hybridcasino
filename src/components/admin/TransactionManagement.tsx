@@ -21,6 +21,7 @@ import { toast } from "sonner@2.0.3";
 import { Partner, Transaction, User } from "../../types";
 import { supabase } from "../../lib/supabase";
 import { useWebSocketContext } from "../../contexts/WebSocketContext";
+import { useBalance } from "../../contexts/BalanceContext";
 import { cn } from "../../lib/utils";
 import { MetricCard } from "./MetricCard";
 import { depositBalance, withdrawBalance, extractBalanceFromResponse } from "../../lib/investApi";
@@ -40,6 +41,16 @@ console.log('🔄 TransactionManagement 컴포넌트 마운트됨');
 export function TransactionManagement({ user }: TransactionManagementProps) {
   const { t, language, formatCurrency } = useLanguage();
   const { lastMessage, sendMessage } = useWebSocketContext();
+  
+  // ⭐ Balance Context 사용 (승인 후 즉시 동기화)
+  let syncBalance = async () => {};
+  try {
+    const balanceContext = useBalance();
+    syncBalance = balanceContext.syncBalance;
+  } catch (error) {
+    // BalanceProvider 외부에서 렌더링되는 경우 (정상 동작)
+  }
+  
   const [initialLoading, setInitialLoading] = useState(false); // ⚡ 초기 로딩 제거
   const [refreshing, setRefreshing] = useState(false);
   
@@ -306,7 +317,8 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             
             // 필터 적용: Lv1(필터 없음) / Lv2+(자신의 거래만)
             if (user.level > 1) {
-              transactionsQ = transactionsQ.eq('to_partner_id', user.id);
+              // ✅ partner_withdrawal_request는 partner_id로, 다른 거래는 to_partner_id로 필터
+              transactionsQ = transactionsQ.or(`partner_id.eq.${user.id},to_partner_id.eq.${user.id}`);
             }
             
             const transRes = await transactionsQ;
@@ -408,10 +420,13 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           }
         })();
       } else if (activeTab === 'deposit-request' || activeTab === 'withdrawal-request') {
-        // 📋 입금신청/출금신청: pending 상태만
+        // 📋 입금신청/출금신청: pending 및 rejected 상태 (Lv3+가 자신의 요청 이력을 볼 수 있도록)
         transactionsResultPromise = (async () => {
           try {
-            let query = baseTransactionQuery.eq('status', 'pending');
+            // ✅ Lv3+는 자신의 pending + rejected 요청을 봄
+            // Lv1-2는 pending만 봄 (관리자 화면)
+            const statuses = (user.level > 2) ? ['pending', 'rejected'] : ['pending'];
+            let query = baseTransactionQuery.in('status', statuses);
             
             // 거래 타입 필터: 회원 거래 + 파트너 거래
             const txnTypes = activeTab === 'deposit-request' 
@@ -428,27 +443,27 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                 query = query.in('partner_id', partnerIds);
               }
             } else if (user.level > 2) {
-              // ✅ Lv3+: 본인 신청은 봄, 다른 파트너 신청은 파트너_입출금만 봄 (조직격리)
+              // ✅ Lv3+: 본인 신청(pending + rejected)은 봄
               // (partner_deposit_request/partner_withdrawal_request는 신청자(partner_id)가 본인인 경우만 조회)
               const partnerFilter = supabase
                 .from('transactions')
                 .select('*')
-                .eq('status', 'pending')
+                .in('status', statuses)
                 .in('transaction_type', txnTypes);
               
               // 복잡한 OR 조건: 
               // (partner_id = 본인) OR (partner_id != 본인 AND transaction_type = 'deposit'/'withdrawal')
               // → 두 개 쿼리로 분리
               
-              // 1. 본인이 보낸 모든 요청
+              // 1. 본인이 보낸 모든 요청 (pending + rejected)
               const ownRequests = await supabase
                 .from('transactions')
                 .select('*')
-                .eq('status', 'pending')
+                .in('status', statuses)
                 .in('transaction_type', txnTypes)
                 .eq('partner_id', user.id);
               
-              // 2. 다른 파트너의 회원 입출금만
+              // 2. 다른 파트너의 회원 입출금만 (pending만)
               const othersUserTransactions = await supabase
                 .from('transactions')
                 .select('*')
@@ -469,11 +484,12 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             
             const result = await query;
             
-            console.log('🔍 [pending] 최종 결과:', {
+            console.log('🔍 [pending-request] 최종 결과:', {
               activeTab,
               count: (result.data || []).length,
               user_level: user.level,
-              user_id: user.id
+              user_id: user.id,
+              statuses
             });
             
             return result;
@@ -1035,27 +1051,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     loadData(true);
   }, []);
 
-  // 필터 변경 시 데이터 재로드 (non-blocking)
-  // ✅ activeTab도 의존성에 포함 (탭별로 다른 상태 데이터 로드 필요)
-  useEffect(() => {
-    if (!initialLoading) {
-      // 즉시 반응하기 위해 백그라운드에서 로드
-      setRefreshing(true);
-      // 스크롤 위치 저장
-      const scrollY = window.scrollY;
-      
-      // setTimeout으로 다음 렌더링 사이클에서 실행
-      const timer = setTimeout(() => {
-        loadData(false);
-        // 로드 완료 후 스크롤 복원 (테이블이 새로 그려진 후)
-        setTimeout(() => {
-          window.scrollTo(0, scrollY);
-        }, 100);
-      }, 50); // 부자연스러운 깜빡임 방지
-      
-      return () => clearTimeout(timer);
-    }
-  }, [periodFilter, reloadTrigger, activeTab]);
+
 
 
 
@@ -1191,42 +1187,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           }
         }
         
-        // 입금 승인: 통합 로직 사용 (보유금 검증 포함)
+        // 입금 승인: 이미 위에서 보유금 처리됨, 별도 로직 불필요 ✅
         if (transaction.transaction_type === 'deposit') {
-          const result = await depositToUser(
-            transaction.user_id,
-            user.id,
-            amount,
-            user.level,
-            memo
-          );
-          
-          if (!result.success) {
-            toast.error(result.message);
-            setRefreshing(false);
-            return;
-          }
-          
-          console.log('✅ 입금 승인 처리 완료:', { transactionId: result.transactionId, amount });
+          console.log('✅ 입금 승인 처리 완료:', { amount });
         }
         
-        // 출금 승인: 통합 로직 사용 (보유금 검증 포함)
+        // 출금 승인: 이미 위에서 보유금 처리됨, 별도 로직 불필요 ✅
         if (transaction.transaction_type === 'withdrawal') {
-          const result = await withdrawFromUser(
-            transaction.user_id,
-            user.id,
-            amount,
-            user.level,
-            memo
-          );
-          
-          if (!result.success) {
-            toast.error(result.message);
-            setRefreshing(false);
-            return;
-          }
-          
-          console.log('✅ 출금 승인 처리 완료:', { transactionId: result.transactionId, amount });
+          console.log('✅ 출금 승인 처리 완료:', { amount });
         }
       }
 
@@ -1235,12 +1203,18 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         // ✅ 사용자 입출금: from/to_partner_id는 NULL (사용자 거래는 파트너 ID를 저장하지 않음)
         if (transaction.transaction_type === 'deposit' || transaction.transaction_type === 'withdrawal') {
           return { from_partner_id: null, to_partner_id: null };
-        } else if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') {
-          // ✅ 온라인입금신청/파트너입금신청: 신청자(파트너)가 받는사람
+        } else if (transaction.transaction_type === 'partner_deposit_request' || transaction.transaction_type === 'partner_withdrawal_request') {
+          // ✅ 파트너 요청 거래: 기존 값 유지 (AdminHeader에서 이미 제대로 설정됨)
+          return { 
+            from_partner_id: (transaction as any).from_partner_id,
+            to_partner_id: (transaction as any).to_partner_id
+          };
+        } else if (transaction.transaction_type === 'partner_deposit') {
+          // ✅ 파트너 입금: 신청자(파트너)가 받는사람
           const partnerId = (transaction as any).partner_id;
           return { from_partner_id: user.id, to_partner_id: partnerId };
-        } else if (transaction.transaction_type === 'partner_withdrawal' || transaction.transaction_type === 'partner_withdrawal_request') {
-          // ✅ 온라인출금신청/파트너출금신청: 신청자(파트너)가 보낸사람
+        } else if (transaction.transaction_type === 'partner_withdrawal') {
+          // ✅ 파트너 출금: 신청자(파트너)가 보낸사람
           const partnerId = (transaction as any).partner_id;
           return { from_partner_id: partnerId, to_partner_id: user.id };
         }
@@ -1336,6 +1310,31 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         });
       }
 
+      // ⭐ 출금 승인 전에 잔고 확인 (transaction update 전에)
+      let preApprovedPartnerBalance = null;
+      if (action === 'approve' && transaction.partner_id && 
+          (transaction.transaction_type === 'partner_withdrawal' || transaction.transaction_type === 'partner_withdrawal_request')) {
+        const { data: requestPartnerData, error: requestPartnerError } = await supabase
+          .from('partners')
+          .select('balance, username, nickname')
+          .eq('id', transaction.partner_id)
+          .single();
+
+        if (requestPartnerError || !requestPartnerData) {
+          throw new Error('신청자 정보를 조회할 수 없습니다.');
+        }
+
+        const currentBalance = parseFloat(requestPartnerData.balance?.toString() || '0');
+        const newBalance = currentBalance - amount;
+        
+        // 부동소수점 오류 허용 (±0.01원)
+        if (newBalance < -0.01) {
+          throw new Error(`❌ 잔고 부족: 현재 보유금 ${currentBalance.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원에서 ${amount.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원을 출금할 수 없습니다.`);
+        }
+        
+        preApprovedPartnerBalance = requestPartnerData;
+      }
+
       // DB 상태 업데이트
       const updateData: any = {
         status: action === 'approve' ? 'completed' : 'rejected',
@@ -1358,61 +1357,67 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
       if (error) throw error;
 
-      // ✅ 승인인 경우: 처리 로직 (사용자 입출금 vs 관리자 입출금)
+      // ✅ 승인인 경우: 처리 로직 (파트너 출입금 처리)
       if (action === 'approve') {
         const now = new Date().toISOString();
         
-        // ✅ 관리자 입출금 신청 처리
+        // ✅ 파트너 입출금 신청 처리
         if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_withdrawal' || transaction.transaction_type === 'partner_deposit_request' || transaction.transaction_type === 'partner_withdrawal_request') {
           const requestPartnerId = (transaction as any).partner_id;
           
-          // 신청자 현재 보유금 조회
-          const { data: requestPartnerData, error: requestPartnerError } = await supabase
-            .from('partners')
-            .select('balance, username, nickname')
-            .eq('id', requestPartnerId)
-            .single();
+          // ⭐ partner_deposit_request / partner_withdrawal_request는 신청자가 이미 보유금을 조정했음
+          // 따라서 승인 시 신청자 보유금을 다시 조정하면 안됨 (중복 조정 방지)
+          const isPartnerRequest = transaction.transaction_type === 'partner_deposit_request' || transaction.transaction_type === 'partner_withdrawal_request';
+          
+          if (!isPartnerRequest) {
+            // partner_deposit / partner_withdrawal 거래: 신청자 보유금 조정 필요
+            let requestPartnerData = preApprovedPartnerBalance;
+            if (!requestPartnerData) {
+              const { data: queryData, error: queryError } = await supabase
+                .from('partners')
+                .select('balance, username, nickname')
+                .eq('id', requestPartnerId)
+                .single();
 
-          if (requestPartnerError || !requestPartnerData) {
-            throw new Error('신청자 정보를 조회할 수 없습니다.');
-          }
-
-          const currentBalance = parseFloat(requestPartnerData.balance?.toString() || '0');
-          let newBalance = currentBalance;
-
-          if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') {
-            // 입금: 신청자 보유금 증가
-            newBalance = currentBalance + amount;
-          } else if (transaction.transaction_type === 'partner_withdrawal' || transaction.transaction_type === 'partner_withdrawal_request') {
-            // 출금: 신청자 보유금 차감
-            newBalance = currentBalance - amount;
-            
-            if (newBalance < 0) {
-              throw new Error(`잔고가 음수가 될 수 없습니다. (현재: ${currentBalance}, 출금: ${amount})`);
+              if (queryError || !queryData) {
+                throw new Error('신청자 정보를 조회할 수 없습니다.');
+              }
+              requestPartnerData = queryData;
             }
+
+            const currentBalance = parseFloat(requestPartnerData.balance?.toString() || '0');
+            let newBalance = currentBalance;
+
+            if (transaction.transaction_type === 'partner_deposit') {
+              // 입금: 신청자 보유금 증가
+              newBalance = currentBalance + amount;
+            } else if (transaction.transaction_type === 'partner_withdrawal') {
+              // 출금: 신청자 보유금 차감 (이미 위에서 잔고 확인했으므로 안전)
+              newBalance = currentBalance - amount;
+            }
+
+            // 신청자 보유금 업데이트
+            const { error: balanceUpdateError } = await supabase
+              .from('partners')
+              .update({
+                balance: newBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', requestPartnerId);
+
+            if (balanceUpdateError) {
+              console.error('❌ [신청자 보유금 업데이트 실패]:', balanceUpdateError);
+              throw new Error('신청자 보유금 업데이트에 실패했습니다.');
+            }
+
+            console.log('✅ [신청자 보유금 업데이트 완료]:', {
+              partner_id: requestPartnerId,
+              username: requestPartnerData.username,
+              before: currentBalance,
+              after: newBalance,
+              transaction_type: transaction.transaction_type
+            });
           }
-
-          // 신청자 보유금 업데이트
-          const { error: balanceUpdateError } = await supabase
-            .from('partners')
-            .update({
-              balance: newBalance,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', requestPartnerId);
-
-          if (balanceUpdateError) {
-            console.error('❌ [신청자 보유금 업데이트 실패]:', balanceUpdateError);
-            throw new Error('신청자 보유금 업데이트에 실패했습니다.');
-          }
-
-          console.log('✅ [신청자 보유금 업데이트 완료]:', {
-            partner_id: requestPartnerId,
-            username: requestPartnerData.username,
-            before: currentBalance,
-            after: newBalance,
-            transaction_type: transaction.transaction_type
-          });
 
           // 승인자(본사) 보유금 조정
           const { data: approverData, error: approverError } = await supabase
@@ -1460,19 +1465,23 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           // ✅ DB 트리거가 자동으로 balance_after를 계산하므로 수동 설정 불필요
           // transactions UPDATE 시 BEFORE UPDATE 트리거가 작동하여 balance_after 재계산
 
-          // 로그 기록 (Lv2는 기록하지 않음)
-          if (user.level !== 2) {
+          // ✅ partner_deposit_request/partner_withdrawal_request는 transactions 테이블에만 기록
+          // partner_balance_logs에는 기록하지 않음 (중복 방지)
+          
+          // 로그 기록: partner_deposit/partner_withdrawal (승인자가 Lv1/Lv2가 아닌 경우만)
+          if (user.level !== 2 && 
+              (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_withdrawal')) {
             await supabase.from('partner_balance_logs').insert([
               {
                 partner_id: requestPartnerId,
                 balance_before: currentBalance,
                 balance_after: newBalance,
-                amount: (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') ? amount : -amount,
-                transaction_type: (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') ? 'deposit' : 'withdrawal',
-                from_partner_id: (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') ? user.id : requestPartnerId,  // ✅ 추가
-                to_partner_id: (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') ? requestPartnerId : user.id,    // ✅ 추가
+                amount: (transaction.transaction_type === 'partner_deposit') ? amount : -amount,
+                transaction_type: (transaction.transaction_type === 'partner_deposit') ? 'deposit' : 'withdrawal',
+                from_partner_id: (transaction.transaction_type === 'partner_deposit') ? user.id : requestPartnerId,
+                to_partner_id: (transaction.transaction_type === 'partner_deposit') ? requestPartnerId : user.id,
                 processed_by_username: user.username,
-                memo: `관리자 ${(transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') ? '입금' : '출금'} 승인 (승인자: ${user.username})`,
+                memo: `관리자 ${(transaction.transaction_type === 'partner_deposit') ? '입금' : '출금'} 승인 (승인자: ${user.username})`,
                 created_at: new Date().toISOString()
               }
             ]);
@@ -1621,21 +1630,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             deducted: amount
           });
 
-          // 관리자 잔고 변경 로그 기록 (Lv2는 기록하지 않음)
-          if (user.level !== 2) {
-            await supabase.from('partner_balance_logs').insert({
-              partner_id: responsiblePartnerId,
-              balance_before: currentPartnerBalance,
-              balance_after: newPartnerBalance,
-              amount: -amount,
-              transaction_type: 'deposit_to_user',
-              from_partner_id: responsiblePartnerId,  // ✅ 추가: 보낸사람 (관리자)
-              to_partner_id: transaction.user_id,     // ✅ 추가: 받는사람 (사용자)
-              processed_by: user.id,
-              memo: null,  // ✅ 시스템 메모 제거 (processed_by에 처리자 정보 있음)
-              created_at: new Date().toISOString()
-            });
-          }
+          // ✅ 사용자 거래는 partner_balance_logs에 기록하지 않음 (파트너 거래 로그 테이블이므로)
 
         } else if (transaction.transaction_type === 'withdrawal') {
           // 출금: 관리자 보유금 증가
@@ -1662,21 +1657,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             added: amount
           });
 
-          // 관리자 잔고 변경 로그 기록 (Lv2는 기록하지 않음)
-          if (user.level !== 2) {
-            await supabase.from('partner_balance_logs').insert({
-              partner_id: responsiblePartnerId,
-              balance_before: currentPartnerBalance,
-              balance_after: newPartnerBalance,
-              amount: amount,
-              transaction_type: 'withdrawal_from_user',
-              from_partner_id: transaction.user_id,      // ✅ 추가: 보낸사람 (사용자)
-              to_partner_id: responsiblePartnerId,       // ✅ 추가: 받는사람 (관리자)
-              processed_by: user.id,
-              memo: null,  // ✅ 시스템 메모 제거 (processed_by에 처리자 정보 있음)
-              created_at: new Date().toISOString()
-            });
-          }
+          // ✅ 사용자 거래는 partner_balance_logs에 기록하지 않음 (파트너 거래 로그 테이블이므로)
         }
         }
       }
@@ -1691,6 +1672,19 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         userId: transaction.user_id || null,
         partnerId: (transaction as any).partner_id || null
       });
+
+      // ⭐ 승인인 경우 balance 동기화
+      if (action === 'approve') {
+        console.log('💰 [TransactionManagement] 승인 후 balance 동기화 시작');
+        setTimeout(async () => {
+          try {
+            await syncBalance();
+            console.log('✅ [TransactionManagement] balance 동기화 완료');
+          } catch (err) {
+            console.error('❌ [TransactionManagement] balance 동기화 실패:', err);
+          }
+        }, 300); // 0.3초 후 동기화 (DB 업데이트 완료 대기)
+      }
       
       // ✅ 로컬 상태에서 해당 거래 제거 (즉시 UI 업데이트)
       setTransactions(prevTransactions => 
@@ -1823,28 +1817,55 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
     // 거래 기록 생성 (관리자 강제 입출금 타입 사용)
     const now = new Date().toISOString();
-    const { error: transactionError } = await supabase
-      .from('transactions')
-      .insert({
-        id: crypto.randomUUID(), // ✅ id 명시적 설정
-        user_id: userId,
-        partner_id: user.id,
-        transaction_type: type === 'deposit' ? 'admin_deposit' : 'admin_withdrawal',
-        status: 'completed', // ✅ 강제 입출금은 즉시 완료 상태
-        amount: type === 'deposit' ? amountNum : -amountNum,
-        balance_before: selectedUser.balance,
-        balance_after: balanceAfter,
-        updated_at: now, // ✅ updated_at도 설정
-        external_response: apiResult.data,
-        from_partner_id: type === 'deposit' ? user.id : userId,  // ✅ 입금: 관리자가 보냄, 출금: 회원이 보냄
-        to_partner_id: type === 'deposit' ? userId : user.id     // ✅ 입금:회원이 받음, 출금: 관리자가 받음
-      });
+    const transactionId = crypto.randomUUID();
+    
+    // 회원의 소속 파트너 ID (직접 상위)
+    const referrerPartnerId = selectedUser.referrer_id;
+    console.log('📌 회원의 소속 파트너 ID:', referrerPartnerId);
+    
+    // Lv2 ID 찾기: referrer에서 시작해서 Lv2까지 탐색
+    let lv2PartnerId = null;
+    let currentPartnerId = referrerPartnerId;
+    
+    for (let i = 0; i < 10; i++) {  // 무한 루프 방지 (최대 10단계)
+      if (!currentPartnerId) break;
+      
+      const { data: partner, error: partnerError } = await supabase
+        .from('partners')
+        .select('id, level, parent_id')
+        .eq('id', currentPartnerId)
+        .single();
+      
+      if (partnerError) {
+        console.warn(`⚠️ 파트너 조회 실패 (${currentPartnerId}):`, partnerError);
+        break;
+      }
+      
+      if (partner?.level === 2) {
+        lv2PartnerId = partner.id;
+        console.log('✅ Lv2 ID 찾음:', lv2PartnerId);
+        break;
+      }
+      
+      currentPartnerId = partner?.parent_id;
+    }
+    
+    // 거래 기록: 이제는 저장하지 않음 (partner_balance_logs에 자동 생성되는 것을 방지)
+    // admin_deposit/admin_withdrawal은 회원 거래이므로 기록할 필요 없음
+    // (관리자 파트너 잔고만 업데이트하면 됨)
 
-    if (transactionError) throw transactionError;
+    // 사용자 잔고 업데이트 (users 테이블)
+    const newUserBalance = type === 'deposit' ? balanceAfter : balanceAfter;
+    const { error: userUpdateError } = await supabase
+      .from('users')
+      .update({
+        balance: newUserBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
 
-    // ✅ 트리거가 자동으로 users.balance 업데이트 (251번 SQL)
-    // ✅ Realtime 이벤트 자동 발생 → UserHeader 즉시 업데이트
-    console.log('✅ transactions INSERT 완료 → 트리거가 users.balance 자동 업데이트');
+    if (userUpdateError) throw userUpdateError;
+    console.log('✅ 사용자 잔고 업데이트:', { userId, balance: newUserBalance });
 
     // ✅ Lv2~Lv6 관리자가 사용자에게 입출금하는 경우: GMS 머니(balance) 차감/증가
     if (user.level >= 2 && user.level <= 6) {
@@ -1874,21 +1895,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           console.error(`❌ Lv${user.level} balance 업데이트 실패:`, updateBalanceError);
         } else {
           console.log(`✅ Lv${user.level} balance 업데이트: ${currentBalance} → ${newBalance}`);
-          
-          // 관리자 잔고 변경 로그 기록
-          await supabase
-            .from('partner_balance_logs')
-            .insert({
-              partner_id: user.id,
-              balance_before: currentBalance,
-              balance_after: newBalance,
-              amount: type === 'deposit' ? -amountNum : amountNum,
-              transaction_type: type === 'deposit' ? 'withdrawal' : 'deposit',
-              from_partner_id: type === 'deposit' ? user.id : userId,
-              to_partner_id: type === 'deposit' ? userId : user.id,
-              processed_by: user.id,
-              memo: `[강제${type === 'deposit' ? '입금' : '출금'}] ${selectedUser.username}에게 ${amountNum.toLocaleString()}원 ${type === 'deposit' ? '입금' : '회수'}${memo ? `: ${memo}` : ''}`
-            });
         }
       }
     }
@@ -1922,29 +1928,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
   
 
-  // reloadTrigger 변경 시 데이터 로드 (Realtime 이벤트 처리)
-  useEffect(() => {
-    if (reloadTrigger > 0 && !initialLoading) {
-      // console.log 제거
-      loadData(false);
-    }
-  }, [reloadTrigger]);
+
 
   // 필터 변경 시 자동 새로고침 (깜박임 없이)
   useEffect(() => {
     if (!initialLoading) {
-      // console.log 제거
       loadData(false);
     }
-  }, [periodFilter]);
-
-  // ✅ transactionTypeFilter 변경 시 통계 재계산
-  useEffect(() => {
-    if (!initialLoading) {
-      // console.log 제거
-      loadData(false);
-    }
-  }, [transactionTypeFilter]);
+  }, [periodFilter, transactionTypeFilter, activeTab, reloadTrigger]);
 
   // Realtime subscription for transactions table (즉시 업데이트)
   useEffect(() => {
@@ -2077,6 +2068,41 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
   }
 
   // 탭별 데이터 필터링
+  // 거래 타입을 한국어 거래명으로 변환
+  const getTransactionDisplayName = (transaction: any): string => {
+    const type = transaction.transaction_type;
+    
+    if (type === 'deposit') return '온라인 입금신청';
+    if (type === 'withdrawal') return '온라인 출금신청';
+    if (type === 'admin_deposit') return '수동 입금';
+    if (type === 'admin_withdrawal') return '수동 출금';
+    if (type === 'admin_deposit_send') return '수동 입금';
+    if (type === 'admin_withdrawal_send') return '수동 출금';
+    if (type === 'partner_deposit_request') return '온라인 입금신청';
+    if (type === 'partner_withdrawal_request') return '온라인 출금신청';
+    if (type === 'partner_deposit') return '파트너 입금';
+    if (type === 'partner_withdrawal') return '파트너 출금';
+    if (transaction.is_point_transaction) {
+      if (type === 'earn') return '포인트 지급';
+      if (type === 'use') return '포인트 회수';
+    }
+    return type;
+  };
+
+  // 필터 버튼 값을 한국어 거래명으로 변환
+  const getFilterDisplayName = (filterValue: string): string => {
+    if (filterValue === 'all') return '전체';
+    if (filterValue === 'admin_request_deposit') return '온라인 입금신청';
+    if (filterValue === 'admin_request_withdrawal') return '온라인 출금신청';
+    if (filterValue === 'manual_deposit') return '수동 입금';
+    if (filterValue === 'manual_withdrawal') return '수동 출금';
+    if (filterValue === 'partner_deposit') return '파트너 입금';
+    if (filterValue === 'partner_withdrawal') return '파트너 출금';
+    if (filterValue === 'point_give') return '포인트 지급';
+    if (filterValue === 'point_recover') return '포인트 회수';
+    return filterValue;
+  };
+
   const filterBySearch = (t: any) => {
     const searchLower = searchTerm.toLowerCase();
     
@@ -2098,17 +2124,23 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     return searchTerm === '' || String(t.user?.nickname || '').toLowerCase().includes(searchLower);
   };
 
-  const depositRequests = transactions.filter(t => 
-    (t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit_request') && 
-    t.status === 'pending' &&
-    filterBySearch(t)
-  );
+  const depositRequests = transactions.filter(t => {
+    const isRelevantType = t.transaction_type === 'deposit' || t.transaction_type === 'partner_deposit_request';
+    // Lv3+는 pending + rejected 모두 봄, Lv1-2는 pending만 봄
+    const isRelevantStatus = user.level > 2 
+      ? (t.status === 'pending' || t.status === 'rejected')
+      : (t.status === 'pending');
+    return isRelevantType && isRelevantStatus && filterBySearch(t);
+  });
 
-  const withdrawalRequests = transactions.filter(t => 
-    (t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal_request') && 
-    t.status === 'pending' &&
-    filterBySearch(t)
-  );
+  const withdrawalRequests = transactions.filter(t => {
+    const isRelevantType = t.transaction_type === 'withdrawal' || t.transaction_type === 'partner_withdrawal_request';
+    // Lv3+는 pending + rejected 모두 봄, Lv1-2는 pending만 봄
+    const isRelevantStatus = user.level > 2 
+      ? (t.status === 'pending' || t.status === 'rejected')
+      : (t.status === 'pending');
+    return isRelevantType && isRelevantStatus && filterBySearch(t);
+  });
 
   // 디버깅 로그
   if (activeTab === 'deposit-request') {
@@ -2140,6 +2172,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     
     // 입출금 거래 필터링
     const filteredTransactions = transactions.filter(t => {
+      // ❌ admin_adjustment는 리스트에 표시하지 않음
+      if (t.transaction_type === 'admin_adjustment') {
+        return false;
+      }
+      
       // ✅ 날짜 필터 추가 (completedTransactions에서 날짜 범위 필터링)
       const dateMatch = new Date(t.created_at) >= new Date(dateRange.start) && 
                         new Date(t.created_at) <= new Date(dateRange.end);
@@ -2149,61 +2186,16 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       const statusMatch = t.is_from_partner_balance_logs || t.status === 'completed' || t.status === 'rejected';
       const searchMatch = filterBySearch(t);
       
-      // 거래 타입 필터
+      // 거래 타입 필터 (한국어 거래명으로 비교)
       const typeMatch = (() => {
-        // 전체 필터: 모든 입출금 거래 표시
         if (transactionTypeFilter === 'all') {
-          return (t.transaction_type === 'deposit' || 
-                 t.transaction_type === 'withdrawal' ||
-                 t.transaction_type === 'admin_deposit' ||
-                 t.transaction_type === 'admin_withdrawal' ||
-                 t.transaction_type === 'partner_deposit' ||
-                 t.transaction_type === 'partner_withdrawal' ||
-                 t.transaction_type === 'partner_deposit_request' ||
-                 t.transaction_type === 'partner_withdrawal_request' ||
-                 t.transaction_type === 'admin_deposit_send' ||
-                 t.transaction_type === 'admin_withdrawal_send');
+          return true; // 전체: 모든 거래 표시
         }
         
-        // 사용자 입출금: 사용자 요청 + 관리자 강제 입출금
-        if (transactionTypeFilter === 'manual_deposit') {
-          return t.transaction_type === 'admin_deposit';
-        }
-        if (transactionTypeFilter === 'manual_withdrawal') {
-          return t.transaction_type === 'admin_withdrawal';
-        }
+        const transactionDisplayName = getTransactionDisplayName(t);
+        const filterDisplayName = getFilterDisplayName(transactionTypeFilter);
         
-        // 파트너 충전: 현재 사용자가 수신자인 파트너 거래
-        if (transactionTypeFilter === 'partner_deposit') {
-          return t.is_partner_transaction && (t.transaction_type === 'deposit' || t.transaction_type === 'withdrawal') && t.to_partner_id === user.id;
-        }
-        
-        // 파트너 환전: 현재 사용자가 송금자인 파트너 거래
-        if (transactionTypeFilter === 'partner_withdrawal') {
-          return t.is_partner_transaction && (t.transaction_type === 'deposit' || t.transaction_type === 'withdrawal') && t.from_partner_id === user.id;
-        }
-        
-        // 관리자 입금요청: partner_deposit
-        if (transactionTypeFilter === 'admin_request_deposit') {
-          return t.transaction_type === 'partner_deposit';
-        }
-        
-        // 관리자 출금요청: partner_withdrawal
-        if (transactionTypeFilter === 'admin_request_withdrawal') {
-          return t.transaction_type === 'partner_withdrawal';
-        }
-        
-        // 포인트 지급
-        if (transactionTypeFilter === 'point_give') {
-          return t.transaction_type === 'earn' && t.amount > 0 && t.points_before !== undefined;
-        }
-        
-        // 포인트 회수
-        if (transactionTypeFilter === 'point_recover') {
-          return t.transaction_type === 'use' && t.amount < 0 && t.points_before !== undefined;
-        }
-        
-        return false;
+        return transactionDisplayName === filterDisplayName;
       })();
       
       return dateMatch && statusMatch && searchMatch && typeMatch;
@@ -2394,7 +2386,69 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         );
       }
     },
-    // 3. 보낸사람
+    // 3. 등급
+    {
+      header: '등급',
+      cell: (row: any) => {
+        let level = '-';
+        
+        // 사용자 거래: 파트너 레벨 표시
+        if (row.user?.referrer?.level) {
+          const levelMap: any = {
+             1: '',
+            2: '회원',
+            3: '회원',
+            4: '회원',
+            5: '회원',
+            6: '회원'
+          };
+          level = levelMap[row.user.referrer.level] || `Lv${row.user.referrer.level}`;
+        }
+        // 파트너 거래: 파트너 레벨 표시
+        else if (row.from_partner_level) {
+          const levelMap: any = {
+            1: '',
+            2: '운영사',
+            3: '본사',
+            4: '부본사',
+            5: '총판',
+            6: '매장'
+          };
+          level = levelMap[row.from_partner_level] || `Lv${row.from_partner_level}`;
+        }
+        // partner_level 필드 직접 확인
+        else if (row.partner_level) {
+          const levelMap: any = {
+            1: '',
+            2: '운영사',
+            3: '본사',
+            4: '부본사',
+            5: '총판',
+            6: '매장'
+          };
+          level = levelMap[row.partner_level] || `Lv${row.partner_level}`;
+        }
+        // 요청 파트너의 레벨 (partner_deposit_request, partner_withdrawal_request)
+        else if (row.partner?.level) {
+          const levelMap: any = {
+            1: '',
+            2: '운영사',
+            3: '본사',
+            4: '부본사',
+            5: '총판',
+            6: '매장'
+          };
+          level = levelMap[row.partner.level] || `Lv${row.partner.level}`;
+        }
+        
+        return (
+          <span className="text-blue-300" style={{ fontSize: '15px' }}>
+            {level}
+          </span>
+        );
+      }
+    },
+    // 4. 보낸사람
     {
       header: '보낸사람',
       cell: (row: any) => {
@@ -2416,11 +2470,11 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           );
         }
         
-        // ✅ partner_deposit_request / partner_withdrawal_request - 승인자(processed_by)
+        // ✅ partner_deposit_request / partner_withdrawal_request - 운영사(processed_by)
         if (row.transaction_type === 'partner_deposit_request' || row.transaction_type === 'partner_withdrawal_request') {
           return (
             <span className="text-blue-400" style={{ fontSize: '15px' }}>
-              {row.processed_by_username || '[승인자]'}
+              {row.processed_by_username || '[운영사]'}
             </span>
           );
         }
@@ -2429,7 +2483,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (row.transaction_type === 'partner_deposit' || row.transaction_type === 'partner_withdrawal') {
           return (
             <span className="text-blue-400" style={{ fontSize: '15px' }}>
-              {row.processed_by_username || '[승인자]'}
+              {row.processed_by_username || '[운영사]'}
             </span>
           );
         }
@@ -2461,7 +2515,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         return <span className="text-slate-500" style={{ fontSize: '15px' }}>-</span>;
       }
     },
-    // 4. 받는사람
+    // 5. 받는사람
     {
       header: '받는사람',
       cell: (row: any) => {
@@ -2648,7 +2702,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           earn: { text: '포인트획득', color: 'bg-amber-600' },
           use: { text: '포인트사용', color: 'bg-purple-600' },
           convert_to_balance: { text: '머니전환', color: 'bg-blue-600' },
-          point_conversion: { text: '포인트전환', color: 'bg-amber-600' },
           commission: { text: '커미션', color: 'bg-violet-600' },
           refund: { text: '환불', color: 'bg-sky-600' }
         };
@@ -2696,7 +2749,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     },
     // 7. 신청금액
     {
-      header: t.transactionManagement.amount,
+      header: '신청금액',
       cell: (row: any) => {
         // 금액 포맷팅 (원화 표시 없이 숫자만)
         const formatNumberOnly = (num: number) => new Intl.NumberFormat('ko-KR').format(num);
@@ -2900,6 +2953,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         );
       }
     },
+    // 12. 작업
     ...(showActions ? [{
       header: t.transactionManagement.actions,
       cell: (row: Transaction) => {
@@ -3149,30 +3203,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   전체
                 </Button>
                 <Button
-                  onClick={() => setTransactionTypeFilter('manual_deposit')}
-                  variant={transactionTypeFilter === 'manual_deposit' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'manual_deposit' 
-                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
-                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
-                  )}
-                >
-                  수동 입금
-                </Button>
-                <Button
-                  onClick={() => setTransactionTypeFilter('manual_withdrawal')}
-                  variant={transactionTypeFilter === 'manual_withdrawal' ? 'default' : 'outline'}
-                  className={cn(
-                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
-                    transactionTypeFilter === 'manual_withdrawal' 
-                      ? "bg-orange-500/30 border border-orange-400/50 hover:bg-orange-500/40 text-orange-100 shadow-lg" 
-                      : "bg-orange-500/10 border border-orange-400/20 hover:bg-orange-500/20 text-slate-300"
-                  )}
-                >
-                  수동 출금
-                </Button>
-                <Button
                   onClick={() => setTransactionTypeFilter('admin_request_deposit')}
                   variant={transactionTypeFilter === 'admin_request_deposit' ? 'default' : 'outline'}
                   className={cn(
@@ -3195,6 +3225,30 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
                   )}
                 >
                   온라인출금신청
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('manual_deposit')}
+                  variant={transactionTypeFilter === 'manual_deposit' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'manual_deposit' 
+                      ? "bg-cyan-500/30 border border-cyan-400/50 hover:bg-cyan-500/40 text-cyan-100 shadow-lg" 
+                      : "bg-cyan-500/10 border border-cyan-400/20 hover:bg-cyan-500/20 text-slate-300"
+                  )}
+                >
+                  수동 입금
+                </Button>
+                <Button
+                  onClick={() => setTransactionTypeFilter('manual_withdrawal')}
+                  variant={transactionTypeFilter === 'manual_withdrawal' ? 'default' : 'outline'}
+                  className={cn(
+                    "h-9 px-4 text-sm font-medium rounded-lg backdrop-blur-md transition-all duration-200",
+                    transactionTypeFilter === 'manual_withdrawal' 
+                      ? "bg-orange-500/30 border border-orange-400/50 hover:bg-orange-500/40 text-orange-100 shadow-lg" 
+                      : "bg-orange-500/10 border border-orange-400/20 hover:bg-orange-500/20 text-slate-300"
+                  )}
+                >
+                  수동 출금
                 </Button>
                 <Button
                   onClick={() => setTransactionTypeFilter('point_give')}

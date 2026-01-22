@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -7,6 +7,12 @@ import { toast } from 'sonner@2.0.3';
 import { supabase } from '../../lib/supabase';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { GameResultInline } from '../admin/GameResultInline';
+
+// 🆕 컴포넌트 외부에서 오늘 날짜 반환
+const getTodayDate = () => {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+};
 
 interface UserBettingHistoryProps {
   user: {
@@ -41,6 +47,9 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
   const [records, setRecords] = useState<BettingRecord[]>([]);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   
+  // 🆕 오늘 날짜를 기본값으로 설정
+  const [selectedDate, setSelectedDate] = useState<string>(getTodayDate());
+  
   // Guard against null user - AFTER all hooks
   if (!user) {
     return (
@@ -70,11 +79,18 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
     return new Intl.NumberFormat('ko-KR').format(amount || 0);
   };
 
-  // 데이터 로드
-  const loadRecords = async () => {
+  // 데이터 로드 (useCallback으로 감싸서 무한 루프 방지)
+  const loadRecords = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('🎮 베팅내역 조회 시작:', user.username);
+      console.log('🎮 [UserBettingHistory] 베팅내역 조회 시작 - username:', user.username, 'date:', selectedDate);
+
+      // 선택된 날짜의 시작과 끝 시간 계산
+      const startOfDay = new Date(selectedDate);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(selectedDate);
+      endOfDay.setUTCHours(23, 59, 59, 999);
 
       // ✅ game_title과 provider_name은 이미 DB에 저장되어 있으므로 JOIN 불필요
       const { data, error } = await supabase
@@ -96,15 +112,19 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
           external
         `)
         .eq('username', user.username)
-        .order('played_at', { ascending: false })
-        .limit(100);
+        .gte('played_at', startOfDay.toISOString())
+        .lte('played_at', endOfDay.toISOString())
+        .order('played_at', { ascending: false });
 
       if (error) {
-        console.error('❌ 조회 실패:', error);
+        console.error('❌ [UserBettingHistory] 조회 실패:', error);
+        console.error('   Error code:', error.code);
+        console.error('   Error message:', error.message);
         throw error;
       }
 
-      console.log('✅ 조회 성공:', data?.length || 0, '건');
+      console.log('✅ [UserBettingHistory] DB 조회 성공:', data?.length || 0, '건');
+      console.log('   First record:', data?.[0]);
       
       // ⭐ game_title/provider_name이 없는 경우 fallback 처리
       const mappedRecords = (data || []).map((record: any) => ({
@@ -114,24 +134,26 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
       }));
       
       setRecords(mappedRecords);
+      console.log(`✅ [UserBettingHistory] 상태 업데이트: ${mappedRecords.length}건의 레코드 설정`);
 
     } catch (err: any) {
-      console.error('❌ 에러:', err);
+      console.error('❌ [UserBettingHistory] 에러:', err);
       toast.error(t.bettingHistory.loadFailed);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user.username, selectedDate, t]);
 
-  // 초기 로드
+  // 초기 로드 - 날짜 변경 시에만 실행
   useEffect(() => {
+    console.log('🎮 [UserBettingHistory] 날짜 변경 감지 - selectedDate:', selectedDate);
     loadRecords();
-  }, [user.username]);
+  }, [selectedDate, loadRecords]);
 
-  // ⭐ Realtime 구독: 새로운 베팅 기록 자동 반영
+  // ⭐ Realtime 구독 - 새로운 베팅 기록 자동 반영
   useEffect(() => {
     const channel = supabase
-      .channel('user-betting-records')
+      .channel(`user-betting-records-${user.username}`)
       .on(
         'postgres_changes',
         {
@@ -141,8 +163,33 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
           filter: `username=eq.${user.username}`
         },
         (payload) => {
-          console.log('🎮 새로운 베팅 기록:', payload);
-          loadRecords(); // 새 기록 추가 시 전체 다시 로드
+          console.log('🎮 새로운 베팅 기록 수신:', payload.new);
+          
+          const newRecord = payload.new as any;
+          const newRecordDate = new Date(newRecord.played_at).toISOString().split('T')[0];
+          
+          // ✅ 선택된 날짜와 같은 날의 기록만 추가
+          if (newRecordDate === selectedDate) {
+            const mappedRecord: BettingRecord = {
+              id: newRecord.id,
+              external_txid: newRecord.external_txid,
+              username: newRecord.username,
+              game_id: newRecord.game_id,
+              provider_id: newRecord.provider_id,
+              game_title: newRecord.game_title || `Game ${newRecord.game_id || 'Unknown'}`,
+              provider_name: newRecord.provider_name || `Provider ${newRecord.provider_id || 'Unknown'}`,
+              bet_amount: newRecord.bet_amount,
+              win_amount: newRecord.win_amount,
+              balance_before: newRecord.balance_before,
+              balance_after: newRecord.balance_after,
+              played_at: newRecord.played_at,
+              api_type: newRecord.api_type,
+              external: newRecord.external
+            };
+            
+            setRecords(prev => [mappedRecord, ...prev]);
+            console.log(`✅ 베팅 기록 추가: ${newRecord.game_title}`);
+          }
         }
       )
       .subscribe();
@@ -159,9 +206,9 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
       supabase.removeChannel(channel);
       window.removeEventListener('refresh-betting-history', handleRefreshBettingHistory);
     };
-  }, [user.username]);
+  }, [user.username, selectedDate, loadRecords]);
 
-  // 통계 계산
+  // 통계 계산 (실시간 업데이트)
   const stats = {
     totalBets: records.length,
     totalBetAmount: records.reduce((sum, r) => sum + Math.abs(Number(r.bet_amount) || 0), 0),
@@ -262,7 +309,7 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
             borderRadius: '8px'
           }}>
             <CardHeader>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center mb-4">
                 <div>
                   <CardTitle className="text-2xl font-bold" style={{
                     background: 'linear-gradient(135deg, #E6C9A8 0%, #C19A6B 100%)',
@@ -270,7 +317,7 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text'
                   }}>베팅내역</CardTitle>
-                  <p className="text-sm text-slate-400 mt-1">최근 100건</p>
+                  <p className="text-sm text-slate-400 mt-1">필터링된 베팅 기록</p>
                 </div>
                 <Button
                   onClick={loadRecords}
@@ -287,6 +334,17 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
                   <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                   새로고침
                 </Button>
+              </div>
+              
+              {/* 날짜 필터 */}
+              <div className="flex items-center gap-3">
+                <label className="text-white font-medium">날짜 선택:</label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="px-3 py-2 rounded text-black bg-white border border-gray-300 focus:outline-none focus:border-blue-500"
+                />
               </div>
             </CardHeader>
 

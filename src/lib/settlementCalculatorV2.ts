@@ -120,13 +120,18 @@ export async function getBettingStatsByGameType(
 
         // 베팅 데이터 집계
         for (const record of bettingData) {
-          // ✅ NULL 체크: game_title이나 provider_name이 null이면 정산에서 제외
-          const hasNullInfo = !record.game_title || record.game_title === 'null' || 
-                             !record.provider_name || record.provider_name === 'null';
-          
-          if (hasNullInfo) {
-            console.warn('⚠️ 베팅정보 누락 (정산 제외):', record);
-            continue; // 정산에 포함하지 않음
+          // ⚠️ 임시 디버깅: NULL 필터 제거 (0건 원인 파악용)
+          if (!record.game_title || record.game_title === 'null' || 
+              !record.provider_name || record.provider_name === 'null') {
+            console.warn('⚠️ [DEBUG] 베팅정보 누락 레코드:', {
+              id: record.id,
+              game_title: record.game_title,
+              provider_name: record.provider_name,
+              bet_amount: record.bet_amount,
+              user_id: record.user_id
+            });
+            // 임시로 포함시킴 (원인 파악 후 처리)
+            // continue;
           }
           
           // ✅ bet_amount가 음수로 저장되므로 절대값 사용

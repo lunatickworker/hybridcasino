@@ -4,7 +4,7 @@
  * - 수동 정산과 동일한 로직 사용 (executeIntegratedSettlement)
  */
 
-import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,

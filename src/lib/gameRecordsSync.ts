@@ -29,7 +29,7 @@ const SYNC_INTERVALS = {
  */
 async function syncApiGameRecords(apiType: 'invest' | 'oroplay' | 'familyapi' | 'honor', partnerId: string) {
   try {
-    console.log(`[${new Date().toISOString()}] ${apiType} 게임 기록 동기화 시작`);
+    console.log(`🔄 [${new Date().toISOString()}] ${apiType.toUpperCase()} 게임 기록 동기화 요청 중...`);
 
     // Supabase Edge Function 호출
     const { data, error } = await supabase.functions.invoke('sync-game-records', {
@@ -40,15 +40,16 @@ async function syncApiGameRecords(apiType: 'invest' | 'oroplay' | 'familyapi' | 
     });
 
     if (error) {
-      console.error(`[${apiType}] 동기화 실패:`, error);
+      console.error(`❌ [${apiType.toUpperCase()}] 동기화 실패:`, error);
+      console.error(`   Error details:`, JSON.stringify(error, null, 2));
       return;
     }
 
-    console.log(`[${new Date().toISOString()}] ${apiType} 동기화 완료:`, data);
+    console.log(`✅ [${new Date().toISOString()}] ${apiType.toUpperCase()} 동기화 완료:`, data);
     lastSyncTime[apiType] = Date.now();
 
   } catch (error) {
-    console.error(`[${apiType}] 동기화 오류:`, error);
+    console.error(`❌ [${apiType.toUpperCase()}] 동기화 오류:`, error);
   }
 }
 
@@ -156,6 +157,8 @@ export function stopGameRecordsSync() {
  */
 async function checkActiveApis(partnerId: string): Promise<string[]> {
   try {
+    console.log(`🔍 [checkActiveApis] partnerId=${partnerId}에서 활성화된 API 조회 중...`);
+    
     const { data: apiConfigs, error } = await supabase
       .from('api_configs')
       .select('api_provider')
@@ -163,17 +166,19 @@ async function checkActiveApis(partnerId: string): Promise<string[]> {
       .eq('partner_id', partnerId);
 
     if (error) {
-      console.error('활성화된 API 조회 실패:', error);
+      console.error(`❌ [checkActiveApis] 활성화된 API 조회 실패:`, error);
+      console.error(`   SQL Error:`, JSON.stringify(error, null, 2));
       return [];
     }
 
     const activeApis = apiConfigs?.map(config => config.api_provider) || [];
-    console.log('활성화된 API:', activeApis);
+    console.log(`✅ [checkActiveApis] 활성화된 API 목록:`, activeApis);
+    console.log(`   - 총 ${activeApis.length}개의 API 활성화됨`);
     
     return activeApis;
 
   } catch (error) {
-    console.error('API 설정 조회 오류:', error);
+    console.error(`❌ [checkActiveApis] API 설정 조회 오류:`, error);
     return [];
   }
 }

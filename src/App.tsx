@@ -22,9 +22,10 @@ import { SessionTimeoutManager } from './contexts/SessionTimeoutManager';
 import { MessageQueueProvider } from './components/common/MessageQueueProvider';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { supabase } from './lib/supabase';
-import { initFavicon } from './utils/favicon';
+import { initFavicon, updateFaviconByRoute } from './utils/favicon';
 import { gameApi } from './lib/gameApi';
 import { setupNetworkLogging } from './lib/networkLoggingInterceptor';
+import { Lv2AutoSync } from './components/admin/Lv2AutoSync';
 
 // ✅ 앱 시작 시 네트워크 로깅 초기화 (민감한 정보 마스킹)
 setupNetworkLogging();
@@ -47,7 +48,12 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    const handleHashChange = () => forceUpdate({});
+    const handleHashChange = () => {
+      // ✅ 해시 변경 시 Favicon 업데이트
+      const newPath = window.location.hash.substring(1);
+      updateFaviconByRoute(newPath);
+      forceUpdate({});
+    };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
@@ -57,6 +63,10 @@ function AppContent() {
     
     // route가 이미 #으로 시작하면 그대로 사용, 아니면 #을 추가
     const hashRoute = route.startsWith('#') ? route : `#${route}`;
+    
+    // ✅ Favicon 업데이트 (라우트 기반)
+    const routePath = hashRoute.substring(1); // # 제거
+    updateFaviconByRoute(routePath);
     
     // ✅ Benz 페이지에서는 주소창에 #/benz만 표시 (라우트 숨김)
     if (hashRoute.startsWith('#/benz')) {
@@ -584,6 +594,8 @@ function AppContent() {
           <BalanceProvider user={authState.user}>
             <SessionTimeoutManager />
             <MessageQueueProvider userType="admin" userId={authState.user.id}>
+              {/* ✅ Lv2 자동 동기화: 모든 페이지에서 항상 실행 */}
+              {authState.user.level === 2 && <Lv2AutoSync user={authState.user} />}
               <AdminLayout currentRoute={currentRoute} onNavigate={handleNavigate}>
                 <AdminRoutes currentRoute={currentRoute} user={authState.user} />
               </AdminLayout>
@@ -601,11 +613,59 @@ function App() {
     <LanguageProvider>
       <AuthProvider>
         <SessionCleanupProvider>
-          <AppContent />
+          <ErrorBoundary>
+            <AppContent />
+          </ErrorBoundary>
         </SessionCleanupProvider>
       </AuthProvider>
     </LanguageProvider>
   );
+}
+
+// ✅ HMR 에러 처리용 ErrorBoundary
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    console.error('❌ [ErrorBoundary] React 렌더링 에러 감지:', error.message);
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('❌ [ErrorBoundary] 에러 발생:', { error: error.message, errorInfo });
+  }
+
+  componentDidUpdate(prevProps: any, prevState: any) {
+    // 에러에서 복구되었으면 상태 초기화
+    if (this.state.hasError && !this.state.error) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      console.log('⚠️ [ErrorBoundary] 에러 상태 유지 중...');
+      // HMR 에러인 경우 조용히 처리 (자동 복구 대기)
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-900">
+          <div className="text-center">
+            <p className="text-slate-300 mb-4">
+              🔄 애플리케이션이 복구되고 있습니다...
+            </p>
+            <div className="loading-premium mx-auto"></div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 export default App;

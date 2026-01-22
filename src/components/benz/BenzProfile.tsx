@@ -74,6 +74,7 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
   // ✅ API 호출 중복 방지를 위한 ref
   const dataLoadedRef = useRef(false);
   const subscriptionRef = useRef<any>(null);
+  const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null); // ✅ 자동 새로고침 interval ref
 
   // 비밀번호 변경
   const [passwordChange, setPasswordChange] = useState({
@@ -150,57 +151,200 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
         return;
       }
 
-      console.log('🔍 [BenzProfile] 베팅 내역 조회 시작 - userId:', user.id, 'username:', user.username);
+      console.log('🔍 [BenzProfile] 베팅 내역 조회 시작 - userId:', user.id, 'username:', user.username, 'level:', user.level);
 
-      const { data, error } = await supabase
-        .from('game_records')
-        .select(`
-          id,
-          external_txid,
-          user_id,
-          username,
-          game_id,
-          provider_id,
-          provider_name,
-          game_title,
-          game_type,
-          bet_amount,
-          win_amount,
-          balance_before,
-          balance_after,
-          played_at
-        `)
-        .eq('user_id', user.id)
-        .order('played_at', { ascending: false })
-        .limit(50);
+      // ✅ 레벨별 권한 처리
+      if (user.level === 1) {
+        // Lv1(시스템관리자): 모든 베팅 기록 조회 (필터 없음)
+        console.log(`✅ [BenzProfile] Lv1 - 전체 시스템 모든 베팅 기록 조회`);
+        
+        const { data, error } = await supabase
+          .from('game_records')
+          .select(`
+            id,
+            external_txid,
+            user_id,
+            username,
+            game_id,
+            provider_id,
+            provider_name,
+            game_title,
+            game_type,
+            bet_amount,
+            win_amount,
+            balance_before,
+            balance_after,
+            played_at
+          `)
+          .order('played_at', { ascending: false })
+          .limit(50);
 
-      if (error) {
-        console.error('❌ [BenzProfile] 베팅 내역 조회 오류:', error);
-        throw error;
+        if (error) {
+          console.error('❌ [BenzProfile] 베팅 내역 조회 오류:', error);
+          throw error;
+        }
+
+        console.log(`✅ [BenzProfile] 전체 베팅 내역 ${data?.length || 0}건 조회 완료`);
+        
+        const records: GameRecord[] = (data || []).map((record: any) => ({
+          id: record.id,
+          external_txid: record.external_txid || 0,
+          user_id: record.user_id,
+          username: record.username || 'Unknown',
+          game_id: record.game_id,
+          provider_id: record.provider_id,
+          game_title: record.game_title || `Game ${record.game_id}`,
+          provider_name: record.provider_name || `Provider ${record.provider_id}`,
+          bet_amount: parseFloat(record.bet_amount || 0),
+          win_amount: parseFloat(record.win_amount || 0),
+          balance_before: parseFloat(record.balance_before || 0),
+          balance_after: parseFloat(record.balance_after || 0),
+          played_at: record.played_at,
+          game_type: record.game_type
+        }));
+        
+        setGameRecords(records);
+
+      } else if (user.level >= 2) {
+        // Lv2(운영사) 이상: 자신의 조직 + 하위 파트너들의 회원 베팅 기록 조회
+        console.log(`🔍 [BenzProfile] Lv${user.level} - 조직 내 하위 회원 베팅 기록 조회 중...`);
+        
+        // 1️⃣ 자신의 조직 내 모든 하위 파트너 ID 조회 (재귀적)
+        const { data: partners, error: partnerError } = await supabase.rpc(
+          'get_hierarchical_partners',
+          { p_partner_id: user.id }
+        );
+
+        if (partnerError) {
+          console.error('❌ [BenzProfile] 하위 파트너 조회 실패:', partnerError);
+          return;
+        }
+
+        const allPartnerIds = [user.id, ...(partners?.map((p: any) => p.id) || [])];
+        console.log(`   📊 조회된 파트너: ${allPartnerIds.length}명`);
+
+        // 2️⃣ 이 파트너들의 소속 사용자 ID 조회
+        const { data: partnerUsers, error: usersError } = await supabase
+          .from('users')
+          .select('id, username')
+          .in('partner_id', allPartnerIds);
+
+        if (usersError) {
+          console.error('❌ [BenzProfile] 조직 사용자 조회 실패:', usersError);
+          return;
+        }
+
+        const userIds = (partnerUsers || []).map((u: any) => u.id);
+        const usernames = (partnerUsers || []).map((u: any) => u.username);
+        console.log(`   👥 조직 소속 사용자: ${userIds.length}명 (ID), ${usernames.length}명 (username)`);
+        console.log(`      사용자 목록:`, usernames.slice(0, 5), usernames.length > 5 ? '...' : '');
+
+        // 3️⃣ 조직 내 모든 사용자의 베팅 기록 조회 (user_id와 username 둘 다 필터링)
+        if (userIds.length > 0) {
+          // user_id와 username을 모두 포함하여 조회
+          const { data, error } = await supabase
+            .from('game_records')
+            .select(`
+              id,
+              external_txid,
+              user_id,
+              username,
+              game_id,
+              provider_id,
+              provider_name,
+              game_title,
+              game_type,
+              bet_amount,
+              win_amount,
+              balance_before,
+              balance_after,
+              played_at
+            `)
+            .or(`user_id.in.(${userIds.join(',')}),username.in.(${usernames.map(u => `"${u}"`).join(',')})`)
+            .order('played_at', { ascending: false })
+            .limit(50);
+
+          if (error) {
+            console.error('❌ [BenzProfile] 베팅 내역 조회 오류:', error);
+            throw error;
+          }
+
+          console.log(`   ✅ 베팅 내역 ${data?.length || 0}건 조회 완료`);
+          
+          const records: GameRecord[] = (data || []).map((record: any) => ({
+            id: record.id,
+            external_txid: record.external_txid || 0,
+            user_id: record.user_id,
+            username: record.username || 'Unknown',
+            game_id: record.game_id,
+            provider_id: record.provider_id,
+            game_title: record.game_title || `Game ${record.game_id}`,
+            provider_name: record.provider_name || `Provider ${record.provider_id}`,
+            bet_amount: parseFloat(record.bet_amount || 0),
+            win_amount: parseFloat(record.win_amount || 0),
+            balance_before: parseFloat(record.balance_before || 0),
+            balance_after: parseFloat(record.balance_after || 0),
+            played_at: record.played_at,
+            game_type: record.game_type
+          }));
+          
+          setGameRecords(records);
+        } else {
+          console.log('   ⚠️ 조직 사용자가 없습니다.');
+          setGameRecords([]);
+        }
+      } else {
+        // ⭐ Lv3 이상(개인 사용자): 자신의 베팅 기록만 조회
+        console.log(`🔍 [BenzProfile] Lv${user.level} (개인 사용자) - 자신의 베팅 내역 조회 중...`);
+        
+        const { data, error } = await supabase
+          .from('game_records')
+          .select(`
+            id,
+            external_txid,
+            user_id,
+            username,
+            game_id,
+            provider_id,
+            provider_name,
+            game_title,
+            game_type,
+            bet_amount,
+            win_amount,
+            balance_before,
+            balance_after,
+            played_at
+          `)
+          .eq('user_id', user.id)
+          .order('played_at', { ascending: false })
+          .limit(50);
+
+        if (error) {
+          console.error('❌ [BenzProfile] 자신의 베팅 내역 조회 오류:', error);
+          throw error;
+        }
+
+        console.log(`✅ [BenzProfile] 자신의 베팅 내역 ${data?.length || 0}건 조회 완료`);
+        
+        const records: GameRecord[] = (data || []).map((record: any) => ({
+          id: record.id,
+          external_txid: record.external_txid || 0,
+          user_id: record.user_id,
+          username: record.username || 'Unknown',
+          game_id: record.game_id,
+          provider_id: record.provider_id,
+          game_title: record.game_title || `Game ${record.game_id}`,
+          provider_name: record.provider_name || `Provider ${record.provider_id}`,
+          bet_amount: parseFloat(record.bet_amount || 0),
+          win_amount: parseFloat(record.win_amount || 0),
+          balance_before: parseFloat(record.balance_before || 0),
+          balance_after: parseFloat(record.balance_after || 0),
+          played_at: record.played_at,
+          game_type: record.game_type
+        }));
+        
+        setGameRecords(records);
       }
-
-      console.log(`✅ [BenzProfile] 베팅 내역 ${data?.length || 0}건 조회 완료`);
-      
-      // 데이터 매핑 (베팅 내역 페이지와 동일한 로직)
-      const records: GameRecord[] = (data || []).map((record: any) => ({
-        id: record.id,
-        external_txid: record.external_txid || 0,
-        user_id: record.user_id,
-        username: record.username || 'Unknown',
-        game_id: record.game_id,
-        provider_id: record.provider_id,
-        // game_title, provider_name은 이미 game_records에 저장되어 있음
-        game_title: record.game_title || `Game ${record.game_id}`,
-        provider_name: record.provider_name || `Provider ${record.provider_id}`,
-        bet_amount: parseFloat(record.bet_amount || 0),
-        win_amount: parseFloat(record.win_amount || 0),
-        balance_before: parseFloat(record.balance_before || 0),
-        balance_after: parseFloat(record.balance_after || 0),
-        played_at: record.played_at,
-        game_type: record.game_type
-      }));
-      
-      setGameRecords(records);
     } catch (error) {
       console.error('게임 기록 조회 오류:', error);
     }
@@ -328,6 +472,17 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
 
     loadData();
 
+    // ⭐ 자동 새로고침: 5초마다 데이터 다시 로드
+    console.log('🔄 [BenzProfile] 자동 새로고침 5초 interval 설정');
+    autoRefreshIntervalRef.current = setInterval(async () => {
+      console.log('🔄 [BenzProfile] 5초 자동 새로고침 실행');
+      await Promise.all([
+        fetchCurrentBalance(),
+        fetchPointTransactions(),
+        fetchGameRecords()
+      ]);
+    }, 5000); // 5초마다 새로고침
+
     // ✅ 실시간 업데이트 구독 (한 번만 구독)
     if (!subscriptionRef.current) {
       subscriptionRef.current = supabase
@@ -365,6 +520,11 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
         subscriptionRef.current = null;
+      }
+      // ✅ 자동 새로고침 interval 제거
+      if (autoRefreshIntervalRef.current) {
+        clearInterval(autoRefreshIntervalRef.current);
+        console.log('🛑 [BenzProfile] 자동 새로고침 interval 제거');
       }
       // ✅ user 변경 시 ref 리셋 (새로운 사용자로 로그인 시)
       dataLoadedRef.current = false;

@@ -3,7 +3,6 @@ import { AdminSidebar } from "./AdminSidebar";
 import { AdminHeader } from "./AdminHeader";
 import { BettingHistorySync } from "./BettingHistorySync";
 import { BalanceSyncManager } from "./BalanceSyncManager";
-import { Lv2AutoSync } from "./Lv2AutoSync";
 import { AdminGameRecordsSync } from "./AdminGameRecordsSync";
 import { useAuth } from "../../contexts/AuthContext";
 import { useWebSocketContext } from "../../contexts/WebSocketContext";
@@ -56,11 +55,6 @@ export function AdminLayout({ children, currentRoute, onNavigate }: AdminLayoutP
         <BettingHistorySync user={user} />
       )}
       
-      {/* ✅ Lv2만 자동 동기화 */}
-      {user.level === 2 && (
-        <Lv2AutoSync user={user} />
-      )}
-
       {/* ✅ 자동 게임 기록 동기화 */}
       {<AdminGameRecordsSync user={user} />}
       

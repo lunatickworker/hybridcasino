@@ -189,13 +189,16 @@ interface ProxyConfig {
 async function proxyCall<T = any>(
   config: ProxyConfig,
   apiKey: string,
-  retries: number = 2
+  retries: number = 2,
+  skipRateLimiter: boolean = false  // 🆕 게임 실행 시 rate limiter 우회
 ): Promise<T> {
   let lastError: any = null;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
-    // ✅ Rate Limiter 적용 (모든 요청에 1.5초 간격 보장)
-    await rateLimiter.waitForSlot();
+    // ✅ Rate Limiter 적용 (게임 실행 제외, 다른 요청에 1.5초 간격 보장)
+    if (!skipRateLimiter) {
+      await rateLimiter.waitForSlot();
+    }
     
     if (attempt > 0) {
       console.log(`🔄 [HonorAPI] 재시도 ${attempt}/${retries}...`);
@@ -210,12 +213,6 @@ async function proxyCall<T = any>(
     }
 
     try {
-      console.log(`📡 [HonorAPI] Proxy 호출 시작 (attempt ${attempt + 1}/${retries + 1}):`, {
-        url: config.url,
-        method: config.method,
-        proxyUrl: PROXY_URL
-      });
-
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         console.warn('⏰ [HonorAPI] 타임아웃 발생 (30초)');
@@ -232,8 +229,6 @@ async function proxyCall<T = any>(
         }
       };
 
-      console.log('📤 [HonorAPI] Fetch 요청 전송 중...');
-
       const response = await fetch(PROXY_URL, {
         method: 'POST',
         headers: {
@@ -244,13 +239,6 @@ async function proxyCall<T = any>(
       });
 
       clearTimeout(timeoutId);
-
-      console.log('📡 [HonorAPI] Proxy 응답 상태:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        url: config.url
-      });
 
       if (!response.ok) {
         let errorText = '';
@@ -296,12 +284,7 @@ async function proxyCall<T = any>(
       }
 
       // 응답 데이터 파싱
-      console.log('📄 [HonorAPI] 응답 읽기 시작...');
       const responseText = await response.text();
-
-      if (attempt === 0) {
-        console.log('📄 [HonorAPI] Raw 응답:', responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''));
-      }
 
       if (!responseText.trim()) {
         console.warn('⚠️ [HonorAPI] 빈 응답 수신');
@@ -319,12 +302,6 @@ async function proxyCall<T = any>(
         console.error('❌ [HonorAPI] JSON 파싱 실패:', responseText);
         throw new Error('응답 JSON 파싱 실패');
       }
-
-      console.log('✅ [HonorAPI] 응답 파싱 완료:', {
-        type: typeof result,
-        isArray: Array.isArray(result),
-        keys: typeof result === 'object' ? Object.keys(result) : null
-      });
 
       // api_sync_logs 성공 기록
       try {
@@ -436,6 +413,7 @@ export async function getUserInfo(apiKey: string, username: string): Promise<Use
 /**
  * 3. 게임 실행 링크 조회 (자동 유저 생성 포함)
  * GET /game-launch-link?username={username}&game_id={gameId}&vendor={vendor}
+ * ⚠️ Rate Limiter 없음 (빠른 게임 실행 필요)
  */
 export async function getGameLaunchLink(
   apiKey: string,
@@ -454,7 +432,7 @@ export async function getGameLaunchLink(
   const result = await proxyCall<GameLaunchResponse>({
     url: `${HONORAPI_BASE_URL}/game-launch-link?${params.toString()}`,
     method: 'GET'
-  }, apiKey);
+  }, apiKey, 2, true); // 🆕 true: rate limiter 우회!
 
   console.log(`✅ [HonorAPI] 게임 실행 링크 조회 성공: ${username}, 신규유저: ${result.userCreated}`);
   return result;

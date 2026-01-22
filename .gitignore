@@ -7,4 +7,9 @@ comparefile
 dist
 jobtasks
 .env
+.env.benz
+.env.m
+.env.user
+.env.admin
+
 

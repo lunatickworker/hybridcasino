@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Avatar, AvatarFallback } from "../ui/avatar";
@@ -146,20 +146,23 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   const [isSyncingHonor, setIsSyncingHonor] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [displayBalance, setDisplayBalance] = useState<number>(balance);
+  const previousBalanceRef = useRef<number>(balance); // ✅ 이전 balance 값 추적
 
   // =====================================================
   // 알림 개수 로드
   // =====================================================
-  const loadNotificationCount = async () => {
+  // 🆕 loadNotificationCount를 useCallback으로 메모이제이션
+  const loadNotificationCount = useCallback(async () => {
     try {
-      console.log('🔔 [알림 개수 로드] 현재 관리자 ID:', user.id, '레벨:', user.level);
+      console.log('🔔 [알림 개수 로드] 현재 관리자 ID:', user.id, '레벨:', user.level); // ⚠️ user는 클로저로 접근
       const count = await getUnreadNotificationCount(user.id); // ✅ partnerId 전달
       console.log('🔔 [알림 개수 로드] 결과:', count);
       setNotificationCount(count);
     } catch (error) {
       console.error('❌ 알림 개수 로드 실패:', error);
     }
-  };
+  }, []); // ✅ 의존성 배열 완전히 비움 - user는 클로저로 접근
 
   // =====================================================
   // Invest 보유금 수동 동기화 (카드 클릭 시)
@@ -260,16 +263,18 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   // =====================================================
   const handleSyncOroplayBalance = async () => {
     if (user.level !== 1 && user.level !== 2) {
+      console.warn('❌ OroPlay 동기화: 권한 없음 (level:', user.level, ')');
       return;
     }
 
     setIsSyncingOroplay(true);
     try {
-      console.log('💰 [AdminHeader] OroPlay 보유금 수동 동기화 시작');
+      console.log('💰 [AdminHeader] OroPlay 보유금 수동 동기화 시작', { userLevel: user.level, userId: user.id });
 
       // Lv1의 토큰 조회 (Lv2도 Lv1의 API 설정 사용)
       let partnerId = user.id;
       if (user.level === 2) {
+        console.log('🔍 Lv2: Lv1 파트너 찾기...');
         // Lv2는 Lv1의 partner_id 찾기
         const { data: lv1Partner } = await supabase
           .from('partners')
@@ -279,51 +284,70 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           .limit(1)
           .maybeSingle(); // ⭐ single() → maybeSingle()
         
+        console.log('✅ Lv1 파트너 조회:', lv1Partner?.id);
+        
         if (!lv1Partner) {
           console.warn('⚠️ 시스템 파트너를 찾을 수 없습니다 (OroPlay 동기화)');
           toast.error('시스템 파트너가 존재하지 않습니다. 시스템 관리자에게 문의하세요.');
+          setIsSyncingOroplay(false);
           return;
         }
         partnerId = lv1Partner.id;
       }
 
+      console.log('🔑 partnerId:', partnerId);
+
       // ✅ OroPlay API 활성화 체크
+      console.log('🔍 OroPlay API 활성화 체크...');
       const isOroPlayActive = await checkApiActiveByPartnerId(partnerId, 'oroplay');
+      console.log('✅ OroPlay API 활성화:', isOroPlayActive);
+      
       if (!isOroPlayActive) {
+        console.warn('⚠️ OroPlay API가 비활성화됨');
         toast.info('OroPlay API가 비활성화되어 있습니다.');
+        setIsSyncingOroplay(false);
         return;
       }
 
       // 토큰 조회 (자동 갱신 포함)
+      console.log('🔍 OroPlay 토큰 조회...');
       const token = await getOroPlayToken(partnerId);
+      console.log('✅ 토큰 획득:', token ? '성공' : '실패');
 
       // GET /agent/balance 호출
+      console.log('🔍 OroPlay 잔고 조회...');
       const balance = await getAgentBalance(token);
-
       console.log('✅ [AdminHeader] OroPlay API 응답:', { balance });
 
       // DB 업데이트
+      console.log('💾 DB 업데이트 시작...');
       if (user.level === 1) {
+        console.log('📝 Lv1 업데이트: updateOroplayBalance 호출');
         // Lv1: 헬퍼 함수 사용 (api_configs + 모든 Lv2 동기화)
         const success = await updateOroplayBalance(user.id, balance);
         if (!success) {
           throw new Error('DB 업데이트 실패');
         }
       } else if (user.level === 2) {
+        console.log('📝 Lv2 업데이트: partners.oroplay_balance 업데이트', { userId: user.id, balance });
         // Lv2: partners.oroplay_balance 업데이트 (자기 자신만)
-        const { error: updateError } = await supabase
+        const { data, error: updateError } = await supabase
           .from('partners')
           .update({
             oroplay_balance: balance,
             updated_at: new Date().toISOString()
           })
-          .eq('id', user.id);
+          .eq('id', user.id)
+          .select();
+
+        console.log('📝 DB 업데이트 결과:', { data, error: updateError });
 
         if (updateError) {
-          throw new Error('DB 업데이트 실패');
+          throw new Error(`DB 업데이트 실패: ${updateError.message}`);
         }
       }
 
+      console.log('✅ 동기화 완료');
       toast.success(`OroPlay 보유금 동기화 완료: ${formatCurrency(balance)}`);
       
       // ✅ BalanceContext 업데이트 (❌ 제거: syncBalance() 호출 시 불필요한 API 호출 방지)
@@ -689,52 +713,30 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             console.error('❌ 사용자 출금 대기 수 조회 실패:', userWithdrawalError);
           }
 
-          // ✅ 파트너 출금 신청: 최종 Lv2(받는사람)에만 리스트 표시
+          // ✅ 파트너 출금 신청: Lv2만 조회
           let adminWithdrawalCount = 0;
           if (user.level === 2) {
-            // Lv2: 자신이 받는 출금신청만
+            // Lv2: 자신이 받는 출금신청만 (to_partner_id = 현재 Lv2 ID)
             const { count, error } = await supabase
               .from('transactions')
-              .select('id', { count: 'exact', head: true })
-              .in('transaction_type', ['partner_withdrawal_request'])
+              .select('id', { count: 'exact' })
+              .eq('transaction_type', 'partner_withdrawal_request')
               .eq('status', 'pending')
               .eq('to_partner_id', user.id);
             
-            if (error) {
-              console.error('❌ 파트너 출금 대기 수 조회 실패:', error);
-            } else {
-              adminWithdrawalCount = count || 0;
-            }
-          } else if (user.level === 1) {
-            // Lv1: 직속 Lv2들의 출금신청만 조회
-            const { data: lv2Partners } = await supabase
-              .from('partners')
-              .select('id')
-              .eq('level', 2);
-            const lv2Ids = lv2Partners?.map(p => p.id) || [];
+            console.log('📊 partner_withdrawal_request 쿼리 결과:', {
+              userId: user.id,
+              queryCount: count,
+              queryError: error?.message
+            });
             
-            if (lv2Ids.length > 0) {
-              const { count, error } = await supabase
-                .from('transactions')
-                .select('id', { count: 'exact', head: true })
-                .in('transaction_type', ['partner_withdrawal_request'])
-                .eq('status', 'pending')
-                .in('to_partner_id', lv2Ids);
-              
-              if (error) {
-                console.error('❌ 파트너 출금 대기 수 조회 실패:', error);
-              } else {
-                adminWithdrawalCount = count || 0;
-              }
-            }
+            adminWithdrawalCount = count || 0;
           }
-          // Lv3+는 adminWithdrawalCount = 0 (쿼리 실행 안 함)
 
           pendingWithdrawalsCount = (userWithdrawalCount || 0) + (adminWithdrawalCount || 0);
-          console.log('🔔 출금요청 대기 수 (조직격리 적용):', {
+          console.log('✅ 최종 출금요청 대기:', {
             userWithdrawalCount,
             adminWithdrawalCount,
-            allowedPartnerIds: user.level === 1 ? 'all' : allowedPartnerIds,
             total: pendingWithdrawalsCount
           });
         } catch (error) {
@@ -776,7 +778,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     
     // 초기 로드
     fetchHeaderStats();
-    loadNotificationCount(); // ✅ 알림 카운터 초기 로드
+    // 🚫 loadNotificationCount 제거 (별도 useEffect에서만 로드)
     
     // ⏰ 자정 리셋 타이머 설정 (시스템 타임존 기준)
     const setupMidnightReset = () => {
@@ -801,13 +803,13 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       console.log(`⏰ [자정 리셋] 다음 자정까지: ${Math.floor(msUntilMidnight / 1000 / 60)}분 (시스템 타임존: UTC${timezoneOffset >= 0 ? '+' : ''}${timezoneOffset})`);
       
       return setTimeout(() => {
-        console.log('🔄 [자정 리셋] 통계 리셋 실행');
-        fetchHeaderStats();
+        console.log('🔄 [자정 리셋] 통계 리셋 실행 - 수동 호출 필요');
+        // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
         
         // 자정 이후 매일 자정마다 리셋되도록 24시간 간격으로 설정
         setInterval(() => {
-          console.log('🔄 [자정 리셋] 통계 리셋 실행 (24시간 주기)');
-          fetchHeaderStats();
+          console.log('🔄 [자정 리셋] 통계 리셋 실행 (24시간 주기) - 수동 호출 필요');
+          // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
         }, 24 * 60 * 60 * 1000);
       }, msUntilMidnight);
     };
@@ -828,7 +830,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         },
         async (payload) => {
           console.log('💰 [헤더 알림] transactions 변경 감지:', payload.eventType, payload);
-          fetchHeaderStats(); // 즉시 갱신
+          // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
           
           // UPDATE 이벤트: 승인/거절 처리
           if (payload.eventType === 'UPDATE' && payload.new && payload.old) {
@@ -845,7 +847,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             }
           }
           
-          // 새 입금/출금 요청 시 토스트 알림
           if (payload.eventType === 'INSERT' && payload.new) {
             const transaction = payload.new as any;
             
@@ -912,7 +913,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     .then(() => {
                       // ✅ 알림 카운터 + 헤더 통계 즉시 갱신
                       loadNotificationCount();
-                      fetchHeaderStats(); // ✅ 입금대기/출금대기 카운터 갱신
+                      // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
                     });
                 }
                 return; // 파트너 신청은 여기서 처리 완료
@@ -956,8 +957,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     }
                   }
                 });
-                // ✅ 헤더 통계 즉시 갱신
-                fetchHeaderStats();
+                // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
               } else if (transaction.transaction_type === 'withdrawal') {
                 toast.warning('새로운 출금 요청이 있습니다.', {
                   description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${username}\n클릭하면 사라집니다.`,
@@ -972,8 +972,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     }
                   }
                 });
-                // ✅ 헤더 통계 즉시 갱신
-                fetchHeaderStats();
+                // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
               }
             }
           }
@@ -993,7 +992,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         },
         (payload) => {
           console.log('🔔 [헤더 알림] users 변경 감지 (가입승인):', payload.eventType);
-          fetchHeaderStats(); // 즉시 갱신
+          // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
           
           // 새 가입 요청 시 토스트 알림
           if (payload.eventType === 'INSERT' && payload.new && (payload.new as any).status === 'pending') {
@@ -1019,7 +1018,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         },
         (payload) => {
           console.log('🔔 [Header Alert] messages change detected (customer inquiry):', payload.eventType);
-          fetchHeaderStats(); // Immediate refresh
+          // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
           
           // Toast notification for new customer inquiry (user to partner message)
           if (payload.eventType === 'INSERT' && payload.new) {
@@ -1059,7 +1058,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         },
         (payload) => {
           console.log('🎮 [헤더 알림] game_launch_sessions 변경 감지:', payload.eventType);
-          fetchHeaderStats(); // 즉시 갱신
+          // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
         }
       )
       .subscribe();
@@ -1087,7 +1086,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             // 내가 받을 알림인지 확인
             if (newNotification.recipient_id === user.id && newNotification.is_read === false) {
               console.log('🔔 [알림 증가] 새 알림:', newNotification.id);
-              loadNotificationCount(); // 알림 개수 즉시 업데이트
+              // 🆕 직접 카운트 증가 (무한 루프 방지)
+              setNotificationCount(prev => prev + 1);
             }
           }
           
@@ -1107,7 +1107,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             // is_read: false -> true 상태 변경 감지
             if (oldNotification?.is_read === false && newNotification?.is_read === true && newNotification?.recipient_id === user.id) {
               console.log('✅ [알림 감소] 읽음 처리:', newNotification.id);
-              loadNotificationCount(); // 알림 개수 즉시 업데이트
+              // 🆕 직접 카운트 감소 (무한 루프 방지)
+              setNotificationCount(prev => Math.max(0, prev - 1));
             }
           }
           
@@ -1116,37 +1117,18 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             const deletedNotification = payload.old as any;
             if (deletedNotification?.recipient_id === user.id && deletedNotification?.is_read === false) {
               console.log('🔔 [알림 감소] 알림 삭제:', deletedNotification.id);
-              loadNotificationCount(); // 알림 개수 즉시 업데이트
+              // 🆕 직접 카운트 감소 (무한 루프 방지)
+              setNotificationCount(prev => Math.max(0, prev - 1));
             }
           }
         }
       )
       .subscribe();
 
-    // ✅ settlements 테이블 실시간 구독 추가 (INSERT만 구독)
-    const settlementsChannel = supabase
-      .channel('settlements_updates')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'settlements',
-          filter: `partner_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('💰 [정산 생성 감지]:', payload.eventType);
-          // 새로운 정산이 생성될 때마다 커미션 정보 갱신
-          loadLatestCommissions();
-        }
-      )
-      .subscribe();
+    // 🚫 settlements 테이블 Realtime 구독 제거 (무한 루프 방지)
+    // settlements INSERT는 시스템 자동 생성이므로 실시간 감시 불필요
 
-    // 초기 알림 개수 로드
-    loadNotificationCount();
-    
-    // ✅ 초기 커미션 정보 로드
-    loadLatestCommissions();
+    // 🚫 초기 알림 개수 로드 제거 (별도 useEffect에서만 로드)
 
     return () => {
       console.log('🔕 헤더 Realtime 구독 해제');
@@ -1156,9 +1138,29 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       supabase.removeChannel(messagesChannel);
       supabase.removeChannel(gameSessionsChannel);
       supabase.removeChannel(notificationsChannel);
-      supabase.removeChannel(settlementsChannel);
+      // 🚫 settlementsChannel 제거 (구독하지 않음)
     };
-  }, [user.id]);
+  }, []); // ✅ 의존성 배열 완전히 비움 - Realtime은 마운트 시에만 구독
+
+  // 🆕 알림 개수 초기 로드 (별도의 useEffect)
+  useEffect(() => {
+    loadNotificationCount();
+  }, []); // ✅ 마운트 시에만 호출
+
+  // 🆕 커미션 정보 초기 로드 (별도의 useEffect)
+  useEffect(() => {
+    // loadLatestCommissions는 마운트 시에만 호출 (의존성 배열 완전히 비움)
+    loadLatestCommissions();
+  }, []); // ✅ 완전히 비운 의존성 배열 - 마운트 시 한 번만
+
+  // ⭐ balance 변경 감지 및 실시간 업데이트 (깜박임 방지)
+  useEffect(() => {
+    // 실제로 값이 변경되었을 때만 업데이트
+    if (balance !== previousBalanceRef.current) {
+      previousBalanceRef.current = balance;
+      setDisplayBalance(balance);
+    }
+  }, [balance]);
 
   // 베팅 알림 상태
   const [bettingAlerts, setBettingAlerts] = useState({
@@ -1296,6 +1298,185 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     };
   }, [onRouteChange, user.level, allowedPartnerIds]);
 
+  // ✅ API 자동 동기화 (4초 주기) - AdminHeader에서도 실시간 업데이트
+  // ❌ 자동 동기화 비활성화: HonorAPI가 불안정한 값을 반환하여 불필요한 업데이트 발생
+  // 수동 동기화(카드 클릭)만 사용
+  /*
+  useEffect(() => {
+    if (user.level !== 1 && user.level !== 2) {
+      return;
+    }
+
+    console.log('🔄 [AdminHeader] API 자동 동기화 시작 (4초 주기)');
+
+    let isMounted = true;
+    let isAutoSyncing = false;
+    
+    // 마지막 업데이트된 값 캐싱 (불필요한 DB 업데이트 방지)
+    const lastValuesRef = { honorapi: null as number | null, oroplay: null as number | null };
+
+    const performAutoSync = async () => {
+      if (isAutoSyncing || !isMounted) return;
+      isAutoSyncing = true;
+
+      try {
+        let partnerId = user.id;
+        if (user.level === 2) {
+          const { data: lv1Partner } = await supabase
+            .from('partners')
+            .select('id')
+            .eq('level', 1)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          if (!lv1Partner || !isMounted) {
+            isAutoSyncing = false;
+            return;
+          }
+          partnerId = lv1Partner.id;
+        }
+
+        // 활성화된 API만 동기화
+        const { data: honorConfig } = await supabase
+          .from('api_configs')
+          .select('is_active')
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'honorapi')
+          .maybeSingle();
+
+        const { data: oroplayConfig } = await supabase
+          .from('api_configs')
+          .select('is_active')
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'oroplay')
+          .maybeSingle();
+
+        // HonorAPI 동기화
+        if (honorConfig?.is_active !== false && isMounted) {
+          try {
+            console.log('🔄 [AdminHeader] HonorAPI 자동 동기화 (4초 주기)');
+            const credentials = await getLv1HonorApiCredentials(partnerId);
+            if (credentials?.api_key) {
+              const agentInfo = await honorApiModule.getAgentInfo(credentials.api_key);
+              const balance = agentInfo?.hold_amount;
+              
+              // balance가 유효한 숫자이고 변경되었을 때만 업데이트
+              if (typeof balance === 'number' && balance >= 0 && lastValuesRef.honorapi !== balance) {
+                lastValuesRef.honorapi = balance;
+                
+                if (user.level === 1) {
+                  await supabase
+                    .from('api_configs')
+                    .update({
+                      balance: balance,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('partner_id', user.id)
+                    .eq('api_provider', 'honorapi');
+                } else if (user.level === 2) {
+                  await supabase
+                    .from('partners')
+                    .update({
+                      honorapi_balance: balance,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', user.id);
+                }
+              }
+            }
+          } catch (error) {
+            console.warn('⚠️ [AdminHeader] HonorAPI 자동 동기화 실패:', error);
+          }
+        }
+
+        // OroPlay 동기화
+        if (oroplayConfig?.is_active !== false && isMounted) {
+          try {
+            console.log('🔄 [AdminHeader] OroPlay 자동 동기화 (4초 주기)');
+            
+            const { data: config } = await supabase
+              .from('api_configs')
+              .select('token, token_expires_at, client_id, client_secret')
+              .eq('partner_id', partnerId)
+              .eq('api_provider', 'oroplay')
+              .maybeSingle();
+
+            if (config?.client_id && config?.client_secret) {
+              let token = config.token || '';
+              
+              const isTokenExpired = !config.token_expires_at || 
+                new Date(config.token_expires_at).getTime() < Date.now() + 5 * 60 * 1000;
+
+              if (isTokenExpired || !config.token) {
+                const { createOroPlayToken } = await import('../../lib/oroplayApi');
+                const tokenData = await createOroPlayToken(
+                  config.client_id,
+                  config.client_secret
+                );
+                
+                token = tokenData.token;
+
+                await supabase
+                  .from('api_configs')
+                  .update({
+                    token: tokenData.token,
+                    token_expires_at: new Date(tokenData.expiration * 1000).toISOString(),
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('partner_id', partnerId)
+                  .eq('api_provider', 'oroplay');
+              }
+
+              const { getAgentBalance } = await import('../../lib/oroplayApi');
+              const balance = await getAgentBalance(token);
+
+              if (user.level === 1) {
+                await supabase
+                  .from('api_configs')
+                  .update({
+                    balance: balance,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('partner_id', user.id)
+                  .eq('api_provider', 'oroplay');
+              } else if (user.level === 2) {
+                await supabase
+                  .from('partners')
+                  .update({
+                    oroplay_balance: balance,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', user.id);
+              }
+            }
+          } catch (error) {
+            console.warn('⚠️ [AdminHeader] OroPlay 자동 동기화 실패:', error);
+          }
+        }
+      } catch (error) {
+        console.error('❌ [AdminHeader] 자동 동기화 오류:', error);
+      } finally {
+        isAutoSyncing = false;
+      }
+    };
+
+    // 즉시 첫 동기화 실행
+    performAutoSync();
+
+    // 4초마다 동기화
+    const autoSyncInterval = setInterval(() => {
+      performAutoSync();
+    }, 4000);
+
+    return () => {
+      console.log('🧹 [AdminHeader] API 자동 동기화 정리');
+      isMounted = false;
+      clearInterval(autoSyncInterval);
+    };
+  }, [user.id, user.level]);
+  */
+
   const handleLogout = () => {
     logout();
     toast.success("로그아웃되었습니다.");
@@ -1326,6 +1507,12 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   // 관리자 입금/출금 신청
   // =====================================================
   const handleDepositRequest = async () => {
+    // ✅ Lv2는 파트너 입금 신청 불가 (하부→상부만 가능)
+    if (user.level <= 2) {
+      toast.error('Lv2 이상은 파트너 입금 신청을 할 수 없습니다.');
+      return;
+    }
+
     if (!requestAmount || parseFloat(requestAmount.replace(/,/g, '')) <= 0) {
       toast.error('입금 금액을 입력해주세요.');
       return;
@@ -1338,23 +1525,37 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       // Lv2 본사 찾기 (자신이 속한 Lv2)
       let lv2PartnerId = user.id;
       if (user.level > 2) {
-        // 상위로 올라가면서 Lv2 찾기
-        let currentPartnerId = user.referrer_id;
-        while (currentPartnerId) {
+        // ❌ parent_id가 없으면 상위 파트너 구조가 설정되지 않음
+        if (!user.parent_id) {
+          toast.error('상위 파트너 정보가 설정되지 않았습니다. 관리자에게 문의하세요.');
+          setIsSubmittingRequest(false);
+          return;
+        }
+        
+        // 상위로 올라가면서 Lv2 찾기 (partner_id의 parent_id 사용)
+        let currentPartnerId = user.parent_id;
+        let loopCount = 0;
+        
+        while (currentPartnerId && loopCount < 10) {  // 무한 루프 방지
+          loopCount++;
           const { data: parentPartner } = await supabase
             .from('partners')
-            .select('id, level, referrer_id')
+            .select('id, level, parent_id')
             .eq('id', currentPartnerId)
             .single();
           
-          if (!parentPartner) break;
-          
-          if (parentPartner.level === 2) {
-            lv2PartnerId = parentPartner.id;
+          if (!parentPartner) {
+            console.log('❌ 상위 파트너를 찾을 수 없음:', currentPartnerId);
             break;
           }
           
-          currentPartnerId = parentPartner.referrer_id;
+          if (parentPartner.level === 2) {
+            lv2PartnerId = parentPartner.id;
+            console.log('✅ Lv2 찾음:', parentPartner.id);
+            break;
+          }
+          
+          currentPartnerId = parentPartner.parent_id;
         }
       }
 
@@ -1370,8 +1571,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           balance_after: balance, // 승인 전까지는 동일
           created_at: new Date().toISOString(),
           memo: `[관리자 입금신청] ${user.nickname || user.username} → 본사`,
-          from_partner_id: user.id,  // ✅ 보낸사람 (신청자)
-          to_partner_id: lv2PartnerId // ✅ 받는사람 (본사/Lv2)
+          from_partner_id: user.id,      // ✅ 신청자 (본인/Lv3+)
+          to_partner_id: lv2PartnerId    // ✅ 받는사람 (Lv2)
         })
         .select()
         .single();
@@ -1395,6 +1596,12 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   };
 
   const handleWithdrawalRequest = async () => {
+    // ✅ Lv2는 파트너 출금 신청 불가 (하부→상부만 가능)
+    if (user.level <= 2) {
+      toast.error('Lv2 이상은 파트너 출금 신청을 할 수 없습니다.');
+      return;
+    }
+
     if (!requestAmount || parseFloat(requestAmount.replace(/,/g, '')) <= 0) {
       toast.error('출금 금액을 입력해주세요.');
       return;
@@ -1413,27 +1620,56 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
       // Lv2 본사 찾기 (자신이 속한 Lv2)
       let lv2PartnerId = user.id;
       if (user.level > 2) {
-        // 상위로 올라가면서 Lv2 찾기
-        let currentPartnerId = user.referrer_id;
-        while (currentPartnerId) {
+        // ❌ parent_id가 없으면 상위 파트너 구조가 설정되지 않음
+        if (!user.parent_id) {
+          toast.error('상위 파트너 정보가 설정되지 않았습니다. 관리자에게 문의하세요.');
+          setIsSubmittingRequest(false);
+          return;
+        }
+        
+        // 상위로 올라가면서 Lv2 찾기 (partner_id의 parent_id 사용)
+        let currentPartnerId = user.parent_id;
+        let loopCount = 0;
+        
+        while (currentPartnerId && loopCount < 10) {  // 무한 루프 방지
+          loopCount++;
           const { data: parentPartner } = await supabase
             .from('partners')
-            .select('id, level, referrer_id')
+            .select('id, level, parent_id')
             .eq('id', currentPartnerId)
             .single();
           
-          if (!parentPartner) break;
-          
-          if (parentPartner.level === 2) {
-            lv2PartnerId = parentPartner.id;
+          if (!parentPartner) {
+            console.log('❌ 상위 파트너를 찾을 수 없음:', currentPartnerId);
             break;
           }
           
-          currentPartnerId = parentPartner.referrer_id;
+          if (parentPartner.level === 2) {
+            lv2PartnerId = parentPartner.id;
+            console.log('✅ Lv2 찾음:', parentPartner.id);
+            break;
+          }
+          
+          currentPartnerId = parentPartner.parent_id;
         }
       }
 
+      console.log('🔍 출금 신청 시 partner ID 설정:', {
+        userLevel: user.level,
+        userId: user.id,
+        lv2PartnerId: lv2PartnerId,
+        correctlySet: user.level <= 2 || (user.level > 2 && lv2PartnerId !== user.id)
+      });
+
       // 트랜잭션 생성 (사용자 입출금과 동일한 transactions 테이블 사용)
+      console.log('🔍 partner_withdrawal_request 저장 전:', {
+        userId: user.id,
+        lv2PartnerId: lv2PartnerId,
+        from_partner_id_will_be: user.id,
+        to_partner_id_will_be: lv2PartnerId,
+        are_same: user.id === lv2PartnerId
+      });
+
       const { data: transaction, error } = await supabase
         .from('transactions')
         .insert({
@@ -1445,8 +1681,8 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           balance_after: balance, // 승인 전까지는 동일
           created_at: new Date().toISOString(),
           memo: `[관리자 출금신청] ${user.nickname || user.username} → 본사`,
-          from_partner_id: lv2PartnerId, // ✅ 보낸사람 (본사/Lv2)
-          to_partner_id: user.id         // ✅ 받는사람 (신청자)
+          from_partner_id: user.id,      // ✅ 신청자 (본인/Lv3+)
+          to_partner_id: lv2PartnerId    // ✅ 받는사람 (Lv2)
         })
         .select()
         .single();
@@ -1631,10 +1867,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     }
   };
   
-  // ✅ 실시간 커미션 계산 + 과거 미전환 커미션 조회
-  const loadLatestCommissions = async () => {
+  // 🆕 loadLatestCommissions를 useCallback으로 메모이제이션
+  const loadLatestCommissions = useCallback(async () => {
     try {
-      console.log('💰 [실시간 커미션 조회] 시작 - partner_id:', user.id);
+      console.log('💰 [실시간 커미션 조회] 시작 - partner_id:', user.id); // ⚠️ user.id는 의존성에서 제외 (클로저로 접근)
       
       // 1️⃣ 파트너의 현재 커미션 요율 조회
       const { data: partnerData, error: partnerError } = await supabase
@@ -1842,7 +2078,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         slot_losing_rate: 0
       });
     }
-  };
+  }, []); // ✅ 의존성 배열 완전히 비움 - user.id는 클로저로 접근
   
   // ✅ 커미션 클릭 핸들러
   const handleCommissionClick = (
@@ -2315,7 +2551,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                         </div>
                       </div>
                       <div className="text-2xl font-bold text-emerald-400">
-                        {formatCurrency(balance)}
+                        {formatCurrency(displayBalance)}
                       </div>
                     </div>
 
