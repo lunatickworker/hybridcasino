@@ -1051,27 +1051,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     loadData(true);
   }, []);
 
-  // 필터 변경 시 데이터 재로드 (non-blocking)
-  // ✅ activeTab도 의존성에 포함 (탭별로 다른 상태 데이터 로드 필요)
-  useEffect(() => {
-    if (!initialLoading) {
-      // 즉시 반응하기 위해 백그라운드에서 로드
-      setRefreshing(true);
-      // 스크롤 위치 저장
-      const scrollY = window.scrollY;
-      
-      // setTimeout으로 다음 렌더링 사이클에서 실행
-      const timer = setTimeout(() => {
-        loadData(false);
-        // 로드 완료 후 스크롤 복원 (테이블이 새로 그려진 후)
-        setTimeout(() => {
-          window.scrollTo(0, scrollY);
-        }, 100);
-      }, 50); // 부자연스러운 깜빡임 방지
-      
-      return () => clearTimeout(timer);
-    }
-  }, [periodFilter, reloadTrigger, activeTab]);
+
 
 
 
@@ -1385,53 +1365,59 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
         if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_withdrawal' || transaction.transaction_type === 'partner_deposit_request' || transaction.transaction_type === 'partner_withdrawal_request') {
           const requestPartnerId = (transaction as any).partner_id;
           
-          // 신청자 현재 보유금 조회 (이미 위에서 조회했으면 사용)
-          let requestPartnerData = preApprovedPartnerBalance;
-          if (!requestPartnerData) {
-            const { data: queryData, error: queryError } = await supabase
-              .from('partners')
-              .select('balance, username, nickname')
-              .eq('id', requestPartnerId)
-              .single();
+          // ⭐ partner_deposit_request / partner_withdrawal_request는 신청자가 이미 보유금을 조정했음
+          // 따라서 승인 시 신청자 보유금을 다시 조정하면 안됨 (중복 조정 방지)
+          const isPartnerRequest = transaction.transaction_type === 'partner_deposit_request' || transaction.transaction_type === 'partner_withdrawal_request';
+          
+          if (!isPartnerRequest) {
+            // partner_deposit / partner_withdrawal 거래: 신청자 보유금 조정 필요
+            let requestPartnerData = preApprovedPartnerBalance;
+            if (!requestPartnerData) {
+              const { data: queryData, error: queryError } = await supabase
+                .from('partners')
+                .select('balance, username, nickname')
+                .eq('id', requestPartnerId)
+                .single();
 
-            if (queryError || !queryData) {
-              throw new Error('신청자 정보를 조회할 수 없습니다.');
+              if (queryError || !queryData) {
+                throw new Error('신청자 정보를 조회할 수 없습니다.');
+              }
+              requestPartnerData = queryData;
             }
-            requestPartnerData = queryData;
+
+            const currentBalance = parseFloat(requestPartnerData.balance?.toString() || '0');
+            let newBalance = currentBalance;
+
+            if (transaction.transaction_type === 'partner_deposit') {
+              // 입금: 신청자 보유금 증가
+              newBalance = currentBalance + amount;
+            } else if (transaction.transaction_type === 'partner_withdrawal') {
+              // 출금: 신청자 보유금 차감 (이미 위에서 잔고 확인했으므로 안전)
+              newBalance = currentBalance - amount;
+            }
+
+            // 신청자 보유금 업데이트
+            const { error: balanceUpdateError } = await supabase
+              .from('partners')
+              .update({
+                balance: newBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', requestPartnerId);
+
+            if (balanceUpdateError) {
+              console.error('❌ [신청자 보유금 업데이트 실패]:', balanceUpdateError);
+              throw new Error('신청자 보유금 업데이트에 실패했습니다.');
+            }
+
+            console.log('✅ [신청자 보유금 업데이트 완료]:', {
+              partner_id: requestPartnerId,
+              username: requestPartnerData.username,
+              before: currentBalance,
+              after: newBalance,
+              transaction_type: transaction.transaction_type
+            });
           }
-
-          const currentBalance = parseFloat(requestPartnerData.balance?.toString() || '0');
-          let newBalance = currentBalance;
-
-          if (transaction.transaction_type === 'partner_deposit' || transaction.transaction_type === 'partner_deposit_request') {
-            // 입금: 신청자 보유금 증가
-            newBalance = currentBalance + amount;
-          } else if (transaction.transaction_type === 'partner_withdrawal' || transaction.transaction_type === 'partner_withdrawal_request') {
-            // 출금: 신청자 보유금 차감 (이미 위에서 잔고 확인했으므로 안전)
-            newBalance = currentBalance - amount;
-          }
-
-          // 신청자 보유금 업데이트
-          const { error: balanceUpdateError } = await supabase
-            .from('partners')
-            .update({
-              balance: newBalance,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', requestPartnerId);
-
-          if (balanceUpdateError) {
-            console.error('❌ [신청자 보유금 업데이트 실패]:', balanceUpdateError);
-            throw new Error('신청자 보유금 업데이트에 실패했습니다.');
-          }
-
-          console.log('✅ [신청자 보유금 업데이트 완료]:', {
-            partner_id: requestPartnerId,
-            username: requestPartnerData.username,
-            before: currentBalance,
-            after: newBalance,
-            transaction_type: transaction.transaction_type
-          });
 
           // 승인자(본사) 보유금 조정
           const { data: approverData, error: approverError } = await supabase
@@ -1942,29 +1928,14 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
 
   
 
-  // reloadTrigger 변경 시 데이터 로드 (Realtime 이벤트 처리)
-  useEffect(() => {
-    if (reloadTrigger > 0 && !initialLoading) {
-      // console.log 제거
-      loadData(false);
-    }
-  }, [reloadTrigger]);
+
 
   // 필터 변경 시 자동 새로고침 (깜박임 없이)
   useEffect(() => {
     if (!initialLoading) {
-      // console.log 제거
       loadData(false);
     }
-  }, [periodFilter]);
-
-  // ✅ transactionTypeFilter 변경 시 통계 재계산
-  useEffect(() => {
-    if (!initialLoading) {
-      // console.log 제거
-      loadData(false);
-    }
-  }, [transactionTypeFilter]);
+  }, [periodFilter, transactionTypeFilter, activeTab, reloadTrigger]);
 
   // Realtime subscription for transactions table (즉시 업데이트)
   useEffect(() => {
