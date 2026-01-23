@@ -292,6 +292,58 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
           console.log('   ⚠️ 조직 사용자가 없습니다.');
           setGameRecords([]);
         }
+
+      } else if (user.level === 0) {
+        // Lv0(회원): 자신의 베팅 기록만 조회
+        console.log(`✅ [BenzProfile] Lv0 - 자신의 베팅 기록 조회`);
+        
+        const { data, error } = await supabase
+          .from('game_records')
+          .select(`
+            id,
+            external_txid,
+            user_id,
+            username,
+            game_id,
+            provider_id,
+            provider_name,
+            game_title,
+            game_type,
+            bet_amount,
+            win_amount,
+            balance_before,
+            balance_after,
+            played_at
+          `)
+          .eq('user_id', user.id)
+          .order('played_at', { ascending: false })
+          .limit(50);
+
+        if (error) {
+          console.error('❌ [BenzProfile] 베팅 내역 조회 오류:', error);
+          throw error;
+        }
+
+        console.log(`✅ [BenzProfile] 자신의 베팅 내역 ${data?.length || 0}건 조회 완료`);
+        
+        const records: GameRecord[] = (data || []).map((record: any) => ({
+          id: record.id,
+          external_txid: record.external_txid || 0,
+          user_id: record.user_id,
+          username: record.username || 'Unknown',
+          game_id: record.game_id,
+          provider_id: record.provider_id,
+          game_title: record.game_title || `Game ${record.game_id}`,
+          provider_name: record.provider_name || `Provider ${record.provider_id}`,
+          bet_amount: parseFloat(record.bet_amount || 0),
+          win_amount: parseFloat(record.win_amount || 0),
+          balance_before: parseFloat(record.balance_before || 0),
+          balance_after: parseFloat(record.balance_after || 0),
+          played_at: record.played_at,
+          game_type: record.game_type
+        }));
+        
+        setGameRecords(records);
       }
     } catch (error) {
       console.error('게임 기록 조회 오류:', error);
