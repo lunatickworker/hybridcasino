@@ -27,45 +27,52 @@ interface SettlementRow {
   username: string;
   balance: number;
   points: number;
+  // 온라인 입출금
   deposit: number;
   withdrawal: number;
-  adminDeposit: number;
-  adminWithdrawal: number;
-  partnerRequestDeposit: number;  // ✅ 파트너요청금 - 입금
-  partnerRequestWithdrawal: number;  // ✅ 파트너요청금 - 출금
+  // Lv1, Lv2: 수동 입출금 / Lv3~Lv5: 관리자 지급/회수 / Lv6: 수동 충환전
+  manualDeposit: number;      // 수동 입금 (Lv1, Lv2)
+  manualWithdrawal: number;   // 수동 출금 (Lv1, Lv2)
+  adminGiven: number;         // 관리자 지급 (Lv3~Lv5)
+  adminTaken: number;         // 관리자 회수 (Lv3~Lv5)
+  manualCharge: number;       // 수동 충전 (Lv6)
+  manualExchange: number;     // 수동 환전 (Lv6)
+  // 파트너 충환전 (Lv6)
+  partnerCharge: number;      // 파트너 충전
+  partnerExchange: number;    // 파트너 환전
+  // 현금정산 (Lv6)
+  cashSettlement: number;
+  // 포인트 관리
   pointGiven: number;
   pointRecovered: number;
+  // 입출 차액
   depositWithdrawalDiff: number;
+  // 게임 실적
   casinoBet: number;
   casinoWin: number;
-  casinoWinLoss: number;
   slotBet: number;
   slotWin: number;
-  slotWinLoss: number;
-  totalBet: number;
-  totalWin: number;
-  totalWinLoss: number;
   ggr: number;
+  // 정산율
   casinoRollingRate: number;
   casinoLosingRate: number;
   slotRollingRate: number;
   slotLosingRate: number;
+  // 총 롤링/루징
   casinoTotalRolling: number;
   slotTotalRolling: number;
   totalRolling: number;
-  casinoChildrenRolling: number;
-  slotChildrenRolling: number;
-  casinoIndividualRolling: number;
-  slotIndividualRolling: number;
-  totalIndividualRolling: number;
   casinoTotalLosing: number;
   slotTotalLosing: number;
   totalLosing: number;
-  casinoChildrenLosing: number;
-  slotChildrenLosing: number;
+  // 개별 롤링/루징
+  casinoIndividualRolling: number;
+  slotIndividualRolling: number;
+  totalIndividualRolling: number;
   casinoIndividualLosing: number;
   slotIndividualLosing: number;
   totalIndividualLosing: number;
+  // 정산
   totalSettlement: number;
   settlementProfit: number;
   actualSettlementProfit: number;
@@ -272,11 +279,11 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       allTransactions = transactionsData || [];
       // console.log 제거
       
-      // ✅ partner_balance_logs 조회 (관리자입금/관리자출금용) - 전체입출금내역과 동일한 방식
+      // ✅ partner_balance_logs 조회 (관리자입금/관리자출금용) - 정산페이지와 동일한 방식
       let partnerBalanceLogsQuery = supabase
         .from('partner_balance_logs')
         .select('*')
-        .in('transaction_type', ['deposit', 'withdrawal']);
+        .in('transaction_type', ['admin_deposit_send', 'admin_withdrawal_send', 'commission', 'refund']);
       
       // ✅ Lv2 이상: partner_id, from_partner_id, to_partner_id 중 하나라도 매칭되면 조회
       if (user.level > 1) {
@@ -298,8 +305,8 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       if (balanceLogsError) throw balanceLogsError;
       
       // 관리자 입금/출금 통계
-      const adminDeposits = partnerBalanceLogs?.filter(l => l.transaction_type === 'deposit') || [];
-      const adminWithdrawals = partnerBalanceLogs?.filter(l => l.transaction_type === 'withdrawal') || [];
+      const adminDeposits = partnerBalanceLogs?.filter(l => l.transaction_type === 'admin_deposit_send') || [];
+      const adminWithdrawals = partnerBalanceLogs?.filter(l => l.transaction_type === 'admin_withdrawal_send') || [];
       
       // ✅ transactions 테이블의 partner_deposit도 포함
       const partnerDepositFromTransactions = allTransactions?.filter(t => 
@@ -573,11 +580,11 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
 
     // ✅ 사용자 입출금: 사용자 요청 + 관리자 강제입출금 (입출금관리 페이지와 동기화)
     const deposit = userTransactions
-      .filter(t => (t.transaction_type === 'deposit') && t.status === 'completed')
+      .filter(t => t.transaction_type === 'deposit' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     const withdrawal = userTransactions
-      .filter(t => (t.transaction_type === 'withdrawal' || t.transaction_type === 'admin_withdrawal') && t.status === 'completed')
+      .filter(t => t.transaction_type === 'withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     // ✅ 관리자 입출금: 파트너 요청 + 파트너 강제입출금 (입출금관리 페이지의 관리자입금/관리자출금 필터 로직 그대로 사용)
@@ -590,7 +597,7 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       .filter(t => t.transaction_type === 'partner_withdrawal' && t.status === 'completed')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    // 2️⃣ partner_balance_logs 테이블에서 파트너 강제입출금 집계 (deposit, withdrawal)
+    // 2️⃣ partner_balance_logs 테이블에서 관리자 입출금 집계
     // ✅ Lv2 이상: partner_id, from_partner_id, to_partner_id 중 하나라도 매칭되면 포함
     // 모든 관련 파트너 ID를 한 번에 조회 (중복 방지)
     const relevantBalanceLogs = partnerBalanceLogs.filter(l => 
@@ -600,14 +607,14 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     );
     
     const adminDepositFromLogs = relevantBalanceLogs
-      .filter(l => l.transaction_type === 'deposit')
+      .filter(l => l.transaction_type === 'admin_deposit_send')
       .reduce((sum, l) => sum + (l.amount || 0), 0);
 
     const adminWithdrawalFromLogs = relevantBalanceLogs
-      .filter(l => l.transaction_type === 'withdrawal')
+      .filter(l => l.transaction_type === 'admin_withdrawal_send')
       .reduce((sum, l) => sum + (l.amount || 0), 0);
 
-    // 3️⃣ 관리자입금/출금 합산 (입출금관리 페이지의 관리자입금/관리자출금 필터와 동일한 방식)
+    // 3️⃣ 관리자입금/출금 합산 (정산페이지와 동일한 방식)
     const adminDeposit = adminDepositFromTransactions + adminDepositFromLogs;
     const adminWithdrawal = adminWithdrawalFromTransactions + adminWithdrawalFromLogs;
     
@@ -640,20 +647,20 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     const userPointTrans = pointTransactions.filter(pt => relevantUserIdsForTransactions.includes(pt.user_id));
 
     const pointGiven = userPointTrans
-      .filter(pt => pt.type === 'commission_earned')
+      .filter(pt => pt.transaction_type === 'earn')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
     const pointRecovered = userPointTrans
-      .filter(pt => pt.type === 'point_to_balance')
+      .filter(pt => pt.transaction_type === 'convert_to_balance')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
     // ✅ 포인트 거래의 입출금 (transaction_type이 deposit/withdrawal인 경우)
     const pointDeposit = userPointTrans
-      .filter(pt => pt.transaction_type === 'deposit' || pt.transaction_type === 'admin_deposit')
+      .filter(pt => pt.transaction_type === 'deposit')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
     const pointWithdrawal = userPointTrans
-      .filter(pt => pt.transaction_type === 'withdrawal' || pt.transaction_type === 'admin_withdrawal')
+      .filter(pt => pt.transaction_type === 'withdrawal')
       .reduce((sum, pt) => sum + (pt.amount || 0), 0);
 
     // console.log 제거
@@ -734,24 +741,24 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       username,
       balance,
       points,
-      deposit: deposit + pointDeposit, // ✅ 포인트 거래 입금 포함
-      withdrawal: withdrawal + pointWithdrawal, // ✅ 포인트 거래 출금 포함
-      adminDeposit,
-      adminWithdrawal,
-      partnerRequestDeposit,
-      partnerRequestWithdrawal,
+      deposit: deposit + pointDeposit,
+      withdrawal: withdrawal + pointWithdrawal,
+      manualDeposit: adminDeposit,
+      manualWithdrawal: adminWithdrawal,
+      adminGiven: 0,
+      adminTaken: 0,
+      manualCharge: 0,
+      manualExchange: 0,
+      partnerCharge: 0,
+      partnerExchange: 0,
+      cashSettlement: 0,
       pointGiven,
       pointRecovered,
-      depositWithdrawalDiff: (deposit + pointDeposit) + (withdrawal + pointWithdrawal) + adminDeposit + adminWithdrawal, // ✅ 출금이 음수로 저장되어 있으므로 더하기
+      depositWithdrawalDiff: (deposit + pointDeposit) + (withdrawal + pointWithdrawal) + adminDeposit + adminWithdrawal,
       casinoBet,
       casinoWin,
-      casinoWinLoss,
       slotBet,
       slotWin,
-      slotWinLoss,
-      totalBet: casinoBet + slotBet,
-      totalWin: casinoWin + slotWin,
-      totalWinLoss,
       ggr: totalWinLoss,
       casinoRollingRate,
       casinoLosingRate,
@@ -760,16 +767,12 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       casinoTotalRolling,
       slotTotalRolling,
       totalRolling,
-      casinoChildrenRolling: childrenRolling.casino,
-      slotChildrenRolling: childrenRolling.slot,
-      casinoIndividualRolling,
-      slotIndividualRolling,
-      totalIndividualRolling,
       casinoTotalLosing,
       slotTotalLosing,
       totalLosing,
-      casinoChildrenLosing: childrenLosing.casino,
-      slotChildrenLosing: childrenLosing.slot,
+      casinoIndividualRolling,
+      slotIndividualRolling,
+      totalIndividualRolling,
       casinoIndividualLosing,
       slotIndividualLosing,
       totalIndividualLosing,
@@ -912,42 +915,31 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
   const calculateSummary = async (rows: SettlementRow[], partnerBalanceLogs: any[]) => {
     const filteredRows = getFilteredRows(rows);
     
-    // ✅ 매장(Lv6)은 하위 사용자들의 합계 + 본인의 정산 데이터
     let targetRows: SettlementRow[];
     
     if (user.level === 6) {
-      // Lv6: 하위 회원들(level 0)의 데이터 + 본인의 데이터
       const childRows = filteredRows.filter(r => r.level === 0);
-      
-      // 본인의 데이터 찾기 (본인의 username으로)
       const myRow = rows.find(r => r.username === user.username && r.level === 6);
       
       if (myRow) {
-        // 본인의 데이터를 포함한 합계
         targetRows = [myRow, ...childRows];
       } else {
         targetRows = childRows;
       }
     } else {
-      // 다른 레벨: 현재 로그인 사용자의 다음 레벨만 필터링하여 집계
-      // 예: Lv2 로그인 → Lv3만 집계, Lv3 로그인 → Lv4만 집계
       targetRows = filteredRows.filter(r => r.level === user.level + 1);
     }
     
-    // ✅ LV6의 관리자 입출금은 상위 파트너에서 LV6로의 입출금으로
-    // 통합정산에는 포함하지 않음 (일일정산에만 표시됨)
-    // LV6 통계 카드는 하위 회원들의 데이터만 포함
-    let adminDepositFromLogs = 0;
-    let adminWithdrawalFromLogs = 0;
+    const totalBet = targetRows.reduce((sum, r) => sum + r.casinoBet + r.slotBet, 0);
+    const totalWin = targetRows.reduce((sum, r) => sum + r.casinoWin + r.slotWin, 0);
     
     const summary: SummaryStats = {
       totalDeposit: targetRows.reduce((sum, r) => sum + r.deposit, 0),
       totalWithdrawal: targetRows.reduce((sum, r) => sum + r.withdrawal, 0),
-      // ✅ 관리자 입금/출금: rows의 adminDeposit/adminWithdrawal + partner_balance_logs 추가
-      adminTotalDeposit: targetRows.reduce((sum, r) => sum + r.adminDeposit, 0) + adminDepositFromLogs,
-      adminTotalWithdrawal: targetRows.reduce((sum, r) => sum + r.adminWithdrawal, 0) + adminWithdrawalFromLogs,
-      partnerRequestDeposit: targetRows.reduce((sum, r) => sum + r.partnerRequestDeposit, 0),
-      partnerRequestWithdrawal: targetRows.reduce((sum, r) => sum + r.partnerRequestWithdrawal, 0),
+      adminTotalDeposit: targetRows.reduce((sum, r) => sum + r.manualDeposit, 0),
+      adminTotalWithdrawal: targetRows.reduce((sum, r) => sum + r.manualWithdrawal, 0),
+      partnerRequestDeposit: targetRows.reduce((sum, r) => sum + r.partnerCharge, 0),
+      partnerRequestWithdrawal: targetRows.reduce((sum, r) => sum + r.partnerExchange, 0),
       pointGiven: targetRows.reduce((sum, r) => sum + r.pointGiven, 0),
       pointRecovered: targetRows.reduce((sum, r) => sum + r.pointRecovered, 0),
       depositWithdrawalDiff: 0,
@@ -955,15 +947,14 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
       casinoWin: targetRows.reduce((sum, r) => sum + r.casinoWin, 0),
       slotBet: targetRows.reduce((sum, r) => sum + r.slotBet, 0),
       slotWin: targetRows.reduce((sum, r) => sum + r.slotWin, 0),
-      totalBet: targetRows.reduce((sum, r) => sum + r.totalBet, 0),
-      totalWin: targetRows.reduce((sum, r) => sum + r.totalWin, 0),
+      totalBet,
+      totalWin,
       totalRolling: targetRows.reduce((sum, r) => sum + r.totalIndividualRolling, 0),
       totalSettlementProfit: targetRows.reduce((sum, r) => sum + r.totalSettlement, 0),
       errorBetAmount: bettingErrors.errorBetAmount,
       errorBetCount: bettingErrors.errorBetCount
     };
     
-    // ✅ 입출차액 = 통계카드의 실제 입출금 값으로 계산 (출금이 음수로 저장되어 있으므로 더하기)
     summary.depositWithdrawalDiff = summary.totalDeposit + summary.totalWithdrawal + summary.adminTotalDeposit + summary.adminTotalWithdrawal;
 
     setSummary(summary);
@@ -1644,14 +1635,14 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
                         
                         <td className="px-4 py-3 text-center text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.deposit)}</td>
                         <td className="px-4 py-3 text-center text-rose-400 font-asiahead whitespace-nowrap">{formatNumber(row.withdrawal)}</td>
-                        <td className="px-4 py-3 text-center text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.adminDeposit)}</td>
-                        <td className="px-4 py-3 text-center text-rose-400 font-asiahead whitespace-nowrap">{formatNumber(row.adminWithdrawal)}</td>
+                        <td className="px-4 py-3 text-center text-emerald-400 font-asiahead whitespace-nowrap">{formatNumber(row.manualDeposit)}</td>
+                        <td className="px-4 py-3 text-center text-rose-400 font-asiahead whitespace-nowrap">{formatNumber(row.manualWithdrawal)}</td>
                         
                         {/* 파트너요청금 (입금/출금) - 2단2열 */}
                         <td className="px-4 py-3 text-center whitespace-nowrap">
                           <div className="flex divide-x divide-slate-700/50">
-                            <div className="flex-1 text-cyan-400 font-asiahead">{formatNumber(row.partnerRequestDeposit)}</div>
-                            <div className="flex-1 text-orange-400 font-asiahead">{formatNumber(row.partnerRequestWithdrawal)}</div>
+                            <div className="flex-1 text-cyan-400 font-asiahead">{formatNumber(row.partnerCharge)}</div>
+                            <div className="flex-1 text-orange-400 font-asiahead">{formatNumber(row.partnerExchange)}</div>
                           </div>
                         </td>
                         

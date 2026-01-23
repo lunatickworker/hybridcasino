@@ -19,7 +19,7 @@ const lastSyncTime: { [key: string]: number } = {
 // 동기화 간격 (밀리초)
 const SYNC_INTERVALS = {
   invest: 30000,    // 30초
-  oroplay: 4000,    // 4초
+  oroplay: 3000,    // 3초
   familyapi: 4000,  // 4초
   honor: 34000      // 34초
 };
@@ -31,8 +31,22 @@ async function syncApiGameRecords(apiType: 'invest' | 'oroplay' | 'familyapi' | 
   try {
     console.log(`🔄 [${new Date().toISOString()}] ${apiType.toUpperCase()} 게임 기록 동기화 요청 중...`);
 
-    // Supabase Edge Function 호출
-    const { data, error } = await supabase.functions.invoke('sync-game-records', {
+    // server 폴더 내 Edge Function 호출 - 경로는 /sync/{endpoint}로 처리됨
+    const endpointMap: { [key: string]: string } = {
+      'invest': 'server',
+      'oroplay': 'server',
+      'familyapi': 'server',
+      'honor': 'server'
+    };
+
+    const functionName = endpointMap[apiType];
+    if (!functionName) {
+      console.error(`❌ [${apiType.toUpperCase()}] 알 수 없는 API 타입`);
+      return;
+    }
+
+    // Supabase Edge Function 호출 - server/index.ts에서 경로별로 처리
+    const { data, error } = await supabase.functions.invoke(functionName, {
       body: { 
         api_type: apiType,
         partner_id: partnerId
@@ -119,23 +133,11 @@ export function startGameRecordsSync(partnerId: string) {
     return;
   }
 
-  console.log('🚀 게임 기록 자동 동기화 시작...');
+  console.log('🚀 게임 기록 자동 동기화 시작... (OroPlay + HonorAPI)');
 
-  // 활성화된 API 확인 후 각각 시작
-  checkActiveApis(partnerId).then(activeApis => {
-    if (activeApis.includes('invest')) {
-      startInvestSync(partnerId);
-    }
-    if (activeApis.includes('oroplay')) {
-      startOroPlaySync(partnerId);
-    }
-    if (activeApis.includes('familyapi')) {
-      startFamilyApiSync(partnerId);
-    }
-    if (activeApis.includes('honor')) {
-      startHonorSync(partnerId);
-    }
-  });
+  // OroPlay와 HonorAPI만 동기화
+  startOroPlaySync(partnerId);
+  startHonorSync(partnerId);
 }
 
 /**

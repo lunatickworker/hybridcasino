@@ -12,7 +12,7 @@ import { supabase } from "../../lib/supabase";
 import { MetricCard } from "./MetricCard";
 import { forceSyncBettingHistory } from "./BettingHistorySync";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { getTodayStartUTC, formatSystemTime } from "../../utils/timezone";
+import { getTodayStartUTC, getTomorrowStartUTC, formatSystemTime } from "../../utils/timezone";
 import { GameResultDetail } from "./GameResultDetail";
 import { GameResultInline } from "./GameResultInline";
 
@@ -48,7 +48,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [bettingRecords, setBettingRecords] = useState<BettingRecord[]>([]);
-  const [dateFilter, setDateFilter] = useState(""); // ✅ 기본값을 빈 문자열 (전체 기간)
+  const [dateFilter, setDateFilter] = useState("today"); // ✅ 기본값을 'today'로 설정
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
@@ -70,17 +70,32 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   const getDateRange = (filter: string) => {
     const now = new Date();
     const todayStart = getTodayStartUTC();
+    const tomorrowStart = getTomorrowStartUTC();
+    
+    console.log('📅 [getDateRange] 계산 시작:');
+    console.log('   now:', now.toISOString());
+    console.log('   todayStart:', todayStart);
+    console.log('   tomorrowStart:', tomorrowStart);
+    console.log('   filter:', filter);
     
     switch (filter) {
       case 'today':
-        return { start: todayStart, end: now.toISOString() };
+        // 오늘 0시(UTC+9) ~ 내일 0시(UTC+9)
+        const result = { start: todayStart, end: tomorrowStart };
+        console.log('   📊 RESULT:', result);
+        return result;
       case 'week':
         const weekStart = new Date(new Date(todayStart).getTime() - 7 * 86400000).toISOString();
-        return { start: weekStart, end: now.toISOString() };
+        const weekResult = { start: weekStart, end: tomorrowStart };
+        console.log('   📊 RESULT:', weekResult);
+        return weekResult;
       case 'month':
         const monthStart = new Date(new Date(todayStart).getTime() - 30 * 86400000).toISOString();
-        return { start: monthStart, end: now.toISOString() };
+        const monthResult = { start: monthStart, end: tomorrowStart };
+        console.log('   📊 RESULT:', monthResult);
+        return monthResult;
       default:
+        console.log('   📊 RESULT: null (unknown filter)');
         return null;
     }
   };
@@ -191,12 +206,18 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       // ✅ System Admin: 모든 데이터 조회
       if (user.level === 1) {
         console.log('🔍 System Admin: Query ALL game records');
+        console.log('   dateRange:', dateRange);
+        
         let adminQuery = supabase.from('game_records').select('*');
         
         if (dateRange) {
+          console.log('   ✅ 날짜 필터 적용:', { start: dateRange.start, end: dateRange.end });
           adminQuery = adminQuery
             .gte('played_at', dateRange.start)
             .lte('played_at', dateRange.end);
+          console.log('   📋 필터링된 쿼리 URL:', adminQuery.url.href);
+        } else {
+          console.log('   ⚠️ 날짜 필터 미적용 (dateRange === null)');
         }
         
         adminQuery = adminQuery
@@ -206,6 +227,19 @@ export function BettingHistory({ user }: BettingHistoryProps) {
 
         const { data: adminData, error: adminError } = await adminQuery;
         if (adminError) throw adminError;
+        
+        console.log('   ✅ System Admin 쿼리 완료:', adminData?.length || 0, '건');
+        if (adminData && adminData.length > 0) {
+          console.log('   샘플 [0]:', {
+            username: adminData[0].username,
+            played_at: adminData[0].played_at
+          });
+          console.log('   샘플 [-1]:', {
+            username: adminData[adminData.length - 1].username,
+            played_at: adminData[adminData.length - 1].played_at
+          });
+        }
+        
         data = adminData;
       } else {
         // ✅ Regular Admin: user_id 또는 partner_id로 필터링
@@ -273,6 +307,12 @@ export function BettingHistory({ user }: BettingHistoryProps) {
             .order('external_txid', { ascending: false })
             .limit(1000);
         }
+
+        console.log('🔍 [BettingHistory] 최종 쿼리 실행 전:');
+        console.log('   - user.level:', user.level);
+        console.log('   - dateRange:', dateRange);
+        console.log('   - baseQuery1 URL:', baseQuery1.url);
+        if (baseQuery2) console.log('   - baseQuery2 URL:', baseQuery2.url);
 
         const { data: data1, error: error1 } = await baseQuery1;
         const { data: data2, error: error2 } = baseQuery2 ? await baseQuery2 : { data: [], error: null };
@@ -471,7 +511,6 @@ export function BettingHistory({ user }: BettingHistoryProps) {
 
   // dateFilter 변경 시 데이터 새로고침
   useEffect(() => {
-    if (dateFilter === "") return; // 초기값 무시
     console.log('📅 dateFilter 변경:', dateFilter);
     loadBettingData(dateFilter);
   }, [dateFilter]);
@@ -855,6 +894,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
 
       {/* 데이터 테이블 */}
       <DataTable
+        key={`betting-table-${dateFilter}`}
         data={filteredRecords}
         columns={columns}
         emptyMessage={t.bettingHistory.noBettingRecords}

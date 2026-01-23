@@ -9,9 +9,11 @@ interface Lv2AutoSyncProps {
 
 /**
  * Lv2 관리자 전용 자동 동기화 컴포넌트
+ * - OroPlay 베팅 동기화: 1초마다 실행 (활성화된 경우만)
+ * - HonorAPI 베팅 동기화: 34초마다 실행 (활성화된 경우만)
  * - Invest 베팅 동기화: 30초마다 실행 (활성화된 경우만)
- * - OroPlay, FamilyAPI 베팅 동기화: 4초마다 실행 (활성화된 경우만)
- * - 보유금 동기화: 4초마다 실행 (Lv2 잔액)
+ * 
+ * 보유금 동기화는 Lv2BalanceSync.tsx (4초 주기)에서 별도로 관리
  */
 export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
@@ -20,6 +22,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
   const balanceIntervalRef = useRef<number | null>(null);
   const investIntervalRef = useRef<number | null>(null);
   const honorIntervalRef = useRef<number | null>(null);
+  const isSyncingRef = useRef(false); // 동기화 보호: 응답 시간이 길어서 재추가
   const activeApisRef = useRef({
     invest: false,
     oroplay: false,
@@ -168,7 +171,6 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
 
       try {
         investSyncCountRef.current += 1;
-        console.error(`🎰 [Lv2AutoSync #${investSyncCountRef.current}] Invest 베팅 동기화 시작... → /sync/invest-bets`);
 
         const investBetsResponse = await fetchWithRetry(`${EDGE_FUNCTION_URL}/sync/invest-bets`, {
           method: 'POST',
@@ -192,13 +194,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
 
     // HonorAPI 베팅 동기화 실행 함수 (34초마다)
     const runHonorApiBettingSync = async () => {
-      if (!activeApisRef.current.honorapi) {
-        console.error('⏭️ [Lv2AutoSync] HonorAPI SKIPPED - API not active');
-        return;
-      }
-
       try {
-        console.error('🎰 [Lv2AutoSync] HonorAPI 베팅 동기화 시작... → /sync/honorapi-bets');
 
         const honorBetsResponse = await fetchWithRetry(`${EDGE_FUNCTION_URL}/sync/honorapi-bets`, {
           method: 'POST',
@@ -206,13 +202,10 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
         });
 
         if (!honorBetsResponse) {
-          console.error('❌ [Lv2AutoSync] HonorAPI 베팅 동기화 실패: 최대 재시도 횟수 초과');
         } else if (!honorBetsResponse.ok) {
           const errorText = await honorBetsResponse.text();
-          console.error('❌ [Lv2AutoSync] HonorAPI 베팅 동기화 실패:', honorBetsResponse.status, errorText);
         } else {
           const honorBetsData = await honorBetsResponse.json();
-          console.error('✅ [Lv2AutoSync] HonorAPI 응답:', honorBetsData);
         }
 
       } catch (error: any) {
@@ -220,15 +213,13 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
       }
     };
 
-    // OroPlay, HonorAPI 베팅 동기화 + 보유금 동기화 실행 함수 (4초마다)
+    // OroPlay 베팅 동기화 실행 함수 (3초마다)
     const runFastSync = async () => {
       try {
         syncCountRef.current += 1;
-        // console.error(`⚡ [Lv2AutoSync #${syncCountRef.current}] FastSync 시작 (4초 주기)`);
 
-        // 1. OroPlay 베팅 동기화
+        // OroPlay 베팅 동기화
         if (activeApisRef.current.oroplay) {
-          // console.error('🎰 [Lv2AutoSync] OroPlay 베팅 동기화 호출 → /sync/oroplay-bets');
           const betsResponse = await fetchWithRetry(`${EDGE_FUNCTION_URL}/sync/oroplay-bets`, {
             method: 'POST',
             headers,
@@ -241,37 +232,8 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
             // console.error('❌ [Lv2AutoSync] OroPlay 베팅 동기화 실패:', betsResponse.status, errorText);
           } else {
             const betsData = await betsResponse.json();
-            // console.error('✅ [Lv2AutoSync] OroPlay 응답:', {
-            //   synced: betsData.synced,
-            //   errors: betsData.errors,
-            //   functionExecutedAt: betsData.functionExecutedAt,
-            //   functionRespondedAt: betsData.functionRespondedAt
-            // });
             // console.log('✅ [Lv2AutoSync] OroPlay 베팅 동기화 성공:', betsData);
           }
-        }
-
-        // 2. Lv2 보유금 동기화
-        // console.error('💰 [Lv2AutoSync] Lv2 \ubcf4\uc720\uae08 \ub3d9\uae30\ud654 \ud638\ucd9c \u2192 /sync/lv2-balances');
-        const balanceResponse = await fetchWithRetry(`${EDGE_FUNCTION_URL}/sync/lv2-balances`, {
-          method: 'POST',
-          headers,
-        });
-
-        if (!balanceResponse) {
-          // console.error('❌ [Lv2AutoSync] 보유금 동기화 실패: 최대 재시도 횟수 초과');
-        } else if (!balanceResponse.ok) {
-          const errorText = await balanceResponse.text();
-          // console.error('❌ [Lv2AutoSync] 보유금 동기화 실패:', balanceResponse.status, errorText);
-        } else {
-          const balanceData = await balanceResponse.json();
-          // console.error('✅ [Lv2AutoSync] Lv2-Balance 응답:', {
-          //   synced: balanceData.synced,
-          //   errors: balanceData.errors,
-          //   functionExecutedAt: balanceData.functionExecutedAt,
-          //   functionRespondedAt: balanceData.functionRespondedAt
-          // });
-          // console.log('✅ [Lv2AutoSync] 보유금 동기화 성공:', balanceData);
         }
 
         // 동기화 성공 시 시간 업데이트
@@ -283,39 +245,28 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
     };
 
     // 즉시 첫 동기화 실행
-    console.error('🚀 [Lv2AutoSync] 즉시 첫 동기화 시작...');
     if (activeApisRef.current.invest) {
-      console.error('   → runInvestBettingSync()');
       runInvestBettingSync();
     }
-    if (activeApisRef.current.honorapi) {
-      console.error('   → runHonorApiBettingSync()');
-      runHonorApiBettingSync();
-    }
-    console.error('   → runFastSync()');
+    runHonorApiBettingSync();  // ✅ HonorAPI: 항상 실행
     runFastSync();
 
     // Invest 베팅 동기화: 30초마다 실행
     if (activeApisRef.current.invest) {
-      console.error('⏰ [Lv2AutoSync] Invest Interval 등록 (30초)');
       investIntervalRef.current = window.setInterval(() => {
         runInvestBettingSync();
       }, 30000);
     }
 
-    // OroPlay 베팅 + Lv2 보유금 동기화: 4초마다 실행
-    console.error('⏰ [Lv2AutoSync] FastSync Interval 등록 (4초)');
+    // OroPlay 베팅 동기화: 3초마다 실행
     balanceIntervalRef.current = window.setInterval(() => {
       runFastSync();
-    }, 4000);
+    }, 3000);
 
-    // HonorAPI 베팅 동기화: 34초마다 실행
-    if (activeApisRef.current.honorapi) {
-      console.error('⏰ [Lv2AutoSync] HonorAPI Interval 등록 (34초)');
-      honorIntervalRef.current = window.setInterval(() => {
-        runHonorApiBettingSync();
-      }, 34000);
-    }
+    // HonorAPI 베팅 동기화: 34초마다 실행 (OroPlay 패턴과 동일)
+    honorIntervalRef.current = window.setInterval(() => {
+      runHonorApiBettingSync();
+    }, 34000);
 
     // 클린업
     return () => {

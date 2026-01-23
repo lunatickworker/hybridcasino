@@ -1275,17 +1275,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               ...prev,
               suspicious: prev.suspicious + 1
             }));
-            toast.error(`의심 패턴 감지: 승률 ${(winRate * 100).toFixed(0)}%`, {
-              duration: 5000,
-              action: {
-                label: '확인',
-                onClick: () => {
-                  if (onRouteChange) {
-                    onRouteChange('/admin/online-users');
-                  }
-                }
-              }
-            });
+            // 의심 패턴 감지 토스트 메시지 제거됨
           }
         }
       )

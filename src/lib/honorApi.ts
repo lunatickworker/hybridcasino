@@ -695,13 +695,61 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
   console.log('🔄 [HonorAPI] 베팅 내역 동기화 시작', { partnerId });
 
   try {
-    // ✅ OroPlay 방식과 동일: 직접 partner_id로 api_configs 조회
-    const { data: credentials, error: credError } = await supabase
+    // ✅ Step 1: 직접 partner_id로 api_configs 조회
+    let { data: credentials, error: credError } = await supabase
       .from('api_configs')
       .select('api_key, is_active')
       .eq('partner_id', partnerId)
       .eq('api_provider', 'honorapi')
       .maybeSingle();
+
+    // ✅ Step 2: 없으면 파트너의 Lv2 부모로 찾기
+    if (!credentials && credError === null) {
+      console.log(`   🔍 partnerId(${partnerId})에 HonorAPI 설정 없음, 상위 Lv2 파트너에서 찾는 중...`);
+      
+      // 현재 파트너의 정보 조회 (level과 parent_id 필요)
+      const { data: partner } = await supabase
+        .from('partners')
+        .select('level, parent_id')
+        .eq('id', partnerId)
+        .maybeSingle();
+
+      if (partner && partner.parent_id) {
+        // Lv3 이상이면 Lv2 부모로 찾기
+        const { data: parentCredentials } = await supabase
+          .from('api_configs')
+          .select('api_key, is_active')
+          .eq('partner_id', partner.parent_id)
+          .eq('api_provider', 'honorapi')
+          .maybeSingle();
+
+        if (parentCredentials) {
+          credentials = parentCredentials;
+          console.log(`   ✅ Lv2 부모(${partner.parent_id})에서 HonorAPI 설정 발견`);
+        } else {
+          // ✅ Step 3: Lv2에도 없으면 Lv1에서 찾기
+          const { data: lv2Partner } = await supabase
+            .from('partners')
+            .select('parent_id')
+            .eq('id', partner.parent_id)
+            .maybeSingle();
+
+          if (lv2Partner && lv2Partner.parent_id) {
+            const { data: lv1Credentials } = await supabase
+              .from('api_configs')
+              .select('api_key, is_active')
+              .eq('partner_id', lv2Partner.parent_id)
+              .eq('api_provider', 'honorapi')
+              .maybeSingle();
+
+            if (lv1Credentials) {
+              credentials = lv1Credentials;
+              console.log(`   ✅ Lv1(${lv2Partner.parent_id})에서 HonorAPI 설정 발견`);
+            }
+          }
+        }
+      }
+    }
 
     if (credError || !credentials) {
       console.error('❌ [HonorAPI] credentials를 찾을 수 없습니다.', { partnerId, credError });

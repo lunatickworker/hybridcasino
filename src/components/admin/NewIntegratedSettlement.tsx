@@ -675,11 +675,25 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       }
     }
     
-    // ✅ 코드별 실정산 롤링금 = 총롤링금 - 절삭롤링금 - 하위 롤링금
+    // ✅ 코드별 실정산 롤링금 = 총롤링금 - 공배팅(카지노+슬롯) - 절삭롤링금 - 직속 하위 파트너 롤링금 합
     const gongBetRateNum = typeof gongBetRate === 'number' ? gongBetRate : parseFloat(gongBetRate) || 0;
     const isGongBetApplied = gongBetEnabled && gongBetLevels[level];
-    const gongBetCutRolling = isGongBetApplied ? totalRolling * (gongBetRateNum / 100) : 0;
-    const settledRolling = totalRolling - gongBetCutRolling - directChildRollingSum;
+    
+    // 게임타입별 절삭 롤링금 먼저 계산
+    const casinoGongBetCutRolling = isGongBetApplied ? casinoTotalRolling * (gongBetRateNum / 100) : 0;
+    const slotGongBetCutRolling = isGongBetApplied ? slotTotalRolling * (gongBetRateNum / 100) : 0;
+    const gongBetCutRolling = casinoGongBetCutRolling + slotGongBetCutRolling;
+    
+    // 공배팅차 계산
+    const casinoGongBetAmount = casinoGongBetEnabled && casinoRollingRate > 0 
+      ? casinoGongBetCutRolling / (casinoRollingRate / 100)
+      : 0;
+    const slotGongBetAmount = slotGongBetEnabled && slotRollingRate > 0 
+      ? slotGongBetCutRolling / (slotRollingRate / 100)
+      : 0;
+    const gongBetAmountTotal = casinoGongBetAmount + slotGongBetAmount;
+    
+    const settledRolling = totalRolling - gongBetAmountTotal - gongBetCutRolling - directChildRollingSum;
     
     // ✅ 코드별 실정산 루징금 = 총루징금 - 하위 루징금
     const settledLosing = totalLosing - directChildLosingSum;
@@ -691,18 +705,6 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     // (입금 10000) - (출금 10000) = 0 (올바름)
     const depositWithdrawalDiff = onlineDeposit - onlineWithdrawal + manualDeposit - Math.abs(manualWithdrawal);
 
-    // ✅ 게임타입별 절삭 롤링금 계산 (공베팅 적용 시 각 게임별로 절삭)
-    const casinoGongBetCutRolling = isGongBetApplied ? casinoTotalRolling * (gongBetRateNum / 100) : 0;
-    const slotGongBetCutRolling = isGongBetApplied ? slotTotalRolling * (gongBetRateNum / 100) : 0;
-
-    // ✅ 공베팅차 = 절삭 롤링금을 각 게임의 롤링률로 역산
-    // (절삭 롤링금이 원래 어느 정도 베팅에서 나왔는지 계산)
-    const casinoGongBetAmount = casinoGongBetEnabled && casinoRollingRate > 0 
-      ? casinoGongBetCutRolling / (casinoRollingRate / 100)
-      : 0;
-    const slotGongBetAmount = slotGongBetEnabled && slotRollingRate > 0 
-      ? slotGongBetCutRolling / (slotRollingRate / 100)
-      : 0;
     const cutRollingAmount = cutRollingEnabled ? gongBetCutRolling : 0;
 
     return {
@@ -1280,6 +1282,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
                         </td>
                         <td className="px-4 py-3 text-center text-slate-200 font-asiahead whitespace-nowrap overflow-hidden">{row.username}</td>
                         <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-cyan-400 font-asiahead">{row.casinoRollingRate}%</div><div className="flex-1 text-purple-400 font-asiahead">{row.slotRollingRate}%</div><div className="flex-1 text-orange-400 font-asiahead">{row.casinoLosingRate}%</div></div></td>
+                        {row.level === 1 && <td></td>}
                         {row.level === 2 && <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-slate-300 font-asiahead">{formatNumber(row.balance)}</div><div className="flex-1 text-cyan-400 font-asiahead">{formatNumber(row.points)}</div></div></td>}
                         <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-emerald-400 font-asiahead">{formatNumber(row.onlineDeposit)}</div><div className="flex-1 text-rose-400 font-asiahead">{formatNumber(row.onlineWithdrawal === 0 ? 0 : -row.onlineWithdrawal)}</div></div></td>
                         <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex divide-x divide-slate-700/50"><div className="flex-1 text-emerald-400 font-asiahead">{formatNumber(row.manualDeposit)}</div><div className="flex-1 text-rose-400 font-asiahead">{formatNumber(row.manualWithdrawal === 0 ? 0 : -Math.abs(row.manualWithdrawal))}</div></div></td>

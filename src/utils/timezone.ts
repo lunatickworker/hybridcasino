@@ -133,17 +133,17 @@ export function getTodayStartUTC(): string {
   const now = new Date();
   const localNow = convertUTCToSystemTime(now);
   
-  // 시스템 타임존 기준 오늘 0시 (로컬 시간)
-  const todayStartLocal = new Date(
-    localNow.getUTCFullYear(),
-    localNow.getUTCMonth(),
-    localNow.getUTCDate(),
-    0, 0, 0, 0
-  );
+  // 시스템 타임존 기준 오늘 0시 (로컬 시간 - 단순히 연, 월, 일만 추출)
+  const year = localNow.getUTCFullYear();
+  const month = localNow.getUTCMonth();
+  const day = localNow.getUTCDate();
   
-  // 로컬 시간을 UTC로 변환
+  const todayStartLocal = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+  
+  // 로컬 시간을 UTC로 변환 (오프셋 역으로 적용)
   const offset = cachedTimezoneOffset * 60 * 60 * 1000;
   const utcTodayStart = new Date(todayStartLocal.getTime() - offset);
+  console.log(`🌍 [getTodayStartUTC] localNow=${localNow.toISOString()}, result=${utcTodayStart.toISOString()}`);
   return utcTodayStart.toISOString();
 }
 
@@ -154,17 +154,17 @@ export function getTomorrowStartUTC(): string {
   const now = new Date();
   const localNow = convertUTCToSystemTime(now);
   
-  // 시스템 타임존 기준 내일 0시 (로컬 시간)
-  const tomorrowStartLocal = new Date(
-    localNow.getUTCFullYear(),
-    localNow.getUTCMonth(),
-    localNow.getUTCDate() + 1,
-    0, 0, 0, 0
-  );
+  // 시스템 타임존 기준 내일 0시 (로컬 시간 - 단순히 연, 월, 일만 추출)
+  const year = localNow.getUTCFullYear();
+  const month = localNow.getUTCMonth();
+  const day = localNow.getUTCDate() + 1;  // 내일로 설정
   
-  // 로컬 시간을 UTC로 변환
+  const tomorrowStartLocal = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+  
+  // 로컬 시간을 UTC로 변환 (오프셋 역으로 적용)
   const offset = cachedTimezoneOffset * 60 * 60 * 1000;
   const utcTomorrowStart = new Date(tomorrowStartLocal.getTime() - offset);
+  console.log(`🌍 [getTomorrowStartUTC] localNow=${localNow.toISOString()}, result=${utcTomorrowStart.toISOString()}`);
   return utcTomorrowStart.toISOString();
 }
 
