@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from "react";
-import { CreditCard, Download, RefreshCw, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { CreditCard, Download, RefreshCw, Eye, ChevronDown, ChevronUp, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -48,10 +48,9 @@ export function BettingHistory({ user }: BettingHistoryProps) {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [bettingRecords, setBettingRecords] = useState<BettingRecord[]>([]);
-  const [dateFilter, setDateFilter] = useState(""); // ✅ 초기값은 빈 문자열 (초기 로드만 함)
+  const [dateFilter, setDateFilter] = useState(""); // ✅ 기본값을 빈 문자열 (전체 기간)
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
-  const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null); // ✅ DB 베팅 내역 4초 새로고침 ref
 
   // 날짜 포맷 (이미지와 동일: 2025년10월24일 08:19:52)
   const formatKoreanDate = (dateStr: string) => {
@@ -110,22 +109,25 @@ export function BettingHistory({ user }: BettingHistoryProps) {
     }
   };
 
-  // ✅ 데이터 로드 - DB 베팅 내역 조회 (내부용)
-  const loadBettingData = async () => {
+  // ✅ 데이터 로드 - 조회만 담당 (내부용)
+  const loadBettingData = async (filter: string = dateFilter) => {
+    let data: any = null;
+    
     try {
-      console.log('🔄 DB 베팅 내역 새로고침 시작');
+      console.log('🔄 베팅 데이터 로드 시작', { filter });
       
-      const dateRange = getDateRange(dateFilter);
+      const dateRange = getDateRange(filter);
 
       // ✅ Get allowed partner IDs by permission level
       let allowedPartnerIds: string[] = [];
       
       if (user.level === 1) {
-        // System admin: all partners
+        // System admin: all partners + self
+        allowedPartnerIds = [user.id];
         const { data: allPartners } = await supabase
           .from('partners')
           .select('id');
-        allowedPartnerIds = allPartners?.map(p => p.id) || [];
+        allowedPartnerIds.push(...(allPartners?.map(p => p.id) || []));
       } else {
         // Child partners only (including self)
         allowedPartnerIds = [user.id];
@@ -186,15 +188,27 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       
       console.log('👥 Child partner IDs count:', allowedPartnerIds.length);
 
-      // ✅ Data query (filtered by level)
-      let query = supabase
-        .from('game_records')
-        .select('*');
-
+      // ✅ System Admin: 모든 데이터 조회
       if (user.level === 1) {
-        // 시스템관리자: 모든 데이터 조회 가능 (필터링 없음)
-        console.log('🔍 System Admin: Query ALL game records (no filter)');
+        console.log('🔍 System Admin: Query ALL game records');
+        let adminQuery = supabase.from('game_records').select('*');
+        
+        if (dateRange) {
+          adminQuery = adminQuery
+            .gte('played_at', dateRange.start)
+            .lte('played_at', dateRange.end);
+        }
+        
+        adminQuery = adminQuery
+          .order('played_at', { ascending: false })
+          .order('external_txid', { ascending: false })
+          .limit(1000);
+
+        const { data: adminData, error: adminError } = await adminQuery;
+        if (adminError) throw adminError;
+        data = adminData;
       } else {
+        // ✅ Regular Admin: user_id 또는 partner_id로 필터링
         // 🔴 먼저 조직 내 모든 게임 기록이 있는지 확인
         const { data: allOrgRecords, count: allOrgCount } = await supabase
           .from('game_records')
@@ -218,50 +232,85 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         console.log('👤 allowedPartnerIds:', allowedPartnerIds);
         console.log('👤 usersData:', usersData);
         
+        // ✅ 두 개의 쿼리로 나누어 실행 (OR 대신 결과 병합)
+        let baseQuery1 = supabase.from('game_records').select('*');
+        let baseQuery2 = supabase.from('game_records').select('*');
+        
         if (userIds.length > 0) {
-          query = query.in('user_id', userIds);
-          console.log('🔍 Query with user IDs filter:', userIds);
+          baseQuery1 = baseQuery1.in('user_id', userIds);
+          baseQuery2 = baseQuery2.in('partner_id', allowedPartnerIds);
+          console.log('🔍 Query 1 with user IDs:', userIds);
+          console.log('🔍 Query 2 with partner IDs:', allowedPartnerIds);
         } else {
-          // ✅ FIX: 하위 회원이 없으면 partner_id로 직접 조회
+          // ✅ FIX: 하위 회원이 없으면 partner_id로만 조회
           console.log('⚠️ 하위 회원이 없습니다. partner_id로 직접 조회...');
-          query = query.in('partner_id', allowedPartnerIds);
+          baseQuery1 = baseQuery1.in('partner_id', allowedPartnerIds);
+          baseQuery2 = null;
           console.log('🔍 Query with partner IDs filter:', allowedPartnerIds);
         }
+        
+        // 날짜 필터가 있을 때만 적용
+        if (dateRange) {
+          baseQuery1 = baseQuery1
+            .gte('played_at', dateRange.start)
+            .lte('played_at', dateRange.end);
+          if (baseQuery2) {
+            baseQuery2 = baseQuery2
+              .gte('played_at', dateRange.start)
+              .lte('played_at', dateRange.end);
+          }
+        }
+        
+        // 정렬 및 제한
+        baseQuery1 = baseQuery1
+          .order('played_at', { ascending: false })
+          .order('external_txid', { ascending: false })
+          .limit(1000);
+        
+        if (baseQuery2) {
+          baseQuery2 = baseQuery2
+            .order('played_at', { ascending: false })
+            .order('external_txid', { ascending: false })
+            .limit(1000);
+        }
+
+        const { data: data1, error: error1 } = await baseQuery1;
+        const { data: data2, error: error2 } = baseQuery2 ? await baseQuery2 : { data: [], error: null };
+
+        if (error1) {
+          console.error('❌ Query 1 실패:', error1);
+          throw error1;
+        }
+        if (error2) {
+          console.error('❌ Query 2 실패:', error2);
+          throw error2;
+        }
+
+        // 두 쿼리 결과 병합 (중복 제거)
+        const allData = [...(data1 || []), ...(data2 || [])];
+        const uniqueData = Array.from(new Map(allData.map(item => [item.id, item])).values());
+        uniqueData.sort((a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime());
+        data = uniqueData.slice(0, 1000);
+
+        console.log('✅ 베팅 데이터 로드 성공:', data?.length || 0, '건', {
+          filter,
+          dateRange,
+          dataLength: data?.length,
+          query1Count: data1?.length,
+          query2Count: data2?.length
+        });
       }
-      
-      // 날짜 필터가 있을 때만 적용
-      if (dateRange) {
-        query = query
-          .gte('played_at', dateRange.start)
-          .lte('played_at', dateRange.end);
-      }
-      
-      // 정렬 및 제한 (최신순으로 정렬하여 최근 데이터 우선)
-      query = query
-        .order('played_at', { ascending: false })
-        .order('external_txid', { ascending: false })
-        .limit(1000);
-
-      console.log('🔍 [BettingHistory] 최종 쿼리 실행 전:');
-      console.log('   - user.level:', user.level);
-      console.log('   - dateRange:', dateRange);
-      console.log('   - query 객체:', query);
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('❌ 베팅 데이터 로드 실패:', error);
-        throw error;
-      }
-
-      console.log('✅ 베팅 데이터 로드 성공:', data?.length || 0, '건');
       
       // 🔍 디버깅: 첫 번째 레코드 출력
       if (data && data.length > 0) {
-        console.log('📋 첫 번째 레코드:', data[0]);
-        console.log('📊 총 베팅 기록 수:', data.length);
+        console.log('📋 첫 번째 레코드:', {
+          id: data[0].id,
+          username: data[0].username,
+          bet_amount: data[0].bet_amount,
+          played_at: data[0].played_at
+        });
       } else {
-        console.log('⚠️ 조회된 베팅 기록이 없습니다');
+        console.log('⚠️ 조회된 데이터가 없습니다');
       }
       
       // ✅ game_records 테이블에 이미 game_title, provider_name이 저장되어 있으므로
@@ -336,36 +385,27 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         provider_name: record.provider_name || (record.provider_id ? providerMap.get(record.provider_id) || null : null)
       }));
       
-      console.log('📋 매핑된 첫 레코드:', mappedData[0]);
-      
-      // ⭐ 데이터 상태 업데이트 - 깜박임 없이 병합
-      setBettingRecords(prev => {
-        // 기존 데이터에서 새로운 데이터로 업데이트 (ID 기반)
-        const merged = [...prev];
-        
-        mappedData.forEach(newRecord => {
-          const index = merged.findIndex(r => r.id === newRecord.id);
-          if (index >= 0) {
-            // 기존 레코드 업데이트
-            merged[index] = newRecord;
-          } else {
-            // 새로운 레코드 추가
-            merged.push(newRecord);
-          }
-        });
-        
-        // 정렬: 최신순 (played_at 기준)
-        merged.sort((a, b) => {
-          const dateA = new Date(a.played_at).getTime();
-          const dateB = new Date(b.played_at).getTime();
-          return dateB - dateA;
-        });
-        
-        return merged;
+      console.log('📋 매핑된 데이터:', {
+        mappedDataLength: mappedData.length,
+        firstRecord: mappedData[0] ? {
+          id: mappedData[0].id,
+          username: mappedData[0].username,
+          bet_amount: mappedData[0].bet_amount
+        } : null
       });
       
-      // ✅ 데이터 로드 완료 로그
-      console.log('✅ 베팅 데이터 로드 완료:', mappedData.length, '건 | 필터:', dateFilter || 'none');
+      // ⭐ 데이터 상태 업데이트 - 처음 로드면 바로 설정, 이후는 병합
+      setBettingRecords(prev => {
+        // 처음 로드거나 새로 로드한 데이터가 있으면 새 데이터로 교체
+        if (prev.length === 0 || mappedData.length > 0) {
+          console.log(`✅ 베팅 레코드 업데이트: ${prev.length}건 → ${mappedData.length}건`);
+          return mappedData;
+        }
+        
+        // 새로 로드한 데이터가 없으면 기존 데이터 유지
+        console.log('⚠️ 로드된 데이터 없음 - 기존 데이터 유지:', prev.length, '건');
+        return prev;
+      });
     } catch (error) {
       console.error('❌ 베팅 데이터 로드 오류:', error);
       toast.error(t.bettingHistory.loadFailed);
@@ -415,50 +455,33 @@ export function BettingHistory({ user }: BettingHistoryProps) {
     }
   };
 
-  // 초기 로드 (마운트 시에만) - 기본값으로 오늘 데이터 로드
+  // 초기 로드 (마운트 시에만)
   useEffect(() => {
     setLoading(true);
-    // 🆕 초기 로드 시 dateFilter를 "today"로 설정하고 데이터 로드
+    
+    // ✅ 초기 로드: "today" 필터로 데이터 로드 후 상태 업데이트
     const loadInitial = async () => {
+      await loadBettingData("today");
       setDateFilter("today");
-      // dateFilter가 변경되기 전에 현재 값으로 로드
-      await loadBettingData();
+      console.log('✅ 초기 로드 완료: today 필터');
     };
+    
     loadInitial().finally(() => setLoading(false));
-
-    // ⭐ DB 베팅 내역 자동 새로고침: 4초마다 전체 데이터 로드
-    let refreshCount = 0;
-    console.log('🔄 [BettingHistory] DB 베팅 내역 자동 새로고침 4초 interval 설정');
-    autoRefreshIntervalRef.current = setInterval(async () => {
-      refreshCount++;
-      console.log(`🔄 [BettingHistory] DB 베팅 내역 자동 새로고침 (#${refreshCount})`);
-      await loadBettingData(); // ⭐ 전체 DB 베팅 내역 새로고침
-    }, 4000); // 4초마다 새로고침
-
-    // 클린업: 컴포넌트 언마운트 시 interval 제거
-    return () => {
-      if (autoRefreshIntervalRef.current) {
-        clearInterval(autoRefreshIntervalRef.current);
-        console.log(`🛑 [BettingHistory] DB 베팅 내역 새로고침 interval 제거 (총 ${refreshCount}회 실행)`);
-      }
-    };
   }, [user.id]); // user.id 변경 시만 재로드
 
-  // 🆕 필터 변경 시 - DB 재쿼리 없이 클라이언트 사이드 필터링만 수행
+  // dateFilter 변경 시 데이터 새로고침
   useEffect(() => {
-    if (dateFilter === "") return; // 초기값일 때는 스킵
-    
-    // DB 재쿼리 없이 이미 로드된 데이터로 작동
-    // filteredRecords useMemo에서 자동으로 필터링됨
+    if (dateFilter === "") return; // 초기값 무시
+    console.log('📅 dateFilter 변경:', dateFilter);
+    loadBettingData(dateFilter);
   }, [dateFilter]);
 
-  // ✅ Realtime 구독 - 자동 업데이트 (정말 한 번만 설정)
-  // ⭐ 의존성을 빈 배열로 설정하여 마운트 시에만 한 번만 실행
+  // ✅ Realtime 구독 - 자동 업데이트 (INSERT, DELETE, UPDATE)
   useEffect(() => {
-    console.log('🔌 Realtime 구독 시작 (마운트 시에만 실행)');
+    console.log('🔌 Realtime 구독 시작');
     
     const channel = supabase
-      .channel('betting-realtime-' + Math.random()) // 고유 채널명
+      .channel('betting-realtime-' + Math.random())
       .on(
         'postgres_changes',
         {
@@ -468,52 +491,38 @@ export function BettingHistory({ user }: BettingHistoryProps) {
         },
         (payload) => {
           console.log('🎲 신규 베팅 데이터 감지:', payload.new?.external_txid);
-          console.log('📊 payload.new 상세:', payload.new);
-          
-          // ⭐ payload.new가 완전하지 않을 수 있으므로, DB에서 완전한 데이터를 조회
-          if (payload.new?.id) {
-            // DB에서 해당 record의 전체 데이터 조회
-            supabase
-              .from('game_records')
-              .select('*')
-              .eq('id', payload.new.id)
-              .maybeSingle()
-              .then(({ data: fullRecord }) => {
-                if (fullRecord) {
-                  console.log('✅ DB에서 완전한 데이터 조회:', fullRecord.external_txid);
-                  
-                  // ⭐ 현재 bettingRecords 상태를 가져오기 위해 setState 함수형 업데이트 사용
-                  setBettingRecords(prev => {
-                    // 이미 목록에 있는지 확인 (중복 방지)
-                    const isDuplicate = prev.some(
-                      record => record.external_txid === fullRecord.external_txid
-                    );
-                    
-                    if (!isDuplicate) {
-                      console.log('➕ 신규 데이터 추가 (DB 전체 필드):', fullRecord.external_txid);
-                      console.log('   구조:', {
-                        id: fullRecord.id,
-                        external_txid: fullRecord.external_txid,
-                        username: fullRecord.username,
-                        game_title: fullRecord.game_title,
-                        provider_name: fullRecord.provider_name,
-                        bet_amount: fullRecord.bet_amount,
-                        win_amount: fullRecord.win_amount,
-                        game_id: fullRecord.game_id
-                      });
-                      // 새로운 데이터를 목록 맨 앞에 추가
-                      return [fullRecord, ...prev];
-                    } else {
-                      console.log('⏭️ 중복 데이터 무시:', fullRecord.external_txid);
-                      return prev;
-                    }
-                  });
-                } else {
-                  console.warn('⚠️ DB에서 데이터를 찾을 수 없음:', payload.new.id);
-                }
-              })
-              .catch(err => console.error('❌ DB 조회 오류:', err));
-          }
+          // ✅ 전체 새로고침 대신 1초 후 새로고침 (배치 처리)
+          setTimeout(() => loadBettingData(), 1000);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'game_records'
+        },
+        (payload) => {
+          console.log('🗑️ 베팅 데이터 삭제:', payload.old?.external_txid);
+          // DELETE는 즉시 UI에서 제거
+          setBettingRecords(prev => 
+            prev.filter(r => r.id !== payload.old?.id)
+          );
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'game_records'
+        },
+        (payload) => {
+          console.log('✏️ 베팅 데이터 수정:', payload.new?.external_txid);
+          // UPDATE는 즉시 UI에서 반영
+          setBettingRecords(prev =>
+            prev.map(r => r.id === payload.new?.id ? payload.new : r)
+          );
         }
       )
       .subscribe((status) => {
@@ -524,37 +533,26 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       console.log('🔌 Realtime 구독 해제');
       supabase.removeChannel(channel);
     };
-  }, []); // ✅ 빈 배열 = 마운트/언마운트 시에만 실행
+  }, []); // ⚠️ 의존성 배열 비움 - 한번만 구독
 
-  // ✅ 검색 + 날짜 필터링 (useMemo로 메모이제이션)
+  // ✅ 검색 필터링 (useMemo로 메모이제이션)
   const filteredRecords = useMemo(() => {
-    let records = bettingRecords;
+    console.log('📊 filteredRecords 계산:', { bettingRecordsLength: bettingRecords.length, searchTerm });
     
-    // ⭐ FIXED: dateFilter "all"을 선택하거나 dateFilter가 비어있으면 필터링하지 않음
-    // 이렇게 하면 Realtime으로 추가된 모든 새 데이터가 항상 표시됨
-    if (dateFilter && dateFilter !== "" && dateFilter !== "all") {
-      const dateRange = getDateRange(dateFilter);
-      if (dateRange) {
-        records = records.filter(record => {
-          const recordDate = new Date(record.played_at).toISOString();
-          return recordDate >= dateRange.start && recordDate <= dateRange.end;
-        });
-      }
-    }
-    
-    // 검색 필터링
-    return records.filter(record => {
+    const result = bettingRecords.filter(record => {
+      // 검색 필터 - 사용자명, 게임명만
       if (!searchTerm) return true;
       
       const searchLower = searchTerm.toLowerCase();
       return (
         record.username?.toLowerCase().includes(searchLower) ||
-        record.game_title?.toLowerCase().includes(searchLower) ||
-        record.provider_name?.toLowerCase().includes(searchLower) ||
-        record.external_txid?.toString().includes(searchLower)
+        record.game_title?.toLowerCase().includes(searchLower)
       );
     });
-  }, [bettingRecords, searchTerm, dateFilter]);
+    
+    console.log('✅ filteredRecords 결과:', result.length, '건');
+    return result;
+  }, [bettingRecords, searchTerm]);
 
   // ✅ 검색된 데이터 기준으로 통계 계산 (useMemo로 메모이제이션)
   const stats = useMemo(() => {
@@ -813,7 +811,7 @@ export function BettingHistory({ user }: BettingHistoryProps) {
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="flex gap-2 items-center w-full md:w-auto flex-wrap">
           <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-[100px] h-14 text-lg">
+            <SelectTrigger className="w-[100px] h-14 text-lg py-3 px-3 [&>span]:line-clamp-1 [&>svg]:h-5">
               <SelectValue placeholder={t.bettingHistory.periodSelection} />
             </SelectTrigger>
             <SelectContent>
@@ -824,12 +822,23 @@ export function BettingHistory({ user }: BettingHistoryProps) {
             </SelectContent>
           </Select>
           
-          <Input
-            placeholder={t.bettingHistory.searchPlaceholder}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-[260px] h-14 text-lg"
-          />
+          <div className="relative w-[260px]">
+            <Input
+              placeholder={t.bettingHistory.searchPlaceholder}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full !h-14 text-lg py-3 px-3 !py-3 pr-10"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                aria-label="검색 초기화"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-2">

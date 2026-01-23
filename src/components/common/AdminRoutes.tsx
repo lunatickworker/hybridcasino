@@ -12,10 +12,7 @@ const PartnerManagement = lazy(() => import("../admin/PartnerManagementV2").then
 const PartnerCreation = lazy(() => import("../admin/PartnerCreation").then(m => ({ default: m.PartnerCreation })));
 const PartnerTransactions = lazy(() => import("../admin/PartnerTransactions").then(m => ({ default: m.PartnerTransactions })));
 const CommissionSettlement = lazy(() => import("../admin/CommissionSettlement").then(m => ({ default: m.CommissionSettlement })));
-const IntegratedSettlement = lazy(() => import("../admin/IntegratedSettlement").then(m => ({ default: m.IntegratedSettlement })));
 const NewIntegratedSettlement = lazy(() => import("../admin/NewIntegratedSettlement").then(m => ({ default: m.NewIntegratedSettlement })));
-const Lv35Settlement = lazy(() => import("../admin/Lv35Settlement").then(m => ({ default: m.Lv35Settlement })));
-const Lv6Settlement = lazy(() => import("../admin/Lv6Settlement").then(m => ({ default: m.Lv6Settlement })));
 const PartnerDashboard = lazy(() => import("../admin/PartnerDashboard").then(m => ({ default: m.PartnerDashboard })));
 const SettlementHistory = lazy(() => import("../admin/SettlementHistory").then(m => ({ default: m.SettlementHistory })));
 const UserSettlement = lazy(() => import("../admin/UserSettlement"));
@@ -96,7 +93,7 @@ export function AdminRoutes({ currentRoute, user }: AdminRoutesProps) {
       return <AdvancedSettlement user={user} />;
     case '/admin/integrated-settlement':
     case '/admin/settlement/integrated':
-      return <IntegratedSettlement user={user} />;
+      return <NewIntegratedSettlement user={user} />;
     case '/admin/new-integrated-settlement':
     case '/admin/settlement/new':
       // ✅ 전체 레벨(1~6)에 노출

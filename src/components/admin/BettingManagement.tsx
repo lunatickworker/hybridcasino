@@ -60,19 +60,50 @@ export function BettingManagement({ user }: BettingManagementProps) {
     fetchBettingRecords();
   }, []);
 
-  // Realtime subscription for game_records table
+  // ✅ Realtime subscription for game_records table (INSERT, UPDATE, DELETE)
   useEffect(() => {
     const channel = supabase
-      .channel('game-records-changes')
+      .channel('betting-management-realtime')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'game_records'
         },
         (payload) => {
-          console.log('🎮 game_records 테이블 변경 감지:', payload);
+          console.log('🎮 [INSERT] game_records 변경 감지:', payload.new?.external_txid);
+          // INSERT 시 전체 데이터 새로고침
+          fetchBettingRecords();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'game_records'
+        },
+        (payload) => {
+          console.log('🗑️ [DELETE] game_records 변경 감지:', payload.old?.external_txid);
+          // DELETE 시 해당 레코드 제거
+          setBettingRecords(prev => {
+            const filtered = prev.filter(record => record.id !== payload.old?.id);
+            console.log(`✅ 레코드 삭제: ${payload.old?.external_txid} (${prev.length}건 → ${filtered.length}건)`);
+            return filtered;
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'game_records'
+        },
+        (payload) => {
+          console.log('✏️ [UPDATE] game_records 변경 감지:', payload.new?.external_txid);
+          // UPDATE 시 전체 데이터 새로고침
           fetchBettingRecords();
         }
       )

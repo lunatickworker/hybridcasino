@@ -133,16 +133,17 @@ export function getTodayStartUTC(): string {
   const now = new Date();
   const localNow = convertUTCToSystemTime(now);
   
-  // 시스템 타임존 기준 오늘 0시
-  const todayStart = new Date(Date.UTC(
+  // 시스템 타임존 기준 오늘 0시 (로컬 시간)
+  const todayStartLocal = new Date(
     localNow.getUTCFullYear(),
     localNow.getUTCMonth(),
     localNow.getUTCDate(),
     0, 0, 0, 0
-  ));
+  );
   
-  // UTC로 다시 변환
-  const utcTodayStart = convertSystemTimeToUTC(todayStart);
+  // 로컬 시간을 UTC로 변환
+  const offset = cachedTimezoneOffset * 60 * 60 * 1000;
+  const utcTodayStart = new Date(todayStartLocal.getTime() - offset);
   return utcTodayStart.toISOString();
 }
 
@@ -153,16 +154,17 @@ export function getTomorrowStartUTC(): string {
   const now = new Date();
   const localNow = convertUTCToSystemTime(now);
   
-  // 시스템 타임존 기준 내일 0시
-  const tomorrowStart = new Date(Date.UTC(
+  // 시스템 타임존 기준 내일 0시 (로컬 시간)
+  const tomorrowStartLocal = new Date(
     localNow.getUTCFullYear(),
     localNow.getUTCMonth(),
     localNow.getUTCDate() + 1,
     0, 0, 0, 0
-  ));
+  );
   
-  // UTC로 다시 변환
-  const utcTomorrowStart = convertSystemTimeToUTC(tomorrowStart);
+  // 로컬 시간을 UTC로 변환
+  const offset = cachedTimezoneOffset * 60 * 60 * 1000;
+  const utcTomorrowStart = new Date(tomorrowStartLocal.getTime() - offset);
   return utcTomorrowStart.toISOString();
 }
 

@@ -372,37 +372,79 @@ export async function forceSyncBettingHistory(user: Partner) {
   console.log('🔄 [BETTING-FORCE-SYNC] 베팅 동기화 시작');
 
   try {
-    // ✅ Lv1 파트너 ID 찾기
-    let topLevelPartnerId = user.id;
-    if (user.level !== 1) {
-      // Lv1까지 올라가기
-      let currentId = user.id;
-      let currentLevel = user.level;
+    // ✅ BettingHistory.tsx와 동일한 조직격리 로직 적용
+    let allowedPartnerIds: string[] = [];
+    
+    if (user.level === 1) {
+      // Lv1: 모든 파트너 + 자신 조회
+      allowedPartnerIds = [user.id];
+      const { data: allPartners } = await supabase
+        .from('partners')
+        .select('id');
+      allowedPartnerIds.push(...(allPartners?.map(p => p.id) || []));
+      console.log(`🔄 [BETTING-FORCE-SYNC] Lv1: 모든 파트너 동기화 ${allowedPartnerIds.length}개`);
+    } else {
+      // Lv2+: 자신 + 하부 파트너만 조회
+      allowedPartnerIds = [user.id];
       
-      while (currentLevel > 1) {
-        const { data: parentPartner } = await supabase
+      // 1단계 하위
+      const { data: level1 } = await supabase
+        .from('partners')
+        .select('id')
+        .eq('parent_id', user.id);
+      
+      const level1Ids = level1?.map(p => p.id) || [];
+      allowedPartnerIds.push(...level1Ids);
+      
+      if (level1Ids.length > 0) {
+        // 2단계 하위
+        const { data: level2 } = await supabase
           .from('partners')
-          .select('id, level, parent_id')
-          .eq('id', (await supabase.from('partners').select('parent_id').eq('id', currentId).single()).data?.parent_id || '')
-          .single();
+          .select('id')
+          .in('parent_id', level1Ids);
         
-        if (!parentPartner) break;
+        const level2Ids = level2?.map(p => p.id) || [];
+        allowedPartnerIds.push(...level2Ids);
         
-        currentId = parentPartner.id;
-        currentLevel = parentPartner.level;
-        
-        if (currentLevel === 1) {
-          topLevelPartnerId = currentId;
-          break;
+        if (level2Ids.length > 0) {
+          // 3단계 하위
+          const { data: level3 } = await supabase
+            .from('partners')
+            .select('id')
+            .in('parent_id', level2Ids);
+          
+          const level3Ids = level3?.map(p => p.id) || [];
+          allowedPartnerIds.push(...level3Ids);
+          
+          if (level3Ids.length > 0) {
+            // 4단계 하위
+            const { data: level4 } = await supabase
+              .from('partners')
+              .select('id')
+              .in('parent_id', level3Ids);
+            
+            const level4Ids = level4?.map(p => p.id) || [];
+            allowedPartnerIds.push(...level4Ids);
+            
+            if (level4Ids.length > 0) {
+              // 5단계 하위
+              const { data: level5 } = await supabase
+                .from('partners')
+                .select('id')
+                .in('parent_id', level4Ids);
+              
+              const level5Ids = level5?.map(p => p.id) || [];
+              allowedPartnerIds.push(...level5Ids);
+            }
+          }
         }
       }
+      console.log(`🔄 [BETTING-FORCE-SYNC] Lv${user.level}: 조직 내 파트너 동기화 ${allowedPartnerIds.length}개`);
     }
     
-    // OroPlay 베팅 동기화 실행
-    await syncOroPlayBettingHistory(topLevelPartnerId);
-    
-    // HonorAPI 베팅 동기화 실행
-    await syncHonorApiBettingHistory(topLevelPartnerId);
+    // OroPlay와 HonorAPI 모두 조직 전체 파트너들로 동기화
+    await syncOroPlayBettingHistory(allowedPartnerIds);
+    await syncHonorApiBettingHistory(allowedPartnerIds);
 
     console.log('✅ [BETTING-FORCE-SYNC] 베팅 동기화 완료');
   } catch (error) {
@@ -415,200 +457,216 @@ export async function forceSyncBettingHistory(user: Partner) {
  * ✅ OroPlay API Betting History Sync
  * seamless_wallet_integration.md Section 5.1
  */
-const syncOroPlayBettingHistory = async (partnerId: string) => {
+const syncOroPlayBettingHistory = async (partnerIds: string[]) => {
   try {
-    console.log('🎮 [OROPLAY-SYNC] Betting history sync started');
+    console.log('🎮 [OROPLAY-SYNC] Betting history sync started', { count: partnerIds.length });
 
-    // 1. OroPlay 토큰 가져오기
-    const token = await oroplayApi.getOroPlayToken(partnerId);
-    
-    // ✅ 2. Vendor 목록 가져오기 (실제 vendor 이름 매핑용)
-    const vendors = await oroplayApi.getVendorsList(token);
-    const vendorMap = new Map<string, string>();
-    vendors.forEach(vendor => {
-      // vendorCode 전체를 키로 사용 (예: "slot-pragmatic")
-      vendorMap.set(vendor.vendorCode, vendor.name);
-      
-      // ✅ "-" 뒤의 provider code만 추출하여 fallback 키로도 추가
-      const parts = vendor.vendorCode.split('-');
-      if (parts.length >= 2) {
-        const providerCode = parts.slice(1).join('-'); // "slot-pragmatic" → "pragmatic"
-        vendorMap.set(providerCode, vendor.name);
-      }
-    });
-    console.log(`   📋 Vendor 목록: ${vendors.length}개 (맵 크기: ${vendorMap.size})`);
-    
-    // 3. 최근 동기화 시간 확인 (없으면 24시간 전부터)
-    const lastSyncKey = `oroplay_last_sync_${partnerId}`;
-    const lastSyncTime = localStorage.getItem(lastSyncKey);
-    
-    // ✅ 더 넓은 범위로 조회 (24시간)
-    const startDate = lastSyncTime || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    
-    // 4. Apply rate limit to betting history query (V2 by-date, limit 4000)
-    const result = await callWithRateLimit(async () => {
-      return await oroplayApi.getBettingHistory(token, startDate, 4000);
-    });
-    
-    if (!result || !result.histories || result.histories.length === 0) {
-      console.log('ℹ️ [OROPLAY-SYNC] No new betting records');
-      return;
-    }
-    
-    console.log(`📊 [OROPLAY-SYNC] ${result.histories.length} betting records retrieved`);
-    
-    // 5. status=1 (완료된 배팅만) 필터링
-    const completedBets = result.histories.filter((bet: any) => bet.status === 1);
-    console.log(`   ✅ 완료된 배팅: ${completedBets.length}건`);
-    
-    // ⭐ 5-1. 이미 저장된 txid 조회 (중복 제거)
-    const { data: existingRecords } = await supabase
-      .from('game_records')
-      .select('external_txid')
-      .eq('api_type', 'oroplay')
-      .in('external_txid', completedBets.map(bet => bet.id));
-    
-    const existingTxIds = new Set(
-      existingRecords?.map((r: any) => String(r.external_txid)) || []
-    );
-    console.log(`   📋 기존 저장 건수: ${existingTxIds.size}건`);
-    
-    // 6. 사용자 매핑
-    const { data: allUsers } = await supabase
-      .from('users')
-      .select('id, username');
-    
-    const userMap = new Map<string, string>();
-    if (allUsers) {
-      allUsers.forEach((u: any) => {
-        userMap.set(u.username, u.id);
-      });
-    }
-    
-    // 7. game_records에 저장
-    let successCount = 0;
-    let skipCount = 0;
-    
-    for (const bet of completedBets) {
-      // ⭐ 이미 저장된 txid면 스킵
-      if (existingTxIds.has(String(bet.id))) {
-        skipCount++;
-        continue;
-      }
+    // ✅ 조직 내 모든 파트너들을 순회하면서 동기화
+    for (const partnerId of partnerIds) {
       try {
-        const userId = userMap.get(bet.userCode);
-        if (!userId) {
-          console.warn(`   ⚠️ 사용자 매칭 실패: ${bet.userCode}`);
+        console.log(`🎮 [OROPLAY-SYNC] 파트너 동기화 중: ${partnerId}`);
+        
+        // 1. OroPlay 토큰 가져오기
+        const token = await oroplayApi.getOroPlayToken(partnerId);
+        
+        // ✅ 2. Vendor 목록 가져오기 (실제 vendor 이름 매핑용)
+        const vendors = await oroplayApi.getVendorsList(token);
+        const vendorMap = new Map<string, string>();
+        vendors.forEach(vendor => {
+          // vendorCode 전체를 키로 사용 (예: "slot-pragmatic")
+          vendorMap.set(vendor.vendorCode, vendor.name);
+          
+          // ✅ "-" 뒤의 provider code만 추출하여 fallback 키로도 추가
+          const parts = vendor.vendorCode.split('-');
+          if (parts.length >= 2) {
+            const providerCode = parts.slice(1).join('-'); // "slot-pragmatic" → "pragmatic"
+            vendorMap.set(providerCode, vendor.name);
+          }
+        });
+        console.log(`   📋 Vendor 목록: ${vendors.length}개 (맵 크기: ${vendorMap.size})`);
+        
+        // 3. 최근 동기화 시간 확인 (없으면 24시간 전부터)
+        const lastSyncKey = `oroplay_last_sync_${partnerId}`;
+        const lastSyncTime = localStorage.getItem(lastSyncKey);
+        
+        // ✅ 더 넓은 범위로 조회 (24시간)
+        const startDate = lastSyncTime || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        
+        // 4. Apply rate limit to betting history query (V2 by-date, limit 4000)
+        const result = await callWithRateLimit(async () => {
+          return await oroplayApi.getBettingHistory(token, startDate, 4000);
+        });
+        
+        if (!result || !result.histories || result.histories.length === 0) {
+          console.log('ℹ️ [OROPLAY-SYNC] No new betting records');
           continue;
         }
         
-        // ✅ vendorCode 파싱: "slot-pragmatic" → gameType="slot", providerCode="pragmatic"
-        let gameType = '';
-        let providerCode = '';
-        let providerName = '';
+        console.log(`📊 [OROPLAY-SYNC] ${result.histories.length} betting records retrieved`);
         
-        if (bet.vendorCode && bet.vendorCode.includes('-')) {
-          const parts = bet.vendorCode.split('-');
-          gameType = parts[0]; // "slot", "casino" 등
-          providerCode = parts.slice(1).join('-'); // "pragmatic", "evolution" 등
-          
-          // ⭐ vendorMap에서 제공사 이름 찾기 (전체 vendorCode 우선, 없으면 providerCode로, 최종적으로 대문자 변환)
-          providerName = vendorMap.get(bet.vendorCode) || 
-                         vendorMap.get(providerCode) || 
-                         (providerCode ? providerCode.charAt(0).toUpperCase() + providerCode.slice(1) : null) || // ⭐ 매핑 실패 시 첫글자 대문자로 표시
-                         'Unknown Provider';
-        } else if (bet.vendorCode) {
-          // "-"가 없는 경우 그대로 사용
-          providerName = vendorMap.get(bet.vendorCode) || bet.vendorCode || 'Unknown Provider';
-        } else {
-          // vendorCode가 아예 없는 경우
-          providerName = 'Unknown Provider';
-        }
+        // 5. status=1 (완료된 배팅만) 필터링
+        const completedBets = result.histories.filter((bet: any) => bet.status === 1);
+        console.log(`   ✅ 완료된 배팅: ${completedBets.length}건`);
         
-        // ✅ gameCode로 게임 정보 조회
-        let gameData = null;
-        if (bet.gameCode) {
-          const result = await supabase
-            .from('games')
-            .select('id, name, provider_id')
-            .eq('game_code', bet.gameCode)
-            .eq('api_type', 'oroplay')
-            .maybeSingle();
-          gameData = result.data;
-        }
-        
-        // ⭐ gameName: DB에 있으면 사용, 없으면 gameCode를 그대로 사용, 그것도 없으면 'Unknown Game'
-        const gameName = gameData?.name || (bet.gameCode ? String(bet.gameCode) : 'Unknown Game');
-        
-        const { error } = await supabase
+        // ⭐ 5-1. 이미 저장된 txid 조회 (중복 제거)
+        const { data: existingRecords } = await supabase
           .from('game_records')
-          .insert({
-            api_type: 'oroplay',
-            partner_id: partnerId,
-            external_txid: bet.id,
-            username: bet.userCode,
-            user_id: userId,
-            game_id: gameData?.id || null,
-            provider_id: gameData?.provider_id || null,
-            game_title: gameName,  // ⭐ 항상 유효한 값 보장
-            provider_name: providerName,  // ⭐ 항상 유효한 값 보장
-            game_type: gameType || null, // ✅ 게임 타입 저장 (slot, casino 등)
-            bet_amount: bet.betAmount,
-            win_amount: bet.winAmount,
-            balance_before: bet.beforeBalance,
-            balance_after: bet.afterBalance,
-            // ✅ createdAt이 Unix timestamp(초 단위)면 변환, 문자열이면 그대로 사용
-            played_at: typeof bet.createdAt === 'number' 
-              ? new Date(bet.createdAt * 1000).toISOString() 
-              : new Date(bet.createdAt).toISOString()
-          });
+          .select('external_txid')
+          .eq('api_type', 'oroplay')
+          .in('external_txid', completedBets.map(bet => bet.id));
         
-        if (error) {
-          if (error.code === '23505') {
-            skipCount++; // 중복
-          } else {
-            console.error(`   ❌ INSERT 실패 (txid: ${bet.id}):`, error);
-          }
-        } else {
-          successCount++;
+        const existingTxIds = new Set(
+          existingRecords?.map((r: any) => String(r.external_txid)) || []
+        );
+        console.log(`   📋 기존 저장 건수: ${existingTxIds.size}건`);
+        
+        // 6. 사용자 매핑
+        const { data: allUsers } = await supabase
+          .from('users')
+          .select('id, username');
+        
+        const userMap = new Map<string, string>();
+        if (allUsers) {
+          allUsers.forEach((u: any) => {
+            userMap.set(u.username, u.id);
+          });
         }
         
-      } catch (err) {
-        console.error(`   ❌ 레코드 처리 오류:`, err);
+        // 7. game_records에 저장
+        let successCount = 0;
+        let skipCount = 0;
+        
+        for (const bet of completedBets) {
+          // ⭐ 이미 저장된 txid면 스킵
+          if (existingTxIds.has(String(bet.id))) {
+            skipCount++;
+            continue;
+          }
+          try {
+            const userId = userMap.get(bet.userCode);
+            if (!userId) {
+              console.warn(`   ⚠️ 사용자 매칭 실패: ${bet.userCode}`);
+              continue;
+            }
+            
+            // ✅ vendorCode 파싱: "slot-pragmatic" → gameType="slot", providerCode="pragmatic"
+            let gameType = '';
+            let providerCode = '';
+            let providerName = '';
+            
+            if (bet.vendorCode && bet.vendorCode.includes('-')) {
+              const parts = bet.vendorCode.split('-');
+              gameType = parts[0]; // "slot", "casino" 등
+              providerCode = parts.slice(1).join('-'); // "pragmatic", "evolution" 등
+              
+              // ⭐ vendorMap에서 제공사 이름 찾기 (전체 vendorCode 우선, 없으면 providerCode로, 최종적으로 대문자 변환)
+              providerName = vendorMap.get(bet.vendorCode) || 
+                             vendorMap.get(providerCode) || 
+                             (providerCode ? providerCode.charAt(0).toUpperCase() + providerCode.slice(1) : null) || // ⭐ 매핑 실패 시 첫글자 대문자로 표시
+                             'Unknown Provider';
+            } else if (bet.vendorCode) {
+              // "-"가 없는 경우 그대로 사용
+              providerName = vendorMap.get(bet.vendorCode) || bet.vendorCode || 'Unknown Provider';
+            } else {
+              // vendorCode가 아예 없는 경우
+              providerName = 'Unknown Provider';
+            }
+            
+            // ✅ gameCode로 게임 정보 조회
+            let gameData = null;
+            if (bet.gameCode) {
+              const result = await supabase
+                .from('games')
+                .select('id, name, provider_id')
+                .eq('game_code', bet.gameCode)
+                .eq('api_type', 'oroplay')
+                .maybeSingle();
+              gameData = result.data;
+            }
+            
+            // ⭐ gameName: DB에 있으면 사용, 없으면 gameCode를 그대로 사용, 그것도 없으면 'Unknown Game'
+            const gameName = gameData?.name || (bet.gameCode ? String(bet.gameCode) : 'Unknown Game');
+            
+            const { error } = await supabase
+              .from('game_records')
+              .insert({
+                api_type: 'oroplay',
+                partner_id: partnerId,
+                external_txid: bet.id,
+                username: bet.userCode,
+                user_id: userId,
+                game_id: gameData?.id || null,
+                provider_id: gameData?.provider_id || null,
+                game_title: gameName,  // ⭐ 항상 유효한 값 보장
+                provider_name: providerName,  // ⭐ 항상 유효한 값 보장
+                game_type: gameType || null, // ✅ 게임 타입 저장 (slot, casino 등)
+                bet_amount: bet.betAmount,
+                win_amount: bet.winAmount,
+                balance_before: bet.beforeBalance,
+                balance_after: bet.afterBalance,
+                // ✅ createdAt이 Unix timestamp(초 단위)면 변환, 문자열이면 그대로 사용
+                played_at: typeof bet.createdAt === 'number' 
+                  ? new Date(bet.createdAt * 1000).toISOString() 
+                  : new Date(bet.createdAt).toISOString()
+              });
+            
+            if (error) {
+              if (error.code === '23505') {
+                skipCount++; // 중복
+              } else {
+                console.error(`   ❌ INSERT 실패 (txid: ${bet.id}):`, error);
+              }
+            } else {
+              successCount++;
+            }
+            
+          } catch (err) {
+            console.error(`   ❌ 레코드 처리 오류:`, err);
+          }
+        }
+        
+        console.log(`✅ [OROPLAY-SYNC] 완료: 성공 ${successCount}건, 중복 ${skipCount}건`);
+        
+        // 8. 다음 동기화 시작 시간 저장
+        if (result.nextStartDate) {
+          localStorage.setItem(lastSyncKey, result.nextStartDate);
+        }
+      } catch (error) {
+        console.error(`❌ [OROPLAY-SYNC] 파트너 오류 (${partnerId}):`, error);
       }
     }
-    
-    console.log(`✅ [OROPLAY-SYNC] 완료: 성공 ${successCount}건, 중복 ${skipCount}건`);
-    
-    // 8. 다음 동기화 시작 시간 저장
-    if (result.nextStartDate) {
-      localStorage.setItem(lastSyncKey, result.nextStartDate);
-    }
-    
   } catch (error) {
-    console.error('❌ [OROPLAY-SYNC] 오류:', error);
+    console.error('❌ [OROPLAY-SYNC] 전체 오류:', error);
   }
 };
 
 /**
  * ✅ HonorAPI Betting History Sync
  */
-const syncHonorApiBettingHistory = async (partnerId: string) => {
+const syncHonorApiBettingHistory = async (partnerIds: string[]) => {
   try {
-    console.log('🎮 [HONORAPI-SYNC] Betting history sync started', { partnerId });
-    
-    // 베팅 내역 동기화 실행 (partnerId 전달)
-    const result = await honorApiModule.syncHonorApiBettingHistory(partnerId);
-    
-    if (!result.success) {
-      console.error('❌ [HONORAPI-SYNC] 동기화 실패:', result.error);
-      return;
+    console.log('🎮 [HONORAPI-SYNC] Betting history sync started', { count: partnerIds.length });
+
+    // ✅ 조직 내 모든 파트너들을 순회하면서 동기화
+    for (const partnerId of partnerIds) {
+      try {
+        console.log(`🎮 [HONORAPI-SYNC] 파트너 동기화 중: ${partnerId}`);
+        
+        // 베팅 내역 동기화 실행 (partnerId 전달)
+        const result = await honorApiModule.syncHonorApiBettingHistory(partnerId);
+        
+        if (!result.success) {
+          console.error('❌ [HONORAPI-SYNC] 동기화 실패:', result.error);
+          continue;
+        }
+        
+        console.log(`✅ [HONORAPI-SYNC] 완료: ${result.recordsSaved}/${result.recordsProcessed}건 저장`);
+      } catch (error) {
+        console.error('❌ [HONORAPI-SYNC] 파트너 오류:', { partnerId, error });
+      }
     }
-    
-    console.log(`✅ [HONORAPI-SYNC] 완료: ${result.recordsSaved}/${result.recordsProcessed}건 저장`);
-    
   } catch (error) {
-    console.error('❌ [HONORAPI-SYNC] 오류:', error);
+    console.error('❌ [HONORAPI-SYNC] 전체 오류:', error);
   }
 };
 

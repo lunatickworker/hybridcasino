@@ -833,7 +833,7 @@ export const ko = {
     today: '오늘',
     last7Days: '최근 7일',
     last30Days: '최근 30일',
-    searchPlaceholder: '사용자명, 게임명 검색...',
+    searchPlaceholder: '사용자 이름이나 게임명을 입력하세요...',
     csvDownload: 'CSV 다운로드',
     noBettingRecords: '베팅 기록이 없습니다.',
     betting: 'Betting...',

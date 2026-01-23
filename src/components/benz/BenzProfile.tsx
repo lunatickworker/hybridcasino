@@ -74,7 +74,6 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
   // ✅ API 호출 중복 방지를 위한 ref
   const dataLoadedRef = useRef(false);
   const subscriptionRef = useRef<any>(null);
-  const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null); // ✅ 자동 새로고침 interval ref
 
   // 비밀번호 변경
   const [passwordChange, setPasswordChange] = useState({
@@ -293,57 +292,6 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
           console.log('   ⚠️ 조직 사용자가 없습니다.');
           setGameRecords([]);
         }
-      } else {
-        // ⭐ Lv3 이상(개인 사용자): 자신의 베팅 기록만 조회
-        console.log(`🔍 [BenzProfile] Lv${user.level} (개인 사용자) - 자신의 베팅 내역 조회 중...`);
-        
-        const { data, error } = await supabase
-          .from('game_records')
-          .select(`
-            id,
-            external_txid,
-            user_id,
-            username,
-            game_id,
-            provider_id,
-            provider_name,
-            game_title,
-            game_type,
-            bet_amount,
-            win_amount,
-            balance_before,
-            balance_after,
-            played_at
-          `)
-          .eq('user_id', user.id)
-          .order('played_at', { ascending: false })
-          .limit(50);
-
-        if (error) {
-          console.error('❌ [BenzProfile] 자신의 베팅 내역 조회 오류:', error);
-          throw error;
-        }
-
-        console.log(`✅ [BenzProfile] 자신의 베팅 내역 ${data?.length || 0}건 조회 완료`);
-        
-        const records: GameRecord[] = (data || []).map((record: any) => ({
-          id: record.id,
-          external_txid: record.external_txid || 0,
-          user_id: record.user_id,
-          username: record.username || 'Unknown',
-          game_id: record.game_id,
-          provider_id: record.provider_id,
-          game_title: record.game_title || `Game ${record.game_id}`,
-          provider_name: record.provider_name || `Provider ${record.provider_id}`,
-          bet_amount: parseFloat(record.bet_amount || 0),
-          win_amount: parseFloat(record.win_amount || 0),
-          balance_before: parseFloat(record.balance_before || 0),
-          balance_after: parseFloat(record.balance_after || 0),
-          played_at: record.played_at,
-          game_type: record.game_type
-        }));
-        
-        setGameRecords(records);
       }
     } catch (error) {
       console.error('게임 기록 조회 오류:', error);
@@ -472,17 +420,6 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
 
     loadData();
 
-    // ⭐ 자동 새로고침: 5초마다 데이터 다시 로드
-    console.log('🔄 [BenzProfile] 자동 새로고침 5초 interval 설정');
-    autoRefreshIntervalRef.current = setInterval(async () => {
-      console.log('🔄 [BenzProfile] 5초 자동 새로고침 실행');
-      await Promise.all([
-        fetchCurrentBalance(),
-        fetchPointTransactions(),
-        fetchGameRecords()
-      ]);
-    }, 5000); // 5초마다 새로고침
-
     // ✅ 실시간 업데이트 구독 (한 번만 구독)
     if (!subscriptionRef.current) {
       subscriptionRef.current = supabase
@@ -520,11 +457,6 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
         subscriptionRef.current = null;
-      }
-      // ✅ 자동 새로고침 interval 제거
-      if (autoRefreshIntervalRef.current) {
-        clearInterval(autoRefreshIntervalRef.current);
-        console.log('🛑 [BenzProfile] 자동 새로고침 interval 제거');
       }
       // ✅ user 변경 시 ref 리셋 (새로운 사용자로 로그인 시)
       dataLoadedRef.current = false;

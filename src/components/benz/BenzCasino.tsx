@@ -110,6 +110,8 @@ export function BenzCasino({ user, onRouteChange, refreshFlag }: BenzCasinoProps
   useEffect(() => {
     setLoading(true); // ✅ 명시적으로 로딩 시작
     console.log('🔄 [BenzCasino] 페이지 진입 - 데이터 로드');
+    setSelectedProvider(null); // 🆕 게임사 리스트로 리셋
+    setGames([]); // 🆕 게임 목록도 초기화
     loadProviders();
     
     return () => {
@@ -737,19 +739,21 @@ export function BenzCasino({ user, onRouteChange, refreshFlag }: BenzCasinoProps
       
       // ⭐ 1. 다른 API 게임이 실행 중인지 체크
       if (activeSession?.isActive && activeSession.status === 'active' && activeSession.api_type !== game.api_type) {
-        toast.error('잠시 후 다시 시도해주세요.');
+        toast.error('게임을 종료 후 재시도 해 주세요.');
         setLaunchingGameId(null);
         setIsProcessing(false);
         return;
       }
 
-      // ⭐ 2. 같은 API 내에서 다른 게임으로 전환 시 기존 게임 출금
+      // ⭐ 2. 같은 API 내에서 다른 게임이 실행 중인지 체크 (실행 불가)
       if (activeSession?.isActive && 
+          activeSession.status === 'active' &&
           activeSession.api_type === game.api_type && 
           activeSession.game_id !== parseInt(game.id)) {
-        
-        const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
-        await syncBalanceOnSessionEnd(user.id, activeSession.api_type);
+        toast.error('게임을 종료 후 재시도 해 주세요.');
+        setLaunchingGameId(null);
+        setIsProcessing(false);
+        return;
       }
 
       // ⭐ 3. 같은 게임의 active 세션이 있는지 체크 (중복 실행 방지)

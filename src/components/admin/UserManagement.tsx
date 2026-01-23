@@ -2186,8 +2186,33 @@ export function UserManagement() {
 
       {/* 회원 생성 다이얼로그 - 유리모피즘 효과 적용 */}
       <Dialog open={showCreateDialog} onOpenChange={(open) => {
-        if (!open) {
-          // 모달이 닫힐 때 formData 리셋
+        if (open) {
+          // ✅ 모달이 열릴 때 모든 필드 초기화 (닉네임/비밀번호 포함)
+          setFormData({
+            username: '',
+            nickname: '',
+            password: '',
+            bank_name: '',
+            bank_account: '',
+            memo: '',
+            selected_referrer_id: authState.user?.id || '',
+            bulk_mode: false,
+            bulk_start: '',
+            bulk_end: '',
+            casino_rolling_commission: '',
+            casino_losing_commission: '',
+            slot_rolling_commission: '',
+            slot_losing_commission: ''
+          });
+          // ✅ 브라우저 자동 채우기 방지 (약간의 지연 후)
+          setTimeout(() => {
+            const inputs = document.querySelectorAll('[data-form-input]');
+            inputs.forEach((input: any) => {
+              input.value = '';
+            });
+          }, 10);
+        } else {
+          // 모달이 닫힐 때도 formData 리셋
           setFormData({
             username: '',
             nickname: '',
@@ -2362,15 +2387,18 @@ export function UserManagement() {
                     <Label htmlFor="nickname" className="text-right text-slate-300 text-sm">
                       {t.userManagement.nickname}
                     </Label>
-            <Input
+            <div className="col-span-3 space-y-1.5">
+              <Input
                     id="nickname"
+                    data-form-input="nickname"
                     value={formData.nickname}
                     onChange={(e) => setFormData(prev => ({ ...prev, nickname: e.target.value }))}
-                    className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
-                    placeholder={t.userManagement.enterNickname}
-                    title="닉네임을 입력해주세요 (미입력 시 아이디와 동일)"
+                    className="w-full input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
+                    placeholder="비워두면 아이디와 동일합니다"
                     autoComplete="off"
                   />
+              <p className="text-xs text-slate-400 ml-0.5">💡 힌트: 닉네임을 입력하지 않으면 아이디와 같이 사용됩니다</p>
+            </div>
                   </div>
                 </>
               )}
@@ -2379,15 +2407,19 @@ export function UserManagement() {
                 <Label htmlFor="password" className="text-right text-slate-300 text-sm">
                   {t.common.password} <span className="text-red-400">*</span>
                 </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-                  className="col-span-3 input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
-                  placeholder={t.userManagement.enterInitialPassword}
-                  title="로그인 비밀번호를 입력해주세요"
-                />
+                <div className="col-span-3 space-y-1.5">
+                  <Input
+                    id="password"
+                    data-form-input="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full input-premium focus:border-blue-500/60 focus:ring-2 focus:ring-2 focus:ring-blue-500/20 text-sm h-9"
+                    placeholder="로그인할 때 사용할 비밀번호를 입력하세요"
+                    autoComplete="new-password"
+                  />
+                  <p className="text-xs text-slate-400 ml-0.5">💡 힌트: 8자 이상의 안전한 비밀번호를 설정해주세요</p>
+                </div>
               </div>
               
               {/* 출금 비밀번호 안내 */}

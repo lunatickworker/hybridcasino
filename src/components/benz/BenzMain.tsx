@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 import { gameApi } from "../../lib/gameApi";
 import { motion, AnimatePresence } from "motion/react";
@@ -48,7 +48,6 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
   const [isProcessing, setIsProcessing] = useState(false); // 🆕 백그라운드 프로세스 상태
   const [launchingGameId, setLaunchingGameId] = useState<string | null>(null);
   const closeProcessingRef = useRef<Map<number, boolean>>(new Map()); // 🆕 세션별 종료 처리 중 상태
-  const realtimeLoadingRef = useRef(false); // 🆕 Realtime 무한 루프 방지
 
   // Fallback 데이터
   const FALLBACK_CASINO_PROVIDERS = [
@@ -149,8 +148,86 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
     return FALLBACK_SLOT_PROVIDERS[randomIndex].logo_url;
   };
 
-  // 🆕 loadData를 useCallback으로 메모이제이션하여 무한 루프 방지
-  const loadData = useCallback(async () => {
+  useEffect(() => {
+    console.log('🏠 [BenzMain] useEffect 시작 - Realtime 구독 설정 중...');
+    loadData();
+
+    if (!user) {
+      console.log('ℹ️ [BenzMain] 비로그인 상태 - Realtime 구독 스킵');
+      return;
+    }
+
+    // ✅ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
+    const channelBuilder = supabase
+      .channel('benz_main_games_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'games' },
+        () => {
+          console.log('🔄 [BenzMain] games 테이블 변경 감지 - 리로드');
+          loadData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'game_providers' },
+        () => {
+          console.log('🔄 [BenzMain] game_providers 테이블 변경 감지 - 리로드');
+          loadData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'honor_games' },
+        () => {
+          console.log('🔄 [BenzMain] honor_games 테이블 변경 감지 - 리로드');
+          loadData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'honor_games_provider' },
+        () => {
+          console.log('🔄 [BenzMain] honor_games_provider 테이블 변경 감지 - 리로드');
+          loadData();
+        }
+      );
+
+    // partner_game_access는 user.referrer_id가 있을 때만 구독
+    if (user.referrer_id) {
+      channelBuilder.on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'partner_game_access',
+          filter: `partner_id=eq.${user.referrer_id}` // ✅ 현재 사용자 파트너만 필터링
+        },
+        (payload) => {
+          console.log('🔄🔄🔄 [BenzMain] partner_game_access 테이블 변경 감지!!!', payload);
+          // ⚡ 게임 스위칭 설정이 변경되면 즉시 게임사 목록 새로고침
+          console.log('🎮 [BenzMain] 게임 스위칭 설정 변경 감지! 즉시 새로고침...');
+          loadData();
+        }
+      );
+    }
+
+    const gamesChannel = channelBuilder.subscribe((status, err) => {
+      console.log('📡📡📡 [BenzMain] Realtime 구독 상태:', status);
+      if (err) {
+        console.error('❌❌❌ [BenzMain] Realtime 구독 에러:', err);
+      }
+      if (status === 'SUBSCRIBED') {
+        console.log('✅✅✅ [BenzMain] Realtime 구독 성공! partner_game_access 테이블 감지 중... (partner_id:', user.referrer_id, ')');
+      }
+    });
+
+    return () => {
+      supabase.removeChannel(gamesChannel);
+    };
+  }, [user]);
+
+  const loadData = async () => {
     try {
       setLoading(true);
       
@@ -396,120 +473,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]); // 🆕 user.id만 의존성으로 사용하여 무한 루프 방지
-
-  // 🆕 Realtime 구독 및 초기 로드 - loadData 의존성에서 제거하여 무한 루프 방지
-  useEffect(() => {
-    console.log('🏠 [BenzMain] useEffect 시작 - 초기 데이터 로드');
-    
-    // 🆕 무한 루프 방지: 이미 로딩 중이면 스킵
-    if (realtimeLoadingRef.current) {
-      console.log('⏭️ [BenzMain] 이미 로딩 중 - 중복 호출 방지');
-      return;
-    }
-    
-    realtimeLoadingRef.current = true;
-    loadData().finally(() => {
-      realtimeLoadingRef.current = false;
-    });
-
-    if (!user) {
-      console.log('ℹ️ [BenzMain] 비로그인 상태 - Realtime 구독 스킵');
-      return;
-    }
-
-    // ✅ Realtime: games, game_providers, honor_games, honor_games_provider, partner_game_access 테이블 변경 감지
-    const channelBuilder = supabase
-      .channel('benz_main_games_changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'games' },
-        () => {
-          console.log('🔄 [BenzMain] games 테이블 변경 감지');
-          if (!realtimeLoadingRef.current) {
-            realtimeLoadingRef.current = true;
-            loadData().finally(() => {
-              realtimeLoadingRef.current = false;
-            });
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'game_providers' },
-        () => {
-          console.log('🔄 [BenzMain] game_providers 테이블 변경 감지');
-          if (!realtimeLoadingRef.current) {
-            realtimeLoadingRef.current = true;
-            loadData().finally(() => {
-              realtimeLoadingRef.current = false;
-            });
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'honor_games' },
-        () => {
-          console.log('🔄 [BenzMain] honor_games 테이블 변경 감지');
-          if (!realtimeLoadingRef.current) {
-            realtimeLoadingRef.current = true;
-            loadData().finally(() => {
-              realtimeLoadingRef.current = false;
-            });
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'honor_games_provider' },
-        () => {
-          console.log('🔄 [BenzMain] honor_games_provider 테이블 변경 감지');
-          if (!realtimeLoadingRef.current) {
-            realtimeLoadingRef.current = true;
-            loadData().finally(() => {
-              realtimeLoadingRef.current = false;
-            });
-          }
-        }
-      );
-
-    // partner_game_access는 user.referrer_id가 있을 때만 구독
-    if (user.referrer_id) {
-      channelBuilder.on(
-        'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'partner_game_access',
-          filter: `partner_id=eq.${user.referrer_id}` // ✅ 현재 사용자 파트너만 필터링
-        },
-        (payload) => {
-          console.log('🔄 [BenzMain] partner_game_access 테이블 변경 감지', payload);
-          if (!realtimeLoadingRef.current) {
-            realtimeLoadingRef.current = true;
-            loadData().finally(() => {
-              realtimeLoadingRef.current = false;
-            });
-          }
-        }
-      );
-    }
-
-    const gamesChannel = channelBuilder.subscribe((status, err) => {
-      console.log('📡 [BenzMain] Realtime 구독 상태:', status);
-      if (err) {
-        console.error('❌ [BenzMain] Realtime 구독 에러:', err);
-      }
-      if (status === 'SUBSCRIBED') {
-        console.log('✅ [BenzMain] Realtime 구독 성공!');
-      }
-    });
-
-    return () => {
-      supabase.removeChannel(gamesChannel);
-    };
-  }, [user?.id, user?.referrer_id, loadData]);
+  };
 
   // ✨ 게임 실행 핸들러 - 메인 페이지에서 바로 게임 실행
   const handleProviderClick = async (provider: GameProvider, type: 'casino' | 'slot') => {

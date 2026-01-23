@@ -140,7 +140,10 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
         return;
       }
 
+      console.log('🔐 비밀번호 검증 시작...');
       const isPasswordMatch = await bcrypt.compare(loginData.password, user.password_hash);
+      console.log('🔐 비밀번호 검증 완료:', isPasswordMatch);
+      
       if (!isPasswordMatch) {
         console.log('❌ 비밀번호 불일치');
         setError('아이디 또는 비밀번호가 올바르지 않습니다.');
@@ -148,6 +151,7 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
         return;
       }
 
+      console.log('💾 사용자 온라인 상태 업데이트 시작...');
       await supabase
         .from('users')
         .update({
@@ -165,18 +169,28 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
         login_at: new Date().toISOString()
       }]);
 
-      const clientIP = await getClientIP();
-      const userAgent = getUserAgent();
-      await logLogin(user.id, 'user', clientIP, userAgent, true);
-
-      console.log('✅ 로그인 처리 완료');
+      console.log('✅ 로그인 처리 완료 - UI 즉시 업데이트');
       
+      // ✅ 로그인 성공 처리 (UI 즉시 업데이트)
       onLoginSuccess(user);
       onClose();
       
       // 로그인 후 폼 초기화
       setLoginData({ username: '', password: '', captcha: '' });
       refreshCaptcha();
+
+      // ⭐ 로그인 활동 기록은 백그라운드에서 처리 (UI 블로킹 없음)
+      setTimeout(async () => {
+        try {
+          const clientIP = await getClientIP();
+          const userAgent = getUserAgent();
+          await logLogin(user.id, 'user', clientIP, userAgent, true);
+          console.log('✅ 로그인 활동 기록 완료');
+        } catch (error) {
+          console.warn('⚠️ 로그인 활동 기록 실패 (무시):', error);
+          // 활동 기록 실패는 무시 - UI에 영향 없음
+        }
+      }, 500); // 더 긴 지연으로 다른 요청과 충돌 방지
     } catch (error: any) {
       console.error('❌ 로그인 오류:', error);
       setError('로그인 중 오류가 발생했습니다.');

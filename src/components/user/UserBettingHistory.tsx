@@ -150,7 +150,7 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
     loadRecords();
   }, [selectedDate, loadRecords]);
 
-  // ⭐ Realtime 구독 - 새로운 베팅 기록 자동 반영
+  // ⭐ Realtime 구독 - 새로운 베팅 기록 자동 반영 (INSERT, UPDATE, DELETE)
   useEffect(() => {
     const channel = supabase
       .channel(`user-betting-records-${user.username}`)
@@ -163,7 +163,7 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
           filter: `username=eq.${user.username}`
         },
         (payload) => {
-          console.log('🎮 새로운 베팅 기록 수신:', payload.new);
+          console.log('🎮 [INSERT] 새로운 베팅 기록 수신:', payload.new?.external_txid);
           
           const newRecord = payload.new as any;
           const newRecordDate = new Date(newRecord.played_at).toISOString().split('T')[0];
@@ -189,6 +189,66 @@ export function UserBettingHistory({ user }: UserBettingHistoryProps) {
             
             setRecords(prev => [mappedRecord, ...prev]);
             console.log(`✅ 베팅 기록 추가: ${newRecord.game_title}`);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'game_records',
+          filter: `username=eq.${user.username}`
+        },
+        (payload) => {
+          console.log('🗑️ [DELETE] 베팅 기록 삭제 감지:', payload.old?.external_txid);
+          
+          if (payload.old?.id) {
+            setRecords(prev => {
+              const filtered = prev.filter(record => record.id !== payload.old.id);
+              console.log(`✅ 베팅 기록 삭제: ${payload.old.external_txid} (${prev.length}건 → ${filtered.length}건)`);
+              return filtered;
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'game_records',
+          filter: `username=eq.${user.username}`
+        },
+        (payload) => {
+          console.log('✏️ [UPDATE] 베팅 기록 수정 감지:', payload.new?.external_txid);
+          
+          const updatedRecord = payload.new as any;
+          const updatedRecordDate = new Date(updatedRecord.played_at).toISOString().split('T')[0];
+          
+          // ✅ 선택된 날짜와 같은 날의 기록만 업데이트
+          if (updatedRecordDate === selectedDate) {
+            const mappedRecord: BettingRecord = {
+              id: updatedRecord.id,
+              external_txid: updatedRecord.external_txid,
+              username: updatedRecord.username,
+              game_id: updatedRecord.game_id,
+              provider_id: updatedRecord.provider_id,
+              game_title: updatedRecord.game_title || `Game ${updatedRecord.game_id || 'Unknown'}`,
+              provider_name: updatedRecord.provider_name || `Provider ${updatedRecord.provider_id || 'Unknown'}`,
+              bet_amount: updatedRecord.bet_amount,
+              win_amount: updatedRecord.win_amount,
+              balance_before: updatedRecord.balance_before,
+              balance_after: updatedRecord.balance_after,
+              played_at: updatedRecord.played_at,
+              api_type: updatedRecord.api_type,
+              external: updatedRecord.external
+            };
+            
+            setRecords(prev =>
+              prev.map(record => record.id === mappedRecord.id ? mappedRecord : record)
+            );
+            console.log(`✅ 베팅 기록 수정: ${updatedRecord.game_title}`);
           }
         }
       )

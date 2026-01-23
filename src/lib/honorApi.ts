@@ -825,6 +825,8 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
         }
 
         // 사용자 정보 조회 (username으로)
+        console.log(`🔍 [HonorAPI] 사용자 조회 시작: username=${tx.user.username}, partnerId=${partnerId}`);
+        
         const { data: user } = await supabase
           .from('users')
           .select('id, referrer_id')

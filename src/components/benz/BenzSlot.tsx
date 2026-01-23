@@ -116,6 +116,8 @@ export function BenzSlot({ user, onRouteChange, refreshFlag }: BenzSlotProps) {
   useEffect(() => {
     setLoading(true); // ✅ 명시적으로 로딩 시작
     console.log('🔄 [BenzSlot] 페이지 진입 - 데이터 로드');
+    setSelectedProvider(null); // 🆕 게임사 리스트로 리셋
+    setGames([]); // 🆕 게임 목록도 초기화
     loadProviders();
     
     return () => {
@@ -496,47 +498,21 @@ export function BenzSlot({ user, onRouteChange, refreshFlag }: BenzSlotProps) {
       
       // ⭐ 1. 다른 API 게임이 실행 중인지 체크
       if (activeSession?.isActive && activeSession.status === 'active' && activeSession.api_type !== game.api_type) {
-        console.error('❌ [다른 API 게임 실행 중]', {
-          current_api: activeSession.api_type,
-          trying_api: game.api_type,
-          current_game: activeSession.game_name
-        });
-        
-        toast.error(`다른 게임을 종료한 후 다시 시도해주세요. (현재: ${activeSession.game_name})`);
-        
-        // ⭐ 관리자 알림 생성
-        createAdminNotification({
-          user_id: user.id,
-          username: user.username || '알 수 없음',
-          user_login_id: user.login_id || '알 수 없음',
-          partner_id: user.referrer_id,
-          message: `다른 API 게임 실행 중 클릭 시도 (현재: ${activeSession.api_type}, 시도: ${game.api_type})`,
-          log_message: `현재 게임: ${activeSession.game_name}`,
-          notification_type: 'game_error'
-        });
-        
+        toast.error('게임을 종료 후 재시도 해 주세요.');
         setLaunchingGameId(null);
-        setIsProcessing(false); // 🆕 프로세스 종료
+        setIsProcessing(false);
         return;
       }
 
-      // ⭐ 2. 같은 API 내에서 다른 게임으로 전환 시 기존 게임 출금
+      // ⭐ 2. 같은 API 내에서 다른 게임이 실행 중인지 체크 (실행 불가)
       if (activeSession?.isActive && 
+          activeSession.status === 'active' &&
           activeSession.api_type === game.api_type && 
           activeSession.game_id !== parseInt(game.id)) {
-        
-        console.log('🔄 [게임 전환] 기존 게임 출금 후 새 게임 실행:', {
-          oldGameId: activeSession.game_id,
-          newGameId: game.id
-        });
-        
-        // 기존 게임 출금 + 보유금 동기화
-        const { syncBalanceOnSessionEnd } = await import('../../lib/gameApi');
-        await syncBalanceOnSessionEnd(user.id, activeSession.api_type);
-        
-        console.log('✅ [게임 전환] 기존 게임 출금 완료, 새 게임 실행 시작');
-        
-        // 이후 새 게임 실행 로직으로 진행 (break 없이 계속)
+        toast.error('게임을 종료 후 재시도 해 주세요.');
+        setLaunchingGameId(null);
+        setIsProcessing(false);
+        return;
       }
 
       // ⭐ 3. 같은 게임의 active 세션이 있는지 체크 (중복 실행 방지)
