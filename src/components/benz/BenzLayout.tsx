@@ -59,7 +59,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         if (error) throw error;
 
         if (data && !data.is_online) {
-          console.log('🔴 [BenzLayout] is_online=false 감지 - 로그아웃');
+          // console.log('🔴 [BenzLayout] is_online=false 감지 - 로그아웃');
           onLogout();
         }
       } catch (error) {
@@ -75,7 +75,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   // ==========================================================================
   useEffect(() => {
     const handleBeforeUnload = (event: Event) => {
-      alert('🔴 창 닫음 감지! onLogout: ' + (onLogout ? 'YES' : 'NO'));
+      // alert('🔴 창 닫음 감지! onLogout: ' + (onLogout ? 'YES' : 'NO'));
       if (onLogout) {
         onLogout();
       }
@@ -91,11 +91,11 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   useEffect(() => {
     if (!user?.id) return;
 
-    console.log('🚀 [BenzLayout] 게임 기록 주기 동기화 시작 (partnerId:', user.id, ')');
+    // console.log('🚀 [BenzLayout] 게임 기록 주기 동기화 시작 (partnerId:', user.id, ')');
     startGameRecordsSync(user.id);
 
     return () => {
-      console.log('🛑 [BenzLayout] 게임 기록 주기 동기화 중지');
+      // console.log('🛑 [BenzLayout] 게임 기록 주기 동기화 중지');
       stopGameRecordsSync();
     };
   }, [user?.id]);
@@ -114,7 +114,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
 
   // ✅ 메뉴 클릭 시 refreshFlag 토글 + 라우트 변경 + 파비콘 업데이트
   const handleRouteChangeWithRefresh = (path: string) => {
-    console.log('🔄 [BenzLayout] 메뉴 클릭:', path);
+    // console.log('🔄 [BenzLayout] 메뉴 클릭:', path);
     onRouteChange(path);
     setRefreshFlag(!refreshFlag); // ✅ refreshFlag 토글
     updateFaviconByRoute(path); // ✅ 파비콘 동시 업데이트 (Vercel 배포 최적화)

@@ -84,6 +84,12 @@ export default defineConfig({
     },
     chunkSizeWarningLimit: 1000,
     sourcemap: false,
+    terserOptions: {
+      compress: {
+        drop_console: true, // 프로덕션 빌드에서 console.log 제거
+        drop_debugger: true, // debugger 제거
+      },
+    },
   },
   server: {
     port: 3000,
