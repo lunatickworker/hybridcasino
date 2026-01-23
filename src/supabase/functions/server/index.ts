@@ -685,32 +685,25 @@ async function syncOroplayBets(): Promise<any> {
           // 게임 정보 조회 (vendor_code와 game_code로 매칭)
           const { data: gameData } = await supabase
             .from('games')
-            .select('id, provider_id, game_type, name, name_ko')
+            .select('id, game_type, name')
             .eq('vendor_code', bet.vendorCode)
             .eq('game_code', bet.gameCode)
             .eq('api_type', 'oroplay')
             .maybeSingle();
 
-          // 게임사 이름 결정
-          let providerName = bet.vendorCode; // ⭐ OroPlay는 vendorCode만 제공
-          if (gameData?.provider_id) {
-            const { data: providerData } = await supabase
-              .from('game_providers')
-              .select('name, name_ko')
-              .eq('id', gameData.provider_id)
-              .maybeSingle();
-            
-            if (providerData) {
-              providerName = providerData.name_ko || providerData.name;
-            }
+          // ✅ 게임사명 추출 (vendorCode에서만 추출)
+          // "slot-pragmatic" → "pragmatic"
+          let providerName = bet.vendorCode;
+          if (bet.vendorCode && bet.vendorCode.includes('-')) {
+            providerName = bet.vendorCode.split('-').pop() || bet.vendorCode;
           }
 
-          // 게임 제목 결정
-          const gameTitle = gameData?.name_ko || gameData?.name || bet.gameCode; // ⭐ OroPlay는 gameCode만 제공
+          // ✅ 게임명 매핑 (games 테이블의 name 컬럼 사용)
+          const gameTitle = gameData?.name || bet.gameCode;
 
           // ⭐ NULL 방지 최종 체크
-          const finalProviderName = providerName || bet.vendorCode || 'Unknown Provider';
-          const finalGameTitle = gameTitle || bet.gameCode || 'Unknown Game';
+          const finalProviderName = providerName || 'Unknown Provider';
+          const finalGameTitle = gameTitle || 'Unknown Game';
 
           const { error } = await supabase
             .from('game_records')
