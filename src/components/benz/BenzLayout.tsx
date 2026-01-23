@@ -43,6 +43,49 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   const previousRouteRef = useRef(currentRoute); // ✅ 이전 라우트 추적
 
   // ==========================================================================
+  // 페이지 로드 시 is_online 확인 → false면 로그아웃
+  // ==========================================================================
+  useEffect(() => {
+    const checkOnlineStatus = async () => {
+      if (!user?.id) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('is_online')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+
+        if (data && !data.is_online) {
+          console.log('🔴 [BenzLayout] is_online=false 감지 - 로그아웃');
+          onLogout();
+        }
+      } catch (error) {
+        console.error('❌ [BenzLayout] is_online 확인 실패:', error);
+      }
+    };
+
+    checkOnlineStatus();
+  }, [user?.id, onLogout]);
+
+  // ==========================================================================
+  // 창 종료 시 로그아웃 (모든 페이지에서 감지)
+  // ==========================================================================
+  useEffect(() => {
+    const handleBeforeUnload = (event: Event) => {
+      alert('🔴 창 닫음 감지! onLogout: ' + (onLogout ? 'YES' : 'NO'));
+      if (onLogout) {
+        onLogout();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [onLogout]);
+
+  // ==========================================================================
   // 게임 기록 주기 동기화 시작
   // ==========================================================================
   useEffect(() => {
