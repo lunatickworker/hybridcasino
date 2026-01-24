@@ -642,9 +642,9 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     const slotLosing = (slotBet - slotWin) * (slotLosingRate / 100);
     const totalLosing = casinoLosing + slotLosing;
     
-    // ✅ 직속 하위 파트너의 롤링금 및 루징금 합산 계산
+    // ✅ 직속 하위 파트너의 롤링금 합산 계산 (루징금은 두 번째 패스에서 계산)
     let directChildRollingSum = 0;
-    let directChildLosingSum = 0;
+    let directChildLosingSum = 0; // 두 번째 패스에서 계산하므로 0으로 유지
     if (level >= 3 && level <= 6) {
       // 파트너인 경우만 하위 파트너가 있을 수 있음
       const directChildPartners = partners.filter(p => p.parent_id === entityId);
@@ -656,22 +656,11 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
         const childCasinoBet = Math.abs(childGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
         const childSlotBet = Math.abs(childGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.bet_amount || 0), 0));
         
-        const childCasinoWin = Math.abs(childGameRecords.filter(gr => gr.game_type === 'casino').reduce((sum, gr) => sum + (gr.win_amount || 0), 0));
-        const childSlotWin = Math.abs(childGameRecords.filter(gr => gr.game_type === 'slot').reduce((sum, gr) => sum + (gr.win_amount || 0), 0));
-        
         // 자식 파트너의 롤링률 사용
         const childCasinoRolling = childCasinoBet * ((childPartner.casino_rolling_commission || casinoRollingRate) / 100);
         const childSlotRolling = childSlotBet * ((childPartner.slot_rolling_commission || slotRollingRate) / 100);
         
         directChildRollingSum += childCasinoRolling + childSlotRolling;
-        
-        // 자식 파트너의 루징률 사용
-        const childCasinoLosingRate = childPartner.casinoLosingRate || casinoLosingRate;
-        const childSlotLosingRate = childPartner.slotLosingRate || slotLosingRate;
-        const childCasinoLosing = (childCasinoBet - childCasinoWin) * (childCasinoLosingRate / 100);
-        const childSlotLosing = (childSlotBet - childSlotWin) * (childSlotLosingRate / 100);
-        
-        directChildLosingSum += childCasinoLosing + childSlotLosing;
       }
     }
     
@@ -695,12 +684,12 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     
     const settledRolling = totalRolling - gongBetAmountTotal - gongBetCutRolling - directChildRollingSum;
     
-    // ✅ 코드별 실정산 루징금 = GGR - (총롤링금 × 루징률%) - 직속 하위 루징금
+    // ✅ 코드별 실정산 루징금 = (GGR - 총롤링금) × 루징률% - 직속 하위 루징금
     const totalBet = casinoBet + slotBet;
     const avgLosingRate = totalBet > 0 
       ? (casinoBet * casinoLosingRate + slotBet * slotLosingRate) / totalBet 
       : 0;
-    const settledLosing = ggr - (totalRolling * (avgLosingRate / 100)) - directChildLosingSum;
+    const settledLosing = (ggr - totalRolling) * avgLosingRate / 100 - directChildLosingSum;
     
     const individualRolling = settledRolling; // 코드별 실정산 롤링 (하위 롤링금 제외)
     const individualLosing = settledLosing; // 코드별 실정산 루징 (하위 루징금 제외)
@@ -752,6 +741,8 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     // 참고: partnerBalanceLogs는 별도로 전달됨
     
     const rows: SettlementRow[] = [];
+    
+    // ✅ 첫 번째 패스: 임시 directChildLosingSum = 0으로 계산
     for (const partner of partners) {
       const hasChildren = partners.some(p => p.parent_id === partner.id) || users.some(u => u.referrer_id === partner.id);
       const row = calculateRowData(partner.id, partner.username, partner.level, partner.balance || 0, 0, partner.casino_rolling_commission || 0, partner.casino_losing_commission || 0, partner.slot_rolling_commission || 0, partner.slot_losing_commission || 0, depositWithdrawalTransactions, pointTransactions, gameRecords, partners, users, partnerBalanceLogs);
@@ -761,6 +752,48 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       const row = calculateRowData(userItem.id, userItem.username, 0, userItem.balance || 0, userItem.points || 0, userItem.casino_rolling_commission || userItem.casino_rolling_rate || 0, userItem.casino_losing_commission || userItem.casino_losing_rate || 0, userItem.slot_rolling_commission || userItem.slot_rolling_rate || 0, userItem.slot_losing_commission || userItem.slot_losing_rate || 0, depositWithdrawalTransactions, pointTransactions, gameRecords, partners, users, partnerBalanceLogs);
       rows.push({ ...row, parentId: userItem.referrer_id, hasChildren: false });
     }
+
+    // ✅ 두 번째 패스: directChildLosingSum을 자식들의 individualLosing 합산으로 재계산
+    // Lv7(회원)부터 Lv2(운영사)로 올라가면서 계산 (낮은 레벨부터 높은 레벨로)
+    const sortedRowIndices = rows.map((_, i) => i).sort((a, b) => rows[a].level - rows[b].level);
+    
+    for (const i of sortedRowIndices) {
+      const currentRow = rows[i];
+      let directChildLosingSum = 0;
+
+      // 자식들의 individualLosing 합산
+      for (let j = 0; j < rows.length; j++) {
+        if (rows[j].parentId === currentRow.id) {
+          directChildLosingSum += rows[j].individualLosing;
+        }
+      }
+
+      // settledLosing 재계산
+      const totalBet = currentRow.casinoBet + currentRow.slotBet;
+      const avgLosingRate = totalBet > 0 
+        ? (currentRow.casinoBet * currentRow.casinoLosingRate + currentRow.slotBet * currentRow.slotLosingRate) / totalBet 
+        : 0;
+      const settledLosing = (currentRow.ggr - currentRow.totalRolling) * avgLosingRate / 100 - directChildLosingSum;
+
+      // 🔍 디버깅 로그
+      if (currentRow.level <= 4) {
+        console.log(`[두번째패스] ${currentRow.username} (Lv${currentRow.level}):`, {
+          ggr: currentRow.ggr,
+          totalRolling: currentRow.totalRolling,
+          avgLosingRate,
+          baseLosingAmount: (currentRow.ggr - currentRow.totalRolling) * avgLosingRate / 100,
+          directChildLosingSum,
+          settledLosing
+        });
+      }
+
+      // 행 업데이트
+      rows[i] = {
+        ...currentRow,
+        individualLosing: settledLosing
+      };
+    }
+
     return rows;
   };
 
