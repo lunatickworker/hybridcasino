@@ -695,8 +695,12 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     
     const settledRolling = totalRolling - gongBetAmountTotal - gongBetCutRolling - directChildRollingSum;
     
-    // ✅ 코드별 실정산 루징금 = 총루징금 - 하위 루징금
-    const settledLosing = totalLosing - directChildLosingSum;
+    // ✅ 코드별 실정산 루징금 = GGR - (총롤링금 × 루징률%) - 직속 하위 루징금
+    const totalBet = casinoBet + slotBet;
+    const avgLosingRate = totalBet > 0 
+      ? (casinoBet * casinoLosingRate + slotBet * slotLosingRate) / totalBet 
+      : 0;
+    const settledLosing = ggr - (totalRolling * (avgLosingRate / 100)) - directChildLosingSum;
     
     const individualRolling = settledRolling; // 코드별 실정산 롤링 (하위 롤링금 제외)
     const individualLosing = settledLosing; // 코드별 실정산 루징 (하위 루징금 제외)
@@ -1291,7 +1295,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
                         <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex gap-0.5"><div className="text-center text-cyan-400 font-asiahead py-1 px-1 border-r border-slate-700/50 flex-1">{formatNumber(row.casinoBet)}</div><div className="text-center text-purple-400 font-asiahead py-1 px-1 border-r border-slate-700/50 flex-1">{formatNumber(row.casinoWin)}</div><div className="text-center text-cyan-400 font-asiahead py-1 px-1 border-r border-slate-700/50 flex-1">{formatNumber(row.slotBet)}</div><div className="text-center text-purple-400 font-asiahead py-1 px-1 flex-1">{formatNumber(row.slotWin)}</div></div></td>
                         <td className="px-6 py-3 text-center text-amber-400 font-asiahead whitespace-nowrap overflow-hidden min-w-[130px]">{formatNumber(row.ggr)}</td>
                         <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex gap-0.5"><div className="flex-1 px-1 border-r border-slate-700/50 text-teal-400 font-asiahead">{formatNumber(row.totalRolling)}</div><div className="flex-1 px-1 border-r border-slate-700/50 text-teal-400 font-asiahead">{formatNumber(row.cutRollingAmount)}</div><div className="flex-1 px-1 text-teal-400 font-asiahead">{formatNumber(row.totalLosing)}</div></div></td>
-                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex gap-0.5"><div className="flex-1 px-1 border-r border-slate-700/50 text-green-400 font-asiahead font-semibold">{formatNumber(row.totalRolling)}</div><div className="flex-1 px-1 text-green-400 font-asiahead font-semibold">{formatNumber(row.totalLosing)}</div></div></td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap overflow-hidden"><div className="flex gap-0.5"><div className="flex-1 px-1 border-r border-slate-700/50 text-green-400 font-asiahead font-semibold">{formatNumber(row.individualRolling)}</div><div className="flex-1 px-1 text-green-400 font-asiahead font-semibold">{formatNumber(row.individualLosing)}</div></div></td>
 
 
                       </tr>
