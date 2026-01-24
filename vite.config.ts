@@ -67,13 +67,14 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
+          // Avoid circular dependencies
+          if (id.includes("node_modules/@radix-ui/")) {
+            return "radix-ui";
+          }
           if (id.includes("node_modules/react/") ||
               id.includes("node_modules/react-dom/") ||
               id.includes("node_modules/scheduler/")) {
             return "react-core";
-          }
-          if (id.includes("node_modules/@radix-ui/")) {
-            return "radix-ui";
           }
           if (id.includes("node_modules/recharts/") ||
               id.includes("node_modules/recharts-scale/") ||
