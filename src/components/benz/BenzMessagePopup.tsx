@@ -47,9 +47,9 @@ export function BenzMessagePopup({ userId }: BenzMessagePopupProps) {
         .is('parent_id', null)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('메시지 조회 오류:', error);
         return;
       }
