@@ -2238,7 +2238,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
     const mappedPartnerTransactions = partnerTransactions
       .map(pt => ({
         ...pt,
-        status: 'completed',
+        status: pt.status || 'completed', // status가 없으면 'completed'로 기본값 설정
         user: {
           nickname: pt.partner_nickname,
           username: pt.partner_username
@@ -2291,7 +2291,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
       : [];
     
     // 입출금 거래와 파트너 거래와 포인트 거래 병합 후 시간순 정렬
-    const result = [...filteredTransactions, ...mappedPartnerTransactions, ...filteredPointTransactions].sort((a, b) => 
+    const result = [...filteredTransactions.map(t => ({ ...t, status: t.status || 'completed' })), ...mappedPartnerTransactions, ...filteredPointTransactions].sort((a, b) => 
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
     
@@ -3316,7 +3316,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           <TabsContent value="completed-history" className="compact-table">
             <DataTable
               searchable={false}
-              columns={getColumns(false)}
+              columns={getColumns(true)}
               data={completedTransactions}
               loading={initialLoading || refreshing}
               emptyMessage={t.transactionManagement.noTransactionHistory}

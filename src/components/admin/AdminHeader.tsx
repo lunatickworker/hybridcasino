@@ -510,6 +510,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
   useEffect(() => {
     const fetchHeaderStats = async (forceReload = false) => {
       try {
+        console.log('🔄 [fetchHeaderStats] 시작 - 타임스탬프:', new Date().toISOString().slice(11, 23));
+        const startTime = performance.now();
+        
         // 시스템 타임존 기준 오늘 0시
         const todayStartISO = getTodayStartUTC();
 
@@ -649,11 +652,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           // ✅ 파트너 입금 신청: 최종 Lv2(받는사람)에만 리스트 표시
           let adminDepositCount = 0;
           if (user.level === 2) {
-            // Lv2: 자신이 받는 입금신청만
+            // Lv2: 파트너로부터 받는 입금신청만 (partner_deposit_request만, 사용자 deposit은 첫 번째 쿼리에서 이미 조회)
             const { count, error } = await supabase
               .from('transactions')
               .select('id', { count: 'exact', head: true })
-              .in('transaction_type', ['partner_deposit_request'])
+              .eq('transaction_type', 'partner_deposit_request')
               .eq('status', 'pending')
               .eq('to_partner_id', user.id);
             
@@ -663,7 +666,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               adminDepositCount = count || 0;
             }
           } else if (user.level === 1) {
-            // Lv1: 직속 Lv2들의 입금신청만 조회
+            // Lv1: 직속 Lv2들의 입금신청만 조회 (partner_deposit_request만, 사용자 deposit은 첫 번째 쿼리에서 이미 조회)
             const { data: lv2Partners } = await supabase
               .from('partners')
               .select('id')
@@ -674,7 +677,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
               const { count, error } = await supabase
                 .from('transactions')
                 .select('id', { count: 'exact', head: true })
-                .in('transaction_type', ['partner_deposit_request'])
+                .eq('transaction_type', 'partner_deposit_request')
                 .eq('status', 'pending')
                 .in('to_partner_id', lv2Ids);
               
@@ -716,21 +719,43 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           // ✅ 파트너 출금 신청: Lv2만 조회
           let adminWithdrawalCount = 0;
           if (user.level === 2) {
-            // Lv2: 자신이 받는 출금신청만 (to_partner_id = 현재 Lv2 ID)
+            // Lv2: 파트너로부터 받는 출금신청만 (partner_withdrawal_request만, 사용자 withdrawal은 첫 번째 쿼리에서 이미 조회)
             const { count, error } = await supabase
               .from('transactions')
-              .select('id', { count: 'exact' })
+              .select('id', { count: 'exact', head: true })
               .eq('transaction_type', 'partner_withdrawal_request')
               .eq('status', 'pending')
               .eq('to_partner_id', user.id);
             
-            console.log('📊 partner_withdrawal_request 쿼리 결과:', {
+            console.log('📊 파트너 출금요청 쿼리 결과:', {
               userId: user.id,
               queryCount: count,
               queryError: error?.message
             });
             
             adminWithdrawalCount = count || 0;
+          } else if (user.level === 1) {
+            // Lv1: 직속 Lv2들의 출금신청만 조회 (partner_withdrawal_request만, 사용자 withdrawal은 첫 번째 쿼리에서 이미 조회)
+            const { data: lv2Partners } = await supabase
+              .from('partners')
+              .select('id')
+              .eq('level', 2);
+            const lv2Ids = lv2Partners?.map(p => p.id) || [];
+            
+            if (lv2Ids.length > 0) {
+              const { count, error } = await supabase
+                .from('transactions')
+                .select('id', { count: 'exact', head: true })
+                .eq('transaction_type', 'partner_withdrawal_request')
+                .eq('status', 'pending')
+                .in('to_partner_id', lv2Ids);
+              
+              if (error) {
+                console.error('❌ 파트너 출금 대기 수 조회 실패:', error);
+              } else {
+                adminWithdrawalCount = count || 0;
+              }
+            }
           }
 
           pendingWithdrawalsCount = (userWithdrawalCount || 0) + (adminWithdrawalCount || 0);
@@ -752,18 +777,26 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         
         const totalBalance = usersBalanceData?.reduce((sum, u) => sum + Number(u.balance || 0), 0) || 0;
         
-        setStats(prev => ({
-          ...prev,
-          total_balance: totalBalance,
-          daily_deposit: dailyDeposit,
-          daily_withdrawal: dailyWithdrawal,
-          daily_net_deposit: dailyDeposit - dailyWithdrawal,
-          online_users: onlineCount || 0,
-          pending_approvals: pendingApprovalsCount || 0,
-          pending_messages: pendingMessagesCount || 0,
-          pending_deposits: pendingDepositsCount || 0,
-          pending_withdrawals: pendingWithdrawalsCount || 0,
-        }));
+        setStats(prev => {
+          console.log('📊 [setStats] 통계 업데이트:', {
+            pending_deposits: pendingDepositsCount,
+            pending_withdrawals: pendingWithdrawalsCount,
+            prev_deposits: prev.pending_deposits,
+            prev_withdrawals: prev.pending_withdrawals
+          });
+          return {
+            ...prev,
+            total_balance: totalBalance,
+            daily_deposit: dailyDeposit,
+            daily_withdrawal: dailyWithdrawal,
+            daily_net_deposit: dailyDeposit - dailyWithdrawal,
+            online_users: onlineCount || 0,
+            pending_approvals: pendingApprovalsCount || 0,
+            pending_messages: pendingMessagesCount || 0,
+            pending_deposits: pendingDepositsCount || 0,
+            pending_withdrawals: pendingWithdrawalsCount || 0,
+          };
+        });
         
         setTotalUsers(totalUserCount || 0);
         
@@ -771,6 +804,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         if (user.level === 2) {
           checkLv2Warning(totalBalance);
         }
+        
+        const endTime = performance.now();
+        console.log('✅ [fetchHeaderStats] 완료 - 소요시간:', (endTime - startTime).toFixed(2) + 'ms');
       } catch (error) {
         console.error('❌ 헤더 통계 로드 실패:', error);
       }
@@ -844,6 +880,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 status: newTx.status,
                 oldPending: oldTx.status
               });
+              // ✅ 대기 수 즉시 갱신
+              console.log('🔄 [fetchHeaderStats] UPDATE 이벤트에서 호출 (line 870)');
+              fetchHeaderStats();
             }
           }
           
@@ -911,9 +950,11 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                       created_at: new Date().toISOString()
                     })
                     .then(() => {
-                      // ✅ 알림 카운터 + 헤더 통계 즉시 갱신
+                      // ✅ 알림 카운터 갱신
                       loadNotificationCount();
-                      // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
+                      // ✅ 헤더 통계 갱신 (pending_deposits/pending_withdrawals 업데이트)
+                      console.log('🔄 [fetchHeaderStats] partner_deposit/withdrawal_request INSERT에서 호출 (line 940)');
+                      fetchHeaderStats();
                     });
                 }
                 return; // 파트너 신청은 여기서 처리 완료
@@ -957,7 +998,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     }
                   }
                 });
-                // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
+                // ✅ 대기 수 즉시 갱신
+                console.log('🔄 [fetchHeaderStats] deposit INSERT에서 호출 (line 985)');
+                fetchHeaderStats();
               } else if (transaction.transaction_type === 'withdrawal') {
                 toast.warning('새로운 출금 요청이 있습니다.', {
                   description: `금액: ${formatCurrency(Number(transaction.amount))} | 회원: ${username}\n클릭하면 사라집니다.`,
@@ -972,7 +1015,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     }
                   }
                 });
-                // ❌ fetchHeaderStats() 제거 - 무한 루프 방지
+                // ✅ 대기 수 즉시 갱신
+                console.log('🔄 [fetchHeaderStats] withdrawal INSERT에서 호출 (line 1001)');
+                fetchHeaderStats();
               }
             }
           }
@@ -1076,8 +1121,10 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
         (payload) => {
           console.log('🔔 [헤더 알림] notifications 변경 감지:', {
             event: payload.eventType,
-            old: payload.old,
-            new: payload.new
+            notificationId: payload.new?.id || payload.old?.id,
+            recipientId: payload.new?.recipient_id,
+            currentUserId: user.id,
+            isForMe: payload.new?.recipient_id === user.id
           });
           
           // INSERT: 새 알림 추가
@@ -1085,7 +1132,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
             const newNotification = payload.new as any;
             // 내가 받을 알림인지 확인
             if (newNotification.recipient_id === user.id && newNotification.is_read === false) {
-              console.log('🔔 [알림 증가] 새 알림:', newNotification.id);
+              console.log('🔔 [알림 증가] 새 알림 - fetchHeaderStats() 호출 가능성 체크:', newNotification.id);
               // 🆕 직접 카운트 증가 (무한 루프 방지)
               setNotificationCount(prev => prev + 1);
             }
