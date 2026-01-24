@@ -376,7 +376,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               const record = {
                 ...pbl,
                 user_id: null,
-                status: 'completed',
                 from_partner_username: fromPartner?.username || '',
                 from_partner_nickname: fromPartner?.nickname || '',
                 to_partner_username: toPartner?.username || '',
@@ -392,7 +391,6 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
               const partner = t.partner_id ? partnerMap.get(t.partner_id) : null;
               return {
                 ...t,
-                status: 'completed',
                 is_from_partner_balance_logs: false,
                 partner_username: partner?.username || '',
                 partner_nickname: partner?.nickname || ''
