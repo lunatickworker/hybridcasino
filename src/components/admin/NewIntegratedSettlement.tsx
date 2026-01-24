@@ -682,7 +682,7 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       : 0;
     const gongBetAmountTotal = casinoGongBetAmount + slotGongBetAmount;
     
-    const settledRolling = totalRolling - gongBetAmountTotal - gongBetCutRolling - directChildRollingSum;
+    const settledRolling = totalRolling - gongBetCutRolling - directChildRollingSum;
     
     // ✅ 코드별 실정산 루징금 = (GGR - 총롤링금) × 루징률% - 직속 하위 루징금
     const totalBet = casinoBet + slotBet;
