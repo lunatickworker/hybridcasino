@@ -21,9 +21,9 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseKey) {
-  // console.error('❌ Supabase 환경변수 설정 필요');
-  // console.error('VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL);
-  // console.error('VITE_SUPABASE_ANON_KEY:', process.env.VITE_SUPABASE_ANON_KEY ? '설정됨' : '미설정');
+  console.error('❌ Supabase 환경변수 설정 필요');
+  console.error('VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL);
+  console.error('VITE_SUPABASE_ANON_KEY:', process.env.VITE_SUPABASE_ANON_KEY ? '설정됨' : '미설정');
   process.exit(1);
 }
 
@@ -58,10 +58,10 @@ function parseGameSequenceFile(filePath: string): Map<string, number> {
       sequence++;
     }
     
-    // console.log(`✅ 파싱 완료: ${gameMap.size}개 게임\n`);
+    console.log(`✅ 파싱 완료: ${gameMap.size}개 게임\n`);
     return gameMap;
   } catch (error) {
-    // console.error('❌ 파일 파싱 오류:', error);
+    console.error('❌ 파일 파싱 오류:', error);
     process.exit(1);
   }
 }
@@ -70,36 +70,36 @@ function parseGameSequenceFile(filePath: string): Map<string, number> {
  * 메인 실행 함수
  */
 async function main() {
-  // console.log('╔════════════════════════════════════════════╗');
-  // console.log('║   🎰 프라그마틱 Priority 업데이트        ║');
-  // console.log('╚════════════════════════════════════════════╝\n');
+  console.log('╔════════════════════════════════════════════╗');
+  console.log('║   🎰 프라그마틱 Priority 업데이트        ║');
+  console.log('╚════════════════════════════════════════════╝\n');
   
   const filePath = path.join(process.cwd(), 'Jobtasks', 'gamenamesequence.md');
   
   if (!fs.existsSync(filePath)) {
-    // console.error(`❌ 파일 없음: ${filePath}`);
+    console.error(`❌ 파일 없음: ${filePath}`);
     process.exit(1);
   }
   
   // 1️⃣ 시퀀스 파일 파싱
   const sequenceMap = parseGameSequenceFile(filePath);
   
-  // console.log('📋 파싱된 게임 (처음 10개):');
+  console.log('📋 파싱된 게임 (처음 10개):');
   let count = 0;
   for (const entry of Array.from(sequenceMap)) {
     if (count >= 10) break;
     const [name, seq] = entry;
-    // console.log(`   [${seq}] ${name}`);
+    console.log(`   [${seq}] ${name}`);
     count++;
   }
   if (sequenceMap.size > 10) {
-    // console.log(`   ... 외 ${sequenceMap.size - 10}개\n`);
+    console.log(`   ... 외 ${sequenceMap.size - 10}개\n`);
   } else {
-    // console.log();
+    console.log();
   }
   
   // 2️⃣ provider_id=7363 (프라그마틱) 게임 조회
-  // console.log('📥 프라그마틱 게임(provider_id=7363) 조회 중...');
+  console.log('📥 프라그마틱 게임(provider_id=7363) 조회 중...');
   const { data: pragmaticGames, error: fetchError } = await supabase
     .from('honor_games')
     .select('id, name_ko, priority')
@@ -107,14 +107,14 @@ async function main() {
     .eq('type', 'slot');
   
   if (fetchError || !pragmaticGames) {
-    // console.error('❌ 조회 오류:', fetchError?.message);
+    console.error('❌ 조회 오류:', fetchError?.message);
     process.exit(1);
   }
   
-  // console.log(`✅ 프라그마틱 게임 ${pragmaticGames.length}개 조회 완료\n`);
+  console.log(`✅ 프라그마틱 게임 ${pragmaticGames.length}개 조회 완료\n`);
   
   // 3️⃣ name_ko로 매칭 및 priority 결정 (정확한 매칭 + 앞 2자 매칭)
-  // console.log('🔄 게임 매칭 중...\n');
+  console.log('🔄 게임 매칭 중...\n');
   
   const updates: Array<{ id: number; priority: number }> = [];
   const matched = new Set<number>();
@@ -143,39 +143,39 @@ async function main() {
       matchCount++;
       
       if (matchCount <= 10) {
-        // console.log(`✅ [${seqPriority}] ${seqName}`);
+        console.log(`✅ [${seqPriority}] ${seqName}`);
       }
     }
   }
   
   if (matchCount > 10) {
-    // console.log(`   ... 외 ${matchCount - 10}개`);
+    console.log(`   ... 외 ${matchCount - 10}개`);
   }
   
   // 매핑되지 않은 프라그마틱 게임 처리
   const unmapped = pragmaticGames.filter(g => !matched.has(g.id));
-  // console.log(`\n📌 매핑 안 된 프라그마틱 게임 ${unmapped.length}개:\n`);
+  console.log(`\n📌 매핑 안 된 프라그마틱 게임 ${unmapped.length}개:\n`);
   
   unmapped.forEach((game, idx) => {
     const priority = 1000 + idx;
     updates.push({ id: game.id, priority });
     
     if (idx < 10) {
-      // console.log(`   [${priority}] ${game.name_ko || '(이름없음)'}`);
+      console.log(`   [${priority}] ${game.name_ko || '(이름없음)'}`);
     }
   });
   
   if (unmapped.length > 10) {
-    // console.log(`   ... 외 ${unmapped.length - 10}개`);
+    console.log(`   ... 외 ${unmapped.length - 10}개`);
   }
   
-  // console.log(`\n📊 업데이트 요약:`);
-  // console.log(`   ✅ 매칭됨: ${matchCount}개`);
-  // console.log(`   📌 미매칭: ${unmapped.length}개`);
-  // console.log(`   📝 총: ${updates.length}개\n`);
+  console.log(`\n📊 업데이트 요약:`);
+  console.log(`   ✅ 매칭됨: ${matchCount}개`);
+  console.log(`   📌 미매칭: ${unmapped.length}개`);
+  console.log(`   📝 총: ${updates.length}개\n`);
   
   // 4️⃣ DB 업데이트
-  // console.log('⏳ 데이터베이스 업데이트 중...\n');
+  console.log('⏳ 데이터베이스 업데이트 중...\n');
   
   let successCount = 0;
   let failCount = 0;
@@ -193,12 +193,12 @@ async function main() {
     }
   }
   
-  // console.log(`✅ 완료:`);
-  // console.log(`   ✅ 성공: ${successCount}개`);
-  // console.log(`   ❌ 실패: ${failCount}개\n`);
+  console.log(`✅ 완료:`);
+  console.log(`   ✅ 성공: ${successCount}개`);
+  console.log(`   ❌ 실패: ${failCount}개\n`);
   
   // 5️⃣ 검증
-  // console.log('🔍 검증 (업데이트된 게임 처음 10개):\n');
+  console.log('🔍 검증 (업데이트된 게임 처음 10개):\n');
   const { data: verifyData } = await supabase
     .from('honor_games')
     .select('name_ko, priority')
@@ -209,14 +209,14 @@ async function main() {
   
   if (verifyData) {
     verifyData.forEach(g => {
-      // console.log(`   [${g.priority}] ${g.name_ko}`);
+      console.log(`   [${g.priority}] ${g.name_ko}`);
     });
   }
   
-  // console.log('\n✅ 스크립트 완료!\n');
+  console.log('\n✅ 스크립트 완료!\n');
 }
 
 main().catch(error => {
-  // console.error('❌ 오류:', error.message);
+  console.error('❌ 오류:', error.message);
   process.exit(1);
 });

@@ -27,10 +27,10 @@ export async function getSystemTimezoneOffset(): Promise<number> {
     if (!error && data) {
       cachedTimezoneOffset = parseInt(data.setting_value) || 9;
       lastFetchTime = now;
-      // console.log(`🌍 [Timezone] 시스템 타임존 로드: UTC${cachedTimezoneOffset >= 0 ? '+' : ''}${cachedTimezoneOffset}`);
+      console.log(`🌍 [Timezone] 시스템 타임존 로드: UTC${cachedTimezoneOffset >= 0 ? '+' : ''}${cachedTimezoneOffset}`);
     }
   } catch (error) {
-    // console.error('❌ [Timezone] 타임존 설정 로드 실패:', error);
+    console.error('❌ [Timezone] 타임존 설정 로드 실패:', error);
   }
 
   return cachedTimezoneOffset;
@@ -143,7 +143,7 @@ export function getTodayStartUTC(): string {
   // 로컬 시간을 UTC로 변환 (오프셋 역으로 적용)
   const offset = cachedTimezoneOffset * 60 * 60 * 1000;
   const utcTodayStart = new Date(todayStartLocal.getTime() - offset);
-  // console.log(`🌍 [getTodayStartUTC] localNow=${localNow.toISOString()}, result=${utcTodayStart.toISOString()}`);
+  console.log(`🌍 [getTodayStartUTC] localNow=${localNow.toISOString()}, result=${utcTodayStart.toISOString()}`);
   return utcTodayStart.toISOString();
 }
 
@@ -164,7 +164,7 @@ export function getTomorrowStartUTC(): string {
   // 로컬 시간을 UTC로 변환 (오프셋 역으로 적용)
   const offset = cachedTimezoneOffset * 60 * 60 * 1000;
   const utcTomorrowStart = new Date(tomorrowStartLocal.getTime() - offset);
-  // console.log(`🌍 [getTomorrowStartUTC] localNow=${localNow.toISOString()}, result=${utcTomorrowStart.toISOString()}`);
+  console.log(`🌍 [getTomorrowStartUTC] localNow=${localNow.toISOString()}, result=${utcTomorrowStart.toISOString()}`);
   return utcTomorrowStart.toISOString();
 }
 
@@ -194,7 +194,5 @@ export function getNextSettlementResetTime(): Date {
 
 // 앱 시작 시 타임존 설정 로드
 if (typeof window !== 'undefined') {
-  getSystemTimezoneOffset().catch(e => {
-    // console.error(e)
-  });
+  getSystemTimezoneOffset().catch(console.error);
 }

@@ -52,6 +52,18 @@ export default defineConfig({
   build: {
     target: "esnext",
     outDir: "dist",
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        drop_console: true, // console.log 제거
+        drop_debugger: true,
+        passes: 3, // 여러 번 통과
+      },
+      format: {
+        comments: false, // 모든 주석 제거
+      },
+      mangle: true, // 변수명 축약
+    },
     rollupOptions: {
       output: {
         manualChunks: (id) => {
@@ -84,12 +96,6 @@ export default defineConfig({
     },
     chunkSizeWarningLimit: 1000,
     sourcemap: false,
-    terserOptions: {
-      compress: {
-        drop_console: true, // 프로덕션 빌드에서 console.log 제거
-        drop_debugger: true, // debugger 제거
-      },
-    },
   },
   server: {
     port: 3000,

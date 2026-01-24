@@ -199,7 +199,7 @@ export function initFavicon() {
   //   updateFavicon(newType);
   // });
   
-  // console.log('🔧 [Favicon] 초기화 완료 - hashchange 리스너 비활성화 (App.tsx에서 처리)');
+  console.log('🔧 [Favicon] 초기화 완료 - hashchange 리스너 비활성화 (App.tsx에서 처리)');
 }
 
 /**
@@ -227,7 +227,7 @@ export function updateFaviconByRoute(path: string) {
   }
   
   lastFaviconType = type;
-  // console.log('🔍 [Favicon] 라우트 감지:', path);
-  // console.log('✅ [Favicon] 환경:', window.location.hostname.includes('localhost') ? '개발 환경: 라우트 기반 감지' : '프로덕션: 도메인 기반 감지', `→ ${type}`);
+  console.log('🔍 [Favicon] 라우트 감지:', path);
+  console.log('✅ [Favicon] 환경:', window.location.hostname.includes('localhost') ? '개발 환경: 라우트 기반 감지' : '프로덕션: 도메인 기반 감지', `→ ${type}`);
   updateFavicon(type);
 }
