@@ -2724,6 +2724,83 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 autoFocus
               />
             </div>
+            {/* 금액 입력 버튼 - 누적 합산 */}
+            <div className="grid grid-cols-4 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 100000)))}
+                className="bg-blue-900/30 border-blue-600 text-blue-300 hover:bg-blue-900/50"
+              >
+                10만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 300000)))}
+                className="bg-blue-900/30 border-blue-600 text-blue-300 hover:bg-blue-900/50"
+              >
+                30만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 500000)))}
+                className="bg-blue-900/30 border-blue-600 text-blue-300 hover:bg-blue-900/50"
+              >
+                50만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 1000000)))}
+                className="bg-blue-900/30 border-blue-600 text-blue-300 hover:bg-blue-900/50"
+              >
+                100만
+              </Button>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 3000000)))}
+                className="bg-blue-900/30 border-blue-600 text-blue-300 hover:bg-blue-900/50"
+              >
+                300만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 5000000)))}
+                className="bg-blue-900/30 border-blue-600 text-blue-300 hover:bg-blue-900/50"
+              >
+                500만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 10000000)))}
+                className="bg-blue-900/30 border-blue-600 text-blue-300 hover:bg-blue-900/50"
+              >
+                1000만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount('')}
+                className="bg-red-900/30 border-red-600 text-red-300 hover:bg-red-900/50"
+              >
+                초기화
+              </Button>
+            </div>
             <div className="text-sm text-slate-400 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
               💡 입금 신청 후 상위 관리자가 승인하면 보유머니에 반영됩니다.
             </div>
@@ -2777,6 +2854,92 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 autoFocus
               />
             </div>
+            {/* 금액 입력 버튼 - 누적 합산 */}
+            <div className="grid grid-cols-4 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 100000)))}
+                className="bg-orange-900/30 border-2 border-orange-500 text-orange-300 hover:bg-orange-900/50"
+              >
+                10만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 300000)))}
+                className="bg-orange-900/30 border-2 border-orange-500 text-orange-300 hover:bg-orange-900/50"
+              >
+                30만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 500000)))}
+                className="bg-orange-900/30 border-2 border-orange-500 text-orange-300 hover:bg-orange-900/50"
+              >
+                50만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 1000000)))}
+                className="bg-orange-900/30 border-2 border-orange-500 text-orange-300 hover:bg-orange-900/50"
+              >
+                100만
+              </Button>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 3000000)))}
+                className="bg-orange-900/30 border-2 border-orange-500 text-orange-300 hover:bg-orange-900/50"
+              >
+                300만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 5000000)))}
+                className="bg-orange-900/30 border-2 border-orange-500 text-orange-300 hover:bg-orange-900/50"
+              >
+                500만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount(String((parseFloat(requestAmount || '0') + 10000000)))}
+                className="bg-orange-900/30 border-2 border-orange-500 text-orange-300 hover:bg-orange-900/50"
+              >
+                1000만
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setRequestAmount('')}
+                className="bg-red-900/30 border-2 border-red-500 text-red-300 hover:bg-red-900/50"
+              >
+                초기화
+              </Button>
+            </div>
+            {/* 전액출금 버튼 - 전체 너비 */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRequestAmount(String(balance))}
+              className="w-full bg-red-900/50 border-red-600 text-red-300 hover:bg-red-900/70 font-semibold py-2 text-base"
+            >
+              💰 전액출금
+            </Button>
             <div className="bg-slate-700/50 border border-slate-600 rounded-lg p-3 space-y-1">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400">현재 보유머니:</span>
