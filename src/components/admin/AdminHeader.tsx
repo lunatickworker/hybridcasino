@@ -2333,43 +2333,47 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                 </Tooltip>
               </TooltipProvider>
 
-              {/* 입금요청 */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div 
-                      className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
-                      onClick={() => onRouteChange?.('/admin/transactions#deposit-request')}
-                    >
-                      <div className="text-sm text-emerald-300 font-medium text-center mb-1">{t.dashboard.pendingDeposits}</div>
-                      <div className="text-2xl font-bold text-white text-center">{stats.pending_deposits}</div>
-                      {stats.pending_deposits > 0 && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                      )}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>{t.dashboard.pendingDeposits}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {/* 입금요청 - Lv2만 보이기 */}
+              {user.level === 2 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div 
+                        className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
+                        onClick={() => onRouteChange?.('/admin/transactions#deposit-request')}
+                      >
+                        <div className="text-sm text-emerald-300 font-medium text-center mb-1">{t.dashboard.pendingDeposits}</div>
+                        <div className="text-2xl font-bold text-white text-center">{stats.pending_deposits}</div>
+                        {stats.pending_deposits > 0 && (
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                        )}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>{t.dashboard.pendingDeposits}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
 
-              {/* 출금요청 */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div 
-                      className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
-                      onClick={() => onRouteChange?.('/admin/transactions#withdrawal-request')}
-                    >
-                      <div className="text-sm text-orange-300 font-medium text-center mb-1">{t.dashboard.pendingWithdrawals}</div>
-                      <div className="text-2xl font-bold text-white text-center">{stats.pending_withdrawals}</div>
-                      {stats.pending_withdrawals > 0 && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                      )}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>{t.dashboard.pendingWithdrawals}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {/* 출금요청 - Lv2만 보이기 */}
+              {user.level === 2 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div 
+                        className="relative px-3 py-2 rounded-lg bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 hover:scale-105 transition-all cursor-pointer min-w-[90px]"
+                        onClick={() => onRouteChange?.('/admin/transactions#withdrawal-request')}
+                      >
+                        <div className="text-sm text-orange-300 font-medium text-center mb-1">{t.dashboard.pendingWithdrawals}</div>
+                        <div className="text-2xl font-bold text-white text-center">{stats.pending_withdrawals}</div>
+                        {stats.pending_withdrawals > 0 && (
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                        )}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>{t.dashboard.pendingWithdrawals}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
 
               <div className="w-px h-8 bg-slate-700"></div>
 
