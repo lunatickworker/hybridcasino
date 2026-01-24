@@ -109,7 +109,7 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
       setCasinoRollingCommission(parseFloat(data.casino_rolling_commission) || 0);
       setSlotRollingCommission(parseFloat(data.slot_rolling_commission) || 0);
     } catch (error) {
-      console.error('잔고 조회 오류:', error);
+      // console.error('잔고 조회 오류:', error);
     }
   };
 
@@ -117,11 +117,11 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
   const fetchPointTransactions = async () => {
     try {
       if (!user?.id) {
-        console.error('❌ [BenzProfile] user.id가 없습니다.');
+        // console.error('❌ [BenzProfile] user.id가 없습니다.');
         return;
       }
 
-      console.log('🔍 [BenzProfile] 포인트 내역 조회 시작 - userId:', user.id, 'username:', user.username);
+      // console.log('🔍 [BenzProfile] 포인트 내역 조회 시작 - userId:', user.id, 'username:', user.username);
 
       const { data, error } = await supabase
         .from('point_transactions')
@@ -131,14 +131,14 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
         .limit(50);
 
       if (error) {
-        console.error('❌ [BenzProfile] 포인트 내역 조회 오류:', error);
+        // console.error('❌ [BenzProfile] 포인트 내역 조회 오류:', error);
         throw error;
       }
 
-      console.log(`✅ [BenzProfile] 포인트 내역 ${data?.length || 0}건 조회 완료`);
+      // console.log(`✅ [BenzProfile] 포인트 내역 ${data?.length || 0}건 조회 완료`);
       setPointTransactions(data || []);
     } catch (error) {
-      console.error('포인트 내역 조회 오류:', error);
+      // console.error('포인트 내역 조회 오류:', error);
     }
   };
 
@@ -146,16 +146,16 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
   const fetchGameRecords = async () => {
     try {
       if (!user?.id) {
-        console.error('❌ [BenzProfile] user.id가 없습니다.');
+        // console.error('❌ [BenzProfile] user.id가 없습니다.');
         return;
       }
 
-      console.log('🔍 [BenzProfile] 베팅 내역 조회 시작 - userId:', user.id, 'username:', user.username, 'level:', user.level);
+      // console.log('🔍 [BenzProfile] 베팅 내역 조회 시작 - userId:', user.id, 'username:', user.username, 'level:', user.level);
 
       // ✅ 레벨별 권한 처리
       if (user.level === 1) {
         // Lv1(시스템관리자): 모든 베팅 기록 조회 (필터 없음)
-        console.log(`✅ [BenzProfile] Lv1 - 전체 시스템 모든 베팅 기록 조회`);
+        // console.log(`✅ [BenzProfile] Lv1 - 전체 시스템 모든 베팅 기록 조회`);
         
         const { data, error } = await supabase
           .from('game_records')
@@ -179,11 +179,11 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
           .limit(50);
 
         if (error) {
-          console.error('❌ [BenzProfile] 베팅 내역 조회 오류:', error);
+          // console.error('❌ [BenzProfile] 베팅 내역 조회 오류:', error);
           throw error;
         }
 
-        console.log(`✅ [BenzProfile] 전체 베팅 내역 ${data?.length || 0}건 조회 완료`);
+        // console.log(`✅ [BenzProfile] 전체 베팅 내역 ${data?.length || 0}건 조회 완료`);
         
         const records: GameRecord[] = (data || []).map((record: any) => ({
           id: record.id,
@@ -206,7 +206,7 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
 
       } else if (user.level >= 2) {
         // Lv2(운영사) 이상: 자신의 조직 + 하위 파트너들의 회원 베팅 기록 조회
-        console.log(`🔍 [BenzProfile] Lv${user.level} - 조직 내 하위 회원 베팅 기록 조회 중...`);
+        // console.log(`🔍 [BenzProfile] Lv${user.level} - 조직 내 하위 회원 베팅 기록 조회 중...`);
         
         // 1️⃣ 자신의 조직 내 모든 하위 파트너 ID 조회 (재귀적)
         const { data: partners, error: partnerError } = await supabase.rpc(
@@ -215,12 +215,12 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
         );
 
         if (partnerError) {
-          console.error('❌ [BenzProfile] 하위 파트너 조회 실패:', partnerError);
+          // console.error('❌ [BenzProfile] 하위 파트너 조회 실패:', partnerError);
           return;
         }
 
         const allPartnerIds = [user.id, ...(partners?.map((p: any) => p.id) || [])];
-        console.log(`   📊 조회된 파트너: ${allPartnerIds.length}명`);
+        // console.log(`   📊 조회된 파트너: ${allPartnerIds.length}명`);
 
         // 2️⃣ 이 파트너들의 소속 사용자 ID 조회
         const { data: partnerUsers, error: usersError } = await supabase
@@ -229,14 +229,14 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
           .in('partner_id', allPartnerIds);
 
         if (usersError) {
-          console.error('❌ [BenzProfile] 조직 사용자 조회 실패:', usersError);
+          // console.error('❌ [BenzProfile] 조직 사용자 조회 실패:', usersError);
           return;
         }
 
         const userIds = (partnerUsers || []).map((u: any) => u.id);
         const usernames = (partnerUsers || []).map((u: any) => u.username);
-        console.log(`   👥 조직 소속 사용자: ${userIds.length}명 (ID), ${usernames.length}명 (username)`);
-        console.log(`      사용자 목록:`, usernames.slice(0, 5), usernames.length > 5 ? '...' : '');
+        // console.log(`   👥 조직 소속 사용자: ${userIds.length}명 (ID), ${usernames.length}명 (username)`);
+        // console.log(`      사용자 목록:`, usernames.slice(0, 5), usernames.length > 5 ? '...' : '');
 
         // 3️⃣ 조직 내 모든 사용자의 베팅 기록 조회 (user_id와 username 둘 다 필터링)
         if (userIds.length > 0) {
@@ -264,11 +264,11 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
             .limit(50);
 
           if (error) {
-            console.error('❌ [BenzProfile] 베팅 내역 조회 오류:', error);
+            // console.error('❌ [BenzProfile] 베팅 내역 조회 오류:', error);
             throw error;
           }
 
-          console.log(`   ✅ 베팅 내역 ${data?.length || 0}건 조회 완료`);
+          // console.log(`   ✅ 베팅 내역 ${data?.length || 0}건 조회 완료`);
           
           const records: GameRecord[] = (data || []).map((record: any) => ({
             id: record.id,
@@ -289,13 +289,13 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
           
           setGameRecords(records);
         } else {
-          console.log('   ⚠️ 조직 사용자가 없습니다.');
+          // console.log('   ⚠️ 조직 사용자가 없습니다.');
           setGameRecords([]);
         }
 
       } else if (user.level === 0) {
         // Lv0(회원): 자신의 베팅 기록만 조회
-        console.log(`✅ [BenzProfile] Lv0 - 자신의 베팅 기록 조회`);
+        // console.log(`✅ [BenzProfile] Lv0 - 자신의 베팅 기록 조회`);
         
         const { data, error } = await supabase
           .from('game_records')
@@ -320,11 +320,11 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
           .limit(50);
 
         if (error) {
-          console.error('❌ [BenzProfile] 베팅 내역 조회 오류:', error);
+          // console.error('❌ [BenzProfile] 베팅 내역 조회 오류:', error);
           throw error;
         }
 
-        console.log(`✅ [BenzProfile] 자신의 베팅 내역 ${data?.length || 0}건 조회 완료`);
+        // console.log(`✅ [BenzProfile] 자신의 베팅 내역 ${data?.length || 0}건 조회 완료`);
         
         const records: GameRecord[] = (data || []).map((record: any) => ({
           id: record.id,
@@ -453,13 +453,13 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
 
     // ✅ 이미 데이터가 로드되었으면 다시 호출하지 않음 (중복 방지)
     if (dataLoadedRef.current) {
-      console.log('🔄 [BenzProfile] 데이터 이미 로드됨, 건너뜀');
+      // console.log('🔄 [BenzProfile] 데이터 이미 로드됨, 건너뜀');
       return;
     }
 
     const loadData = async () => {
       setIsLoading(true);
-      console.log('🚀 [BenzProfile] 데이터 로드 시작');
+      // console.log('🚀 [BenzProfile] 데이터 로드 시작');
       await Promise.all([
         fetchCurrentBalance(),
         fetchPointTransactions(),
@@ -467,7 +467,7 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
       ]);
       dataLoadedRef.current = true; // ✅ 로드 완료 표시
       setIsLoading(false);
-      console.log('✅ [BenzProfile] 데이터 로드 완료');
+      // console.log('✅ [BenzProfile] 데이터 로드 완료');
     };
 
     loadData();

@@ -63,7 +63,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           onLogout();
         }
       } catch (error) {
-        console.error('❌ [BenzLayout] is_online 확인 실패:', error);
+        // console.error('❌ [BenzLayout] is_online 확인 실패:', error);
       }
     };
 
@@ -75,7 +75,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   // ==========================================================================
   useEffect(() => {
     const handleBeforeUnload = (event: Event) => {
-      // alert('🔴 창 닫음 감지! onLogout: ' + (onLogout ? 'YES' : 'NO'));
+      alert('🔴 창 닫음 감지! onLogout: ' + (onLogout ? 'YES' : 'NO'));
       if (onLogout) {
         onLogout();
       }
@@ -141,7 +141,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   const fetchBalance = async () => {
     if (!user?.id || !isMountedRef.current) return;
     
-    console.log('🔍 [Benz] 보유금 조회 시작 - user_id:', user.id);
+    // console.log('🔍 [Benz] 보유금 조회 시작 - user_id:', user.id);
     
     try {
       // 1. 게임 실행 중인지 먼저 확인 (active 세션이 있는지)
@@ -155,7 +155,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
       // 2. 게임 실행 중이면 세션의 balance_before 사용
       if (activeSessions && activeSessions.length > 0) {
         const sessionBalance = parseFloat(activeSessions[0].balance_before) || 0;
-        console.log(`🎮 [Benz] 게임 실행 중 감지, 세션 잔고 사용: ${sessionBalance}원`);
+        // console.log(`🎮 [Benz] 게임 실행 중 감지, 세션 잔고 사용: ${sessionBalance}원`);
         
         // 포인트만 DB에서 조회
         const { data } = await supabase
@@ -169,7 +169,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           points: parseFloat(data?.points || 0)
         };
         
-        console.log('✅ [Benz] 보유금 설정 (게임 중):', newBalance);
+        // console.log('✅ [Benz] 보유금 설정 (게임 중):', newBalance);
         setUserBalance(newBalance);
         return; // 여기서 종료
       }
@@ -184,7 +184,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
       console.log('📊 [Benz] DB 조회 결과:', { data, error });
 
       if (error) {
-        console.error('❌ [Benz] 보유금 조회 오류:', error);
+        // console.error('❌ [Benz] 보유금 조회 오류:', error);
         throw error;
       }
       
@@ -194,11 +194,11 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           points: parseFloat(data.points) || 0
         };
         
-        console.log('✅ [Benz] 보유금 설정 (일반):', newBalance);
+        // console.log('✅ [Benz] 보유금 설정 (일반):', newBalance);
         setUserBalance(newBalance);
       }
     } catch (error) {
-      console.error('❌ [Benz] 잔고 조회 오류:', error);
+      // console.error('❌ [Benz] 잔고 조회 오류:', error);
     }
   };
 
@@ -228,7 +228,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
     fetchBalance();
 
     return () => {
-      console.log('🔴 [Benz] 컴포넌트 언마운트:', user.id);
+      // console.log('🔴 [Benz] 컴포넌트 언마운트:', user.id);
       isMountedRef.current = false;
     };
   }, [user?.id]);
@@ -238,13 +238,13 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   // ==========================================================================
   const syncBalanceForSession = async (sessionId: number) => {
     if (syncingSessionsRef.current.has(sessionId)) {
-      console.log(`⏭️ [Benz 보유금 동기화] 이미 진행 중: 세션 ${sessionId}`);
+      // console.log(`⏭️ [Benz 보유금 동기화] 이미 진행 중: 세션 ${sessionId}`);
       return;
     }
 
     try {
       syncingSessionsRef.current.add(sessionId);
-      console.log(`💰 [Benz 보유금 동기화] 시작: 세션 ${sessionId}`);
+      // console.log(`💰 [Benz 보유금 동기화] 시작: 세션 ${sessionId}`);
 
       // 1. 세션 정보 조회
       const { data: session, error: sessionError } = await supabase
@@ -254,13 +254,13 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         .single();
 
       if (sessionError || !session) {
-        console.error(`❌ [Benz 보유금 동기화] 세션 조회 실패:`, sessionError);
+        // console.error(`❌ [Benz 보유금 동기화] 세션 조회 실패:`, sessionError);
         return;
       }
 
       // status='active'인 세션만 동기화
       if (session.status !== 'active') {
-        console.log(`⏭️ [Benz 보유금 동기화] 스킵 (세션 ${sessionId}): status=${session.status}`);
+        // console.log(`⏭️ [Benz 보유금 동기화] 스킵 (세션 ${sessionId}): status=${session.status}`);
         return;
       }
 
@@ -272,7 +272,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         .single();
 
       if (userError || !userData) {
-        console.error(`❌ [Benz 보유금 동기화] 사용자 정보 조회 실패:`, userError);
+        // console.error(`❌ [Benz 보유금 동기화] 사용자 정보 조회 실패:`, userError);
         return;
       }
 
@@ -281,7 +281,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
       // 3. referrer_id를 따라 최상위 Lv1 파트너 찾기
       let currentPartnerId = userData.referrer_id;
       if (!currentPartnerId) {
-        console.error(`❌ [Benz 보유금 동기화] referrer_id 없음: user_id=${session.user_id}`);
+        // console.error(`❌ [Benz 보유금 동기화] referrer_id 없음: user_id=${session.user_id}`);
         return;
       }
 
@@ -297,13 +297,13 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           .single();
 
         if (partnerError || !partnerData) {
-          console.error(`❌ [Benz 보유금 동기화] 파트너 정보 없음: partner_id=${currentPartnerId}`);
+          // console.error(`❌ [Benz 보유금 동기화] 파트너 정보 없음: partner_id=${currentPartnerId}`);
           break;
         }
 
         if (partnerData.level === 1 || !partnerData.parent_id) {
           topLevelPartnerId = partnerData.id;
-          console.log(`   ✅ 최상위 Lv1 파트너 찾음: ${topLevelPartnerId}`);
+          // console.log(`   ✅ 최상위 Lv1 파트너 찾음: ${topLevelPartnerId}`);
           break;
         }
 
@@ -312,7 +312,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
       }
 
       if (iterations >= maxIterations) {
-        console.error(`❌ [Benz 보유금 동기화] 최상위 파트너 찾기 실패`);
+        // console.error(`❌ [Benz 보유금 동기화] 최상위 파트너 찾기 실패`);
         return;
       }
 
@@ -324,7 +324,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         .single();
 
       if (sessionDataError || !sessionData) {
-        console.error(`❌ [Benz 보유금 동기화] 세션 api_type 조회 실패:`, sessionDataError);
+        // console.error(`❌ [Benz 보유금 동기화] 세션 api_type 조회 실패:`, sessionDataError);
         return;
       }
 
@@ -341,11 +341,11 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
         .single();
 
       if (configError || !apiConfig || !apiConfig.opcode || !apiConfig.token || !apiConfig.secret_key) {
-        console.error(`❌ [Benz 보유금 동기화] API 설정 누락: partner_id=${topLevelPartnerId}, api_type=${sessionData.api_type}`, configError);
+        // console.error(`❌ [Benz 보유금 동기화] API 설정 누락: partner_id=${topLevelPartnerId}, api_type=${sessionData.api_type}`, configError);
         return;
       }
 
-      console.log(`   📍 사용 credential: partner_id=${topLevelPartnerId}, api_type=${sessionData.api_type}`);
+      // console.log(`   📍 사용 credential: partner_id=${topLevelPartnerId}, api_type=${sessionData.api_type}`);
 
       // 6. 보유금 조회 (출금 없이 조회만)
       const balanceResult = await getUserBalanceWithConfig(
@@ -361,12 +361,12 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           .update({ balance: balanceResult.balance })
           .eq('id', session.user_id);
 
-        console.log(`✅ [Benz 보유금 동기화] 완료: 세션 ${sessionId}, 잔고 ${balanceResult.balance}`);
+        // console.log(`✅ [Benz 보유금 동기화] 완료: 세션 ${sessionId}, 잔고 ${balanceResult.balance}`);
       } else {
-        console.error(`❌ [Benz 보유금 동기화] API 실패: ${balanceResult.error}`);
+        // console.error(`❌ [Benz 보유금 동기화] API 실패: ${balanceResult.error}`);
       }
     } catch (error) {
-      console.error(`❌ [Benz 보유금 동기화] 오류:`, error);
+      // console.error(`❌ [Benz 보유금 동기화] 오류:`, error);
     } finally {
       syncingSessionsRef.current.delete(sessionId);
     }
@@ -397,7 +397,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           .single();
 
         if (sessionError || !session) {
-          console.error('❌ [게임 종료] 세션 조회 실패:', sessionError);
+          // console.error('❌ [게임 종료] 세션 조회 실패:', sessionError);
           return;
         }
 
@@ -427,16 +427,16 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
               balance: updatedUser.balance || 0,
               points: updatedUser.points || 0
             });
-            console.log('✅ [보유금 업데이트] UI 반영 완료:', {
-              balance: updatedUser.balance,
-              points: updatedUser.points
-            });
+            // console.log('✅ [보유금 업데이트] UI 반영 완료:', {
+            //   balance: updatedUser.balance,
+            //   points: updatedUser.points
+            // });
           }
         } finally {
           syncingSessionsRef.current.delete(sessionId);
         }
       } catch (error) {
-        console.error('❌ [게임 종료 오류]:', error);
+        // console.error('❌ [게임 종료 오류]:', error);
         syncingSessionsRef.current.delete(sessionId);
         
         // 에러 발생 시에도 세션은 종료
@@ -449,7 +449,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
             })
             .eq('id', sessionId);
         } catch (e) {
-          console.error('❌ [세션 종료 실패]:', e);
+          // console.error('❌ [세션 종료 실패]:', e);
         }
       }
     };
@@ -467,7 +467,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   useEffect(() => {
     if (!user?.id) return;
 
-    console.log('🔴 [Benz 세션 감지] 구독 시작:', user.id);
+    // console.log('🔴 [Benz 세션 감지] 구독 시작:', user.id);
 
     sessionChannelRef.current = supabase
       .channel(`benz_session_status_${user.id}`)
@@ -485,7 +485,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
           if (oldSession?.status === 'active' && 
               ['ended', 'force_ended'].includes(newSession.status)) {
             
-            console.log('🛑 [Benz 세션 종료]', newSession.id, newSession.status);
+            // console.log('🛑 [Benz 세션 종료]', newSession.id, newSession.status);
             
             // 게임창 닫기
             (window as any).forceCloseGameWindow?.(newSession.id);
@@ -503,7 +503,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
       .subscribe();
 
     return () => {
-      console.log('🔴 [Benz 세션 감지] 구독 종료');
+      // console.log('🔴 [Benz 세션 감지] 구독 종료');
       if (sessionChannelRef.current) {
         supabase.removeChannel(sessionChannelRef.current);
         sessionChannelRef.current = null;
@@ -517,7 +517,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
   useEffect(() => {
     if (!user?.id) return;
 
-    console.log('💰 [Benz 보유금 Realtime] 구독 시작:', user.id);
+    // console.log('💰 [Benz 보유금 Realtime] 구독 시작:', user.id);
 
     const balanceChannelRef = supabase
       .channel(`benz_user_balance_${user.id}`)
@@ -539,11 +539,11 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
               points: updatedUser.points ?? userBalance.points
             };
 
-            console.log('✅ [Benz 보유금 Realtime] 변경 감지:', {
-              before: userBalance,
-              after: newBalance,
-              changed: updatedUser
-            });
+            // console.log('✅ [Benz 보유금 Realtime] 변경 감지:', {
+            //   before: userBalance,
+            //   after: newBalance,
+            //   changed: updatedUser
+            // });
 
             // 상태 업데이트
             setUserBalance(newBalance);
@@ -555,7 +555,7 @@ export function BenzLayout({ user, currentRoute, onRouteChange, onLogout, onOpen
       .subscribe();
 
     return () => {
-      console.log('💰 [Benz 보유금 Realtime] 구독 종료');
+      // console.log('💰 [Benz 보유금 Realtime] 구독 종료');
       supabase.removeChannel(balanceChannelRef);
     };
   }, [user?.id, userBalance.balance, userBalance.points]);

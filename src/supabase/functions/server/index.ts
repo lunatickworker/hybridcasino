@@ -1,4 +1,4 @@
-console.log('🚀 [STARTUP] Edge Function 시작');
+// console.log('🚀 [STARTUP] Edge Function 시작');
 
 // =====================================================
 // Supabase 클라이언트 초기화

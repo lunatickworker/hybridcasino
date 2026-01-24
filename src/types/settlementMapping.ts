@@ -107,18 +107,18 @@ if (process.env.NODE_ENV === 'development') {
       { name: 'AdvancedSettlement', types: SETTLEMENT_ADVANCED }
     ];
 
-    console.log('📊 정산 페이지 매핑 검증');
-    console.log('================================');
+    // console.log('📊 정산 페이지 매핑 검증');
+    // console.log('================================');
 
     pages.forEach(page => {
-      console.log(`\n✅ ${page.name}`);
-      console.log(`   지원 거래 타입: ${page.types.length}개`);
+      // console.log(`\n✅ ${page.name}`);
+      // console.log(`   지원 거래 타입: ${page.types.length}개`);
       page.types.forEach(type => {
-        console.log(`   - ${type}`);
+        // console.log(`   - ${type}`);
       });
     });
 
-    console.log('\n================================');
-    console.log('✅ 검증 완료');
+    // console.log('\n================================');
+    // console.log('✅ 검증 완료');
   }
 }
