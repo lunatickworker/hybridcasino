@@ -1,0 +1,43 @@
+{
+  "jsc": {
+    "parser": {
+      "syntax": "typescript",
+      "tsx": true,
+      "decorators": false,
+      "dynamicImport": true
+    },
+    "transform": {
+      "react": {
+        "runtime": "automatic"
+      }
+    },
+    "minify": {
+      "compress": {
+        "drop_console": true,
+        "drop_debugger": true,
+        "passes": 3
+      },
+      "format": {
+        "comments": false
+      }
+    }
+  },
+  "minify": true,
+  "sourceMap": false,
+  "env": {
+    "production": {
+      "jsc": {
+        "minify": {
+          "compress": {
+            "drop_console": true,
+            "drop_debugger": true,
+            "passes": 3
+          },
+          "format": {
+            "comments": false
+          }
+        }
+      }
+    }
+  }
+}
