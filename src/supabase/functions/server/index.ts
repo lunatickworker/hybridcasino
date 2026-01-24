@@ -18,7 +18,7 @@ const PROXY_URL = Deno.env.get('PROXY_URL') || 'https://vi8282.com/proxy';
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-client-info, apikey',
 };
 
 Deno.serve(async (req: Request) => {
