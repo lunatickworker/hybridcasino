@@ -451,12 +451,28 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
     const toastId = toast.loading(t.partnerCreation.creatingPartner);
     
     try {
-      // 1. 아이디 중복 체크 (partners + users 테이블 모두 확인)
-      const { data: existingPartner } = await supabase
-        .from('partners')
-        .select('id')
-        .eq('username', formData.username)
-        .maybeSingle();
+      // 1. 아이디 중복 체크 (조직 격리: Lv2+ 사용자는 자신의 하위 파트너만 검사)
+      let existingPartner = null;
+      let existingUser = null;
+
+      if (user.level >= 2) {
+        // Lv2+: 자신의 하위 파트너들 중에서만 검사
+        const { data: dupPartner } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('username', formData.username)
+          .eq('parent_id', user.id)
+          .maybeSingle();
+        existingPartner = dupPartner;
+      } else {
+        // Lv1: 전체 파트너 테이블에서 검사
+        const { data: dupPartner } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('username', formData.username)
+          .maybeSingle();
+        existingPartner = dupPartner;
+      }
 
       if (existingPartner) {
         toast.error(t.partnerCreation.duplicatePartner.replace('{{username}}', formData.username), { id: toastId });
@@ -464,16 +480,20 @@ export function PartnerCreation({ user }: PartnerCreationProps) {
         return;
       }
 
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id')
-        .eq('username', formData.username)
-        .maybeSingle();
+      // users 테이블은 Lv1만 검사 (Lv2+는 회원 관리 권한이 없으므로 검사하지 않음)
+      if (user.level === 1) {
+        const { data: dupUser } = await supabase
+          .from('users')
+          .select('id')
+          .eq('username', formData.username)
+          .maybeSingle();
+        existingUser = dupUser;
 
-      if (existingUser) {
-        toast.error(t.partnerCreation.duplicateUser.replace('{{username}}', formData.username), { id: toastId });
-        setSaving(false);
-        return;
+        if (existingUser) {
+          toast.error(t.partnerCreation.duplicateUser.replace('{{username}}', formData.username), { id: toastId });
+          setSaving(false);
+          return;
+        }
       }
 
       // 2. 실제 parent_id 결정

@@ -806,6 +806,13 @@ export function UserManagement() {
       return;
     }
 
+    // 조직설정 검증
+    if (!formData.selected_referrer_id) {
+      toast.error('소속 파트너를 선택해야 합니다.');
+      setShowCreateDialog(true);
+      return;
+    }
+
     // 중복 실행 방지
     if (createUserLoading) {
       console.warn('⚠️ 회원 생성이 이미 진행 중입니다.');
@@ -844,27 +851,47 @@ export function UserManagement() {
       console.log('👤 새 회원 생성 시작:', userData.username);
       toast.loading(`[1/4] 아이디 중복 확인 중... (${userData.username})`, { id: 'create-user' });
 
-      // 0. 아이디 중복 체크 (users + partners 테이블 모두 확인)
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id')
-        .eq('username', userData.username)
-        .maybeSingle();
+      // 0. 아이디 중복 체크 (조직 격리: Lv2+ 사용자는 자신의 하위 회원만 검사)
+      let existingUser = null;
+      let existingPartner = null;
+
+      if (authState.user?.level >= 2) {
+        // Lv2+: 자신의 하위 회원들 중에서만 검사
+        const { data: dupUser } = await supabase
+          .from('users')
+          .select('id')
+          .eq('username', userData.username)
+          .eq('referrer_id', authState.user.id)
+          .maybeSingle();
+        existingUser = dupUser;
+      } else {
+        // Lv1: 전체 회원 테이블에서 검사
+        const { data: dupUser } = await supabase
+          .from('users')
+          .select('id')
+          .eq('username', userData.username)
+          .maybeSingle();
+        existingUser = dupUser;
+      }
 
       if (existingUser) {
         toast.error(`이미 사용 중인 아이디입니다 (회원): ${userData.username}`, { id: 'create-user' });
         return;
       }
 
-      const { data: existingPartner } = await supabase
-        .from('partners')
-        .select('id')
-        .eq('username', userData.username)
-        .maybeSingle();
+      // partners 테이블은 Lv1만 검사 (Lv2+는 파트너 관리 권한이 없으므로 검사하지 않음)
+      if (authState.user?.level === 1) {
+        const { data: dupPartner } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('username', userData.username)
+          .maybeSingle();
+        existingPartner = dupPartner;
 
-      if (existingPartner) {
-        toast.error(`이미 사용 중인 아이디입니다 (파트너): ${userData.username}`, { id: 'create-user' });
-        return;
+        if (existingPartner) {
+          toast.error(`이미 사용 중인 아이디입니다 (파트너): ${userData.username}`, { id: 'create-user' });
+          return;
+        }
       }
 
       toast.loading(`[2/4] DB에 회원 정보 저장 중... (${userData.username})`, { id: 'create-user' });
@@ -2471,7 +2498,7 @@ export function UserManagement() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 pb-1.5 border-b border-slate-700/50">
                     <div className="w-1 h-5 bg-gradient-to-b from-purple-400 to-pink-400 rounded-full"></div>
-                    <h4 className="text-base font-semibold text-slate-200">조직 설정</h4>
+                    <h4 className="text-base font-semibold text-slate-200">조직 설정 <span className="text-red-400">*</span></h4>
                   </div>
                   
                   {/* 3단 필터 - 한 줄에 3열 */}
@@ -2508,7 +2535,7 @@ export function UserManagement() {
                     
                     {/* 2단: 파트너 아이디 드롭다운 */}
                     <div className="space-y-1.5">
-                      <Label className="text-slate-300 text-xs">파트너 아이디</Label>
+                      <Label className="text-slate-300 text-xs">파트너 아이디 <span className="text-red-400">*</span></Label>
                       <Select 
                         value={formData.selected_referrer_id || undefined} 
                         onValueChange={(value) => setFormData(prev => ({ ...prev, selected_referrer_id: value }))}

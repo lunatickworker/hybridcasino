@@ -2460,15 +2460,23 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     {/* 카지노 롤링 */}
                     <div 
                       onClick={() => {
-                        const settlement = latestSettlements.find(s => 
+                        if (commissionBalances.casino_rolling <= 0) {
+                          toast.info('전환 가능한 카지노 롤링 커미션이 없습니다.');
+                          return;
+                        }
+                        let settlement = latestSettlements.find(s => 
                           (s.casino_rolling_commission || 0) > 0 && 
                           !s.conversion_status?.casino_rolling
                         );
-                        if (settlement) {
-                          handleCommissionClick(settlement, 'casino_rolling', commissionBalances.casino_rolling);
-                        } else {
-                          toast.info('전환 가능한 카지노 롤링 커미션이 없습니다.');
+                        // ✅ settlement가 없으면 실시간 커미션용 임시 객체 생성
+                        if (!settlement) {
+                          settlement = {
+                            id: `realtime-${Date.now()}`,
+                            casino_rolling_commission: commissionBalances.casino_rolling,
+                            conversion_status: { casino_rolling: false }
+                          };
                         }
+                        handleCommissionClick(settlement, 'casino_rolling', commissionBalances.casino_rolling);
                       }}
                       className={cn(
                         "p-2 rounded-lg border cursor-pointer transition-all",
@@ -2489,15 +2497,23 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     {/* 카지노 루징 */}
                     <div 
                       onClick={() => {
-                        const settlement = latestSettlements.find(s => 
+                        if (commissionBalances.casino_losing <= 0) {
+                          toast.info('전환 가능한 카지노 루징 커미션이 없습니다.');
+                          return;
+                        }
+                        let settlement = latestSettlements.find(s => 
                           (s.casino_losing_commission || 0) > 0 && 
                           !s.conversion_status?.casino_losing
                         );
-                        if (settlement) {
-                          handleCommissionClick(settlement, 'casino_losing', commissionBalances.casino_losing);
-                        } else {
-                          toast.info('전환 가능한 카지노 루징 커미션이 없습니다.');
+                        // ✅ settlement가 없으면 실시간 커미션용 임시 객체 생성
+                        if (!settlement) {
+                          settlement = {
+                            id: `realtime-${Date.now()}`,
+                            casino_losing_commission: commissionBalances.casino_losing,
+                            conversion_status: { casino_losing: false }
+                          };
                         }
+                        handleCommissionClick(settlement, 'casino_losing', commissionBalances.casino_losing);
                       }}
                       className={cn(
                         "p-2 rounded-lg border cursor-pointer transition-all",
@@ -2518,15 +2534,23 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     {/* 슬롯 롤링 */}
                     <div 
                       onClick={() => {
-                        const settlement = latestSettlements.find(s => 
+                        if (commissionBalances.slot_rolling <= 0) {
+                          toast.info('전환 가능한 슬롯 롤링 커미션이 없습니다.');
+                          return;
+                        }
+                        let settlement = latestSettlements.find(s => 
                           (s.slot_rolling_commission || 0) > 0 && 
                           !s.conversion_status?.slot_rolling
                         );
-                        if (settlement) {
-                          handleCommissionClick(settlement, 'slot_rolling', commissionBalances.slot_rolling);
-                        } else {
-                          toast.info('전환 가능한 슬롯 롤링 커미션이 없습니다.');
+                        // ✅ settlement가 없으면 실시간 커미션용 임시 객체 생성
+                        if (!settlement) {
+                          settlement = {
+                            id: `realtime-${Date.now()}`,
+                            slot_rolling_commission: commissionBalances.slot_rolling,
+                            conversion_status: { slot_rolling: false }
+                          };
                         }
+                        handleCommissionClick(settlement, 'slot_rolling', commissionBalances.slot_rolling);
                       }}
                       className={cn(
                         "p-2 rounded-lg border cursor-pointer transition-all",
@@ -2547,15 +2571,23 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     {/* 슬롯 루징 */}
                     <div 
                       onClick={() => {
-                        const settlement = latestSettlements.find(s => 
+                        if (commissionBalances.slot_losing <= 0) {
+                          toast.info('전환 가능한 슬롯 루징 커미션이 없습니다.');
+                          return;
+                        }
+                        let settlement = latestSettlements.find(s => 
                           (s.slot_losing_commission || 0) > 0 && 
                           !s.conversion_status?.slot_losing
                         );
-                        if (settlement) {
-                          handleCommissionClick(settlement, 'slot_losing', commissionBalances.slot_losing);
-                        } else {
-                          toast.info('전환 가능한 슬롯 루징 커미션이 없습니다.');
+                        // ✅ settlement가 없으면 실시간 커미션용 임시 객체 생성
+                        if (!settlement) {
+                          settlement = {
+                            id: `realtime-${Date.now()}`,
+                            slot_losing_commission: commissionBalances.slot_losing,
+                            conversion_status: { slot_losing: false }
+                          };
                         }
+                        handleCommissionClick(settlement, 'slot_losing', commissionBalances.slot_losing);
                       }}
                       className={cn(
                         "p-2 rounded-lg border cursor-pointer transition-all",

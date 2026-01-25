@@ -305,6 +305,23 @@ export function PartnerFormDialog({
           return;
         }
 
+        // 🆕 아이디 중복 체크 (조직 격리: userLevel >= 2인 경우 자신의 하위 파트너만 검사)
+        if (userLevel && userLevel >= 2) {
+          // Lv2+: 자신의 하위 파트너들 중에서만 검사
+          const { data: existingPartner } = await supabase
+            .from('partners')
+            .select('id')
+            .eq('username', formData.username.trim())
+            .eq('parent_id', currentUserId)
+            .maybeSingle();
+          
+          if (existingPartner) {
+            toast.error(`이미 사용 중인 아이디입니다: ${formData.username}`);
+            setLoading(false);
+            return;
+          }
+        }
+
         const newPartnerId = crypto.randomUUID();
 
         // 실제 parent_id 결정: selected_parent_id가 있으면 우선, 없으면 parent_id
