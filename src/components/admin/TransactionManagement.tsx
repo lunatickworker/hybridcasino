@@ -436,9 +436,33 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
             if (user.level === 1) {
               // Lv1: 제약 없음 (모든 거래 조회)
             } else if (user.level === 2) {
-              // Lv2: 자신의 하위 조직 파트너 요청만 조회
+              // Lv2: 자신의 하위 조직 파트너 요청 + 본인이 수신자인 파트너 요청
               if (partnerIds && partnerIds.length > 0) {
-                query = query.in('partner_id', partnerIds);
+                // partner_deposit_request인 경우: to_partner_id = 본인 또는 partner_id가 하위 파트너
+                // 일반 deposit인 경우: partner_id가 하위 파트너
+                const partnerReqs = await supabase
+                  .from('transactions')
+                  .select('*')
+                  .in('status', statuses)
+                  .in('transaction_type', txnTypes)
+                  .or(`partner_id.in.(${partnerIds.join(',')}),to_partner_id.eq.${user.id}`);
+                
+                const userReqs = await supabase
+                  .from('transactions')
+                  .select('*')
+                  .in('status', statuses)
+                  .in('transaction_type', ['deposit', 'withdrawal'])
+                  .in('partner_id', partnerIds);
+                
+                const combined = [
+                  ...(partnerReqs.data || []),
+                  ...(userReqs.data || [])
+                ];
+                
+                // 중복 제거
+                const uniqueById = new Map();
+                combined.forEach(tx => uniqueById.set(tx.id, tx));
+                return { data: Array.from(uniqueById.values()), error: partnerReqs.error || userReqs.error };
               }
             } else if (user.level > 2) {
               // ✅ Lv3+: 본인 신청(pending + rejected)은 봄
