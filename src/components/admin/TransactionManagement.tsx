@@ -3340,7 +3340,7 @@ export function TransactionManagement({ user }: TransactionManagementProps) {
           <TabsContent value="completed-history" className="compact-table">
             <DataTable
               searchable={false}
-              columns={getColumns(true)}
+              columns={getColumns(false)}
               data={completedTransactions}
               loading={initialLoading || refreshing}
               emptyMessage={t.transactionManagement.noTransactionHistory}
