@@ -825,53 +825,88 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
                       베팅 내역이 없습니다.
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {gameRecords.map((record) => (
+                    <div className="space-y-0">
+                      {/* 테이블 헤더 - 데스크톱에서만 표시 */}
+                      <div className="hidden sm:flex px-4 py-3 rounded-t-lg font-semibold text-xs text-gray-400 mb-1 border-b"
+                        style={{ borderColor: 'rgba(193, 154, 107, 0.2)' }}>
+                        <div className="flex-1">게임명</div>
+                        <div className="flex items-center justify-end gap-6 flex-shrink-0">
+                          <div className="w-16 text-right">베팅</div>
+                          <div className="w-16 text-right">적중</div>
+                          <div className="w-20 text-right">수익</div>
+                        </div>
+                      </div>
+
+                      {/* 베팅 내역 리스트 */}
+                      <div className="space-y-2">
+                        {gameRecords.map((record) => (
                         <div
                           key={record.id}
-                          className="p-4 rounded-lg border transition-all hover:scale-[1.01]"
+                          className="px-4 py-3 rounded-lg border transition-all hover:scale-[1.005] hover:shadow-lg"
                           style={{
-                            background: 'rgba(0, 0, 0, 0.3)',
-                            borderColor: 'rgba(193, 154, 107, 0.2)'
+                            background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.2) 100%)',
+                            borderColor: 'rgba(193, 154, 107, 0.3)',
+                            borderWidth: '1px'
                           }}
                         >
-                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                            <div className="flex-1">
+                          {/* 한 줄 레이아웃 - 모바일 친화적 */}
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+                            {/* 게임 정보 (왼쪽) */}
+                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="font-semibold" style={{ color: '#E6C9A8' }}>
+                                <span 
+                                  className="font-semibold truncate text-sm md:text-base" 
+                                  style={{ color: '#E6C9A8' }}
+                                  title={record.game_title}
+                                >
                                   {record.game_title || '게임'}
                                 </span>
-                                <span className="text-sm text-gray-400">
+                                <span className="text-xs text-gray-500 whitespace-nowrap">
                                   {record.provider_name || '제공사'}
                                 </span>
                               </div>
-                              <div className="text-sm text-gray-400">
+                              <div className="text-xs text-gray-400">
                                 {formatDateTime(record.played_at)}
                               </div>
                             </div>
-                            <div className="flex items-center gap-6">
-                              <div className="text-center">
-                                <div className="text-xs text-gray-400 mb-1">베팅</div>
-                                <div className="font-semibold text-red-400">
-                                  {formatCurrency(record.bet_amount)}원
+
+                            {/* 수치 정보 (오른쪽) - 한 줄 정렬 */}
+                            <div className="flex items-center justify-end sm:justify-end gap-4 md:gap-6 flex-shrink-0">
+                              {/* 베팅액 */}
+                              <div className="text-right">
+                                <div className="text-xs text-gray-500">베팅</div>
+                                <div className="font-semibold text-red-400 text-sm">
+                                  {formatCurrency(record.bet_amount)}
                                 </div>
                               </div>
-                              <div className="text-center">
-                                <div className="text-xs text-gray-400 mb-1">적중</div>
-                                <div className="font-semibold text-green-400">
-                                  {formatCurrency(record.win_amount)}원
+
+                              {/* 적중액 */}
+                              <div className="text-right">
+                                <div className="text-xs text-gray-500">적중</div>
+                                <div className="font-semibold text-green-400 text-sm">
+                                  {formatCurrency(record.win_amount)}
                                 </div>
                               </div>
-                              <div className="text-center">
-                                <div className="text-xs text-gray-400 mb-1">수익</div>
-                                <div className={`font-bold ${record.win_amount > record.bet_amount ? 'text-green-400' : 'text-red-400'}`}>
-                                  {record.win_amount > record.bet_amount ? '+' : ''}{formatCurrency(record.win_amount - record.bet_amount)}원
+
+                              {/* 수익/손실 (강조) */}
+                              <div className="text-right min-w-max">
+                                <div className="text-xs text-gray-500">수익</div>
+                                <div 
+                                  className={`font-bold text-sm ${
+                                    record.win_amount > record.bet_amount 
+                                      ? 'text-green-400' 
+                                      : 'text-red-400'
+                                  }`}
+                                >
+                                  {record.win_amount > record.bet_amount ? '+' : ''}
+                                  {formatCurrency(record.win_amount - record.bet_amount)}
                                 </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -894,57 +929,77 @@ export function BenzProfile({ user, onRouteChange, onOpenPointModal }: BenzProfi
                       포인트 내역이 없습니다.
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {pointTransactions.map((transaction) => {
-                        const isPositive = transaction.points_after > transaction.points_before;
-                        return (
-                          <div
-                            key={transaction.id}
-                            className="p-4 rounded-lg border transition-all hover:scale-[1.01]"
-                            style={{
-                              background: 'rgba(0, 0, 0, 0.3)',
-                              borderColor: 'rgba(193, 154, 107, 0.2)'
-                            }}
-                          >
-                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className={`font-semibold ${getPointTransactionColor(transaction.transaction_type)}`}>
-                                    {getPointTransactionLabel(transaction.transaction_type)}
-                                  </span>
-                                  {isPositive ? (
-                                    <TrendingUp className="w-4 h-4 text-green-400" />
-                                  ) : (
-                                    <TrendingDown className="w-4 h-4 text-red-400" />
+                    <div className="space-y-0">
+                      {/* 테이블 헤더 - 데스크톱에서만 표시 */}
+                      <div className="hidden sm:flex px-4 py-3 rounded-t-lg font-semibold text-xs text-gray-400 mb-1 border-b"
+                        style={{ borderColor: 'rgba(193, 154, 107, 0.2)' }}>
+                        <div className="flex-1">거래유형</div>
+                        <div className="flex items-center justify-end gap-6 flex-shrink-0">
+                          <div className="w-24 text-right">변동</div>
+                          <div className="w-20 text-right">조회</div>
+                        </div>
+                      </div>
+
+                      {/* 포인트 내역 리스트 */}
+                      <div className="space-y-2">
+                        {pointTransactions.map((transaction) => {
+                          const isPositive = transaction.points_after > transaction.points_before;
+                          return (
+                            <div
+                              key={transaction.id}
+                              className="px-4 py-3 rounded-lg border transition-all hover:scale-[1.005] hover:shadow-lg"
+                              style={{
+                                background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.2) 100%)',
+                                borderColor: 'rgba(193, 154, 107, 0.3)',
+                                borderWidth: '1px'
+                              }}
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+                                {/* 거래 정보 (왼쪽) */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={`font-semibold text-sm md:text-base ${getPointTransactionColor(transaction.transaction_type)}`}>
+                                      {getPointTransactionLabel(transaction.transaction_type)}
+                                    </span>
+                                    {isPositive ? (
+                                      <TrendingUp className="w-4 h-4 text-green-400 flex-shrink-0" />
+                                    ) : (
+                                      <TrendingDown className="w-4 h-4 text-red-400 flex-shrink-0" />
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    {formatDateTime(transaction.created_at)}
+                                  </div>
+                                  {transaction.memo && (
+                                    <div className="text-xs text-gray-500 mt-1 truncate">
+                                      {transaction.memo}
+                                    </div>
                                   )}
                                 </div>
-                                <div className="text-sm text-gray-400">
-                                  {formatDateTime(transaction.created_at)}
-                                </div>
-                                {transaction.memo && (
-                                  <div className="text-sm text-gray-500 mt-1">
-                                    {transaction.memo}
+
+                                {/* 수치 정보 (오른쪽) - 한 줄 정렬 */}
+                                <div className="flex items-center justify-end sm:justify-end gap-4 md:gap-6 flex-shrink-0">
+                                  {/* 변동액 */}
+                                  <div className="text-right">
+                                    <div className="text-xs text-gray-500">변동</div>
+                                    <div className={`font-bold text-sm ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                                      {isPositive ? '+' : ''}{formatCurrency(transaction.amount)}P
+                                    </div>
                                   </div>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-6">
-                                <div className="text-center">
-                                  <div className="text-xs text-gray-400 mb-1">변동</div>
-                                  <div className={`font-bold text-lg ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
-                                    {isPositive ? '+' : ''}{formatCurrency(transaction.amount)}P
-                                  </div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-xs text-gray-400 mb-1">잔액</div>
-                                  <div className="font-semibold text-yellow-400">
-                                    {formatCurrency(transaction.points_after)}P
+
+                                  {/* 변경 후 포인트 */}
+                                  <div className="text-right min-w-max">
+                                    <div className="text-xs text-gray-500">조회</div>
+                                    <div className="font-semibold text-sm" style={{ color: '#E6C9A8' }}>
+                                      {formatCurrency(transaction.points_after)}P
+                                    </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </CardContent>
