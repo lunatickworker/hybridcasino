@@ -359,28 +359,17 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
 
   const getFilteredRows = (rows: SettlementRow[]): SettlementRow[] => {
     let filtered = rows;
-    console.log('🔎 [getFilteredRows] 입력 rows:', filtered.length, '개');
-    
-    if (codeSearch.trim()) {
-      filtered = filtered.filter(r => r.username.toLowerCase().includes(codeSearch.toLowerCase()));
-      console.log('🔎 [getFilteredRows] 검색어 후:', filtered.length, '개');
-    }
-    
+    if (codeSearch.trim()) filtered = filtered.filter(r => r.username.toLowerCase().includes(codeSearch.toLowerCase()));
     if (partnerLevelFilter !== 'all') {
       // ✅ 파트너 필터링 + 자신의 직속 회원(Lv0) 항상 포함
       filtered = filtered.filter(r => r.level === partnerLevelFilter || (r.level === 0 && r.referrerId === user.id));
-      console.log('🔎 [getFilteredRows] 필터(level:', partnerLevelFilter, ') 후:', filtered.length, '개');
     }
-    
-    console.log('🔎 [getFilteredRows] 최종 필터된 rows:', filtered.map(r => `${r.username}(Lv${r.level})`));
     return filtered;
   };
 
   const getVisibleRows = (): SettlementRow[] => {
     const filtered = getFilteredRows(data);
     const visible: SettlementRow[] = [];
-    
-    console.error('❌ [getVisibleRows 시작] user.id:', user.id, '| filtered rows:', filtered.length);
     
     // 1️⃣ 파트너 계층 표시
     const addRowWithChildren = (row: SettlementRow) => {
@@ -396,27 +385,15 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
       if (!r.parentId) return true;
       return !filtered.some(parent => parent.id === r.parentId);
     });
-    console.error('❌ [파트너 계층] topLevelRows:', topLevelRows.length, '개');
     topLevelRows.forEach(row => addRowWithChildren(row));
     
-    console.error('❌ [파트너 추가 후] visible rows:', visible.length, '개');
-    
     // 2️⃣ 직속 회원(Lv0) 항상 표시
-    const directMembers = filtered.filter(r => {
-      const isDirectMember = r.level === 0 && r.referrerId === user.id;
-      console.error(`❌ 회원 체크: ${r.username} (Lv${r.level}) | referrerId=${r.referrerId} | user.id=${user.id} | 일치=${isDirectMember}`);
-      return isDirectMember;
-    });
-    
-    console.error('❌ [최종] directMembers:', directMembers.length, '개 ->', directMembers.map(m => m.username));
-    
+    const directMembers = filtered.filter(r => r.level === 0 && r.referrerId === user.id);
     directMembers.forEach(member => {
       if (!visible.some(v => v.id === member.id)) {
         visible.push(member);
       }
     });
-    
-    console.error('❌ [최종] visible rows:', visible.length, '개 ->', visible.map(r => `${r.username}(Lv${r.level})`));
     
     return visible;
   };
@@ -1126,12 +1103,6 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
   const visibleRows = getVisibleRows();
   const totalPages = Math.ceil(visibleRows.length / itemsPerPage);
   const paginatedRows = visibleRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  
-  // 🔍 디버깅 로그
-  console.log('📍 [NewIntegratedSettlement] data 전체:', data.length, '개');
-  console.log('📍 [NewIntegratedSettlement] visibleRows:', visibleRows.length, '개 ->', visibleRows.map(r => `${r.username}(Lv${r.level})`));
-  console.log('📍 [NewIntegratedSettlement] paginatedRows:', paginatedRows.length, '개');
-  console.log('📍 [NewIntegratedSettlement] currentPage:', currentPage, 'totalPages:', totalPages);
 
   const setQuickDateRange = (type: 'yesterday' | 'week' | 'month') => {
     const today = new Date();
