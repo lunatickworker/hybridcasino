@@ -359,14 +359,30 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
 
   const getFilteredRows = (rows: SettlementRow[]): SettlementRow[] => {
     let filtered = rows;
-    if (codeSearch.trim()) filtered = filtered.filter(r => r.username.toLowerCase().includes(codeSearch.toLowerCase()));
-    if (partnerLevelFilter !== 'all') filtered = filtered.filter(r => r.level === partnerLevelFilter);
+    console.log('🔎 [getFilteredRows] 입력 rows:', filtered.length, '개');
+    
+    if (codeSearch.trim()) {
+      filtered = filtered.filter(r => r.username.toLowerCase().includes(codeSearch.toLowerCase()));
+      console.log('🔎 [getFilteredRows] 검색어 후:', filtered.length, '개');
+    }
+    
+    if (partnerLevelFilter !== 'all') {
+      // ✅ 파트너 필터링 + 자신의 직속 회원(Lv0) 항상 포함
+      filtered = filtered.filter(r => r.level === partnerLevelFilter || (r.level === 0 && r.referrerId === user.id));
+      console.log('🔎 [getFilteredRows] 필터(level:', partnerLevelFilter, ') 후:', filtered.length, '개');
+    }
+    
+    console.log('🔎 [getFilteredRows] 최종 필터된 rows:', filtered.map(r => `${r.username}(Lv${r.level})`));
     return filtered;
   };
 
   const getVisibleRows = (): SettlementRow[] => {
     const filtered = getFilteredRows(data);
     const visible: SettlementRow[] = [];
+    
+    console.error('❌ [getVisibleRows 시작] user.id:', user.id, '| filtered rows:', filtered.length);
+    
+    // 1️⃣ 파트너 계층 표시
     const addRowWithChildren = (row: SettlementRow) => {
       visible.push(row);
       if (row.level > 0 && expandedRows.has(row.id)) {
@@ -374,8 +390,34 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
         childPartners.forEach(child => addRowWithChildren(child));
       }
     };
-    const topLevelRows = filtered.filter(r => { if (r.level === 0) return false; if (!r.parentId) return true; return !filtered.some(parent => parent.id === r.parentId); });
+    
+    const topLevelRows = filtered.filter(r => {
+      if (r.level === 0) return false; // Lv0은 여기서 제외
+      if (!r.parentId) return true;
+      return !filtered.some(parent => parent.id === r.parentId);
+    });
+    console.error('❌ [파트너 계층] topLevelRows:', topLevelRows.length, '개');
     topLevelRows.forEach(row => addRowWithChildren(row));
+    
+    console.error('❌ [파트너 추가 후] visible rows:', visible.length, '개');
+    
+    // 2️⃣ 직속 회원(Lv0) 항상 표시
+    const directMembers = filtered.filter(r => {
+      const isDirectMember = r.level === 0 && r.referrerId === user.id;
+      console.error(`❌ 회원 체크: ${r.username} (Lv${r.level}) | referrerId=${r.referrerId} | user.id=${user.id} | 일치=${isDirectMember}`);
+      return isDirectMember;
+    });
+    
+    console.error('❌ [최종] directMembers:', directMembers.length, '개 ->', directMembers.map(m => m.username));
+    
+    directMembers.forEach(member => {
+      if (!visible.some(v => v.id === member.id)) {
+        visible.push(member);
+      }
+    });
+    
+    console.error('❌ [최종] visible rows:', visible.length, '개 ->', visible.map(r => `${r.username}(Lv${r.level})`));
+    
     return visible;
   };
 
@@ -746,11 +788,11 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
     for (const partner of partners) {
       const hasChildren = partners.some(p => p.parent_id === partner.id) || users.some(u => u.referrer_id === partner.id);
       const row = calculateRowData(partner.id, partner.username, partner.level, partner.balance || 0, 0, partner.casino_rolling_commission || 0, partner.casino_losing_commission || 0, partner.slot_rolling_commission || 0, partner.slot_losing_commission || 0, depositWithdrawalTransactions, pointTransactions, gameRecords, partners, users, partnerBalanceLogs);
-      rows.push({ ...row, parentId: partner.parent_id, hasChildren });
+      rows.push({ ...row, parentId: partner.parent_id, referrerId: undefined, hasChildren });
     }
     for (const userItem of users) {
       const row = calculateRowData(userItem.id, userItem.username, 0, userItem.balance || 0, userItem.points || 0, userItem.casino_rolling_commission || userItem.casino_rolling_rate || 0, userItem.casino_losing_commission || userItem.casino_losing_rate || 0, userItem.slot_rolling_commission || userItem.slot_rolling_rate || 0, userItem.slot_losing_commission || userItem.slot_losing_rate || 0, depositWithdrawalTransactions, pointTransactions, gameRecords, partners, users, partnerBalanceLogs);
-      rows.push({ ...row, parentId: userItem.referrer_id, hasChildren: false });
+      rows.push({ ...row, parentId: userItem.referrer_id, referrerId: userItem.referrer_id, hasChildren: false });
     }
 
     // ✅ 두 번째 패스: directChildLosingSum을 자식들의 individualLosing 합산으로 재계산
@@ -1084,6 +1126,12 @@ export function NewIntegratedSettlement({ user }: NewIntegratedSettlementProps) 
   const visibleRows = getVisibleRows();
   const totalPages = Math.ceil(visibleRows.length / itemsPerPage);
   const paginatedRows = visibleRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  
+  // 🔍 디버깅 로그
+  console.log('📍 [NewIntegratedSettlement] data 전체:', data.length, '개');
+  console.log('📍 [NewIntegratedSettlement] visibleRows:', visibleRows.length, '개 ->', visibleRows.map(r => `${r.username}(Lv${r.level})`));
+  console.log('📍 [NewIntegratedSettlement] paginatedRows:', paginatedRows.length, '개');
+  console.log('📍 [NewIntegratedSettlement] currentPage:', currentPage, 'totalPages:', totalPages);
 
   const setQuickDateRange = (type: 'yesterday' | 'week' | 'month') => {
     const today = new Date();

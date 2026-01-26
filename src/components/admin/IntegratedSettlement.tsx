@@ -927,7 +927,10 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         targetRows = childRows;
       }
     } else {
-      targetRows = filteredRows.filter(r => r.level === user.level + 1);
+      // ✅ 직속 파트너 + 자신의 직속 회원(Lv0) 포함
+      const directPartners = filteredRows.filter(r => r.level === user.level + 1);
+      const directMembers = filteredRows.filter(r => r.level === 0 && r.referrerId === user.id);
+      targetRows = [...directPartners, ...directMembers];
     }
     
     const totalBet = targetRows.reduce((sum, r) => sum + r.casinoBet + r.slotBet, 0);
@@ -982,6 +985,21 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
     const filtered = getFilteredRows(data);
     const visible: SettlementRow[] = [];
 
+    // ✅ 진단 로그: 데이터 상태 확인
+    console.log('🔍 getVisibleRows 진단:', {
+      'data.length': data.length,
+      'filtered.length': filtered.length,
+      'levelFilter': levelFilter,
+      'codeSearch': codeSearch,
+      'filtered_details': filtered.map(r => ({
+        id: r.id,
+        username: r.username,
+        level: r.level,
+        referrerId: r.referrerId,
+        parentId: r.parentId
+      }))
+    });
+
     const addRowWithChildren = (row: SettlementRow) => {
       visible.push(row);
       
@@ -1009,8 +1027,23 @@ export function IntegratedSettlement({ user }: IntegratedSettlementProps) {
         return !filtered.some(parent => parent.id === r.parentId);
       });
 
+      console.log('👥 Lv' + user.level + ' topLevelRows:', topLevelRows.map(r => ({ username: r.username, level: r.level })));
+
       topLevelRows.forEach(row => addRowWithChildren(row));
+      
+      // ✅ 자신의 직속 회원도 표시 (파트너가 없는 경우 대비)
+      const directMembers = filtered.filter(r => r.level === 0 && r.referrerId === user.id);
+      
+      console.log('👤 직속 회원 필터링 (Lv' + user.level + '):', {
+        'user.id': user.id,
+        'directMembers.length': directMembers.length,
+        'directMembers': directMembers.map(r => ({ username: r.username, referrerId: r.referrerId }))
+      });
+      
+      directMembers.forEach(member => visible.push(member));
     }
+
+    console.log('📌 최종 visible rows:', visible.map(r => ({ username: r.username, level: r.level })));
 
     return visible;
   };

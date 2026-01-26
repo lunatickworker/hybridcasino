@@ -373,6 +373,7 @@ export function UserManagement() {
       if (!authState.user?.id || !authState.user?.level) return;
 
       const currentLevel = authState.user.level;
+      console.log('🔍 [loadAvailablePartners] 시작:', { userId: authState.user.id, userLevel: currentLevel });
 
       // Lv1: 모든 파트너 조회
       if (currentLevel === 1) {
@@ -384,6 +385,7 @@ export function UserManagement() {
           .order('level', { ascending: true })
           .order('created_at', { ascending: true });
 
+        console.log('🔍 [loadAvailablePartners] Lv1 조회:', data?.length || 0, '개', data?.slice(0, 3));
         setAvailablePartners(data || []);
         return;
       }
@@ -397,7 +399,12 @@ export function UserManagement() {
           .eq('id', authState.user.id)
           .single();
 
-        if (!selfData) return;
+        console.log('🔍 [loadAvailablePartners] 본인정보:', selfData?.username);
+
+        if (!selfData) {
+          console.error('❌ 본인 정보를 찾을 수 없습니다:', authState.user.id);
+          return;
+        }
 
         // 2. 재귀적으로 모든 하위 조직 조회
         const getAllDescendants = async (partnerId: string): Promise<any[]> => {
@@ -425,6 +432,8 @@ export function UserManagement() {
         
         // 본인 + 하위 조직 합치기
         const allPartners = [selfData, ...descendants];
+        console.log('🔍 [loadAvailablePartners] Lv2~Lv5 조회:', allPartners.length, '개 (본인포함)', 
+          allPartners.map(p => ({ username: p.username, level: p.level })));
         setAvailablePartners(allPartners);
         return;
       }
@@ -437,10 +446,11 @@ export function UserManagement() {
           .eq('id', authState.user.id)
           .single();
 
+        console.log('🔍 [loadAvailablePartners] Lv6 조회:', selfData?.username);
         setAvailablePartners(selfData ? [selfData] : []);
       }
     } catch (error) {
-      console.error('소속 파트너 목록 로드 실패:', error);
+      console.error('❌ 소속 파트너 목록 로드 실패:', error);
     }
   };
 
@@ -809,9 +819,15 @@ export function UserManagement() {
     // 조직설정 검증
     if (!formData.selected_referrer_id) {
       toast.error('소속 파트너를 선택해야 합니다.');
+      console.error('❌ [createUser] 조직 미선택:', { selected_referrer_id: formData.selected_referrer_id, availablePartners: availablePartners.length });
       setShowCreateDialog(true);
       return;
     }
+
+    console.log('✅ [createUser] 조직 선택됨:', { 
+      selected_referrer_id: formData.selected_referrer_id,
+      selectedPartnerName: availablePartners.find(p => p.id === formData.selected_referrer_id)?.username 
+    });
 
     // 중복 실행 방지
     if (createUserLoading) {
