@@ -85,16 +85,11 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
   const [securitySettings, setSecuritySettings] = useState({
     password_min_length: 8,
     password_require_special: true,
-    ip_whitelist_enabled: false,
     two_factor_enabled: false,
     login_log_retention_days: 90,
     audit_log_enabled: true,
     activity_log_retention_days: 90, // 활동 로그 보관 기간 (일)
   });
-
-  // IP 화이트리스트 상태
-  const [ipWhitelist, setIpWhitelist] = useState<string[]>([]);
-  const [newIp, setNewIp] = useState('');
 
   // 파트너 커미션 관리 상태
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -125,13 +120,24 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
   // API 동기화 상태
   const [syncingApi, setSyncingApi] = useState<string | null>(null);
 
+  // 동접 제한 설정 상태 (Lv1 전용)
+  const [concurrentSettings, setConcurrentSettings] = useState({
+    max_concurrent_users_global: 5000,
+    concurrent_user_warning_threshold: 4500,
+  });
+  const [currentConcurrentUsers, setCurrentConcurrentUsers] = useState<number>(0);
+  
+  // 운영사별 동접 제한 설정
+  const [selectedConcurrentPartnerId, setSelectedConcurrentPartnerId] = useState<string>('');
+  const [partnerConcurrentSettings, setPartnerConcurrentSettings] = useState<{ [key: string]: { max: number; warning: number } }>({});
+
   useEffect(() => {
     loadSettings();
     loadSystemInfo();
-    loadIpWhitelist();
     loadPartners();
     if (user.level === 1) {
       loadApiSettings();
+      loadConcurrentSettings();
     }
 
     const interval = setInterval(loadSystemInfo, 30000);
@@ -249,89 +255,6 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
   };
 
   // IP 화이트리스트 관리 함수들
-  const loadIpWhitelist = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('setting_value')
-        .eq('setting_key', 'ip_whitelist')
-        .single();
-
-      if (error && error.code !== 'PGRST116') throw error;
-      
-      if (data?.setting_value) {
-        try {
-          const ips = JSON.parse(data.setting_value);
-          setIpWhitelist(Array.isArray(ips) ? ips : []);
-        } catch {
-          setIpWhitelist([]);
-        }
-      }
-    } catch (error) {
-      console.error('IP 화이트리스트 로드 실패:', error);
-    }
-  };
-
-  const addIpToWhitelist = async () => {
-    const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-    if (!ipPattern.test(newIp.trim())) {
-      toast.error(t.systemSettings.ipAddressInvalid);
-      return;
-    }
-
-    if (ipWhitelist.includes(newIp.trim())) {
-      toast.error(t.systemSettings.ipAddressExists);
-      return;
-    }
-
-    try {
-      const updatedList = [...ipWhitelist, newIp.trim()];
-      
-      const { error } = await supabase
-        .from('system_settings')
-        .upsert({
-          setting_key: 'ip_whitelist',
-          setting_value: JSON.stringify(updatedList),
-          setting_type: 'json',
-          partner_level: user.level,
-          description: 'IP 화이트리스트',
-        }, { onConflict: 'setting_key' });
-
-      if (error) throw error;
-
-      setIpWhitelist(updatedList);
-      setNewIp('');
-      toast.success(t.systemSettings.ipAddressAdded);
-    } catch (error) {
-      console.error('IP 추가 실패:', error);
-      toast.error(t.systemSettings.ipAddressAddFailed);
-    }
-  };
-
-  const removeIpFromWhitelist = async (ip: string) => {
-    try {
-      const updatedList = ipWhitelist.filter(item => item !== ip);
-      
-      const { error } = await supabase
-        .from('system_settings')
-        .upsert({
-          setting_key: 'ip_whitelist',
-          setting_value: JSON.stringify(updatedList),
-          setting_type: 'json',
-          partner_level: user.level,
-          description: 'IP 화이트리스트',
-        }, { onConflict: 'setting_key' });
-
-      if (error) throw error;
-
-      setIpWhitelist(updatedList);
-      toast.success(t.systemSettings.ipAddressRemoved);
-    } catch (error) {
-      console.error('IP 삭제 실패:', error);
-      toast.error(t.systemSettings.ipAddressRemoveFailed);
-    }
-  };
-
   // 파트너 목록 로드
   const loadPartners = async () => {
     try {
@@ -521,7 +444,171 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
     }
   };
 
-  // API 제공사 초기화 및 게임 동기화
+  // 동접 제한 설정 로드 (Lv1 전용)
+  const loadConcurrentSettings = async () => {
+    try {
+      // 전역 설정 로드
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('setting_value')
+        .in('setting_key', ['max_concurrent_users_global', 'concurrent_user_warning_threshold']);
+
+      if (!error && data) {
+        const settings: any = {};
+        data.forEach((item: any) => {
+          settings[item.setting_key] = parseInt(item.setting_value) || 0;
+        });
+
+        setConcurrentSettings({
+          max_concurrent_users_global: settings.max_concurrent_users_global || 5000,
+          concurrent_user_warning_threshold: settings.concurrent_user_warning_threshold || 4500,
+        });
+      }
+
+      // 운영사별 동접 제한 설정 로드
+      const { data: partnerLimits, error: partnerError } = await supabase
+        .from('partner_concurrent_limits')
+        .select('partner_id,max_concurrent_users,warning_threshold');
+
+      if (partnerError) {
+        console.error('❌ 운영사 동접 설정 로드 에러:', partnerError);
+      } else if (partnerLimits) {
+        console.log(`✅ ${partnerLimits.length}개 운영사 설정 로드됨`);
+        const partnerConfigs: { [key: string]: { max: number; warning: number } } = {};
+        partnerLimits.forEach((item: any) => {
+          partnerConfigs[item.partner_id] = { 
+            max: item.max_concurrent_users || 5000, 
+            warning: item.warning_threshold || 4500 
+          };
+        });
+        setPartnerConcurrentSettings(partnerConfigs);
+      }
+
+      // 현재 활성 사용자 수 조회
+      const { count, error: countError } = await supabase
+        .from('game_sessions')
+        .select('*', { count: 'exact' })
+        .is('ended_at', null);
+
+      if (!countError && count !== null) {
+        setCurrentConcurrentUsers(count);
+      }
+    } catch (error) {
+      console.error('동접 설정 로드 실패:', error);
+    }
+  };
+
+  // 운영사별 동접 설정 로드
+  const loadPartnerConcurrentSettings = async (partnerId: string) => {
+    try {
+      console.log(`🔍 운영사 ${partnerId} 동접 설정 로드 중...`);
+      const { data, error } = await supabase
+        .from('partner_concurrent_limits')
+        .select('*')
+        .eq('partner_id', partnerId)
+        .single();
+
+      if (error) {
+        console.error(`❌ 쿼리 에러:`, error.message, error.code, error);
+        return { max: 5000, warning: 4500 };
+      }
+
+      if (data) {
+        console.log(`✅ 운영사 설정 로드 성공:`, data);
+        return { max: data.max_concurrent_users || 5000, warning: data.warning_threshold || 4500 };
+      }
+      console.log(`ℹ️ 운영사 설정 없음, 기본값 반환`);
+      return { max: 5000, warning: 4500 };
+    } catch (error) {
+      console.error(`❌ 운영사 ${partnerId} 동접 설정 로드 실패:`, error);
+      return { max: 5000, warning: 4500 };
+    }
+  };
+
+  // 동접 설정 저장 (Lv1 전용)
+  const saveConcurrentSettings = async () => {
+    if (user.level !== 1) {
+      toast.error('Lv1 권한이 필요합니다.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // max_concurrent_users_global 저장
+      const { error: error1 } = await supabase
+        .from('system_settings')
+        .upsert({
+          setting_key: 'max_concurrent_users_global',
+          setting_value: concurrentSettings.max_concurrent_users_global.toString(),
+          setting_type: 'number',
+          description: '최대 동시 접속 사용자 수',
+          partner_level: 1,
+          updated_at: new Date().toISOString()
+        });
+
+      // concurrent_user_warning_threshold 저장
+      const { error: error2 } = await supabase
+        .from('system_settings')
+        .upsert({
+          setting_key: 'concurrent_user_warning_threshold',
+          setting_value: concurrentSettings.concurrent_user_warning_threshold.toString(),
+          setting_type: 'number',
+          description: '동시 접속 경고 임계값',
+          partner_level: 1,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error1 || error2) throw error1 || error2;
+
+      toast.success('동접 제한 설정이 저장되었습니다');
+      await loadConcurrentSettings();
+    } catch (error) {
+      console.error('동접 설정 저장 실패:', error);
+      toast.error('동접 설정 저장에 실패했습니다');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 운영사별 동접 설정 저장
+  const savePartnerConcurrentSettings = async (partnerId: string, max: number, warning: number) => {
+    console.log('💾 운영사 동접 설정 저장 시도:', { partnerId, max, warning, userLevel: user.level });
+    
+    if (user.level !== 1) {
+      toast.error('Lv1 권한이 필요합니다.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from('partner_concurrent_limits')
+        .upsert({
+          partner_id: partnerId,
+          max_concurrent_users: max,
+          warning_threshold: warning,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'partner_id' });
+
+      if (error) {
+        console.error('❌ Supabase 오류:', error);
+        throw error;
+      }
+
+      console.log('✅ 운영사 동접 설정 저장 성공:', data);
+      toast.success(`운영사 동접 설정이 저장되었습니다`);
+      setPartnerConcurrentSettings(prev => ({
+        ...prev,
+        [partnerId]: { max, warning }
+      }));
+    } catch (error) {
+      console.error('❌ 운영사 동접 설정 저장 실패:', error);
+      toast.error('운영사 동접 설정 저장에 실패했습니다');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleInitializeAndSyncApi = async (apiType: string) => {
     if (user.level !== 1) {
       toast.error('Lv1 권한이 필요합니다.');
@@ -891,40 +978,46 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6 bg-slate-900/50 p-1 border border-slate-700/50 backdrop-blur-sm">
+        <TabsList className="flex w-full bg-slate-900/50 p-1 border border-slate-700/50 backdrop-blur-sm rounded-lg overflow-x-auto">
           <TabsTrigger 
             value="general"
-            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
+            className="flex-shrink-0 text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
           >
             {t.systemSettings.generalTab}
           </TabsTrigger>
           <TabsTrigger 
             value="api"
-            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
+            className="flex-shrink-0 text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
           >
             {t.systemSettings.apiTab}
           </TabsTrigger>
           <TabsTrigger 
             value="evolution"
-            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
+            className="flex-shrink-0 text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
           >
             {t.systemSettings.evolutionTab}
           </TabsTrigger>
           <TabsTrigger 
             value="commission"
-            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
+            className="flex-shrink-0 text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
           >
             {t.systemSettings.commissionTab}
           </TabsTrigger>
           <TabsTrigger 
+            value="concurrent"
+            className="flex-shrink-0 text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
+          >
+            동접 제한
+          </TabsTrigger>
+          <TabsTrigger 
             value="security"
-            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
+            className="flex-shrink-0 text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
           >
             {t.systemSettings.securityTab}
           </TabsTrigger>
           <TabsTrigger 
             value="system"
-            className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
+            className="flex-shrink-0 text-base data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/30 hover:bg-slate-800/50 transition-all duration-300"
           >
             {t.systemSettings.systemStatusTab}
           </TabsTrigger>
@@ -1846,6 +1939,304 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
           </Card>
         </TabsContent>
 
+        <TabsContent value="concurrent" className="space-y-6">
+          {user.level === 1 ? (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    동접 현황
+                  </CardTitle>
+                  <CardDescription>
+                    실시간 동시 접속 사용자 상태를 확인합니다.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {/* 현재 동접 상태 */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 rounded-lg bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30">
+                      <p className="text-sm text-blue-400 mb-2">현재 접속자</p>
+                      <p className="text-3xl font-bold text-blue-300">{currentConcurrentUsers}</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-gradient-to-br from-cyan-500/20 to-cyan-600/20 border border-cyan-500/30">
+                      <p className="text-sm text-cyan-400 mb-2">최대 허용</p>
+                      <p className="text-3xl font-bold text-cyan-300">{concurrentSettings.max_concurrent_users_global}</p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-gradient-to-br from-amber-500/20 to-amber-600/20 border border-amber-500/30">
+                      <p className="text-sm text-amber-400 mb-2">경고 임계값</p>
+                      <p className="text-3xl font-bold text-amber-300">{concurrentSettings.concurrent_user_warning_threshold}</p>
+                    </div>
+                  </div>
+
+                  {/* 진행도 바 */}
+                  <div className="space-y-2 mt-6">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">동접 사용률</span>
+                      <span className="text-slate-300">
+                        {Math.round((currentConcurrentUsers / concurrentSettings.max_concurrent_users_global) * 100)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-700/50 rounded-full h-3 border border-slate-600/50 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          currentConcurrentUsers >= concurrentSettings.concurrent_user_warning_threshold
+                            ? 'bg-gradient-to-r from-red-500 to-orange-500'
+                            : 'bg-gradient-to-r from-green-500 to-cyan-500'
+                        }`}
+                        style={{
+                          width: `${Math.min(
+                            (currentConcurrentUsers / concurrentSettings.max_concurrent_users_global) * 100,
+                            100
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 경고 메시지 */}
+                  {currentConcurrentUsers >= concurrentSettings.concurrent_user_warning_threshold && (
+                    <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30 flex gap-3 mt-6">
+                      <AlertCircle className="h-5 w-5 text-orange-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-orange-300">경고: 동접 경계선 도달</p>
+                        <p className="text-xs text-orange-200 mt-1">
+                          현재 동접 사용자가 경고 임계값({concurrentSettings.concurrent_user_warning_threshold})에 도달했습니다.
+                          최대 허용 수({concurrentSettings.max_concurrent_users_global})를 초과하기 전에 조치를 취하세요.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    동접 제한 설정
+                  </CardTitle>
+                  <CardDescription>
+                    운영사별 최대 동시 접속 사용자 수를 관리합니다.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* 운영사 선택 */}
+                  <div className="space-y-2">
+                    <Label htmlFor="concurrent_partner_select" className="flex items-center gap-2">
+                      <Gamepad2 className="h-4 w-4" />
+                      운영사 선택
+                    </Label>
+                    <p className="text-xs text-slate-400">동접 제한을 설정할 운영사를 선택합니다.</p>
+                    <Select value={selectedConcurrentPartnerId} onValueChange={async (partnerId) => {
+                      setSelectedConcurrentPartnerId(partnerId);
+                      const config = await loadPartnerConcurrentSettings(partnerId);
+                      setPartnerConcurrentSettings(prev => ({
+                        ...prev,
+                        [partnerId]: config
+                      }));
+                    }}>
+                      <SelectTrigger id="concurrent_partner_select" className="select-premium">
+                        <SelectValue placeholder="운영사를 선택하세요" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {partners.filter(p => p.level === 2).length > 0 ? (
+                          partners.filter(p => p.level === 2).map(partner => (
+                            <SelectItem key={partner.id} value={partner.id}>
+                              {partner.nickname || partner.username} (Lv{partner.level})
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="" disabled>Lv2 운영사가 없습니다</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedConcurrentPartnerId && partnerConcurrentSettings[selectedConcurrentPartnerId] && (
+                    <>
+                      {/* 선택된 운영사의 설정 */}
+                      <div className="border-t border-slate-700/50 pt-6">
+                        <p className="text-sm font-medium text-slate-300 mb-4">
+                          {partners.find(p => p.id === selectedConcurrentPartnerId)?.nickname || selectedConcurrentPartnerId} - 동접 제한
+                        </p>
+                        
+                        <div className="space-y-2 mb-6">
+                          <Label htmlFor="partner_max_concurrent" className="flex items-center gap-2">
+                            <Users className="h-4 w-4" />
+                            최대 동시 접속 사용자 수
+                          </Label>
+                          <p className="text-xs text-slate-400">이 운영사의 사용자들이 동시에 게임할 수 있는 최대 인원을 설정합니다.</p>
+                          <Input
+                            id="partner_max_concurrent"
+                            type="number"
+                            value={partnerConcurrentSettings[selectedConcurrentPartnerId]?.max || 5000}
+                            onChange={(e) =>
+                              setPartnerConcurrentSettings(prev => ({
+                                ...prev,
+                                [selectedConcurrentPartnerId]: {
+                                  ...prev[selectedConcurrentPartnerId],
+                                  max: parseInt(e.target.value) || 0
+                                }
+                              }))
+                            }
+                            min="1"
+                            max="100000"
+                            step="100"
+                            className="input-premium"
+                            placeholder="5000"
+                          />
+                        </div>
+
+                        <div className="space-y-2 mb-6">
+                          <Label htmlFor="partner_warning_threshold" className="flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4" />
+                            경고 임계값
+                          </Label>
+                          <p className="text-xs text-slate-400">이 값 이상의 동접이 발생할 시 경고 표시를 활성화합니다.</p>
+                          <Input
+                            id="partner_warning_threshold"
+                            type="number"
+                            value={partnerConcurrentSettings[selectedConcurrentPartnerId]?.warning || 4500}
+                            onChange={(e) =>
+                              setPartnerConcurrentSettings(prev => ({
+                                ...prev,
+                                [selectedConcurrentPartnerId]: {
+                                  ...prev[selectedConcurrentPartnerId],
+                                  warning: parseInt(e.target.value) || 0
+                                }
+                              }))
+                            }
+                            min="1"
+                            max="100000"
+                            step="100"
+                            className="input-premium"
+                            placeholder="4500"
+                          />
+                        </div>
+
+                        <Button
+                          onClick={() => {
+                            const config = partnerConcurrentSettings[selectedConcurrentPartnerId];
+                            savePartnerConcurrentSettings(selectedConcurrentPartnerId, config.max, config.warning);
+                          }}
+                          disabled={saving}
+                          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90"
+                        >
+                          {saving ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              저장 중...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-4 h-4 mr-2" />
+                              저장
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                    <p className="text-sm text-blue-400">
+                      💡 <strong>운영사별 동접 제한</strong>은 해당 운영사의 모든 사용자들의 동시 게임 접속을 제어합니다.<br/>
+                      게임 시작 시 사용자의 상급자 정보를 확인하여 자동으로 제한값을 적용합니다.
+                    </p>
+                  </div>
+
+                  <div className="border-t border-slate-700/50 pt-6">
+                    <p className="text-sm font-medium text-slate-300 mb-4">전체 시스템 설정</p>
+                    
+                    {/* 전체 설정 입력 */}
+                    <div className="space-y-2">
+                      <Label htmlFor="max_concurrent" className="flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        최대 동시 접속 사용자 수
+                      </Label>
+                      <p className="text-xs text-slate-400">시스템이 동시에 수용할 수 있는 최대 사용자 수를 설정합니다.</p>
+                      <Input
+                        id="max_concurrent"
+                        type="number"
+                        value={concurrentSettings.max_concurrent_users_global}
+                        onChange={(e) =>
+                          setConcurrentSettings({
+                            ...concurrentSettings,
+                            max_concurrent_users_global: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        min="100"
+                        max="100000"
+                        step="100"
+                        className="input-premium"
+                        placeholder="5000"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="warning_threshold" className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        경고 임계값
+                      </Label>
+                      <p className="text-xs text-slate-400">이 수에 도달하면 경고 메시지가 표시됩니다.</p>
+                      <Input
+                        id="warning_threshold"
+                        type="number"
+                        value={concurrentSettings.concurrent_user_warning_threshold}
+                        onChange={(e) =>
+                          setConcurrentSettings({
+                            ...concurrentSettings,
+                            concurrent_user_warning_threshold: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        min="100"
+                        max="100000"
+                        step="100"
+                        className="input-premium"
+                        placeholder="4500"
+                      />
+                    </div>
+
+                    {/* 검증 메시지 */}
+                    {concurrentSettings.concurrent_user_warning_threshold >= concurrentSettings.max_concurrent_users_global && (
+                      <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
+                        ⚠️ 경고 임계값이 최대값 이상일 수 없습니다.
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={saveConcurrentSettings}
+                      disabled={
+                        saving ||
+                        concurrentSettings.concurrent_user_warning_threshold >= concurrentSettings.max_concurrent_users_global
+                      }
+                      className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-medium py-2 rounded-lg transition-all duration-300"
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {saving ? '저장 중...' : '설정 저장'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 flex gap-3">
+                  <AlertCircle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-300">권한 없음</p>
+                    <p className="text-xs text-amber-200 mt-1">
+                      동접 제한 설정은 Lv1(시스템 관리자)만 접근할 수 있습니다.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
         <TabsContent value="security" className="space-y-6">
           <Card>
             <CardHeader>
@@ -1919,6 +2310,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                   />
                 </div>
 
+                {/* ⚠️ IP 화이트리스트 기능 - 미완성, 추후 구현 예정
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label>IP 화이트리스트</Label>
@@ -2012,6 +2404,7 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
                     </div>
                   </div>
                 )}
+                */}
 
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">

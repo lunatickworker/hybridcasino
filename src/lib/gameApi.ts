@@ -3,6 +3,7 @@ import { investApi } from './investApi';
 import { oroplayApi } from './oroplayApi';
 import * as familyApi from './familyApi';
 import { logGameDeposit, logGameWithdraw } from './activityLogger';
+import { checkAndCreateGameSession, saveGameSessionId } from './concurrentSessionManager';
 
 // ============================================
 // 🔒 전역 락: 세션 종료 중복 방지
@@ -3380,10 +3381,27 @@ export async function launchGame(
   launch_url?: string;
   game_url?: string;
   error?: string;
+  sessionId?: string; // 🆕 동접 세션 ID 추가
 }> {
   console.log('🎮 통합 게임 실행 시작:', { userId, gameId, username });
 
   try {
+    // 🆕 1단계: 동접 제한 체크 및 세션 생성
+    const concurrentCheck = await checkAndCreateGameSession(userId, 'game');
+    if (!concurrentCheck.success) {
+      console.error('❌ 동접 제한 초과:', concurrentCheck.message);
+      return {
+        success: false,
+        error: concurrentCheck.message
+      };
+    }
+
+    const gameSessionId = concurrentCheck.sessionId;
+    if (gameSessionId) {
+      saveGameSessionId(userId, gameSessionId, 'game');
+      console.log('✅ 게임 세션 생성됨:', gameSessionId);
+    }
+
     // 1. 게임 정보 조회 (games 또는 honor_games에서)
     // 먼저 games 테이블 조회
     let game: any = null;
@@ -3559,6 +3577,11 @@ export async function launchGame(
 
     if (!apiConfig || apiConfig.is_active === false) {
       console.error('❌ API가 비활성화되어 있습니다:', game.api_type);
+      // 🆕 동접 세션 정리 (실패 시)
+      const { endGameSession } = await import('./concurrentSessionManager');
+      if (gameSessionId) {
+        await endGameSession(gameSessionId);
+      }
       return {
         success: false,
         error: '현재 이 게임 제공사는 사용할 수 없습니다. 관리자에게 문의하세요.'
@@ -3566,24 +3589,51 @@ export async function launchGame(
     }
 
     // 5. API 타입별로 분기
+    let result;
     if (game.api_type === 'invest') {
-      return await launchInvestGame(topLevelPartnerId, userUsername, gameId);
+      result = await launchInvestGame(topLevelPartnerId, userUsername, gameId);
     } else if (game.api_type === 'oroplay') {
-      return await launchOroPlayGame(topLevelPartnerId, userUsername, game);
+      result = await launchOroPlayGame(topLevelPartnerId, userUsername, game);
     } else if (game.api_type === 'familyapi') {
-      return await launchFamilyApiGame(topLevelPartnerId, userUsername, game);
+      result = await launchFamilyApiGame(topLevelPartnerId, userUsername, game);
     } else if (game.api_type === 'honorapi') {
-      return await launchHonorApiGame(topLevelPartnerId, userUsername, game);
+      result = await launchHonorApiGame(topLevelPartnerId, userUsername, game);
     } else {
       console.error('❌ 알 수 없는 API 타입:', game.api_type);
+      // 🆕 동접 세션 정리 (실패 시)
+      const { endGameSession } = await import('./concurrentSessionManager');
+      if (gameSessionId) {
+        await endGameSession(gameSessionId);
+      }
       return {
         success: false,
         error: '지원하지 않는 게임 타입입니다.'
       };
     }
 
+    // 🆕 성공 시 sessionId 추가
+    if (result.success && gameSessionId) {
+      return {
+        ...result,
+        sessionId: gameSessionId
+      };
+    }
+
+    // 실패 시 동접 세션 정리
+    if (!result.success && gameSessionId) {
+      const { endGameSession } = await import('./concurrentSessionManager');
+      await endGameSession(gameSessionId);
+    }
+
+    return result;
+
   } catch (error) {
     console.error('❌ 게임 실행 오류:', error);
+    // 🆕 에러 시 동접 세션 정리
+    if (gameSessionId) {
+      const { endGameSession } = await import('./concurrentSessionManager');
+      await endGameSession(gameSessionId).catch(err => console.error('세션 정리 실패:', err));
+    }
     return {
       success: false,
       error: error instanceof Error ? error.message : '게임 실행 중 오류가 발생했습니다.'

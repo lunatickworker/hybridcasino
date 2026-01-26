@@ -8,6 +8,12 @@ import { ImageWithFallback } from "@figma/ImageWithFallback";
 import { toast } from 'sonner@2.0.3';
 import { createAdminNotification } from '../../lib/notificationHelper';
 import { filterVisibleProviders, filterVisibleGames } from '../../lib/benzGameVisibility';
+import { 
+  checkAndCreateGameSession, 
+  saveGameSessionId, 
+  endGameSession,
+  removeGameSessionId 
+} from '../../lib/concurrentSessionManager';
 
 interface BenzCasinoProps {
   user: any;
@@ -97,6 +103,7 @@ export function BenzCasino({ user, onRouteChange, refreshFlag }: BenzCasinoProps
   const [gamesLoading, setGamesLoading] = useState(false);
   const [launchingGameId, setLaunchingGameId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false); // 🆕 백그라운드 프로세스 상태
+  const [currentGameSessionId, setCurrentGameSessionId] = useState<string | null>(null); // 🆕 현재 게임 세션 ID
   const isMountedRef = useRef(true);
   const closeProcessingRef = useRef<Map<number, boolean>>(new Map()); // 🆕 세션별 종료 처리 중 상태
   const selectedProviderRef = useRef<GameProvider | null>(null); // ⚡ 최신 selectedProvider 추적
@@ -118,6 +125,18 @@ export function BenzCasino({ user, onRouteChange, refreshFlag }: BenzCasinoProps
       isMountedRef.current = false;
     };
   }, [refreshFlag]); // ✅ refreshFlag가 변경될 때마다 실행
+
+  // 🆕 컴포넌트 언마운트 시 동접 세션 정리
+  useEffect(() => {
+    return () => {
+      if (currentGameSessionId) {
+        endGameSession(currentGameSessionId).then(() => {
+          removeGameSessionId(user.id, currentGameSessionId);
+          console.log('✅ 언마운트 시 동접 세션 정리:', currentGameSessionId);
+        });
+      }
+    };
+  }, [currentGameSessionId, user.id]);
   
   // ✅ Realtime 구독: partner_game_access 변경 감지
   useEffect(() => {
@@ -850,6 +869,16 @@ export function BenzCasino({ user, onRouteChange, refreshFlag }: BenzCasinoProps
       if (result.success && result.launchUrl) {
         const sessionId = result.sessionId;
         
+        // 🆕 gameApi.launchGame에서 반환된 동접 세션 ID 저장
+        if (result.launchUrl && result.launchUrl.includes('concurrentSessionId')) {
+          const urlParams = new URLSearchParams(result.launchUrl.split('?')[1]);
+          const concurrentSessionId = urlParams.get('concurrentSessionId');
+          if (concurrentSessionId) {
+            setCurrentGameSessionId(concurrentSessionId);
+            console.log('✅ 동접 세션 ID 저장:', concurrentSessionId);
+          }
+        }
+        
         const gameWindow = window.open(
           result.launchUrl,
           '_blank',
@@ -910,6 +939,17 @@ export function BenzCasino({ user, onRouteChange, refreshFlag }: BenzCasinoProps
                 }
                 
                 (window as any).gameWindows?.delete(sessionId);
+                
+                // 🆕 동접 세션 정리
+                if (currentGameSessionId) {
+                  const result = await endGameSession(currentGameSessionId);
+                  if (result.success) {
+                    removeGameSessionId(user.id, currentGameSessionId);
+                    console.log('✅ 동접 세션 종료:', currentGameSessionId);
+                  }
+                  setCurrentGameSessionId(null);
+                }
+                
                 await (window as any).syncBalanceAfterGame?.(sessionId);
                 
                 setTimeout(() => {

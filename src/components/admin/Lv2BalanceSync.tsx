@@ -224,20 +224,6 @@ export function Lv2BalanceSync() {
         if (syncedCount > 0) {
           console.log(`✅ [Lv2 Balance Auto Sync] 완료: ${syncedCount}/${lv2Partners.length} 파트너 동기화`);
           
-          // 동기화 상태를 DB에 기록 (관리자 대시보드에서 확인 가능)
-          await supabase
-            .from('sync_status')
-            .upsert({
-              id: 'lv2-balance-sync',
-              type: 'lv2_balance_sync',
-              status: 'success',
-              last_sync_at: new Date().toISOString(),
-              synced_count: syncedCount,
-              error_count: stats.totalErrors,
-              updated_at: new Date().toISOString()
-            })
-            .select();
-          
           setStats(prev => ({
             ...prev,
             totalSynced: prev.totalSynced + syncedCount,
@@ -248,19 +234,6 @@ export function Lv2BalanceSync() {
 
       } catch (error) {
         console.error('❌ [Lv2 Balance Auto Sync] 예외 발생:', error);
-        
-        // 에러 상태도 DB에 기록
-        await supabase
-          .from('sync_status')
-          .upsert({
-            id: 'lv2-balance-sync',
-            type: 'lv2_balance_sync',
-            status: 'error',
-            last_sync_at: new Date().toISOString(),
-            error_message: (error as Error).message,
-            updated_at: new Date().toISOString()
-          })
-          .select();
       }
     };
 

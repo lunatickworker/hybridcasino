@@ -926,10 +926,22 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
 
         // ✅ external 데이터 추출 (Evolution 게임만 저장)
         const isEvolution = tx.details.game.vendor?.toLowerCase().includes('evolution');
-        const external = (isEvolution && tx.external) ? {
-          id: String(tx.external.id || ''),
-          detail: tx.external.detail || null
-        } : null;
+        let external = null;
+        
+        if (isEvolution && tx.external) {
+          external = {
+            id: String(tx.external.id || ''),
+            detail: tx.external.detail || null,
+            ...tx.external  // ⭐ 모든 external 데이터 포함
+          };
+          console.log(`📌 [HonorAPI] Evolution 게임 external 데이터 감지: txid=${tx.id}`, { 
+            hasId: !!tx.external.id, 
+            hasDetail: !!tx.external.detail,
+            externalKeys: Object.keys(tx.external || {})
+          });
+        } else if (tx.details.game.vendor) {
+          console.log(`⚠️ [HonorAPI] Evolution 아님: vendor=${tx.details.game.vendor}, hasExternal=${!!tx.external}`);
+        }
 
         // game_records에 저장 (중복 체크: external_txid + api_type unique)
         const { error: insertError } = await supabase
@@ -966,6 +978,10 @@ export async function syncHonorApiBettingHistory(partnerId: string): Promise<{
             console.error(`❌ [HonorAPI] game_records 저장 실패: txid=${tx.id}`, insertError);
           }
         } else {
+          // ✅ 저장 성공 시 외부 데이터 확인
+          if (external) {
+            console.log(`✅ [HonorAPI] Evolution 게임 저장 완료: txid=${tx.id}, external 포함`);
+          }
           recordsSaved++;
         }
 

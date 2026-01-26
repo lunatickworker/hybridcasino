@@ -1405,6 +1405,19 @@ async function syncHonorapiBets(): Promise<any> {
           const betAmount = Math.abs(tx.amount);
           const balanceAfter = tx.before - betAmount;
 
+          // ✅ external 데이터 추출 (Evolution 게임만 저장)
+          const isEvolution = tx.details.game.vendor?.toLowerCase().includes('evolution');
+          let external = null;
+          
+          if (isEvolution && tx.external) {
+            external = {
+              id: String(tx.external.id || ''),
+              detail: tx.external.detail || null,
+              ...tx.external  // ⭐ 모든 external 데이터 포함
+            };
+            console.log(`📌 [HonorAPI] Evolution 게임 external 감지: txid=${tx.id}, hasExternal=${!!tx.external}`);
+          }
+
           const { error } = await supabase
             .from('game_records')
             .insert({
@@ -1425,7 +1438,8 @@ async function syncHonorapiBets(): Promise<any> {
               session_id: null,
               round_id: tx.details.game.round || null,
               partner_id: lv2Partner.id,  // ✅ 동기화를 진행하는 Lv2 파트너로 설정
-              api_type: 'honorapi'
+              api_type: 'honorapi',
+              external: external  // ✅ Evolution 게임만 external 저장
             });
 
           if (error) {
