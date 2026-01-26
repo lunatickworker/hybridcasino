@@ -4787,33 +4787,42 @@ async function waitForSessionEnd(userId: string, maxWaitMs: number = 3000): Prom
     await new Promise(resolve => setTimeout(resolve, pollInterval));
   }
   
-  // ⭐ 타임아웃 발생 시 강제로 ending 세션 종료 + API 머니 회수
+  // ⭐ 타임아웃 발생 시 강제로 ending 세션 종료 (단, syncBalanceOnSessionEnd 재귀 호출은 금지!)
   console.warn('⚠️ [세션 종료 대기] 타임아웃 (3초 초과) - 강제 종료 및 API 머니 회수 시작');
   
   const { data: endingSession } = await supabase
     .from('game_launch_sessions')
-    .select('id, api_type')
+    .select('id, api_type, user_id')
     .eq('user_id', userId)
     .eq('status', 'ending')
     .maybeSingle();
   
   if (endingSession) {
     try {
-      // 1. 세션을 ended로 강제 변경
-      await supabase
+      // ⭐ 중요: syncBalanceOnSessionEnd() 재귀 호출 방지!
+      // waitForSessionEnd()는 syncBalanceOnSessionEnd() 내부에서 호출되므로,
+      // 타임아웃 시 다시 syncBalanceOnSessionEnd()를 호출하면 중복 방지에 걸린다.
+      
+      // 1️⃣ 세션을 ended로 강제 변경 (API 머니 회수 없이!)
+      const { error: updateError } = await supabase
         .from('game_launch_sessions')
         .update({
           status: 'ended',
           ended_at: new Date().toISOString(),
           error_message: '타임아웃으로 인한 강제 종료 (3초)'
         })
-        .eq('id', endingSession.id);
+        .eq('id', endingSession.id)
+        .eq('status', 'ending');
       
-      console.log('✅ [타임아웃 처리] ending 세션을 ended로 강제 변경:', endingSession.id);
+      if (updateError) {
+        console.error('❌ [타임아웃 처리] 세션 상태 업데이트 실패:', updateError);
+      } else {
+        console.log('✅ [타임아웃 처리] ending 세션을 ended로 강제 변경:', endingSession.id);
+      }
       
-      // 2. API 머니 회수
-      await syncBalanceOnSessionEnd(userId, endingSession.api_type);
-      console.log('✅ [타임아웃 처리] API 머니 회수 완료');
+      // 2️⃣ ⚠️ API 머니 회수는 별도 처리로 넘김 (중복 호출 방지)
+      // syncBalanceOnSessionEnd()가 이미 실행 중이므로, 계속 진행하도록 함
+      console.log('⚠️ [타임아웃 처리] API 머니 회수는 진행 중인 syncBalanceOnSessionEnd()에서 처리됩니다.');
       
     } catch (error) {
       console.error('❌ [타임아웃 처리] 오류:', error);
@@ -4936,13 +4945,13 @@ export async function generateGameLaunchUrl(
       
       // ending 상태면 대기 후 재시도
       if (existingSession.status === 'ending') {
-        console.log('⏳ [게임 실행] 이전 세션 종료 처리 중... 대기 시작');
+        console.log('⏳ [게임 실행] 이전 세션 API 머니 회수 중... 대기 시작 (최대 3초)');
         const waitSuccess = await waitForSessionEnd(userId, 3000);
         
         if (!waitSuccess) {
           return {
             success: false,
-            error: '이전 게임 종료 처리 중입니다. 잠시 후 다시 시도해주세요.'
+            error: '이전 게임 머니 회수 중입니다. 잠시 후 다시 시도해주세요.'
           };
         }
         
@@ -5285,11 +5294,211 @@ export const gameApi = {
   launchGame,
   generateGameLaunchUrl,
   checkActiveSession,
+  forceRecoverBalance,
 };
 
 // ============================================
 // 세션 관리 (Seamless Wallet)
 // ============================================
+
+/**
+ * Stuck ending 세션의 강제 머니 회수 (ending 상태에서만 동작)
+ * OnlineUsers에서 5분 이상 stuck된 ending 세션 정리 시 호출
+ * @param userId 사용자 ID
+ * @param apiType API 타입
+ * @returns 회수된 금액
+ */
+export async function forceRecoverBalance(
+  userId: string,
+  apiType: 'invest' | 'oroplay' | 'familyapi' | 'honorapi'
+): Promise<number> {
+  const lockKey = `${userId}_${apiType}`;
+  
+  // ⭐ 중복 호출 방지 체크
+  if (sessionEndingProcessing.has(lockKey)) {
+    console.warn(`⚠️ [강제 회수] 이미 처리 중: userId=${userId}, apiType=${apiType}`);
+    return 0;
+  }
+  
+  try {
+    sessionEndingProcessing.add(lockKey);
+    console.log(`🔄 [강제 회수 시작] userId=${userId}, apiType=${apiType}`);
+    
+    // 1. 사용자 정보 조회
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('username, referrer_id, balance')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      throw new Error(`사용자 정보 조회 실패: ${userError?.message || '사용자 없음'}`);
+    }
+
+    const currentUserBalance = user.balance || 0;
+    
+    // 2. 최상위 파트너 ID 조회
+    const topLevelPartnerId = await getTopLevelPartnerId(user.referrer_id);
+    if (!topLevelPartnerId) {
+      throw new Error('최상위 파트너 조회 실패');
+    }
+
+    const apiProvider = apiType === 'invest' ? 'invest' : apiType === 'oroplay' ? 'oroplay' : apiType === 'familyapi' ? 'familyapi' : 'honorapi';
+    
+    // 3. API 설정 조회
+    const { data: apiConfig, error: configError } = await supabase
+      .from('api_configs')
+      .select('*')
+      .eq('partner_id', topLevelPartnerId)
+      .eq('api_provider', apiProvider)
+      .single();
+
+    if (configError || !apiConfig) {
+      throw new Error(`API 설정 조회 실패: ${configError?.message || 'API 설정 없음'}`);
+    }
+
+    let recoveredAmount = 0;
+
+    // 4. API별 강제 회수 처리
+    try {
+      if (apiType === 'invest') {
+        // Invest: 잔고 조회 후 회수
+        const balanceResult = await investApi.getUserBalance(
+          apiConfig.opcode,
+          user.username,
+          apiConfig.token,
+          apiConfig.secret_key
+        );
+        
+        if (balanceResult.success && balanceResult.balance > 0) {
+          const withdrawResult = await investApi.withdrawBalance(
+            apiConfig.opcode,
+            user.username,
+            apiConfig.token,
+            balanceResult.balance,
+            apiConfig.secret_key
+          );
+
+          if (withdrawResult.success) {
+            recoveredAmount = balanceResult.balance;
+            console.log(`✅ [강제 회수] Invest API 회수: ${recoveredAmount}원`);
+          } else {
+            console.warn(`⚠️ [강제 회수] Invest API 회수 실패: ${withdrawResult.error}`);
+          }
+        }
+      } else if (apiType === 'oroplay') {
+        // OroPlay: 전체 출금
+        const token = await oroplayApi.getToken(topLevelPartnerId);
+        if (token) {
+          const withdrawResult = await oroplayApi.withdrawBalance(token, user.username, undefined);
+          
+          if (withdrawResult.success) {
+            let withdrawnAmount = 0;
+            if (typeof withdrawResult.balance === 'number') {
+              withdrawnAmount = withdrawResult.balance;
+            } else if (withdrawResult.balance && typeof withdrawResult.balance === 'object') {
+              withdrawnAmount = (withdrawResult.balance as any).message || 0;
+            }
+            
+            if (withdrawnAmount >= 0) {
+              recoveredAmount = withdrawnAmount;
+              console.log(`✅ [강제 회수] OroPlay 회수: ${recoveredAmount}원`);
+            }
+          } else {
+            console.warn(`⚠️ [강제 회수] OroPlay 회수 실패: ${withdrawResult.error}`);
+          }
+        }
+      } else if (apiType === 'honorapi') {
+        // HonorAPI: 전체 회수
+        const honorApi = await import('./honorApi');
+        const uuid = crypto.randomUUID();
+        const subBalanceResult = await honorApi.subUserBalanceAll(apiConfig.api_key, user.username, uuid);
+        
+        if (subBalanceResult && subBalanceResult.amount !== undefined) {
+          recoveredAmount = Math.abs(subBalanceResult.amount);
+          console.log(`✅ [강제 회수] HonorAPI 회수: ${recoveredAmount}원`);
+        } else {
+          console.warn('⚠️ [강제 회수] HonorAPI 회수 실패');
+        }
+      } else if (apiType === 'familyapi') {
+        // FamilyAPI: seamless 방식 - 추가 회수 불필요 (이미 callback 처리)
+        console.log('ℹ️ [강제 회수] FamilyAPI는 seamless 방식 - 추가 회수 불필요');
+        recoveredAmount = 0;
+      }
+    } catch (apiError) {
+      console.error(`❌ [강제 회수] API 처리 오류: ${apiError}`);
+      // 에러가 발생해도 계속 진행 (최악의 경우 회수 금액 = 0)
+    }
+
+    // 5. users.balance 업데이트
+    const newBalance = recoveredAmount;
+    
+    const { error: balanceError } = await supabase
+      .from('users')
+      .update({ 
+        balance: newBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (balanceError) {
+      console.error('❌ [강제 회수] users.balance 업데이트 실패:', balanceError);
+    } else {
+      console.log(`✅ [강제 회수] users.balance 업데이트: ${currentUserBalance}원 → ${newBalance}원`);
+    }
+
+    // 6. api_configs.balance 업데이트
+    if (recoveredAmount > 0) {
+      const { error: apiBalanceError } = await supabase
+        .from('api_configs')
+        .update({
+          balance: (apiConfig.balance || 0) + recoveredAmount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('partner_id', topLevelPartnerId)
+        .eq('api_provider', apiProvider);
+
+      if (apiBalanceError) {
+        console.error('❌ [강제 회수] api_configs.balance 업데이트 실패:', apiBalanceError);
+      } else {
+        console.log(`✅ [강제 회수] api_configs.balance 업데이트: +${recoveredAmount}원`);
+      }
+    }
+
+    console.log(`✅ [강제 회수 완료] userId=${userId}, apiType=${apiType}, recoveredAmount=${recoveredAmount}원`);
+    
+    return recoveredAmount;
+  } catch (error) {
+    console.error('❌ forceRecoverBalance 실패:', error);
+    
+    // 에러 로그 기록
+    try {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', userId)
+        .single();
+      
+      await supabase.from('activity_logs').insert([{
+        actor_type: 'system',
+        actor_id: userId,
+        action: 'force_recover_balance_failed',
+        details: {
+          username: userData?.username || '알 수 없음',
+          apiType,
+          errorMessage: error instanceof Error ? error.message : String(error)
+        }
+      }]);
+    } catch (err) {
+      console.error('❌ 활동 로그 기록 실패:', err);
+    }
+    
+    return 0;
+  } finally {
+    sessionEndingProcessing.delete(lockKey);
+    console.log(`🔓 [강제 회수] 락 해제: ${lockKey}`);
+  }
+}
 
 /**
  * 세션 종료 시 보유금 동기화 + API 출금
@@ -5768,7 +5977,7 @@ export async function syncBalanceOnSessionEnd(
 
     // 7. 세션 종료 상태 전환 (ending → ended)
     console.log(`🔄 [세션 종료] 세션 상태를 ended로 변경 시작: userId=${userId}, apiType=${apiType}`);
-    const { error: sessionError } = await supabase
+    const { data: endedSessions, error: sessionError } = await supabase
       .from('game_launch_sessions')
       .update({
         status: 'ended',
@@ -5777,12 +5986,16 @@ export async function syncBalanceOnSessionEnd(
       })
       .eq('user_id', userId)
       .eq('api_type', apiType) // ⭐ api_type 필터 추가 (다른 API 게임과 독립적으로 처리)
-      .eq('status', 'ending'); // ending 상태인 세션을 ended로 변경
+      .eq('status', 'ending') // ending 상태인 세션을 ended로 변경
+      .select('id, status'); // 업데이트된 행 확인
 
     if (sessionError) {
       console.error('❌ 세션 종료 처리 실패:', sessionError);
+      throw new Error(`세션 상태 업데이트 실패: ${sessionError.message}`);
+    } else if (!endedSessions || endedSessions.length === 0) {
+      console.warn(`⚠️ [세션 종료] ending 상태의 세션을 찾을 수 없음 (이미 ended일 가능성): userId=${userId}, apiType=${apiType}`);
     } else {
-      console.log(`✅ [세션 종료] 세션 상태를 ended로 변경 완료: userId=${userId}, apiType=${apiType}`);
+      console.log(`✅ [세션 종료] 세션 상태를 ended로 변경 완료: ${endedSessions.length}개 행 업데이트`);
       // ⭐ 활동 로그 기록: 세션 종료 성공
       try {
         await supabase.from('activity_logs').insert([{
@@ -5801,13 +6014,14 @@ export async function syncBalanceOnSessionEnd(
       }
     }
 
-    console.log(`✅ 세션 종료 완료: user=${user.username}, balance=${currentBalance}`);
+    console.log(`✅ 세션 종료 완료: user=${user.username}, apiType=${apiType}, finalBalance=${finalBalance}원`);
   } catch (error) {
     console.error('❌ syncBalanceOnSessionEnd 실패:', error);
     
     // ⚠️ 에러 발생 시에도 세션을 'ended'로 변경 (다음 게임 실행 가능하도록!)
+    // ⭐ 중요: .in('status', ['active', 'ending']) 조건으로 active/ending 모두 처리
     try {
-      await supabase
+      const { data: updatedRows, error: updateError } = await supabase
         .from('game_launch_sessions')
         .update({
           status: 'ended',  // ⭐ error가 아닌 ended로 변경!
@@ -5817,9 +6031,16 @@ export async function syncBalanceOnSessionEnd(
         })
         .eq('user_id', userId)
         .eq('api_type', apiType)
-        .in('status', ['active', 'ending']); // active 또는 ending 상태를 ended로 변경
+        .in('status', ['active', 'ending']) // active 또는 ending 상태를 ended로 변경
+        .select('id, status'); // 업데이트된 행 수 확인
       
-      console.log('✅ [세션 종료 실패] 세션 상태를 ended로 변경 완료 (다음 게임 실행 가능)');
+      if (updateError) {
+        console.error('❌ [세션 종료 실패] 세션 상태 업데이트 실패:', updateError);
+      } else if (!updatedRows || updatedRows.length === 0) {
+        console.warn('⚠️ [세션 종료 실패] 업데이트할 active/ending 세션이 없습니다. (이미 ended일 가능성)');
+      } else {
+        console.log(`✅ [세션 종료 실패] 세션 상태를 ended로 변경 완료 (${updatedRows.length}개 행) - 다음 게임 실행 가능`);
+      }
       
       // ⭐ 활동 로그 기록: 세션 종료 실패
       try {
@@ -5837,7 +6058,7 @@ export async function syncBalanceOnSessionEnd(
             username: userData?.username || '알 수 없음',
             apiType,
             errorMessage: error instanceof Error ? error.message : String(error),
-            sessionStatus: 'error'
+            sessionStatus: 'error_to_ended'
           }
         }]);
       } catch (err) {
@@ -5845,7 +6066,7 @@ export async function syncBalanceOnSessionEnd(
       }
       
     } catch (updateError) {
-      console.error('❌ [세션 종료 실패] 세션 상태 업데이트 실패:', updateError);
+      console.error('❌ [세션 종료 실패] 세션 상태 업데이트 중 예외 발생:', updateError);
     }
     
     throw error;

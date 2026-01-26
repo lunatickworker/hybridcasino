@@ -18,6 +18,7 @@ import {
 } from "./AdminDialog";
 import { MetricCard } from "./MetricCard";
 import { getApiConfig, getUserBalanceWithConfig } from "../../lib/investApi";
+import * as gameApi from "../../lib/gameApi";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { cn } from "@/lib/utils";
 
@@ -371,29 +372,94 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
       let { data: gameSessionsData, error: gameSessionError } = await gameSessionQuery;
       if (gameSessionError) throw gameSessionError;
       
-      // ✅ 세션 자동 만료 처리: last_activity_at이 30분 이상 지난 세션은 자동 종료
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      const expiredSessions = (gameSessionsData || []).filter((s: any) => {
-        return s.last_activity_at && s.last_activity_at < thirtyMinutesAgo;
-      });
+      // ⚠️ 30분 무활동 active 세션 정리 제거됨
+      // 이유: 게임 중 무활동은 정상 (베팅 없이 게임만 하는 경우)
+      //      30분 자동 종료 시 게임 중 세션 강제 종료로 인한 문제 발생 가능
       
-      if (expiredSessions.length > 0) {
-        console.log(`⏰ [세션 자동 만료] ${expiredSessions.length}개 세션 만료 처리`);
+      // ✅ ending 상태 자동 정리: ending 상태가 4초 이상 지속되면 강제 회수 + 종료 (버그 방지)
+      // 정상: 0~3초에 ended 상태 도달
+      // 버그: 4초 경과해도 still ending = 명백한 버그 → 강제 처리 안전 ✅
+      const fourSecondsAgo = new Date(Date.now() - 4 * 1000).toISOString();
+      const { data: stuckEndingSessions, error: stuckError } = await supabase
+        .from('game_launch_sessions')
+        .select('id, user_id, api_type, last_activity_at')
+        .eq('status', 'ending')  // ⭐ ending 상태만 찾음 (ended는 자동 제외)
+        .lt('last_activity_at', fourSecondsAgo);
+      
+      if (stuckError) {
+        console.error('❌ [ending 상태 정리] 쿼리 실패:', stuckError);
+      } else if (stuckEndingSessions && stuckEndingSessions.length > 0) {
+        console.warn(`⏰ [ending 상태 강제 정리] ${stuckEndingSessions.length}개 ending 세션 발견 (4초 초과 = 버그 확정)`);
         
-        // 만료된 세션 일괄 종료
-        const expiredIds = expiredSessions.map((s: any) => s.id);
-        await supabase
+        // 1️⃣ stuck ending 세션의 강제 머니 회수 + 금액 검증
+        const recoveryIssues = [];
+        
+        for (const session of stuckEndingSessions) {
+          try {
+            console.log(`💸 [강제 회수] 시작: userId=${session.user_id}, apiType=${session.api_type}`);
+            
+            // 현재 users.balance 조회 (회수 예상 금액)
+            const { data: userBeforeRecover } = await supabase
+              .from('users')
+              .select('balance')
+              .eq('id', session.user_id)
+              .single();
+            
+            const expectedAmount = userBeforeRecover?.balance || 0;
+            
+            // 강제 회수 실행 → 실제 회수 금액 반환
+            const actualAmount = await gameApi.forceRecoverBalance(session.user_id, session.api_type);
+            console.log(`✅ [강제 회수] 완료: 예상=${expectedAmount}원, 실제=${actualAmount}원`);
+            
+            // 금액 불일치 감지 → 기록
+            if (actualAmount < expectedAmount) {
+              const difference = expectedAmount - actualAmount;
+              console.error(`⚠️ [손실 감지] userId=${session.user_id}, 차이=${difference}원`);
+              
+              recoveryIssues.push({
+                user_id: session.user_id,
+                api_type: session.api_type,
+                expected_amount: expectedAmount,
+                actual_amount: actualAmount,
+                difference: difference,
+                status: 'pending',
+                detected_at: new Date().toISOString()
+              });
+            }
+          } catch (recoverError) {
+            console.error(`❌ [강제 회수] 실패: userId=${session.user_id}`, recoverError);
+          }
+        }
+        
+        // 2️⃣ balance_recovery_issues 테이블에 기록 (손실 추적용)
+        if (recoveryIssues.length > 0) {
+          const { error: issueError } = await supabase
+            .from('balance_recovery_issues')
+            .insert(recoveryIssues);
+          
+          if (issueError) {
+            console.error('❌ [손실 기록] balance_recovery_issues 저장 실패:', issueError);
+          } else {
+            console.log(`✅ [손실 기록] ${recoveryIssues.length}개 손실 사항 기록됨`);
+          }
+        }
+        
+        // 3️⃣ ending → ended 상태 전환
+        const stuckIds = stuckEndingSessions.map((s: any) => s.id);
+        const { error: forceEndError } = await supabase
           .from('game_launch_sessions')
           .update({
             status: 'ended',
-            ended_at: new Date().toISOString()
+            ended_at: new Date().toISOString(),
+            error_message: '4초 ending 상태 유지로 강제 종료됨 (버그 감지 후 자동 회수)'
           })
-          .in('id', expiredIds);
+          .in('id', stuckIds);
         
-        // 만료된 세션은 제외
-        gameSessionsData = (gameSessionsData || []).filter((s: any) => {
-          return !expiredIds.includes(s.id);
-        });
+        if (forceEndError) {
+          console.error('❌ [ending 상태 강제 정리] 상태 업데이트 실패:', forceEndError);
+        } else {
+          console.log(`✅ [ending 상태 강제 정리] ${stuckIds.length}개 세션 ended로 변경 완료`);
+        }
       }
 
       // 2️⃣ 온라인 사용자 조회 (is_online = true)
@@ -634,18 +700,18 @@ export function OnlineUsers({ user }: OnlineUsersProps) {
     }
   };
 
-  // 30초마다 세션 자동 종료 + 데이터 갱신
+  // 14초마다 stuck ending 세션 감지 + 데이터 갱신
   useEffect(() => {
-    console.log('🔄 OnlineUsers 30초 타이머 시작');
+    console.log('🔄 OnlineUsers 14초 타이머 시작');
     
     // 즉시 실행
     loadSessions();
 
-    // 30초마다 실행
+    // 14초마다 실행
     const interval = setInterval(() => {
-      console.log('⏰ 30초 경과 - 세션 자동 종료 체크 실행');
+      console.log('⏰ 14초 경과 - 4초 stuck ending 감지 + 강제 회수 체크 실행');
       loadSessions();
-    }, 30000);
+    }, 14000);
 
     return () => {
       console.log('🛑 OnlineUsers 30초 타이머 종료');
