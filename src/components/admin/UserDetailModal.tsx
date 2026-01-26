@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
+import { Dialog, DialogContent } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -6,7 +6,7 @@ import { Badge } from "../ui/badge";
 import { Separator } from "../ui/separator";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 import { toast } from "sonner@2.0.3";
 import bcrypt from 'bcryptjs';
@@ -29,7 +29,10 @@ import {
   EyeOff,
   UserPlus,
   XCircle,
-  Loader2
+  Loader2,
+  GripVertical,
+  Edit2,
+  Save
 } from "lucide-react";
 
 interface UserDetailModalProps {
@@ -44,28 +47,117 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'security'>('info');
   
+  // ✅ 사용자 정보 수정 state
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [editNickname, setEditNickname] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editBankName, setEditBankName] = useState('');
+  const [editBankAccount, setEditBankAccount] = useState('');
+  const [editBankHolder, setEditBankHolder] = useState('');
+  const [editMemo, setEditMemo] = useState('');
+  const [isUpdatingInfo, setIsUpdatingInfo] = useState(false);
+  
   // ✅ 커미션 요율 state
   const [casinoRollingRate, setCasinoRollingRate] = useState('');
-  const [losingRate, setLosingRate] = useState(''); // 통합된 루징 요율
+  const [losingRate, setLosingRate] = useState('');
   const [slotRollingRate, setSlotRollingRate] = useState('');
   const [isUpdatingCommission, setIsUpdatingCommission] = useState(false);
+
+  // ✅ 로그인 비밀번호 state
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginPasswordConfirm, setLoginPasswordConfirm] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+
+  // ✅ 드래그 기능 state
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, modalX: 0, modalY: 0 });
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // 모달이 닫힐 때 상태 초기화
   useEffect(() => {
     if (!isOpen) {
       setWithdrawalPassword('');
       setPointConversionPassword('');
+      setLoginPassword('');
+      setLoginPasswordConfirm('');
+      setShowLoginPassword(false);
       setActiveTab('info');
       setCasinoRollingRate('');
       setLosingRate('');
       setSlotRollingRate('');
+      setIsDragging(false);
+      setPosition({ x: 0, y: 0 });
+      setIsEditingInfo(false);
     } else if (user) {
       // 모달이 열릴 때 현재 요율 값 로드
       setCasinoRollingRate(String(user.casino_rolling_commission || 0));
-      setLosingRate(String(user.casino_losing_commission || 0)); // 통합된 루징 요율
+      setLosingRate(String(user.casino_losing_commission || 0));
       setSlotRollingRate(String(user.slot_rolling_commission || 0));
+      
+      // 사용자 정보 초기화
+      setEditNickname(user.nickname || '');
+      setEditEmail(user.email || '');
+      setEditPhone(user.phone || '');
+      setEditBankName(user.bank_name || '');
+      setEditBankAccount(user.bank_account || '');
+      setEditBankHolder(user.bank_holder || '');
+      setEditMemo(user.memo || '');
     }
   }, [isOpen, user]);
+
+  // ✅ 드래그 시작
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX,
+      y: e.clientY,
+      modalX: position.x,
+      modalY: position.y
+    });
+  };
+
+  // ✅ 드래그 중
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - dragStart.x;
+      const deltaY = e.clientY - dragStart.y;
+      
+      let newX = dragStart.modalX + deltaX;
+      let newY = dragStart.modalY + deltaY;
+      
+      // 모달 크기: maxWidth 700px, 높이 약 400px (90vh 기준)
+      // position은 화면 중앙(50%) 기준 offset이므로, 양수/음수 모두 가능
+      const modalWidth = 350; // 700px의 절반 (중앙 기준)
+      const modalHeight = 200; // 400px의 절반 (중앙 기준)
+      
+      const maxX = window.innerWidth / 2 - modalWidth; // 오른쪽 끝
+      const minX = -(window.innerWidth / 2 - modalWidth); // 왼쪽 끝
+      const maxY = window.innerHeight / 2 - modalHeight; // 아래쪽 끝
+      const minY = -(window.innerHeight / 2 - modalHeight); // 위쪽 끝
+      
+      newX = Math.max(minX, Math.min(newX, maxX));
+      newY = Math.max(minY, Math.min(newY, maxY));
+      
+      setPosition({ x: newX, y: newY });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragStart]);
 
   if (!user) return null;
 
@@ -147,6 +239,75 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
     }
   };
 
+  // 로그인 비밀번호 업데이트
+  const handleUpdateLoginPassword = async () => {
+    if (!loginPassword.trim()) {
+      toast.error('새 로그인 비밀번호를 입력해주세요.');
+      return;
+    }
+
+    if (loginPassword.length < 6) {
+      toast.error('로그인 비밀번호는 6자 이상이어야 합니다.');
+      return;
+    }
+
+    if (loginPassword !== loginPasswordConfirm) {
+      toast.error('비밀번호와 비밀번호 확인이 일치하지 않습니다.');
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      const hashedPassword = bcrypt.hashSync(loginPassword.trim(), 10);
+      
+      const { error } = await supabase
+        .from('users')
+        .update({ password_hash: hashedPassword })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      toast.success('로그인 비밀번호가 성공적으로 변경되었습니다.');
+      setLoginPassword('');
+      setLoginPasswordConfirm('');
+      setShowLoginPassword(false);
+    } catch (error: any) {
+      console.error('로그인 비밀번호 변경 오류:', error);
+      toast.error(error.message || '로그인 비밀번호 변경에 실패했습니다.');
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  // 사용자 정보 업데이트
+  const handleUpdateUserInfo = async () => {
+    setIsUpdatingInfo(true);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          nickname: editNickname.trim(),
+          email: editEmail.trim() || null,
+          phone: editPhone.trim() || null,
+          bank_name: editBankName.trim() || null,
+          bank_account: editBankAccount.trim() || null,
+          bank_holder: editBankHolder.trim() || null,
+          memo: editMemo.trim() || null,
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      toast.success('사용자 정보가 성공적으로 수정되었습니다.');
+      setIsEditingInfo(false);
+    } catch (error: any) {
+      console.error('사용자 정보 수정 오류:', error);
+      toast.error(error.message || '사용자 정보 수정에 실패했습니다.');
+    } finally {
+      setIsUpdatingInfo(false);
+    }
+  };
+
   // 커미션 요율 업데이트
   const handleUpdateCommissionRates = async () => {
     if (!casinoRollingRate.trim() || !losingRate.trim() || !slotRollingRate.trim()) {
@@ -183,131 +344,309 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent 
-        className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+    <>
+      {isOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" 
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onClose();
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          style={{ 
+            pointerEvents: 'auto',
+            WebkitUserSelect: 'none',
+            userSelect: 'none'
+          }} 
+        />
+      )}
+      <div
+        ref={modalRef}
+        className={`fixed z-50 transition-all duration-100 flex flex-col ${isDragging ? 'cursor-grabbing' : ''}`}
         style={{
-          background: 'linear-gradient(135deg, rgba(15, 15, 25, 0.98) 0%, rgba(10, 10, 20, 0.98) 100%)',
-          borderColor: 'rgba(193, 154, 107, 0.3)',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(193, 154, 107, 0.1)',
+          transform: `translate(calc(-50% + ${position.x}px), calc(-50% + ${position.y}px))`,
+          width: '70vw',
+          maxWidth: '700px',
+          height: '90vh',
+          maxHeight: '90vh',
+          left: '50%',
+          top: '50%',
+          pointerEvents: isOpen ? 'auto' : 'none',
+          opacity: isOpen ? 1 : 0,
         }}
       >
-        {/* Header */}
-        <DialogHeader className="space-y-4 pb-4 border-b" style={{ borderColor: 'rgba(193, 154, 107, 0.2)' }}>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="flex items-center gap-3" style={{ color: '#E6C9A8' }}>
-              <User className="w-6 h-6" />
-              <span>회원 상세 정보</span>
-            </DialogTitle>
+        {/* 모달 컨테이너 */}
+        <div
+          className="flex flex-col rounded-xl shadow-2xl overflow-hidden h-full"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          style={{
+            background: 'linear-gradient(135deg, rgba(20, 20, 35, 0.95) 0%, rgba(15, 15, 28, 0.95) 100%)',
+            border: '2px solid rgba(193, 154, 107, 0.4)',
+            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8), 0 0 60px rgba(193, 154, 107, 0.2)',
+            pointerEvents: 'auto'
+          }}
+        >
+          {/* 헤더 - 드래그 가능 */}
+          <div
+            onMouseDown={handleMouseDown}
+            className="flex items-center justify-between px-6 py-4 border-b cursor-grab active:cursor-grabbing select-none"
+            style={{
+              borderColor: 'rgba(193, 154, 107, 0.3)',
+              background: 'linear-gradient(90deg, rgba(193, 154, 107, 0.1) 0%, rgba(166, 124, 82, 0.05) 100%)'
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <GripVertical className="w-5 h-5 text-gray-500" />
+              <div>
+                <h2 className="text-xl font-bold" style={{ color: '#E6C9A8' }}>
+                  {user?.nickname}
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">@{user?.username}</p>
+              </div>
+            </div>
             <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="flex items-center justify-center w-10 h-10 rounded-lg transition-all hover:bg-red-500/20"
+              style={{
+                color: '#E6C9A8'
+              }}
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6" />
             </button>
           </div>
-          <DialogDescription className="sr-only">
-            회원의 기본 정보, 계좌 정보, 거래 통계 및 보안 설정을 확인하고 관리할 수 있습니다.
-          </DialogDescription>
-          
-          {/* User Overview */}
-          <div className="flex items-center gap-4 p-4 rounded-lg" style={{
-            background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
-            borderColor: 'rgba(193, 154, 107, 0.2)',
-            border: '1px solid'
-          }}>
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <h3 className="text-2xl font-bold" style={{ color: '#E6C9A8' }}>
-                  {user.nickname}
-                </h3>
-                {getStatusBadge(user.status)}
-                {user.is_online && (
-                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 border">
-                    접속중
-                  </Badge>
-                )}
+
+          {/* 사용자 정보 요약 */}
+          <div className="px-6 py-4 border-b" style={{ borderColor: 'rgba(193, 154, 107, 0.2)' }}>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="p-3 rounded-lg" style={{
+                background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(21, 128, 61, 0.05) 100%)',
+                border: '1px solid rgba(34, 197, 94, 0.2)'
+              }}>
+                <div className="text-xs text-gray-400 mb-1">보유머니</div>
+                <div className="text-lg font-bold text-green-400">
+                  {Number(user?.balance || 0).toLocaleString()} 원
+                </div>
               </div>
-              <p className="text-gray-400">@{user.username}</p>
-            </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-400 mb-1">현재 잔액</div>
-              <div className="text-2xl font-bold" style={{ color: '#E6C9A8' }}>
-                {Number(user.balance || 0).toLocaleString()} 원
+              <div className="p-3 rounded-lg" style={{
+                background: 'linear-gradient(135deg, rgba(234, 179, 8, 0.1) 0%, rgba(202, 138, 4, 0.05) 100%)',
+                border: '1px solid rgba(234, 179, 8, 0.2)'
+              }}>
+                <div className="text-xs text-gray-400 mb-1">포인트</div>
+                <div className="text-lg font-bold text-yellow-400">
+                  {Number(user?.points || 0).toLocaleString()} P
+                </div>
               </div>
-              <div className="text-sm text-gray-500 mt-1">
-                포인트: {Number(user.points || 0).toLocaleString()} P
+              <div className="p-3 rounded-lg" style={{
+                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%)',
+                border: '1px solid rgba(59, 130, 246, 0.2)'
+              }}>
+                <div className="text-xs text-gray-400 mb-1">상태</div>
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(user?.status)}
+                  {user?.is_online && (
+                    <Badge className="bg-blue-500/30 text-blue-300 text-xs border-blue-500/50">
+                      온라인
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </DialogHeader>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mt-4 mb-4">
-          <button
-            onClick={() => setActiveTab('info')}
-            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-              activeTab === 'info' 
-                ? 'bg-gradient-to-r from-[#C19A6B] to-[#A67C52] text-white shadow-lg' 
-                : 'bg-white/5 text-gray-400 hover:bg-white/10'
-            }`}
+          {/* 탭 버튼 */}
+          <div 
+            className="flex gap-2 px-6 pt-4" 
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
+            style={{
+              borderBottom: '1px solid rgba(193, 154, 107, 0.2)',
+              pointerEvents: 'auto'
+            }}
           >
-            <Info className="w-4 h-4 inline mr-2" />
-            기본 정보
-          </button>
-          <button
-            onClick={() => setActiveTab('security')}
-            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-              activeTab === 'security' 
-                ? 'bg-gradient-to-r from-[#C19A6B] to-[#A67C52] text-white shadow-lg' 
-                : 'bg-white/5 text-gray-400 hover:bg-white/10'
-            }`}
-          >
-            <Shield className="w-4 h-4 inline mr-2" />
-            보안 설정
-          </button>
-        </div>
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setActiveTab('info');
+              }}
+              className={`py-3 px-4 font-semibold text-sm transition-all rounded-t-lg ${
+                activeTab === 'info'
+                  ? 'border-b-2'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+              style={{
+                borderBottomColor: activeTab === 'info' ? '#E6C9A8' : 'transparent',
+                color: activeTab === 'info' ? '#E6C9A8' : undefined,
+                pointerEvents: 'auto'
+              }}
+            >
+              <Info className="w-4 h-4 inline mr-2" />
+              기본 정보
+            </button>
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setActiveTab('security');
+              }}
+              className={`py-3 px-4 font-semibold text-sm transition-all rounded-t-lg ${
+                activeTab === 'security'
+                  ? 'border-b-2'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+              style={{
+                borderBottomColor: activeTab === 'security' ? '#E6C9A8' : 'transparent',
+                color: activeTab === 'security' ? '#E6C9A8' : undefined,
+                pointerEvents: 'auto'
+              }}
+            >
+              <Shield className="w-4 h-4 inline mr-2" />
+              보안 설정
+            </button>
+          </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto space-y-6">
-          {activeTab === 'info' ? (
+          {/* 콘텐츠 영역 */}
+          <div className={`flex-1 overflow-y-auto px-6 py-6 ${activeTab === 'security' ? 'space-y-4' : 'space-y-6'}`} style={{ scrollBehavior: 'smooth' }}>
+            {activeTab === 'info' ? (
             <>
               {/* 계정 정보 */}
               <div className="space-y-4">
-                <h4 className="font-bold flex items-center gap-2" style={{ color: '#E6C9A8' }}>
-                  <User className="w-5 h-5" />
-                  계정 정보
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold flex items-center gap-2" style={{ color: '#E6C9A8' }}>
+                    <User className="w-5 h-5" />
+                    계정 정보
+                  </h4>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isEditingInfo) {
+                        handleUpdateUserInfo();
+                      } else {
+                        setIsEditingInfo(true);
+                      }
+                    }}
+                    disabled={isUpdatingInfo}
+                    className="h-8 px-3 font-semibold text-xs"
+                    style={{
+                      background: isEditingInfo
+                        ? 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)'
+                        : 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
+                      border: '1px solid rgba(193, 154, 107, 0.2)'
+                    }}
+                  >
+                    {isUpdatingInfo ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        저장중...
+                      </>
+                    ) : isEditingInfo ? (
+                      <>
+                        <Save className="w-3 h-3 mr-1" />
+                        저장
+                      </>
+                    ) : (
+                      <>
+                        <Edit2 className="w-3 h-3 mr-1" />
+                        수정
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm">아이디</Label>
-                    <div className="p-3 rounded-lg bg-white/5 text-white">
+                    <Label className="text-gray-400 text-base">아이디</Label>
+                    <div className="p-3 rounded-lg bg-white/5 text-white text-sm">
                       {user.username}
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm">닉네임</Label>
-                    <div className="p-3 rounded-lg bg-white/5 text-white">
-                      {user.nickname}
-                    </div>
+                    <Label className="text-gray-400 text-base">닉네임</Label>
+                    {isEditingInfo ? (
+                      <Input
+                        value={editNickname}
+                        onChange={(e) => setEditNickname(e.target.value)}
+                        className="h-10 text-white text-sm"
+                        style={{
+                          background: 'rgba(20, 20, 35, 0.6)',
+                          borderColor: 'rgba(193, 154, 107, 0.2)',
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <div className="p-3 rounded-lg bg-white/5 text-white text-sm">
+                        {user.nickname}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Label className="text-gray-400 text-base flex items-center gap-2">
                       <Mail className="w-4 h-4" />
                       이메일
                     </Label>
-                    <div className="p-3 rounded-lg bg-white/5 text-white">
-                      {user.email || '-'}
-                    </div>
+                    {isEditingInfo ? (
+                      <Input
+                        value={editEmail}
+                        onChange={(e) => setEditEmail(e.target.value)}
+                        className="h-10 text-white text-sm"
+                        style={{
+                          background: 'rgba(20, 20, 35, 0.6)',
+                          borderColor: 'rgba(193, 154, 107, 0.2)',
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <div className="p-3 rounded-lg bg-white/5 text-white text-sm">
+                        {user.email || '-'}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Label className="text-gray-400 text-base flex items-center gap-2">
                       <Phone className="w-4 h-4" />
                       전화번호
                     </Label>
-                    <div className="p-3 rounded-lg bg-white/5 text-white">
-                      {user.phone || '-'}
-                    </div>
+                    {isEditingInfo ? (
+                      <Input
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        className="h-10 text-white text-sm"
+                        style={{
+                          background: 'rgba(20, 20, 35, 0.6)',
+                          borderColor: 'rgba(193, 154, 107, 0.2)',
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <div className="p-3 rounded-lg bg-white/5 text-white text-sm">
+                        {user.phone || '-'}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -323,35 +662,97 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                 <div className="grid grid-cols-1 gap-4">
                   <div className="grid gap-4" style={{ gridTemplateColumns: '1fr 2fr' }}>
                     <div className="space-y-2">
-                      <Label className="text-gray-400 text-sm flex items-center gap-2">
+                      <Label className="text-gray-400 text-base flex items-center gap-2">
                         <Building2 className="w-4 h-4" />
                         은행명
                       </Label>
-                      <div className="p-3 rounded-lg bg-white/5 text-white">
-                        {user.bank_name || '-'}
-                      </div>
+                      {isEditingInfo ? (
+                        <Input
+                          value={editBankName}
+                          onChange={(e) => setEditBankName(e.target.value)}
+                          placeholder="은행명 입력"
+                          className="h-10 text-white text-sm"
+                          style={{
+                            background: 'rgba(20, 20, 35, 0.6)',
+                            borderColor: 'rgba(193, 154, 107, 0.2)',
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <div className="p-3 rounded-lg bg-white/5 text-white text-sm">
+                          {user.bank_name || '-'}
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-gray-400 text-sm">계좌번호</Label>
-                      <div className="p-3 rounded-lg bg-white/5 text-white font-mono">
-                        {user.bank_account || '-'}
+                      <Label className="text-gray-400 text-base">계좌번호</Label>
+                      {isEditingInfo ? (
+                        <Input
+                          value={editBankAccount}
+                          onChange={(e) => setEditBankAccount(e.target.value)}
+                          placeholder="계좌번호 입력"
+                          className="h-10 text-white text-sm font-mono"
+                          style={{
+                            background: 'rgba(20, 20, 35, 0.6)',
+                            borderColor: 'rgba(193, 154, 107, 0.2)',
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <div className="p-3 rounded-lg bg-white/5 text-white text-sm font-mono">
+                          {user.bank_account || '-'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-400 text-base">예금주</Label>
+                    {isEditingInfo ? (
+                      <Input
+                        value={editBankHolder}
+                        onChange={(e) => setEditBankHolder(e.target.value)}
+                        placeholder="예금주명 입력"
+                        className="h-10 text-white text-sm"
+                        style={{
+                          background: 'rgba(20, 20, 35, 0.6)',
+                          borderColor: 'rgba(193, 154, 107, 0.2)',
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <div className="p-3 rounded-lg bg-white/5 text-white text-sm">
+                        {user.bank_holder || '-'}
                       </div>
-                    </div>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm">예금주</Label>
-                    <div className="p-3 rounded-lg bg-white/5 text-white">
-                      {user.bank_holder || '-'}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-gray-400 text-sm flex items-center gap-2">
+                    <Label className="text-gray-400 text-base flex items-center gap-2">
                       <Info className="w-4 h-4" />
                       메모
                     </Label>
-                    <div className="p-3 rounded-lg bg-white/5 text-white min-h-[60px]">
-                      {user.memo || '-'}
-                    </div>
+                    {isEditingInfo ? (
+                      <textarea
+                        value={editMemo}
+                        onChange={(e) => setEditMemo(e.target.value)}
+                        placeholder="메모 입력"
+                        className="w-full p-3 rounded-lg text-white text-sm resize-none focus:outline-none focus:ring-1"
+                        style={{
+                          background: 'rgba(20, 20, 35, 0.6)',
+                          borderColor: 'rgba(193, 154, 107, 0.2)',
+                          border: '1px solid rgba(193, 154, 107, 0.2)',
+                          minHeight: '60px'
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <div className="p-3 rounded-lg bg-white/5 text-white text-sm min-h-[60px] whitespace-pre-wrap">
+                        {user.memo || '-'}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -422,352 +823,358 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
               }}>
                 <Info className="h-4 w-4 text-blue-400" />
                 <AlertDescription className="text-blue-300">
-                  출금 및 포인트전환 비밀번호는 숫자 4자리로 설정해야 합니다. 기존 비밀번호가 있는 경우 덮어쓰기 됩니다.
+                  로그인 비밀번호는 6자 이상으로 설정하세요. 출금/포인트전환 비밀번호는 숫자 4자리입니다.
                 </AlertDescription>
               </Alert>
 
-              {/* 출금 비밀번호 설정 */}
-              <div className="p-6 rounded-lg space-y-4" style={{
-                background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
-                border: '2px solid rgba(193, 154, 107, 0.3)',
-                boxShadow: '0 8px 32px rgba(193, 154, 107, 0.1)'
+              {/* 로그인 비밀번호 변경 */}
+              <div className="p-4 rounded-lg" style={{
+                background: 'rgba(30, 30, 45, 0.4)',
+                border: '1px solid rgba(193, 154, 107, 0.2)',
               }}>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 rounded-lg" style={{
-                    background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
-                  }}>
-                    <Lock className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold" style={{ color: '#E6C9A8' }}>
-                      출금 비밀번호 설정
-                    </h4>
-                    <p className="text-sm text-gray-400">
-                      회원의 출금 요청 시 사용되는 비밀번호입니다
-                    </p>
-                  </div>
-                </div>
-                
+                <h4 className="font-bold flex items-center gap-2 mb-4" style={{ color: '#E6C9A8' }}>
+                  <Key className="w-5 h-5" />
+                  로그인 비밀번호 변경
+                </h4>
                 <div className="space-y-3">
-                  <Label className="text-gray-300 flex items-center gap-2">
-                    <Key className="w-4 h-4" />
-                    새 출금 비밀번호 (숫자 4자리)
-                  </Label>
-                  <div className="flex gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-gray-300 text-sm">새 비밀번호 (6자 이상)</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type={showLoginPassword ? 'text' : 'password'}
+                        placeholder="새 비밀번호 입력"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        className="flex-1 h-10 text-white text-sm"
+                        style={{
+                          background: 'rgba(20, 20, 35, 0.6)',
+                          borderColor: 'rgba(193, 154, 107, 0.2)',
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="px-3"
+                      >
+                        {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-gray-300 text-sm">비밀번호 확인</Label>
+                    <Input
+                      type={showLoginPassword ? 'text' : 'password'}
+                      placeholder="비밀번호 다시 입력"
+                      value={loginPasswordConfirm}
+                      onChange={(e) => setLoginPasswordConfirm(e.target.value)}
+                      className="h-10 text-white text-sm"
+                      style={{
+                        background: 'rgba(20, 20, 35, 0.6)',
+                        borderColor: loginPasswordConfirm && loginPassword !== loginPasswordConfirm ? 'rgba(239, 68, 68, 0.5)' : 'rgba(193, 154, 107, 0.2)',
+                      }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    {loginPasswordConfirm && loginPassword !== loginPasswordConfirm && (
+                      <p className="text-xs text-red-400 flex items-center gap-1">
+                        <XCircle className="w-3 h-3" />
+                        비밀번호가 일치하지 않습니다.
+                      </p>
+                    )}
+                    {loginPasswordConfirm && loginPassword === loginPasswordConfirm && (
+                      <p className="text-xs text-green-400 flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" />
+                        비밀번호가 일치합니다.
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    onClick={handleUpdateLoginPassword}
+                    disabled={isUpdatingPassword || !loginPassword || loginPassword !== loginPasswordConfirm}
+                    className="w-full"
+                    onMouseDown={(e) => e.stopPropagation()}
+                  >
+                    {isUpdatingPassword ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        변경 중...
+                      </>
+                    ) : (
+                      <>
+                        <Key className="w-4 h-4 mr-2" />
+                        로그인 비밀번호 변경
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <Separator style={{ background: 'rgba(193, 154, 107, 0.2)' }} />
+
+              {/* 비밀번호 설정 - 압축 레이아웃 */}
+              <div className="space-y-3">
+                <h4 className="font-bold flex items-center gap-2" style={{ color: '#E6C9A8' }}>
+                  <Lock className="w-5 h-5" />
+                  기타 비밀번호 설정
+                </h4>
+                
+                {/* 출금 비밀번호 */}
+                <div className="p-4 rounded-lg" style={{
+                  background: 'rgba(30, 30, 45, 0.4)',
+                  border: '1px solid rgba(193, 154, 107, 0.2)',
+                }}>
+                  <Label className="text-gray-300 text-sm block mb-2">출금 비밀번호 (숫자 4자리)</Label>
+                  <div className="flex gap-2">
                     <Input
                       type="password"
                       placeholder="• • • •"
                       value={withdrawalPassword}
                       onChange={(e) => setWithdrawalPassword(e.target.value.replace(/\D/g, ''))}
                       maxLength={4}
-                      className="flex-1 h-12 text-lg text-white"
+                      className="flex-1 h-10 text-white text-sm"
                       style={{
-                        background: 'rgba(20, 20, 35, 0.8)',
-                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        background: 'rgba(20, 20, 35, 0.6)',
+                        borderColor: 'rgba(193, 154, 107, 0.2)',
                       }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
                     />
                     <Button
-                      onClick={handleUpdateWithdrawalPassword}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpdateWithdrawalPassword();
+                      }}
                       disabled={isUpdating || !withdrawalPassword.trim()}
-                      className="h-12 px-6 font-semibold"
+                      className="h-10 px-3 font-semibold text-sm"
                       style={{
                         background: isUpdating || !withdrawalPassword.trim() 
-                          ? 'rgba(100, 100, 100, 0.5)' 
+                          ? 'rgba(100, 100, 100, 0.3)' 
                           : 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
-                        border: '1px solid rgba(193, 154, 107, 0.3)'
+                        border: '1px solid rgba(193, 154, 107, 0.2)'
                       }}
                     >
-                      {isUpdating ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          설정 중...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          설정
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      onClick={() => setWithdrawalPassword('')}
-                      disabled={!withdrawalPassword.trim()}
-                      className="h-12 px-6 font-semibold"
-                      style={{
-                        background: !withdrawalPassword.trim()
-                          ? 'rgba(100, 100, 100, 0.5)'
-                          : 'linear-gradient(135deg, rgba(239, 68, 68, 0.6) 0%, rgba(185, 28, 28, 0.6) 100%)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)'
-                      }}
-                    >
-                      <XCircle className="w-4 h-4 mr-2" />
-                      리셋
+                      <CheckCircle className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
-              </div>
 
-              {/* 포인트전환 비밀번호 설정 */}
-              <div className="p-6 rounded-lg space-y-4" style={{
-                background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
-                border: '2px solid rgba(193, 154, 107, 0.3)',
-                boxShadow: '0 8px 32px rgba(193, 154, 107, 0.1)'
-              }}>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 rounded-lg" style={{
-                    background: 'linear-gradient(135deg, #A67C52 0%, #8B6F47 100%)',
-                  }}>
-                    <Wallet className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold" style={{ color: '#E6C9A8' }}>
-                      포인트전환 비밀번호 설정
-                    </h4>
-                    <p className="text-sm text-gray-400">
-                      포인트를 머니로 전환할 때 사용되는 비밀번호입니다
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="space-y-3">
-                  <Label className="text-gray-300 flex items-center gap-2">
-                    <Key className="w-4 h-4" />
-                    새 포인트전환 비밀번호 (숫자 4자리)
-                  </Label>
-                  <div className="flex gap-3">
+                {/* 포인트전환 비밀번호 */}
+                <div className="p-4 rounded-lg" style={{
+                  background: 'rgba(30, 30, 45, 0.4)',
+                  border: '1px solid rgba(193, 154, 107, 0.2)',
+                }}>
+                  <Label className="text-gray-300 text-sm block mb-2">포인트전환 비밀번호 (숫자 4자리)</Label>
+                  <div className="flex gap-2">
                     <Input
                       type="password"
-                      placeholder="예: 1234"
+                      placeholder="• • • •"
                       value={pointConversionPassword}
                       onChange={(e) => setPointConversionPassword(e.target.value.replace(/\D/g, ''))}
                       maxLength={4}
-                      className="flex-1 h-12 text-lg text-white"
+                      className="flex-1 h-10 text-white text-sm"
                       style={{
-                        background: 'rgba(20, 20, 35, 0.8)',
-                        borderColor: 'rgba(193, 154, 107, 0.3)',
+                        background: 'rgba(20, 20, 35, 0.6)',
+                        borderColor: 'rgba(193, 154, 107, 0.2)',
                       }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
                     />
                     <Button
-                      onClick={handleUpdatePointConversionPassword}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpdatePointConversionPassword();
+                      }}
                       disabled={isUpdating || !pointConversionPassword.trim()}
-                      className="h-12 px-6 font-semibold"
+                      className="h-10 px-3 font-semibold text-sm"
                       style={{
                         background: isUpdating || !pointConversionPassword.trim() 
-                          ? 'rgba(100, 100, 100, 0.5)' 
+                          ? 'rgba(100, 100, 100, 0.3)' 
                           : 'linear-gradient(135deg, #A67C52 0%, #8B6F47 100%)',
-                        border: '1px solid rgba(193, 154, 107, 0.3)'
+                        border: '1px solid rgba(193, 154, 107, 0.2)'
                       }}
                     >
-                      {isUpdating ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          설정 중...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          설정
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      onClick={() => setPointConversionPassword('')}
-                      disabled={!pointConversionPassword.trim()}
-                      className="h-12 px-6 font-semibold"
-                      style={{
-                        background: !pointConversionPassword.trim()
-                          ? 'rgba(100, 100, 100, 0.5)'
-                          : 'linear-gradient(135deg, rgba(239, 68, 68, 0.6) 0%, rgba(185, 28, 28, 0.6) 100%)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)'
-                      }}
-                    >
-                      <XCircle className="w-4 h-4 mr-2" />
-                      리셋
+                      <CheckCircle className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
               </div>
 
               {/* 보안 상태 */}
-              <div className="space-y-4">
-                <h4 className="font-bold flex items-center gap-2" style={{ color: '#E6C9A8' }}>
-                  <Shield className="w-5 h-5" />
+              <div className="space-y-2">
+                <h4 className="font-bold text-sm flex items-center gap-2" style={{ color: '#E6C9A8' }}>
+                  <Shield className="w-4 h-4" />
                   보안 상태
                 </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-5 rounded-lg" style={{
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-3 rounded text-center text-xs" style={{
                     background: user.withdrawal_password 
-                      ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(21, 128, 61, 0.15) 100%)'
-                      : 'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(161, 98, 7, 0.15) 100%)',
+                      ? 'rgba(34, 197, 94, 0.1)' 
+                      : 'rgba(234, 179, 8, 0.1)',
                     border: user.withdrawal_password 
-                      ? '1px solid rgba(34, 197, 94, 0.4)' 
-                      : '1px solid rgba(234, 179, 8, 0.4)'
+                      ? '1px solid rgba(34, 197, 94, 0.3)' 
+                      : '1px solid rgba(234, 179, 8, 0.3)'
                   }}>
-                    <div className="text-sm text-gray-300 mb-3">출금 비밀번호</div>
-                    <div className="flex items-center gap-2">
-                      {user.withdrawal_password ? (
-                        <>
-                          <CheckCircle className="w-5 h-5 text-green-400" />
-                          <span className="text-green-300 font-semibold text-lg">설정됨</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="w-5 h-5 text-yellow-400" />
-                          <span className="text-yellow-300 font-semibold text-lg">미설정</span>
-                        </>
-                      )}
+                    <div className="font-semibold" style={{
+                      color: user.withdrawal_password ? '#4ade80' : '#facc15'
+                    }}>
+                      {user.withdrawal_password ? '✓ 설정' : '미설정'}
                     </div>
+                    <div className="text-gray-400 text-xs mt-1">출금 비밀번호</div>
                   </div>
-                  <div className="p-5 rounded-lg" style={{
+                  <div className="p-3 rounded text-center text-xs" style={{
                     background: user.point_conversion_password 
-                      ? 'linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(21, 128, 61, 0.15) 100%)'
-                      : 'linear-gradient(135deg, rgba(234, 179, 8, 0.15) 0%, rgba(161, 98, 7, 0.15) 100%)',
+                      ? 'rgba(34, 197, 94, 0.1)' 
+                      : 'rgba(234, 179, 8, 0.1)',
                     border: user.point_conversion_password 
-                      ? '1px solid rgba(34, 197, 94, 0.4)' 
-                      : '1px solid rgba(234, 179, 8, 0.4)'
+                      ? '1px solid rgba(34, 197, 94, 0.3)' 
+                      : '1px solid rgba(234, 179, 8, 0.3)'
                   }}>
-                    <div className="text-sm text-gray-300 mb-3">포인트전환 비밀번호</div>
-                    <div className="flex items-center gap-2">
-                      {user.point_conversion_password ? (
-                        <>
-                          <CheckCircle className="w-5 h-5 text-green-400" />
-                          <span className="text-green-300 font-semibold text-lg">설정됨</span>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="w-5 h-5 text-yellow-400" />
-                          <span className="text-yellow-300 font-semibold text-lg">미설정</span>
-                        </>
-                      )}
+                    <div className="font-semibold" style={{
+                      color: user.point_conversion_password ? '#4ade80' : '#facc15'
+                    }}>
+                      {user.point_conversion_password ? '✓ 설정' : '미설정'}
                     </div>
+                    <div className="text-gray-400 text-xs mt-1">포인트전환 비밀번호</div>
                   </div>
                 </div>
               </div>
 
-              {/* 커미션 요율 설정 */}
-              <div className="p-6 rounded-lg space-y-4" style={{
-                background: 'linear-gradient(135deg, rgba(30, 30, 45, 0.6) 0%, rgba(20, 20, 35, 0.6) 100%)',
-                border: '2px solid rgba(193, 154, 107, 0.3)',
-                boxShadow: '0 8px 32px rgba(193, 154, 107, 0.1)'
-              }}>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-3 rounded-lg" style={{
-                    background: 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
-                  }}>
-                    <Shield className="w-6 h-6 text-white" />
+              {/* 커미션 요율 설정 - 압축 레이아웃 */}
+              <div className="space-y-3">
+                <h4 className="font-bold flex items-center gap-2" style={{ color: '#E6C9A8' }}>
+                  <Shield className="w-5 h-5" />
+                  커미션 요율 (%)
+                </h4>
+                
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-gray-300 text-sm block">카지노 롤링</Label>
+                    <Input
+                      type="text"
+                      placeholder="0.0"
+                      value={casinoRollingRate}
+                      onChange={(e) => setCasinoRollingRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                      className="h-10 text-white text-sm"
+                      style={{
+                        background: 'rgba(20, 20, 35, 0.6)',
+                        borderColor: 'rgba(193, 154, 107, 0.2)',
+                      }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    />
                   </div>
-                  <div>
-                    <h4 className="font-bold" style={{ color: '#E6C9A8' }}>
-                      커미션 요율 설정
-                    </h4>
-                    <p className="text-sm text-gray-400">
-                      각 게임의 커미션 요율을 설정합니다
-                    </p>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-gray-300 text-sm block">루징 공통</Label>
+                    <Input
+                      type="text"
+                      placeholder="0.0"
+                      value={losingRate}
+                      onChange={(e) => setLosingRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                      className="h-10 text-white text-sm"
+                      style={{
+                        background: 'rgba(20, 20, 35, 0.6)',
+                        borderColor: 'rgba(193, 154, 107, 0.2)',
+                      }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-gray-300 text-sm block">슬롯 롤링</Label>
+                    <Input
+                      type="text"
+                      placeholder="0.0"
+                      value={slotRollingRate}
+                      onChange={(e) => setSlotRollingRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                      className="h-10 text-white text-sm"
+                      style={{
+                        background: 'rgba(20, 20, 35, 0.6)',
+                        borderColor: 'rgba(193, 154, 107, 0.2)',
+                      }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    />
                   </div>
                 </div>
                 
-                <div className="space-y-3">
-                  <Label className="text-gray-300 flex items-center gap-2">
-                    <Key className="w-4 h-4" />
-                    카지노 롤링 커미션 요율 (%)
-                  </Label>
-                  <div className="flex gap-3">
-                    <Input
-                      type="text"
-                      placeholder="예: 1.5"
-                      value={casinoRollingRate}
-                      onChange={(e) => setCasinoRollingRate(e.target.value.replace(/[^0-9.]/g, ''))}
-                      className="flex-1 h-12 text-lg text-white"
-                      style={{
-                        background: 'rgba(20, 20, 35, 0.8)',
-                        borderColor: 'rgba(193, 154, 107, 0.3)',
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-gray-300 flex items-center gap-2">
-                    <Key className="w-4 h-4" />
-                    루징 커미션 요율 (%) - 카지노/슬롯 공통
-                  </Label>
-                  <div className="flex gap-3">
-                    <Input
-                      type="text"
-                      placeholder="예: 1.5"
-                      value={losingRate}
-                      onChange={(e) => setLosingRate(e.target.value.replace(/[^0-9.]/g, ''))}
-                      className="flex-1 h-12 text-lg text-white"
-                      style={{
-                        background: 'rgba(20, 20, 35, 0.8)',
-                        borderColor: 'rgba(193, 154, 107, 0.3)',
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-gray-300 flex items-center gap-2">
-                    <Key className="w-4 h-4" />
-                    슬롯 롤링 커미션 요율 (%)
-                  </Label>
-                  <div className="flex gap-3">
-                    <Input
-                      type="text"
-                      placeholder="예: 1.5"
-                      value={slotRollingRate}
-                      onChange={(e) => setSlotRollingRate(e.target.value.replace(/[^0-9.]/g, ''))}
-                      className="flex-1 h-12 text-lg text-white"
-                      style={{
-                        background: 'rgba(20, 20, 35, 0.8)',
-                        borderColor: 'rgba(193, 154, 107, 0.3)',
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-3">
+                <div className="flex gap-3">
                   <Button
-                    onClick={handleUpdateCommissionRates}
-                    disabled={isUpdatingCommission}
-                    className="h-12 px-6 font-semibold"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUpdateCommissionRates();
+                    }}
+                    disabled={isUpdatingCommission || !casinoRollingRate.trim() || !losingRate.trim() || !slotRollingRate.trim()}
+                    className="flex-1 h-10 px-4 font-semibold text-sm"
                     style={{
-                      background: isUpdatingCommission 
-                        ? 'rgba(100, 100, 100, 0.5)' 
+                      background: isUpdatingCommission || !casinoRollingRate.trim() || !losingRate.trim() || !slotRollingRate.trim()
+                        ? 'rgba(100, 100, 100, 0.3)' 
                         : 'linear-gradient(135deg, #C19A6B 0%, #A67C52 100%)',
-                      border: '1px solid rgba(193, 154, 107, 0.3)'
+                      border: '1px solid rgba(193, 154, 107, 0.2)'
                     }}
                   >
                     {isUpdatingCommission ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        <Loader2 className="w-3 h-3 mr-2 animate-spin inline" />
                         설정 중...
                       </>
                     ) : (
                       <>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        설정
+                        <CheckCircle className="w-3 h-3 mr-2 inline" />
+                        저장
                       </>
                     )}
+                  </Button>
+
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onClose();
+                    }}
+                    className="flex-1 h-10 font-semibold text-sm"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.2) 0%, rgba(166, 124, 82, 0.1) 100%)',
+                      border: '1px solid rgba(193, 154, 107, 0.3)',
+                      color: '#E6C9A8'
+                    }}
+                  >
+                    닫기
                   </Button>
                 </div>
               </div>
             </>
           )}
-        </div>
+          </div>
 
-        {/* Footer */}
-        <div className="pt-4 border-t mt-4" style={{ borderColor: 'rgba(193, 154, 107, 0.2)' }}>
-          <Button
-            onClick={onClose}
-            className="w-full h-12 font-semibold"
-            style={{
-              background: 'linear-gradient(135deg, rgba(60, 60, 80, 0.8) 0%, rgba(40, 40, 60, 0.8) 100%)',
-              borderColor: 'rgba(193, 154, 107, 0.3)',
-              border: '1px solid'
-            }}
-          >
-            닫기
-          </Button>
+          {/* 푸터 - Info 탭에서만 표시 */}
+          {activeTab === 'info' && (
+            <div className="px-6 py-4 border-t" style={{
+              borderColor: 'rgba(193, 154, 107, 0.2)',
+              background: 'linear-gradient(90deg, rgba(193, 154, 107, 0.05) 0%, rgba(166, 124, 82, 0.02) 100%)'
+            }}>
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                }}
+                className="w-full h-11 font-semibold transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(193, 154, 107, 0.2) 0%, rgba(166, 124, 82, 0.1) 100%)',
+                  border: '1px solid rgba(193, 154, 107, 0.3)',
+                  color: '#E6C9A8'
+                }}
+              >
+                닫기
+              </Button>
+            </div>
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </>
   );
 }

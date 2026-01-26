@@ -126,7 +126,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
 
           // ✅ ref에 저장 (state 대신)
           activeApisRef.current = activeApiMap;
-          console.error('✅ [Lv2AutoSync] 활성화된 API (파트너 ID=' + targetPartnerId + '):', activeApiMap);
+          console.log('✅ [Lv2AutoSync] 활성화된 API (파트너 ID=' + targetPartnerId + '):', activeApiMap);
         } else {
           console.error('❌ [Lv2AutoSync] apiConfigs EMPTY - 동기화 불가능');
         }
@@ -136,23 +136,23 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
     };
 
     if (user.level === 2 && user.parent_id) {
-      console.error('🔍 [Lv2AutoSync] checkActiveApis() \ud638\ucd9c \uc2dc\uc791');
+      console.log('🔍 [Lv2AutoSync] checkActiveApis() 호출 시작');
       checkActiveApis();
     } else {
-      console.error('⚠️ [Lv2AutoSync] checkActiveApis() \uac74\ub108\ub9f8 - level:', user.level, 'parent_id:', user.parent_id);
+      console.log('⚠️ [Lv2AutoSync] checkActiveApis() 건너뜀 - level:', user.level, 'parent_id:', user.parent_id);
     }
   }, [user.level, user.parent_id]);
 
   useEffect(() => {
     // Lv2가 아니면 실행하지 않음
-    console.error('🔍 [Lv2AutoSync] CHECK: user.level=', user.level, 'user.parent_id=', user.parent_id);
+    console.log('🔍 [Lv2AutoSync] CHECK: user.level=', user.level, 'user.parent_id=', user.parent_id);
     
     if (user.level !== 2) {
-      console.error('❌ [Lv2AutoSync] NOT Lv2 - STOP');
+      console.log('❌ [Lv2AutoSync] NOT Lv2 - STOP');
       return;
     }
 
-    console.error('✅ [Lv2AutoSync] IS Lv2 - START');
+    console.log('✅ [Lv2AutoSync] IS Lv2 - START');
 
     // ✅ Edge Function URL 하드코딩
     const EDGE_FUNCTION_URL = 'https://hduofjzsitoaujyjvuix.supabase.co/functions/v1/server';
@@ -165,7 +165,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
     // Invest 베팅 동기화 실행 함수 (30초마다)
     const runInvestBettingSync = async () => {
       if (!activeApisRef.current.invest) {
-        console.error('⏭️ [Lv2AutoSync] Invest SKIPPED - API not active');
+        console.log('⏭️ [Lv2AutoSync] Invest SKIPPED - API not active');
         return;
       }
 

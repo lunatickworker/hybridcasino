@@ -24,8 +24,13 @@ const corsHeaders: Record<string, string> = {
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   const path = url.pathname;
+  const queryAction = url.searchParams.get('action');
   
   console.log(`🔔 [HANDLER] ${req.method} ${path}`);
+  console.log(`📍 [DEBUG] 전체 URL:`, req.url);
+  console.log(`📍 [DEBUG] 경로:`, path);
+  console.log(`📍 [DEBUG] query action:`, queryAction);
+  console.log(`📍 [DEBUG] path.includes('/sync/lv2-balances'):`, path.includes('/sync/lv2-balances'));
 
   // OPTIONS preflight 응답
   if (req.method === 'OPTIONS') {
@@ -42,14 +47,20 @@ Deno.serve(async (req: Request) => {
     // 요청 본문 한 번만 파싱
     let body: any = {};
     let apiType: string | null = null;
+    let action: string | null = null;
     
     if (req.method === 'POST' || req.method === 'PUT') {
       try {
         body = await req.json();
+        console.log(`📦 [DEBUG] body 파싱 성공:`, body);
         apiType = body.api_type;
+        action = body.action;
+        console.log(`📦 [DEBUG] action 값: ${action}, source: ${body._source}`);
       } catch (e) {
-        // JSON 파싱 실패 무시
+        console.log(`📦 [DEBUG] body 파싱 실패:`, e);
       }
+    } else {
+      console.log(`📦 [DEBUG] GET/DELETE 요청 - body 파싱 안 함`);
     }
 
     // 경로별 또는 api_type별 동기화 처리
@@ -72,22 +83,6 @@ Deno.serve(async (req: Request) => {
     if (path.includes('/sync/honorapi-bets') || apiType === 'honorapi' || apiType === 'honor') {
       console.log('🎰 [SYNC] HonorAPI 베팅 동기화 시작');
       const result = await syncHonorapiBets();
-      return new Response(
-        JSON.stringify({
-          ...result,
-          functionExecutedAt: executedAt,
-          functionRespondedAt: new Date().toISOString()
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    if (path.includes('/sync/lv2-balances')) {
-      console.log('💰 [SYNC] Lv2 보유금 동기화 시작');
-      const result = await syncLv2Balances();
       return new Response(
         JSON.stringify({
           ...result,
@@ -220,6 +215,7 @@ async function proxyCall<T = any>(config: {
 // OroPlay 토큰 조회 및 자동 갱신
 // =====================================================
 async function getOroPlayToken(partnerId: string): Promise<string> {
+  console.log(`[OroPlay Token] 조회 시작 (partner_id: ${partnerId})`);
   const { data: config, error: configError } = await supabase
     .from('api_configs')
     .select('token, token_expires_at, client_id, client_secret, is_active')
@@ -227,16 +223,26 @@ async function getOroPlayToken(partnerId: string): Promise<string> {
     .eq('api_provider', 'oroplay')
     .maybeSingle();
   
-  if (configError || !config) {
+  if (configError) {
+    console.error(`[OroPlay Token] ❌ 설정 조회 에러:`, configError);
     throw new Error('OroPlay API 설정을 찾을 수 없습니다.');
   }
   
+  if (!config) {
+    console.error(`[OroPlay Token] ❌ 설정 없음 (partner_id: ${partnerId})`);
+    throw new Error('OroPlay API 설정을 찾을 수 없습니다.');
+  }
+  
+  console.log(`[OroPlay Token] 설정 발견:`, { has_token: !!config.token, is_active: config.is_active, has_client_id: !!config.client_id, has_client_secret: !!config.client_secret });
+  
   // ✅ is_active 체크 추가
   if (config.is_active === false) {
+    console.warn(`[OroPlay Token] ⚠️ API 비활성화됨`);
     throw new Error('OroPlay API가 비활성화되어 있습니다.');
   }
   
   if (!config.client_id || !config.client_secret) {
+    console.error(`[OroPlay Token] ❌ Credentials 부족:`, { has_client_id: !!config.client_id, has_client_secret: !!config.client_secret });
     throw new Error('OroPlay client_id 또는 client_secret이 설정되지 않았습니다.');
   }
   
@@ -247,11 +253,15 @@ async function getOroPlayToken(partnerId: string): Promise<string> {
     const fiveMinutes = 5 * 60 * 1000;
     
     if (expiresAt - now > fiveMinutes) {
+      console.log(`[OroPlay Token] ✅ 기존 토큰 사용 (유효기간 ${Math.floor((expiresAt - now) / 1000)}초)`);
       return config.token;
+    } else {
+      console.log(`[OroPlay Token] 기존 토큰 만료 근처, 재발급 필요`);
     }
   }
   
   // 토큰 재발급
+  console.log(`[OroPlay Token] 새 토큰 발급 중...`);
   const response = await proxyCall<any>({
     url: `${OROPLAY_BASE_URL}/auth/createtoken`,
     method: 'POST',
@@ -263,25 +273,36 @@ async function getOroPlayToken(partnerId: string): Promise<string> {
   });
   
   if (response.errorCode !== undefined && response.errorCode !== 0) {
+    console.error(`[OroPlay Token] ❌ 토큰 발급 실패:`, response);
     throw new Error(`Token creation failed: errorCode ${response.errorCode}`);
   }
   
   const tokenData = response.message || response;
   
   if (!tokenData.token || !tokenData.expiration) {
+    console.error(`[OroPlay Token] ❌ 토큰 응답 형식 에러:`, tokenData);
     throw new Error('Invalid token response format');
   }
   
+  console.log(`[OroPlay Token] ✅ 토큰 발급 성공 (유효기간: ${tokenData.expiration})`);
+  
   // DB에 저장
-  await supabase
+  const expiresAt = new Date(tokenData.expiration * 1000).toISOString();
+  const { error: updateError } = await supabase
     .from('api_configs')
     .update({
       token: tokenData.token,
-      token_expires_at: new Date(tokenData.expiration * 1000).toISOString(),
+      token_expires_at: expiresAt,
       updated_at: new Date().toISOString()
     })
     .eq('partner_id', partnerId)
     .eq('api_provider', 'oroplay');
+  
+  if (updateError) {
+    console.error(`[OroPlay Token] ❌ DB 업데이트 실패:`, updateError);
+  } else {
+    console.log(`[OroPlay Token] ✅ DB 업데이트 성공`);
+  }
   
   return tokenData.token;
 }
@@ -355,6 +376,7 @@ async function getBettingHistory(
 // OroPlay Agent 잔고 조회
 // =====================================================
 async function getAgentBalance(token: string): Promise<number> {
+  console.log(`[OroPlay Balance] 잔액 조회 시작`);
   const response = await proxyCall<any>({
     url: `${OROPLAY_BASE_URL}/agent/balance`,
     method: 'GET',
@@ -364,7 +386,10 @@ async function getAgentBalance(token: string): Promise<number> {
     }
   });
   
+  console.log(`[OroPlay Balance] API 응답:`, response);
+  
   if (response.errorCode !== undefined && response.errorCode !== 0) {
+    console.error(`[OroPlay Balance] ❌ 잔액 조회 실패 (errorCode: ${response.errorCode}):`, response);
     throw new Error(`Agent 잔고 조회 실패: errorCode ${response.errorCode}`);
   }
   
@@ -379,6 +404,7 @@ async function getAgentBalance(token: string): Promise<number> {
     balance = parseFloat(response.message) || 0;
   }
   
+  console.log(`[OroPlay Balance] ✅ 잔액: ${balance}`);
   return balance;
 }
 
@@ -1457,189 +1483,6 @@ async function syncHonorapiBets(): Promise<any> {
 }
 
 // =====================================================
-// Lv2 파트너 보유금 동기화
-// =====================================================
-async function syncLv2Balances(): Promise<any> {
-  console.log('[Lv2Balance] 시작');
-  const { data: lv2Partners, error: partnersError } = await supabase
-    .from('partners')
-    .select('id, nickname, parent_id, level, status')
-    .eq('level', 2)
-    .eq('status', 'active');
-
-  if (partnersError) {
-    console.error('❌ Lv2 파트너 조회 에러:', partnersError);
-    return { success: false, message: 'Failed to fetch Lv2 partners', error: partnersError };
-  }
-
-  if (!lv2Partners || lv2Partners.length === 0) {
-    return { success: true, message: 'No active Lv2 partners', synced: 0 };
-  }
-
-  let totalSynced = 0;
-  let totalErrors = 0;
-  const syncResults = {
-    invest: { synced: 0, errors: 0 },
-    oroplay: { synced: 0, errors: 0 },
-    familyapi: { synced: 0, errors: 0 },
-    honorapi: { synced: 0, errors: 0 }
-  };
-
-  // 각 Lv2 파트너별로 처리
-  for (const partner of lv2Partners) {
-    try {
-      if (!partner.parent_id) {
-        continue;
-      }
-
-      const balances: any = {};
-
-      // ========================================
-      // 1. Invest Balance 동기화
-      // ========================================
-      try {
-        const { data: investConfig } = await supabase
-          .from('api_configs')
-          .select('id, is_active')
-          .eq('partner_id', partner.id)
-          .eq('api_provider', 'invest')
-          .maybeSingle();
-
-        if (investConfig && investConfig.is_active !== false) {
-          // Invest API 동기화는 별도 구현 필요
-        }
-      } catch (investError: any) {
-        syncResults.invest.errors++;
-      }
-
-      try {
-        let oroConfig = await supabase
-          .from('api_configs')
-          .select('is_active')
-          .eq('partner_id', partner.id)
-          .eq('api_provider', 'oroplay')
-          .maybeSingle();
-
-        let credentialPartnerId = partner.id;
-        if (!oroConfig.data && partner.parent_id) {
-          oroConfig = await supabase
-            .from('api_configs')
-            .select('is_active')
-            .eq('partner_id', partner.parent_id)
-            .eq('api_provider', 'oroplay')
-            .maybeSingle();
-          credentialPartnerId = partner.parent_id;
-        }
-
-        if (oroConfig.data && oroConfig.data.is_active !== false) {
-          try {
-            const oroToken = await getOroPlayToken(credentialPartnerId);
-            if (oroToken) {
-              const oroBalance = await getAgentBalance(oroToken);
-              balances.oroplay_balance = oroBalance;
-              syncResults.oroplay.synced++;
-            } else {
-              syncResults.oroplay.errors++;
-            }
-          } catch (err) {
-            console.error(`❌ OroPlay 보유금 조회 실패 (${partner.id}):`, err);
-            syncResults.oroplay.errors++;
-          }
-        }
-      } catch (oroError: any) {
-        console.error(`❌ OroPlay 설정 조회 에러 (${partner.id}):`, oroError);
-        syncResults.oroplay.errors++;
-      }
-
-      try {
-        let familyConfig = await supabase
-          .from('api_configs')
-          .select('api_key, is_active')
-          .eq('partner_id', partner.id)
-          .eq('api_provider', 'familyapi')
-          .maybeSingle();
-
-        if (!familyConfig.data && partner.parent_id) {
-          familyConfig = await supabase
-            .from('api_configs')
-            .select('api_key, is_active')
-            .eq('partner_id', partner.parent_id)
-            .eq('api_provider', 'familyapi')
-            .maybeSingle();
-        }
-
-        if (familyConfig.data && familyConfig.data.api_key && familyConfig.data.is_active !== false) {
-          const credentialPartnerId = familyConfig.data ? partner.id : partner.parent_id;
-          const familyToken = await getFamilyApiToken(credentialPartnerId);
-          const familyBalance = await getFamilyApiAgentBalance(familyConfig.data.api_key, familyToken);
-          balances.familyapi_balance = familyBalance;
-          syncResults.familyapi.synced++;
-        }
-      } catch (familyError: any) {
-        syncResults.familyapi.errors++;
-      }
-
-      try {
-        let honorConfig = await supabase
-          .from('api_configs')
-          .select('api_key, is_active')
-          .eq('partner_id', partner.id)
-          .eq('api_provider', 'honorapi')
-          .maybeSingle();
-
-        if (!honorConfig.data && partner.parent_id) {
-          honorConfig = await supabase
-            .from('api_configs')
-            .select('api_key, is_active')
-            .eq('partner_id', partner.parent_id)
-            .eq('api_provider', 'honorapi')
-            .maybeSingle();
-        }
-
-        if (honorConfig.data && honorConfig.data.api_key && honorConfig.data.is_active !== false) {
-          const honorBalance = await getHonorApiAgentBalance(honorConfig.data.api_key);
-          balances.honorapi_balance = honorBalance;
-          syncResults.honorapi.synced++;
-        }
-      } catch (honorError: any) {
-        syncResults.honorapi.errors++;
-      }
-
-      if (Object.keys(balances).length > 0) {
-        const { error: updateError } = await supabase
-          .from('partners')
-          .update({
-            ...balances,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', partner.id);
-
-        if (updateError) {
-          console.error(`❌ Partner ${partner.id} 업데이트 에러:`, updateError);
-          totalErrors++;
-        } else {
-          totalSynced++;
-        }
-      }
-
-    } catch (error) {
-      console.error(`❌ Partner ${partner.id} 에러:`, error);
-      totalErrors++;
-    }
-  }
-
-  console.log(`[Lv2Balance] 완료: ${totalSynced}건 업데이트, ${totalErrors}개 에러`);
-
-  return {
-    success: true,
-    synced: totalSynced,
-    errors: totalErrors,
-    partners: lv2Partners.length,
-    details: syncResults
-  };
-}
-
-// =====================================================
 // 메인 핸들러 - 원본 (주석 처리됨 - 간단한 버전 사용 중)
 // =====================================================
 /*
@@ -1754,63 +1597,5 @@ export default async function handler(req: Request): Promise<Response> {
     }
 
     // FamilyAPI 베팅 동기화
-    if ((path === '/sync/familyapi-bets' || path === '/server/sync/familyapi-bets') && req.method === 'POST') {
-      const startTime = new Date().toISOString();
-      const result = await syncFamilyapiBets();
-      return new Response(JSON.stringify({ ...result, functionExecutedAt: startTime, functionRespondedAt: new Date().toISOString() }), { headers: corsHeaders });
-    }
-
-    // HonorAPI 베팅 동기화
-    if ((path === '/sync/honorapi-bets' || path === '/server/sync/honorapi-bets') && req.method === 'POST') {
-      const startTime = new Date().toISOString();
-      const result = await syncHonorapiBets();
-      return new Response(JSON.stringify({ ...result, functionExecutedAt: startTime, functionRespondedAt: new Date().toISOString() }), { headers: corsHeaders });
-    }
-
-    // Lv2 보유금 동기화
-    if ((path === '/sync/lv2-balances' || path === '/server/sync/lv2-balances') && req.method === 'POST') {
-      const startTime = new Date().toISOString();
-      const result = await syncLv2Balances();
-      return new Response(JSON.stringify({ ...result, functionExecutedAt: startTime, functionRespondedAt: new Date().toISOString() }), { headers: corsHeaders });
-    }
-
-      // 자동 정산 (매일 00:04 실행)
-      if ((path === '/sync/auto-settlement' || path === '/server/sync/auto-settlement') && req.method === 'POST') {
-        const result = await executeAutoSettlement();
-        return new Response(JSON.stringify(result), { headers: corsHeaders });
-      }
-
-      // 404 Not Found
-      return new Response(
-        JSON.stringify({ error: 'Not Found', path, method: req.method }),
-        { status: 404, headers: corsHeaders }
-      );
-
-    } catch (error: any) {
-      console.error('❌ HANDLER ERROR:', error);
-      console.error('❌ Stack:', error.stack);
-      console.error('❌ Error name:', error.name);
-      console.error('❌ Error message:', error.message);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: error.message,
-          errorName: error.name,
-          errorStack: error.stack
-        }),
-        { status: 500, headers: corsHeaders }
-      );
-    } finally {
-      console.error('🔔 [HANDLER] 호출 완료');
-    }
-  } catch (error: any) {
-    console.error('❌ OUTER ERROR:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: corsHeaders }
-    );
-  }
-}
-*/
 
 console.log('📍 [STARTUP] 간단한 테스트 핸들러 사용 중');

@@ -1961,7 +1961,9 @@ export function UserManagement() {
             <Button 
               size="sm" 
               variant="outline" 
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 setDetailUser(row);
                 setShowDetailModal(true);
               }}
@@ -2165,9 +2167,10 @@ export function UserManagement() {
                 className="pl-10 input-premium"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={showDetailModal}
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={setStatusFilter} disabled={showDetailModal}>
               <SelectTrigger className="w-[160px] input-premium">
                 <Filter className="h-4 w-4 mr-2" />
                 <SelectValue placeholder={t.userManagement.statusFilter} />

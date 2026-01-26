@@ -57,6 +57,7 @@ import * as familyApiModule from '../../lib/familyApi';
 import * as honorApiModule from '../../lib/honorApi';
 import { calculateMyIncome, getDescendantUserIds } from '../../lib/settlementCalculator';
 import { getBettingStatsByGameType } from '../../lib/settlementCalculatorV2';
+import { Lv2BalanceSync } from './Lv2BalanceSync';
 
 interface AdminHeaderProps {
   user: Partner;
@@ -3054,6 +3055,9 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ✅ Lv2 보유금 자동 동기화 - 메인 대시보드에만 표시 */}
+      {user.level === 1 && currentRoute === '/admin/dashboard' && <Lv2BalanceSync />}
     </>
   );
 }

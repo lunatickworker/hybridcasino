@@ -5523,9 +5523,10 @@ export async function syncBalanceOnSessionEnd(
           console.log(`✅ [세션 종료] Invest API 출금 완료: ${currentBalance}원`);
           finalBalance = currentBalance; // ⚡ finalBalance 설정
           
-          // 🚨 CRITICAL: users.balance 즉시 업데이트 (반복 조회 제거!)
-          // ⚡ 이미 함수 시작 시 조회한 currentUserBalance를 사용!
-          const newBalance = currentUserBalance + currentBalance;
+          // 🚨 CRITICAL: users.balance 즉시 업데이트 (회수된 금액 그대로 사용!)
+          // ⭐ 게임 플레이/미플레이 상관없이 동일한 로직:
+          // 회수금액 = 최종보유금 (입금 전 금액 - 게임 손실 = 회수액)
+          const newBalance = currentBalance;
           
           const { error: userBalanceError } = await supabase
             .from('users')
@@ -5538,7 +5539,7 @@ export async function syncBalanceOnSessionEnd(
           if (userBalanceError) {
             console.error('❌ [세션 종료] users.balance 업데이트 실패:', userBalanceError);
           } else {
-            console.log(`✅ [세션 종료] users.balance 증가: ${currentUserBalance - currentBalance}원 → ${newBalance}원 (+${currentBalance}원)`);
+            console.log(`✅ [세션 종료] users.balance 동기화: ${currentUserBalance}원 → ${newBalance}원 (회수금액 그대로)`);
             
             // ⭐ 활동 로그 기록: 게임 종료 시 API 출금 + GMS 보유금 증가
             await logGameWithdraw(
