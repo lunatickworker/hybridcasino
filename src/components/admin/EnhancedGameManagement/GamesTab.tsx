@@ -121,15 +121,7 @@ export function GamesTab({ user }: GamesTabProps) {
       return hasGame;
     });
     
-    // 🔍 providers 배열에 CQ9/Habanero가 있는지 확인
-    const cq9InProviders = providers.find(p => p.id === 7310);
-    const habaneroInProviders = providers.find(p => p.id === 7328);
-    if (selectedGameType === "slot") {
-      console.log(`🔍 providers에 merged CQ9: ${cq9InProviders ? `YES (api_type=${cq9InProviders.api_type}, multi_api=${cq9InProviders.multi_api})` : 'NO'}`);
-      console.log(`🔍 providers에 merged Habanero: ${habaneroInProviders ? `YES (api_type=${habaneroInProviders.api_type}, multi_api=${habaneroInProviders.multi_api})` : 'NO'}`);
-    }
-    
-    console.log(`📋 currentProviders (${selectedApi}/${selectedGameType}): total=${filteredProviders.length}/${apiProviders.length}, providers=${filteredProviders.map(p => p.name_ko || p.name).join(', ')}`);
+    console.log(`📋 currentProviders (${selectedApi}/${selectedGameType}): ${filteredProviders.length}개`);
     
     return filteredProviders;
   }, [providers, selectedApi, selectedGameType, games]);

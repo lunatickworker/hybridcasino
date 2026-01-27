@@ -733,9 +733,6 @@ export async function getProviders(filters?: {
 
         console.log(`📊 제공사 조회 (활성 API만): ${providers.length}개`, filters);
         
-        // 🆕 같은 이름의 제공사 통합 (예: oroplay Pragmatic + honorapi PragmaticSlot)
-        providers = mergeProvidersByName(providers);
-        
         return providers;
       }
     } catch (partnerError) {
@@ -743,12 +740,7 @@ export async function getProviders(filters?: {
     }
   }
 
-  console.log(`📊 제공사 조회 (통합 전): ${providers.length}개`, filters);
-  
-  // 🆕 같은 이름의 제공사 통합
-  providers = mergeProvidersByName(providers);
-  
-  console.log(`📊 제공사 조회 (통합 후): ${providers.length}개`, filters);
+  console.log(`📊 제공사 조회: ${providers.length}개`, filters);
   return providers;
 }
 
