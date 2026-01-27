@@ -20,6 +20,10 @@ import { useLanguage } from "../../../../contexts/LanguageContext";
 import { ProviderSectionProps } from "../types";
 import { GameCard } from "./GameCard";
 
+interface ExtendedProviderSectionProps extends ProviderSectionProps {
+  searchTerm?: string;
+}
+
 export function ProviderSection({
   provider,
   games,
@@ -33,8 +37,26 @@ export function ProviderSection({
   userLevel,
   isBlocked = false,
   blockedGameIds = new Set(),
-}: ProviderSectionProps) {
+  searchTerm = "",
+}: ExtendedProviderSectionProps) {
   const { t } = useLanguage();
+
+  // ✅ 검색 필터링만 (게임타입 필터링은 GamesTab에서 제공사 레벨에서 처리)
+  const filteredGames = useMemo(() => {
+    let filtered = games;
+
+    // 검색 필터
+    if (searchTerm.trim()) {
+      const searchNormalized = searchTerm.replace(/\s/g, '').toLowerCase();
+      filtered = filtered.filter(game => {
+        const nameNormalized = game.name.replace(/\s/g, '').toLowerCase();
+        const nameKoNormalized = (game.name_ko || '').replace(/\s/g, '').toLowerCase();
+        return nameNormalized.includes(searchNormalized) || nameKoNormalized.includes(searchNormalized);
+      });
+    }
+
+    return filtered;
+  }, [games, searchTerm]);
 
   const stats = useMemo(() => {
     return {
@@ -158,13 +180,13 @@ export function ProviderSection({
       {/* 게임 그리드 */}
       {isExpanded && (
         <div className="p-4">
-          {games.length === 0 ? (
+          {filteredGames.length === 0 ? (
             <div className="text-center py-8 text-base font-medium text-slate-300">
-              게임이 없습니다.
+              {searchTerm || selectedGameType !== "all" ? "해당하는 게임이 없습니다." : "게임이 없습니다."}
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-              {games.map((game) => (
+              {filteredGames.map((game) => (
                 <GameCard
                   key={game.id}
                   game={game}

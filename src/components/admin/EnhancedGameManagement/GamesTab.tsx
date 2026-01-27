@@ -51,7 +51,33 @@ export function GamesTab({ user }: GamesTabProps) {
   const [blockedProviderIds, setBlockedProviderIds] = useState<Set<number>>(new Set());
   const [blockedGameIds, setBlockedGameIds] = useState<Set<number>>(new Set());
 
-  const debouncedSearchTerm = useDebounce(searchTerm, DEBOUNCE_DELAY);
+  // ✅ API 선택 변경 시 games 업데이트
+  useEffect(() => {
+    if (selectedApi && allGames.length > 0) {
+      const apiGames = allGames.filter(g => g.api_type === selectedApi);
+      
+      // 🔍 CQ9/Habanero 게임이 포함되었는지 확인
+      const cq9InGames = apiGames.filter(g => g.provider_id === 7310);
+      const habaneroInGames = apiGames.filter(g => g.provider_id === 7328);
+      
+      // 🔍 CQ9/Habanero의 게임 타입 분포 확인
+      const cq9Types = cq9InGames.reduce((acc, g) => {
+        acc[g.type || 'undefined'] = (acc[g.type || 'undefined'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      const habaneroTypes = habaneroInGames.reduce((acc, g) => {
+        acc[g.type || 'undefined'] = (acc[g.type || 'undefined'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      console.log(`🔎 apiGames (${selectedApi}): 총=${apiGames.length}개, CQ9=${cq9InGames.length}개, Habanero=${habaneroInGames.length}개`);
+      console.log(`   CQ9 타입 분포:`, cq9Types);
+      console.log(`   Habanero 타입 분포:`, habaneroTypes);
+      console.log(`   CQ9 샘플:`, cq9InGames.slice(0, 2).map(g => ({ id: g.id, name: g.name, type: g.type })));
+      
+      setGames(apiGames);
+    }
+  }, [selectedApi, allGames]);
 
   // 사용 가능한 API 목록
   const availableApis = useMemo(() => {
@@ -73,56 +99,56 @@ export function GamesTab({ user }: GamesTabProps) {
 
   const availableGameTypes = getAvailableGameTypes(selectedApi);
 
-  // 현재 API의 제공사 필터링
+  // ✅ 현재 API + 게임타입의 제공사 필터링 (단순화)
   const currentProviders = useMemo(() => {
     if (!selectedApi) return [];
     
+    // ✅ API 필터링만 (제공사 통합 제거)
     const apiProviders = providers.filter(p => p.api_type === selectedApi);
     
+    // selectedGameType이 "all"이면 모든 제공사, 아니면 해당 타입 게임이 있는 제공사만
+    if (selectedGameType === "all") {
+      return apiProviders;
+    }
+    
+    // 게임타입으로 필터링: selectedApi + selectedGameType의 게임이 있는 제공사만
     const filteredProviders = apiProviders.filter(provider => {
-      if (user.level > 1 && provider.status !== "visible") {
-        return false;
-      }
-      
-      const hasGamesOfType = games.some(game => {
+      const hasGame = games.some(game => {
         if (game.provider_id !== provider.id) return false;
-        if (game.api_type !== selectedApi) return false;
-        if (selectedGameType !== "all" && game.type !== selectedGameType) {
-          return false;
-        }
+        if (game.type !== selectedGameType) return false;
         return true;
       });
-      
-      return hasGamesOfType;
+      return hasGame;
     });
     
+    // 🔍 providers 배열에 CQ9/Habanero가 있는지 확인
+    const cq9InProviders = providers.find(p => p.id === 7310);
+    const habaneroInProviders = providers.find(p => p.id === 7328);
+    if (selectedGameType === "slot") {
+      console.log(`🔍 providers에 merged CQ9: ${cq9InProviders ? `YES (api_type=${cq9InProviders.api_type}, multi_api=${cq9InProviders.multi_api})` : 'NO'}`);
+      console.log(`🔍 providers에 merged Habanero: ${habaneroInProviders ? `YES (api_type=${habaneroInProviders.api_type}, multi_api=${habaneroInProviders.multi_api})` : 'NO'}`);
+    }
+    
+    console.log(`📋 currentProviders (${selectedApi}/${selectedGameType}): total=${filteredProviders.length}/${apiProviders.length}, providers=${filteredProviders.map(p => p.name_ko || p.name).join(', ')}`);
+    
     return filteredProviders;
-  }, [providers, selectedApi, selectedGameType, games, user.level]);
+  }, [providers, selectedApi, selectedGameType, games]);
 
   // 제공사별 게임 그룹화
   const providerGamesMap = useMemo(() => {
     const map = new Map<number, Game[]>();
-    const searchNormalized = debouncedSearchTerm.replace(/\\s/g, '').toLowerCase();
     
     currentProviders.forEach(provider => {
-      const providerNameNormalized = provider.name.replace(/\\s/g, '').toLowerCase();
-      
       const providerGames = games.filter(game => {
         const matchesProvider = game.provider_id === provider.id;
         const matchesApi = game.api_type === selectedApi;
-        const matchesType = selectedGameType === "all" || game.type === selectedGameType;
         
-        if (!matchesProvider || !matchesApi || !matchesType) return false;
+        if (!matchesProvider || !matchesApi) return false;
+        // ✅ Lv1: 모든 게임 표시 (status 무관)
+        // ✅ Lv2+: visible 상태의 게임만 표시
         if (user.level > 1 && game.status !== "visible") return false;
-        if (!searchNormalized) return true;
         
-        const gameNameNormalized = game.name.replace(/\\s/g, '').toLowerCase();
-        const gameNameKoNormalized = (game.name_ko || '').replace(/\\s/g, '').toLowerCase();
-        const matchesProviderName = providerNameNormalized.includes(searchNormalized);
-        const matchesGameName = gameNameNormalized.includes(searchNormalized);
-        const matchesGameNameKo = gameNameKoNormalized.includes(searchNormalized);
-        
-        return matchesProviderName || matchesGameName || matchesGameNameKo;
+        return true;
       });
       
       if (providerGames.length > 0) {
@@ -131,7 +157,7 @@ export function GamesTab({ user }: GamesTabProps) {
     });
     
     return map;
-  }, [games, currentProviders, selectedApi, selectedGameType, debouncedSearchTerm, user.level]);
+  }, [games, currentProviders, selectedApi, user.level]);
 
   // 통계
   const stats = useMemo(() => {
@@ -244,6 +270,15 @@ export function GamesTab({ user }: GamesTabProps) {
       
       const allGamesData = await gameApi.getGames({});
       setAllGames(allGamesData);
+      
+      // 게임 타입 분포 로깅
+      const typeCounts = allGamesData.reduce((acc, game) => {
+        acc[game.type || 'unknown'] = (acc[game.type || 'unknown'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log(`📊 게임 타입 분포:`, typeCounts);
+      console.log(`🎮 샘플 게임:`, allGamesData.slice(0, 3).map(g => ({ id: g.id, name: g.name, type: g.type, provider_id: g.provider_id })));
+      
       const apiGames = allGamesData.filter(g => g.api_type === selectedApi);
       setGames(apiGames);
     } catch (error) {
@@ -571,9 +606,14 @@ export function GamesTab({ user }: GamesTabProps) {
               제공사가 없습니다.
             </div>
           ) : (
-            currentProviders
-              .filter(provider => providerGamesMap.has(provider.id))
-              .map(provider => (
+            (() => {
+              // ✅ Lv1: 게임이 없어도 제공사 표시 (제공사 관리용)
+              // ✅ Lv2+: 게임이 있는 제공사만 표시
+              const providersToDisplay = user.level === 1 
+                ? currentProviders 
+                : currentProviders.filter(provider => providerGamesMap.has(provider.id));
+              
+              return providersToDisplay.map(provider => (
                 <ProviderSection
                   key={provider.id}
                   provider={provider}
@@ -588,8 +628,10 @@ export function GamesTab({ user }: GamesTabProps) {
                   userLevel={user.level}
                   isBlocked={blockedProviderIds.has(provider.id)}
                   blockedGameIds={blockedGameIds}
+                  searchTerm={searchTerm}
                 />
-              ))
+              ));
+            })()
           )}
         </div>
       </CardContent>
