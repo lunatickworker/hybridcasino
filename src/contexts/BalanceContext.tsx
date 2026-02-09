@@ -58,6 +58,8 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
 
     try {
       setLoading(true);
+      
+      // ✅ 모든 레벨: partners.balance 조회
       const { data, error: dbError } = await supabase
         .from('partners')
         .select('balance')
@@ -76,170 +78,60 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
       }
 
       if (!data) {
+        console.warn(`⚠️ [Balance] 파트너 ${user.id} 조회 결과 없음`);
         setBalance(0);
         setLoading(false);
         return;
       }
 
-      const currentBalance = data?.balance || 0;
+      const currentBalance = parseFloat(data.balance?.toString() || '0') || 0;
+      console.log(`✅ [Balance] Lv${user.level} 파트너 ${user.nickname} balance 로드:`, currentBalance);
       setBalance(currentBalance);
 
+      // ✅ Lv1만 API 활성 상태 확인
       if (user.level === 1) {
-        const { data: investData } = await supabase
+        const { data: investConfig } = await supabase
           .from('api_configs')
-          .select('balance, is_active')
+          .select('is_active')
           .eq('partner_id', user.id)
           .eq('api_provider', 'invest')
           .maybeSingle();
 
-        const { data: oroplayData } = await supabase
+        const { data: oroplayConfig } = await supabase
           .from('api_configs')
-          .select('balance, is_active')
+          .select('is_active')
           .eq('partner_id', user.id)
           .eq('api_provider', 'oroplay')
           .maybeSingle();
 
-        const { data: familyapiData } = await supabase
+        const { data: familyapiConfig } = await supabase
           .from('api_configs')
-          .select('balance, is_active')
+          .select('is_active')
           .eq('partner_id', user.id)
           .eq('api_provider', 'familyapi')
           .maybeSingle();
 
-        const { data: honorapiData } = await supabase
+        const { data: honorapiConfig } = await supabase
           .from('api_configs')
-          .select('balance, is_active')
+          .select('is_active')
           .eq('partner_id', user.id)
           .eq('api_provider', 'honorapi')
           .maybeSingle();
 
-        const invest = parseFloat(investData?.balance?.toString() || '0') || 0;
-        const oro = parseFloat(oroplayData?.balance?.toString() || '0') || 0;
-        const family = parseFloat(familyapiData?.balance?.toString() || '0') || 0;
-        const honor = parseFloat(honorapiData?.balance?.toString() || '0') || 0;
-
-        setInvestBalance(invest);
-        setOroplayBalance(oro);
-        setFamilyapiBalance(family);
-        setHonorapiBalance(honor);
-        setUseInvestApi(investData?.is_active !== false);
-        setUseOroplayApi(oroplayData?.is_active !== false);
-        setUseFamilyApi(familyapiData?.is_active !== false);
-        setUseHonorApi(honorapiData?.is_active !== false);
-
-      } else if (user.level === 2) {
-        const { data: lv2Data } = await supabase
-          .from('partners')
-          .select('invest_balance, oroplay_balance, familyapi_balance, honorapi_balance')
-          .eq('id', user.id)
-          .single();
-
-        if (lv2Data) {
-          setInvestBalance(parseFloat(lv2Data.invest_balance?.toString() || '0') || 0);
-          setOroplayBalance(parseFloat(lv2Data.oroplay_balance?.toString() || '0') || 0);
-          setFamilyapiBalance(parseFloat(lv2Data.familyapi_balance?.toString() || '0') || 0);
-          setHonorapiBalance(parseFloat(lv2Data.honorapi_balance?.toString() || '0') || 0);
-        }
-
-        const { data: lv1Config } = await supabase
-          .from('partners')
-          .select('id')
-          .eq('level', 1)
-          .limit(1)
-          .single();
-
-        if (lv1Config) {
-          const { data: investConfig } = await supabase
-            .from('api_configs')
-            .select('is_active')
-            .eq('partner_id', lv1Config.id)
-            .eq('api_provider', 'invest')
-            .maybeSingle();
-
-          const { data: oroplayConfig } = await supabase
-            .from('api_configs')
-            .select('is_active')
-            .eq('partner_id', lv1Config.id)
-            .eq('api_provider', 'oroplay')
-            .maybeSingle();
-
-          const { data: familyapiConfig } = await supabase
-            .from('api_configs')
-            .select('is_active')
-            .eq('partner_id', lv1Config.id)
-            .eq('api_provider', 'familyapi')
-            .maybeSingle();
-
-          const { data: honorapiConfig } = await supabase
-            .from('api_configs')
-            .select('is_active')
-            .eq('partner_id', lv1Config.id)
-            .eq('api_provider', 'honorapi')
-            .maybeSingle();
-
-          setUseInvestApi(investConfig?.is_active !== false);
-          setUseOroplayApi(oroplayConfig?.is_active !== false);
-          setUseFamilyApi(familyapiConfig?.is_active !== false);
-          setUseHonorApi(honorapiConfig?.is_active !== false);
-        }
-      } else {
-        setInvestBalance(0);
-        setOroplayBalance(0);
-        setFamilyapiBalance(0);
-        setHonorapiBalance(0);
-
-        const { data: lv1Config } = await supabase
-          .from('partners')
-          .select('id')
-          .eq('level', 1)
-          .limit(1)
-          .single();
-
-        if (lv1Config) {
-          const { data: investConfig } = await supabase
-            .from('api_configs')
-            .select('is_active')
-            .eq('partner_id', lv1Config.id)
-            .eq('api_provider', 'invest')
-            .maybeSingle();
-
-          const { data: oroplayConfig } = await supabase
-            .from('api_configs')
-            .select('is_active')
-            .eq('partner_id', lv1Config.id)
-            .eq('api_provider', 'oroplay')
-            .maybeSingle();
-
-          const { data: familyapiConfig } = await supabase
-            .from('api_configs')
-            .select('is_active')
-            .eq('partner_id', lv1Config.id)
-            .eq('api_provider', 'familyapi')
-            .maybeSingle();
-
-          const { data: honorapiConfig } = await supabase
-            .from('api_configs')
-            .select('is_active')
-            .eq('partner_id', lv1Config.id)
-            .eq('api_provider', 'honorapi')
-            .maybeSingle();
-
-          setUseInvestApi(investConfig?.is_active !== false);
-          setUseOroplayApi(oroplayConfig?.is_active !== false);
-          setUseFamilyApi(familyapiConfig?.is_active !== false);
-          setUseHonorApi(honorapiConfig?.is_active !== false);
-        }
+        setUseInvestApi(investConfig?.is_active !== false);
+        setUseOroplayApi(oroplayConfig?.is_active !== false);
+        setUseFamilyApi(familyapiConfig?.is_active !== false);
+        setUseHonorApi(honorapiConfig?.is_active !== false);
       }
 
-      setLastSyncTime(new Date());
       setError(null);
       setLoading(false);
     } catch (err: any) {
-      console.error('❌ [Balance] DB 조회 오류:', err);
-      setError(err.message || 'DB 조회 오류');
+      console.error('❌ [Balance] loadBalanceFromDB 오류:', err);
+      setError(err.message);
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id, user?.level]);
 
   const syncBalanceFromAPI = useCallback(async (isManual: boolean = false) => {
     if (!user?.id) return;
@@ -323,80 +215,121 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           .eq('api_provider', 'invest');
       }
 
-      try {
-        const { data: oroConfig } = await supabase
-          .from('api_configs')
-          .select('client_id, client_secret')
-          .eq('partner_id', user.id)
-          .eq('api_provider', 'oroplay')
-          .maybeSingle();
-
-        if (!oroConfig?.client_id || !oroConfig?.client_secret) {
-          const errorMsg = `OroPlay credentials가 설정되지 않았습니다.`;
-          console.error('❌ [Balance]', errorMsg);
-          if (isManual) {
-            toast.error(errorMsg);
-          }
-        } else {
-          const { getAgentBalance, getOroPlayToken } = await import('../lib/oroplayApi');
-
-          const oroToken = await getOroPlayToken(user.id);
-          const rawOroBalance = await getAgentBalance(oroToken);
-          newOroBalance = typeof rawOroBalance === 'number' && !isNaN(rawOroBalance) ? rawOroBalance : 0;
-
-          await supabase
+      // ✅ OroPlay API 활성화 체크
+      const isOroPlayActive = await checkApiActiveByPartnerId(user.id, 'oroplay');
+      if (!isOroPlayActive) {
+        newOroBalance = 0;
+      } else {
+        try {
+          const { data: oroConfig } = await supabase
             .from('api_configs')
-            .update({
-              balance: newOroBalance,
-              updated_at: new Date().toISOString()
-            })
+            .select('client_id, client_secret, is_active')
             .eq('partner_id', user.id)
-            .eq('api_provider', 'oroplay');
-        }
-      } catch (oroErr: any) {
-        console.error('❌ [Balance] OroPlay API 잔고 조회 실패:', oroErr);
-        if (isManual) {
-          toast.error(`OroPlay 잔고 조회 실패: ${oroErr.message}`);
-        }
-      }
+            .eq('api_provider', 'oroplay')
+            .maybeSingle();
 
-      // ✅ HonorAPI 보유금 동기화 추가
-      try {
-        const { data: honorConfig } = await supabase
-          .from('api_configs')
-          .select('api_key')
-          .eq('partner_id', user.id)
-          .eq('api_provider', 'honorapi')
-          .maybeSingle();
+          if (!oroConfig?.is_active || !oroConfig?.client_id || !oroConfig?.client_secret) {
+            newOroBalance = 0;
+            console.log('⏭️ [Balance] OroPlay 비활성화됨');
+          } else {
+            const { getAgentBalance, getOroPlayToken } = await import('../lib/oroplayApi');
 
-        if (!honorConfig?.api_key) {
-          const errorMsg = `HonorAPI credentials가 설정되지 않았습니다.`;
-          console.error('❌ [Balance]', errorMsg);
-          if (isManual) {
-            toast.error(errorMsg);
+            const oroToken = await getOroPlayToken(user.id);
+            const rawOroBalance = await getAgentBalance(oroToken);
+            newOroBalance = typeof rawOroBalance === 'number' && !isNaN(rawOroBalance) ? rawOroBalance : 0;
+
+            await supabase
+              .from('api_configs')
+              .update({
+                balance: newOroBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('partner_id', user.id)
+              .eq('api_provider', 'oroplay');
           }
-        } else {
-          const { getAgentBalance } = await import('../lib/honorApi');
-
-          const rawHonorBalance = await getAgentBalance(honorConfig.api_key);
-          newHonorBalance = typeof rawHonorBalance === 'number' && !isNaN(rawHonorBalance) ? rawHonorBalance : 0;
-
-          // ✅ updateHonorBalance로 변경 (Lv2 동기화 포함)
-          const { updateHonorBalance } = await import('../lib/apiConfigHelper');
-          await updateHonorBalance(user.id, newHonorBalance);
-        }
-      } catch (honorErr: any) {
-        console.error('❌ [Balance] HonorAPI 잔고 조회 실패:', honorErr);
-        if (isManual) {
-          toast.error(`HonorAPI 잔고 조회 실패: ${honorErr.message}`);
+        } catch (oroErr: any) {
+          newOroBalance = 0;
+          console.error('❌ [Balance] OroPlay API 잔고 조회 실패:', oroErr);
+          if (isManual) {
+            toast.error(`OroPlay 잔고 조회 실패: ${oroErr.message}`);
+          }
         }
       }
 
-      setInvestBalance(newInvestBalance);
-      setOroplayBalance(newOroBalance);
-      setFamilyapiBalance(newFamilyBalance);
-      setHonorapiBalance(newHonorBalance);
-      setBalance(newInvestBalance + newOroBalance + newFamilyBalance + newHonorBalance);
+      // ✅ HonorAPI 활성화 체크
+      const isHonorApiActive = await checkApiActiveByPartnerId(user.id, 'honorapi');
+      if (!isHonorApiActive) {
+        newHonorBalance = 0;
+      } else {
+        try {
+          const { data: honorConfig } = await supabase
+            .from('api_configs')
+            .select('api_key, is_active')
+            .eq('partner_id', user.id)
+            .eq('api_provider', 'honorapi')
+            .maybeSingle();
+
+          if (!honorConfig?.is_active || !honorConfig?.api_key) {
+            newHonorBalance = 0;
+            console.log('⏭️ [Balance] HonorAPI 비활성화됨');
+          } else {
+            const { getAgentBalance } = await import('../lib/honorApi');
+
+            const rawHonorBalance = await getAgentBalance(honorConfig.api_key);
+            newHonorBalance = typeof rawHonorBalance === 'number' && !isNaN(rawHonorBalance) ? rawHonorBalance : 0;
+
+            // HonorAPI는 api_configs에 직접 업데이트
+            await supabase
+              .from('api_configs')
+              .update({
+                balance: newHonorBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('partner_id', user.id)
+              .eq('api_provider', 'honorapi');
+          }
+        } catch (honorErr: any) {
+          newHonorBalance = 0;
+          console.error('❌ [Balance] HonorAPI 잔고 조회 실패:', honorErr);
+          if (isManual) {
+            toast.error(`HonorAPI 잔고 조회 실패: ${honorErr.message}`);
+          }
+        }
+      }
+
+      // ✅ FamilyAPI 활성화 체크 (나중에 구현)
+      const isFamilyApiActive = await checkApiActiveByPartnerId(user.id, 'familyapi');
+      if (!isFamilyApiActive) {
+        newFamilyBalance = 0;
+        console.log('⏭️ [Balance] FamilyAPI 비활성화됨 또는 미구현');
+      } else {
+        // TODO: FamilyAPI 조회 로직 구현
+        console.log('⏭️ [Balance] FamilyAPI 구현 대기 중');
+        newFamilyBalance = 0;
+      }
+
+      // ✅ partners.balance만 업데이트 (활성 API의 합산값)
+      const totalBalance = newInvestBalance + newOroBalance + newFamilyBalance + newHonorBalance;
+      
+      const { error: updateError } = await supabase
+        .from('partners')
+        .update({
+          balance: totalBalance,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (updateError) {
+        console.error('❌ [Balance] partners.balance 업데이트 실패:', updateError);
+      } else {
+        console.log('✅ [Balance] partners.balance 업데이트 완료:', { 
+          partnerId: user.id,
+          balance: totalBalance,
+          breakdown: { invest: newInvestBalance, oroplay: newOroBalance, honor: newHonorBalance }
+        });
+      }
+
+      setBalance(totalBalance);
       setLastSyncTime(new Date());
       setError(null);
 
@@ -454,16 +387,9 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
           filter: `id=eq.${user.id}`
         },
         (payload) => {
+          // ✅ partners.balance만 감지
           const newBalance = parseFloat(payload.new?.balance) || 0;
           setBalance(newBalance);
-
-          if (user.level === 2) {
-            setInvestBalance(parseFloat(payload.new?.invest_balance) || 0);
-            setOroplayBalance(parseFloat(payload.new?.oroplay_balance) || 0);
-            setFamilyapiBalance(parseFloat(payload.new?.familyapi_balance) || 0);
-            setHonorapiBalance(parseFloat(payload.new?.honorapi_balance) || 0);
-          }
-
           setLastSyncTime(new Date());
           setError(null);
         }
@@ -474,56 +400,7 @@ export function BalanceProvider({ user, children }: BalanceProviderProps) {
 
     channelsRef.current.push(partnersChannel);
 
-    let apiConfigsChannel: any = null;
-
-    if (user.level === 1) {
-      apiConfigsChannel = supabase
-        .channel(`api_configs_${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'api_configs',
-            filter: `partner_id=eq.${user.id}`
-          },
-          (payload) => {
-            console.log('🔔 [BalanceContext] API Configs 테이블 업데이트 감지:', {
-              api_provider: payload.new?.api_provider,
-              balance: payload.new?.balance
-            });
-            
-            const apiProvider = payload.new?.api_provider;
-            const newBalance = parseFloat(payload.new?.balance) || 0;
-
-            if (apiProvider === 'invest') {
-              setInvestBalance(newBalance);
-            } else if (apiProvider === 'oroplay') {
-              setOroplayBalance(newBalance);
-            } else if (apiProvider === 'familyapi') {
-              setFamilyapiBalance(newBalance);
-            } else if (apiProvider === 'honorapi') {
-              setHonorapiBalance(newBalance);
-            }
-
-            const isActive = payload.new?.is_active;
-            if (isActive !== undefined) {
-              if (apiProvider === 'invest') setUseInvestApi(isActive);
-              else if (apiProvider === 'oroplay') setUseOroplayApi(isActive);
-              else if (apiProvider === 'familyapi') setUseFamilyApi(isActive);
-              else if (apiProvider === 'honorapi') setUseHonorApi(isActive);
-            }
-
-            setLastSyncTime(new Date());
-            setError(null);
-          }
-        )
-        .subscribe((status) => {
-          console.log('📡 [BalanceContext] API Configs 채널 상태:', status);
-        });
-
-      channelsRef.current.push(apiConfigsChannel);
-    }
+    // ✅ api_configs는 backend 동기화용이고, 프론트엔드는 partners만 읽으므로 별도 구독 불필요
 
     return () => {
       console.log('🧹 [BalanceContext] 채널 정리:', channelsRef.current.length);

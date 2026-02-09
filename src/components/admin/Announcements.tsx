@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -182,7 +182,7 @@ export function Announcements({ user }: AnnouncementsProps) {
       
       let query = supabase
         .from('announcements')
-        .select('*');
+        .select('id, partner_id, title, content, image_url, is_popup, target_audience, target_level, status, display_order, view_count, start_date, end_date, created_at, updated_at');
 
       // 시스템관리자가 아니면 본인이 작성한 공지만 조회
       if (user.level > 1) {
@@ -195,8 +195,19 @@ export function Announcements({ user }: AnnouncementsProps) {
 
       if (error) throw error;
 
+      // Filter out announcements with null IDs before processing
+      const validData = (data || []).filter(a => {
+        if (!a.id) {
+          console.warn('⚠️ Skipping announcement with null ID from database:', a);
+          return false;
+        }
+        return true;
+      });
+
+      console.log(`📊 Fetched ${data?.length || 0} announcements, ${validData.length} are valid`);
+
       // 파트너 정보를 별도로 조회
-      const partnerIds = [...new Set(data?.map(a => a.partner_id) || [])];
+      const partnerIds = [...new Set(validData.map(a => a.partner_id) || [])];
       
       let partnersMap = new Map<string, string>();
       if (partnerIds.length > 0) {
@@ -208,8 +219,8 @@ export function Announcements({ user }: AnnouncementsProps) {
         partnersMap = new Map(partnersData?.map(p => [p.id, p.username]) || []);
       }
 
-      const formattedAnnouncements = (data || []).map((announcement: any) => ({
-        id: announcement.id,
+      const formattedAnnouncements = validData.map((announcement: any) => ({
+        id: announcement.id, // Guaranteed to be non-null due to filter above
         partner_id: announcement.partner_id,
         partner_username: partnersMap.get(announcement.partner_id) || t.announcements.unknown,
         title: announcement.title,
@@ -218,15 +229,20 @@ export function Announcements({ user }: AnnouncementsProps) {
         is_popup: announcement.is_popup,
         target_audience: announcement.target_audience,
         target_level: announcement.target_level,
-        status: announcement.status,
+        status: announcement.status || 'draft', // Ensure status has default value
         display_order: announcement.display_order,
-        view_count: announcement.view_count,
+        view_count: announcement.view_count || 0,
         start_date: announcement.start_date,
         end_date: announcement.end_date,
         created_at: announcement.created_at,
         updated_at: announcement.updated_at
       }));
 
+      console.log('✅ Formatted announcements loaded:', formattedAnnouncements.length);
+      if (formattedAnnouncements.length > 0) {
+        console.log('📝 First announcement:', formattedAnnouncements[0]);
+      }
+      
       setAllAnnouncements(formattedAnnouncements); // ⚡ 전체 데이터 캐시
       applyFilters(formattedAnnouncements); // ⚡ 클라이언트 필터링 적용
     } catch (error) {
@@ -281,6 +297,13 @@ export function Announcements({ user }: AnnouncementsProps) {
 
       let result;
       if (editingAnnouncement) {
+        // Validate id exists before updating
+        if (!editingAnnouncement.id || editingAnnouncement.id === 'null' || editingAnnouncement.id === 'undefined') {
+          console.error('❌ Invalid announcement ID for update:', editingAnnouncement.id);
+          toast.error(t.announcements.saveFailed);
+          return;
+        }
+
         // 수정
         result = await supabase
           .from('announcements')
@@ -318,7 +341,14 @@ export function Announcements({ user }: AnnouncementsProps) {
   };
 
   // 공지사항 삭제
-  const deleteAnnouncement = async (announcementId: string) => {
+  const deleteAnnouncement = useCallback(async (announcementId: string) => {
+    // Validate id
+    if (!announcementId || announcementId === 'null' || announcementId === 'undefined') {
+      console.error('❌ Invalid announcement ID for delete:', announcementId);
+      toast.error(t.announcements.deleteFailed);
+      return;
+    }
+
     if (!confirm(t.announcements.confirmDelete)) return;
 
     try {
@@ -335,10 +365,17 @@ export function Announcements({ user }: AnnouncementsProps) {
       console.error(t.announcements.deleteFailed, error);
       toast.error(t.announcements.deleteFailed);
     }
-  };
+  }, [t.announcements]);
 
   // 공지사항 상태 변경
-  const updateAnnouncementStatus = async (announcementId: string, newStatus: string) => {
+  const updateAnnouncementStatus = useCallback(async (announcementId: string, newStatus: string) => {
+    // Validate announcementId
+    if (!announcementId || announcementId === 'null' || announcementId === 'undefined') {
+      console.error('❌ Invalid announcement ID:', announcementId);
+      toast.error(t.announcements.statusUpdateFailed);
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('announcements')
@@ -362,7 +399,7 @@ export function Announcements({ user }: AnnouncementsProps) {
       console.error(t.announcements.statusUpdateFailed, error);
       toast.error(t.announcements.statusUpdateFailed);
     }
-  };
+  }, [t.announcements]);
 
   // 폼 초기화
   const resetForm = () => {
@@ -383,7 +420,13 @@ export function Announcements({ user }: AnnouncementsProps) {
   };
 
   // 편집 모드 설정
-  const editAnnouncement = (announcement: Announcement) => {
+  const editAnnouncement = useCallback((announcement: Announcement) => {
+    if (!announcement.id) {
+      console.error('❌ Cannot edit announcement without ID:', announcement);
+      toast.error(t.announcements.loadFailed);
+      return;
+    }
+
     setFormData({
       title: announcement.title,
       content: announcement.content,
@@ -399,7 +442,8 @@ export function Announcements({ user }: AnnouncementsProps) {
     setUploadedImage(announcement.image_url || null);
     setEditingAnnouncement(announcement);
     setIsDialogOpen(true);
-  };
+    console.log('✅ Editing announcement:', announcement.id);
+  }, [t.announcements]);
 
   useEffect(() => {
     fetchAnnouncements(true);
@@ -418,7 +462,7 @@ export function Announcements({ user }: AnnouncementsProps) {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const columns = [
+  const columns = useMemo(() => [
     {
       key: 'title',
       title: t.announcements.titleColumn,
@@ -457,8 +501,18 @@ export function Announcements({ user }: AnnouncementsProps) {
         
         const config = statusConfig[value] || statusConfig.draft;
         
+        // Ensure row.id is available
+        const announcementId = row?.id;
+        if (!announcementId) {
+          console.warn('⚠️ Announcement ID missing:', row);
+          return <Badge variant="outline">{config.label}</Badge>;
+        }
+        
         return (
-          <Select value={value} onValueChange={(newStatus) => updateAnnouncementStatus(row.id, newStatus)}>
+          <Select value={value || 'draft'} onValueChange={(newStatus) => {
+            console.log('📝 Updating status for announcement:', announcementId, 'New status:', newStatus);
+            updateAnnouncementStatus(announcementId, newStatus);
+          }}>
             <SelectTrigger className={`w-auto h-7 ${config.color}`}>
               <span>{config.label}</span>
             </SelectTrigger>
@@ -477,7 +531,7 @@ export function Announcements({ user }: AnnouncementsProps) {
       render: (value: number) => (
         <div className="flex items-center gap-1">
           <Eye className="h-4 w-4 text-muted-foreground" />
-          <span>{value.toLocaleString()}</span>
+          <span>{(value || 0).toLocaleString()}</span>
         </div>
       )
     },
@@ -485,13 +539,13 @@ export function Announcements({ user }: AnnouncementsProps) {
       key: 'partner_username',
       title: t.announcements.authorColumn,
       render: (value: string) => (
-        <span className="text-sm">{value}</span>
+        <span className="text-sm">{value || 'Unknown'}</span>
       )
     },
     {
       key: 'created_at',
       title: t.announcements.createdAtColumn,
-      render: (value: string) => new Date(value).toLocaleDateString('ko-KR')
+      render: (value: string) => value ? new Date(value).toLocaleDateString('ko-KR') : '-'
     },
     {
       key: 'actions',
@@ -517,7 +571,7 @@ export function Announcements({ user }: AnnouncementsProps) {
         </div>
       )
     }
-  ];
+  ], [t.announcements, updateAnnouncementStatus, editAnnouncement, deleteAnnouncement]);
 
   return (
     <div className="space-y-6">

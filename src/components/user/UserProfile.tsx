@@ -136,7 +136,22 @@ export function UserProfile({ user, onRouteChange }: UserProfileProps) {
   // 현재 잔고 및 포인트 조회
   const fetchCurrentBalance = async () => {
     try {
-      // ⭐ 1. users 테이블에서 balance와 points 조회
+      // ⭐ Lv2(운영사)는 partners 테이블에서 balance 조회
+      if (user.level === 2) {
+        const { data, error } = await supabase
+          .from('partners')
+          .select('balance')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+        
+        setCurrentBalance(parseFloat(data.balance) || 0);
+        setCurrentPoints(0); // 운영사는 포인트 없음
+        return;
+      }
+
+      // ⭐ 일반 사용자 (users 테이블에서 조회)
       const { data, error } = await supabase
         .from('users')
         .select('balance, points')

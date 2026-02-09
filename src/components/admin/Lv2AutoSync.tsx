@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Partner } from "../../types";
 import { supabase } from "../../lib/supabase";
 import { publicAnonKey } from "../../utils/supabase";
+import { useApiStatus } from "../../hooks/useApiStatus";
 
 interface Lv2AutoSyncProps {
   user: Partner;
@@ -22,13 +23,11 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
   const balanceIntervalRef = useRef<number | null>(null);
   const investIntervalRef = useRef<number | null>(null);
   const honorIntervalRef = useRef<number | null>(null);
-  const isSyncingRef = useRef(false); // 동기화 보호: 응답 시간이 길어서 재추가
-  const activeApisRef = useRef({
-    invest: false,
-    oroplay: false,
-    familyapi: false,
-    honorapi: false
-  });
+  const isSyncingRef = useRef(false);
+  
+  // ✅ useApiStatus로 동적 API 상태 감시
+  const targetPartnerId = user.level === 2 ? user.id : user.parent_id;
+  const { apiStatus } = useApiStatus(targetPartnerId);
 
 
 
@@ -90,62 +89,12 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
     return null;
   };
 
-  // API 활성화 상태 조회
-  useEffect(() => {
-    const checkActiveApis = async () => {
-      try {
-        // ✅ Lv2라면 자신의 ID로, Lv3이라면 parent_id로 조회
-        const targetPartnerId = user.level === 2 ? user.id : user.parent_id;
-        
-        if (!targetPartnerId) {
-          console.error('❌ [Lv2AutoSync] 조회할 파트너 ID 없음');
-          return;
-        }
 
-        // Lv1/Lv2 파트너의 API 설정 확인
-        const { data: apiConfigs } = await supabase
-          .from('api_configs')
-          .select('api_provider, is_active')
-          .eq('partner_id', targetPartnerId)
-          .eq('is_active', true);
 
-        if (apiConfigs) {
-          const activeApiMap = {
-            invest: false,
-            oroplay: false,
-            familyapi: false,
-            honorapi: false
-          };
-
-          apiConfigs.forEach((config: any) => {
-            if (config.api_provider === 'invest') activeApiMap.invest = true;
-            if (config.api_provider === 'oroplay') activeApiMap.oroplay = true;
-            if (config.api_provider === 'familyapi') activeApiMap.familyapi = true;
-            if (config.api_provider === 'honorapi') activeApiMap.honorapi = true;
-          });
-
-          // ✅ ref에 저장 (state 대신)
-          activeApisRef.current = activeApiMap;
-          console.log('✅ [Lv2AutoSync] 활성화된 API (파트너 ID=' + targetPartnerId + '):', activeApiMap);
-        } else {
-          console.error('❌ [Lv2AutoSync] apiConfigs EMPTY - 동기화 불가능');
-        }
-      } catch (error) {
-        console.error('❌ [Lv2AutoSync] API 활성화 상태 조회 실패:', error);
-      }
-    };
-
-    if (user.level === 2 && user.parent_id) {
-      console.log('🔍 [Lv2AutoSync] checkActiveApis() 호출 시작');
-      checkActiveApis();
-    } else {
-      console.log('⚠️ [Lv2AutoSync] checkActiveApis() 건너뜀 - level:', user.level, 'parent_id:', user.parent_id);
-    }
-  }, [user.level, user.parent_id]);
-
+  // API 활성화 상태 조회 및 메인 동기화 로직
   useEffect(() => {
     // Lv2가 아니면 실행하지 않음
-    console.log('🔍 [Lv2AutoSync] CHECK: user.level=', user.level, 'user.parent_id=', user.parent_id);
+    console.log('🔍 [Lv2AutoSync] CHECK: user.level=', user.level, 'targetPartnerId=', targetPartnerId);
     
     if (user.level !== 2) {
       console.log('❌ [Lv2AutoSync] NOT Lv2 - STOP');
@@ -153,6 +102,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
     }
 
     console.log('✅ [Lv2AutoSync] IS Lv2 - START');
+    console.log('✅ [Lv2AutoSync] 현재 활성화된 API:', apiStatus);
 
     // ✅ Edge Function URL 하드코딩
     const EDGE_FUNCTION_URL = 'https://hduofjzsitoaujyjvuix.supabase.co/functions/v1/server';
@@ -164,7 +114,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
 
     // Invest 베팅 동기화 실행 함수 (30초마다)
     const runInvestBettingSync = async () => {
-      if (!activeApisRef.current.invest) {
+      if (!apiStatus.invest) {
         console.log('⏭️ [Lv2AutoSync] Invest SKIPPED - API not active');
         return;
       }
@@ -219,7 +169,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
         syncCountRef.current += 1;
 
         // OroPlay 베팅 동기화
-        if (activeApisRef.current.oroplay) {
+        if (apiStatus.oroplay) {
           const betsResponse = await fetchWithRetry(`${EDGE_FUNCTION_URL}/sync/oroplay-bets`, {
             method: 'POST',
             headers,
@@ -245,14 +195,14 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
     };
 
     // 즉시 첫 동기화 실행
-    if (activeApisRef.current.invest) {
+    if (apiStatus.invest) {
       runInvestBettingSync();
     }
     runHonorApiBettingSync();  // ✅ HonorAPI: 항상 실행
     runFastSync();
 
     // Invest 베팅 동기화: 30초마다 실행
-    if (activeApisRef.current.invest) {
+    if (apiStatus.invest) {
       investIntervalRef.current = window.setInterval(() => {
         runInvestBettingSync();
       }, 30000);
@@ -283,7 +233,7 @@ export function Lv2AutoSync({ user }: Lv2AutoSyncProps) {
         honorIntervalRef.current = null;
       }
     };
-  }, [user.level, user.id, user.parent_id]);
+  }, [user.level, user.id, user.parent_id, apiStatus]);
 
   // UI는 렌더링하지 않음 (백그라운드 동작)
   return null;

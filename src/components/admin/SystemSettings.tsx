@@ -749,49 +749,66 @@ export function SystemSettings({ user, initialTab = "general" }: SystemSettingsP
         honorapi: useHonorApi
       });
 
-      // ✅ 각 API 업데이트 (에러 체크 추가)
-      const { error: investError } = await supabase
-        .from('api_configs')
-        .update({ is_active: useInvestApi })
-        .eq('partner_id', user.id)
-        .eq('api_provider', 'invest');
-      
-      if (investError) {
-        console.error('❌ Invest API 업데이트 실패:', investError);
-        throw new Error(`Invest API 업데이트 실패: ${investError.message}`);
-      }
+      // ✅ Lv1의 api_configs 업데이트
+      const updateApis = async (partnerId: string) => {
+        const { error: investError } = await supabase
+          .from('api_configs')
+          .update({ is_active: useInvestApi })
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'invest');
+        
+        if (investError) throw new Error(`Invest API 업데이트 실패: ${investError.message}`);
 
-      const { error: oroplayError } = await supabase
-        .from('api_configs')
-        .update({ is_active: useOroplayApi })
-        .eq('partner_id', user.id)
-        .eq('api_provider', 'oroplay');
-      
-      if (oroplayError) {
-        console.error('❌ Oroplay API 업데이트 실패:', oroplayError);
-        throw new Error(`Oroplay API 업데이트 실패: ${oroplayError.message}`);
-      }
+        const { error: oroplayError } = await supabase
+          .from('api_configs')
+          .update({ is_active: useOroplayApi })
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'oroplay');
+        
+        if (oroplayError) throw new Error(`Oroplay API 업데이트 실패: ${oroplayError.message}`);
 
-      const { error: familyError } = await supabase
-        .from('api_configs')
-        .update({ is_active: useFamilyApi })
-        .eq('partner_id', user.id)
-        .eq('api_provider', 'familyapi');
-      
-      if (familyError) {
-        console.error('❌ FamilyAPI 업데이트 실패:', familyError);
-        throw new Error(`FamilyAPI 업데이트 실패: ${familyError.message}`);
-      }
+        const { error: familyError } = await supabase
+          .from('api_configs')
+          .update({ is_active: useFamilyApi })
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'familyapi');
+        
+        if (familyError) throw new Error(`FamilyAPI 업데이트 실패: ${familyError.message}`);
 
-      const { error: honorError } = await supabase
-        .from('api_configs')
-        .update({ is_active: useHonorApi })
-        .eq('partner_id', user.id)
-        .eq('api_provider', 'honorapi');
-      
-      if (honorError) {
-        console.error('❌ HonorAPI 업데이트 실패:', honorError);
-        throw new Error(`HonorAPI 업데이트 실패: ${honorError.message}`);
+        const { error: honorError } = await supabase
+          .from('api_configs')
+          .update({ is_active: useHonorApi })
+          .eq('partner_id', partnerId)
+          .eq('api_provider', 'honorapi');
+        
+        if (honorError) throw new Error(`HonorAPI 업데이트 실패: ${honorError.message}`);
+      };
+
+      // 1️⃣ Lv1 업데이트
+      await updateApis(user.id);
+      console.log('✅ [API Settings] Lv1 API 업데이트 완료');
+
+      // 2️⃣ 모든 Lv2 파트너도 함께 업데이트
+      const { data: lv2Partners, error: lv2Error } = await supabase
+        .from('partners')
+        .select('id')
+        .eq('level', 2)
+        .eq('status', 'active');
+
+      if (lv2Error) {
+        console.warn('⚠️ Lv2 파트너 조회 실패 (무시하고 계속 진행):', lv2Error);
+      } else if (lv2Partners && lv2Partners.length > 0) {
+        console.log(`📝 [API Settings] ${lv2Partners.length}개 Lv2 파트너의 API 설정도 동기화 중...`);
+        
+        for (const lv2Partner of lv2Partners) {
+          try {
+            await updateApis(lv2Partner.id);
+            console.log(`   ✅ Lv2 파트너 (${lv2Partner.id}) 업데이트 완료`);
+          } catch (error) {
+            console.warn(`   ⚠️ Lv2 파트너 (${lv2Partner.id}) 업데이트 실패:`, error);
+            // Lv2 업데이트 실패는 경고만 하고 계속 진행
+          }
+        }
       }
       
       console.log('✅ [API Settings] 모든 API 업데이트 완료');

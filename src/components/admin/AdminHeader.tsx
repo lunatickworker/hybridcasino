@@ -2199,12 +2199,6 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
     }
   };
 
-  // Lv2 전용: 보유금 5% 경고 체크 (✅ 비활성화)
-  const checkLv2Warning = (totalUsersBalance: number) => {
-    // ✅ 경고 배너 비활성화
-    setShowLv2Warning(false);
-  };
-
   return (
     <>
       <div className="w-full border-b border-slate-800/50 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900">
@@ -2212,7 +2206,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
           <div className="flex items-center justify-between">
             {/* 왼쪽: 통계 카드 */}
             <div className="flex items-center gap-3">
-              {/* 대본사(2): 총합만 표시 */}
+              {/* 대본사(2): 총 보유금 - partners.balance 직접 사용 */}
               {user.level === 2 && (
                 <div className={`px-3 py-1.5 rounded-lg bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 transition-all min-w-[100px] ${balanceLoading ? 'animate-pulse' : ''}`}>
                   <div className="flex items-center gap-2">
@@ -2220,14 +2214,7 @@ export function AdminHeader({ user, wsConnected, onToggleSidebar, onRouteChange,
                     <div>
                       <div className="text-lg text-green-300 font-medium">총 보유금</div>
                       <div className="text-lg font-bold text-white whitespace-nowrap">
-                        {(() => {
-                          let total = 0;
-                          if (useInvestApi && typeof investBalance === 'number') total += investBalance;
-                          if (useOroplayApi && typeof oroplayBalance === 'number') total += oroplayBalance;
-                          if (useFamilyApi && typeof familyapiBalance === 'number') total += familyapiBalance;
-                          if (useHonorApi && typeof honorapiBalance === 'number') total += honorapiBalance;
-                          return <AnimatedCurrency value={total} duration={800} currencySymbol={t.common.currency} />;
-                        })()}
+                        <AnimatedCurrency value={balance} duration={800} currencySymbol={t.common.currency} />
                       </div>
                     </div>
                   </div>

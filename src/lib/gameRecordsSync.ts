@@ -4,9 +4,11 @@
  */
 
 import { supabase } from './supabase';
+import { apiStateManager, ApiStatus } from './apiStateManager';
 
 // 동기화 타이머 저장
 let syncTimers: { [key: string]: number } = {};
+let apiStatusUnsubscribe: (() => void) | null = null;
 
 // 마지막 동기화 시간 (밀리초)
 const lastSyncTime: { [key: string]: number } = {
@@ -24,10 +26,32 @@ const SYNC_INTERVALS = {
   honor: 34000      // 34초
 };
 
+// 현재 활성화된 API 상태
+let currentApiStatus: ApiStatus = {
+  invest: false,
+  oroplay: false,
+  familyapi: false,
+  honorapi: false
+};
+
 /**
  * 특정 API의 게임 기록 동기화
  */
 async function syncApiGameRecords(apiType: 'invest' | 'oroplay' | 'familyapi' | 'honor', partnerId: string) {
+  // ✅ API 활성화 상태 확인
+  const apiTypeMap = {
+    'invest': 'invest',
+    'oroplay': 'oroplay',
+    'familyapi': 'familyapi',
+    'honor': 'honorapi'
+  };
+
+  const statusKey = apiTypeMap[apiType] as keyof ApiStatus;
+  if (!currentApiStatus[statusKey]) {
+    console.log(`⏭️ [${apiType.toUpperCase()}] SKIPPED - API not active`);
+    return;
+  }
+
   try {
     console.log(`🔄 [${new Date().toISOString()}] ${apiType.toUpperCase()} 게임 기록 동기화 요청 중...`);
 
@@ -135,6 +159,37 @@ export function startGameRecordsSync(partnerId: string) {
 
   console.log('🚀 게임 기록 자동 동기화 시작... (OroPlay + HonorAPI)');
 
+  // ✅ API 상태 Realtime 감시 시작
+  apiStatusUnsubscribe = apiStateManager.watchApiStatus(partnerId, (status) => {
+    console.log(`🔄 [gameRecordsSync] API 상태 변경 감지:`, status);
+    currentApiStatus = status;
+
+    // API 활성화 상태에 따라 interval 동적 조정
+    // OroPlay 활성화 상태 변경
+    if (status.oroplay && !syncTimers.oroplay) {
+      console.log('✅ [gameRecordsSync] OroPlay 활성화 → 동기화 시작');
+      startOroPlaySync(partnerId);
+    } else if (!status.oroplay && syncTimers.oroplay) {
+      console.log('❌ [gameRecordsSync] OroPlay 비활성화 → 동기화 중지');
+      if (syncTimers.oroplay) {
+        window.clearInterval(syncTimers.oroplay);
+        delete syncTimers.oroplay;
+      }
+    }
+
+    // HonorAPI 활성화 상태 변경
+    if (status.honorapi && !syncTimers.honor) {
+      console.log('✅ [gameRecordsSync] HonorAPI 활성화 → 동기화 시작');
+      startHonorSync(partnerId);
+    } else if (!status.honorapi && syncTimers.honor) {
+      console.log('❌ [gameRecordsSync] HonorAPI 비활성화 → 동기화 중지');
+      if (syncTimers.honor) {
+        window.clearInterval(syncTimers.honor);
+        delete syncTimers.honor;
+      }
+    }
+  });
+
   // OroPlay와 HonorAPI만 동기화
   startOroPlaySync(partnerId);
   startHonorSync(partnerId);
@@ -152,6 +207,13 @@ export function stopGameRecordsSync() {
   });
 
   syncTimers = {};
+
+  // ✅ API 상태 감시 중지
+  if (apiStatusUnsubscribe) {
+    apiStatusUnsubscribe();
+    apiStatusUnsubscribe = null;
+    console.log('✅ API 상태 감시 중지됨');
+  }
 }
 
 /**

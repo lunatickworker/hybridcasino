@@ -29,7 +29,7 @@ interface DashboardProps {
 
 export function Dashboard({ user }: DashboardProps) {
   // ✅ 전역 balance 사용 (AdminHeader와 동일한 상태 공유)
-  const { balance, investBalance, oroplayBalance, familyapiBalance, honorapiBalance } = useBalance();
+  const { balance } = useBalance();
   const { t, formatCurrency } = useLanguage();
   
   const [stats, setStats] = useState<DashboardStats>({
@@ -87,6 +87,7 @@ export function Dashboard({ user }: DashboardProps) {
     id: string;
     nickname: string;
     selected_apis: string[] | null;
+    balance: number;
     invest_balance: number;
     oroplay_balance: number;
     familyapi_balance: number;
@@ -238,6 +239,38 @@ export function Dashboard({ user }: DashboardProps) {
         toast.success(`${partnerId.slice(0, 8)}... oroplay: ${formatCurrency(balance)}`);
       }
 
+      // ✅ 동기화하지 않은 API들도 포함해서 partners.balance 재계산
+      const { data: allConfigs } = await supabase
+        .from('api_configs')
+        .select('api_provider, balance')
+        .eq('partner_id', partnerId);
+
+      if (allConfigs) {
+        // selected_apis에 포함된 API들만 합산
+        const { data: partnerInfo } = await supabase
+          .from('partners')
+          .select('selected_apis')
+          .eq('id', partnerId)
+          .single();
+
+        if (partnerInfo?.selected_apis) {
+          const totalBalance = partnerInfo.selected_apis
+            .reduce((sum, api) => {
+              const config = allConfigs.find(c => c.api_provider === api);
+              return sum + (config?.balance || 0);
+            }, 0);
+
+          // partners.balance 업데이트 (모든 selected_apis의 합계)
+          await supabase
+            .from('partners')
+            .update({
+              balance: totalBalance,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', partnerId);
+        }
+      }
+
       // 데이터 다시 로드
       loadLv2Partners();
     } catch (error: any) {
@@ -258,10 +291,10 @@ export function Dashboard({ user }: DashboardProps) {
   const loadLv2Partners = async () => {
     setIsLoadingLv2Partners(true);
     try {
-      // 1. 파트너基本信息 조회
+      // 1. 파트너基本信息 조회 (balance 포함)
       const { data: partnersData, error: partnersError } = await supabase
         .from('partners')
-        .select('id, nickname, selected_apis')
+        .select('id, nickname, selected_apis, balance')
         .in('id', TARGET_LV2_PARTNER_IDS);
 
       if (partnersError) {
@@ -291,6 +324,7 @@ export function Dashboard({ user }: DashboardProps) {
             id: partner.id,
             nickname: partner.nickname,
             selected_apis: partner.selected_apis,
+            balance: parseFloat(partner.balance?.toString() || '0') || 0,
             invest_balance: configMap['invest'] || 0,
             oroplay_balance: configMap['oroplay'] || 0,
             familyapi_balance: configMap['familyapi'] || 0,
@@ -1256,116 +1290,6 @@ export function Dashboard({ user }: DashboardProps) {
         />
       </div>
       
-      {/* Lv1 보유금 카드 - 새로운 디자인 */}
-      {user.level === 1 && (
-        <div className="rounded-2xl p-5 relative overflow-hidden backdrop-blur-sm border border-white/10 shadow-xl bg-gradient-to-br from-slate-800/90 via-slate-800/90 to-slate-900/90">
-          <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
-          <div className="relative z-10">
-            {/* 헤더 */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-white/15 backdrop-blur-md shadow-lg">
-                  <Wallet className="h-5 w-5 text-cyan-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-white/95">🎯 내 보유금 현황</h3>
-              </div>
-              <div className="flex gap-1">
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-300">Invest</span>
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-300">oroplay</span>
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300">Family</span>
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300">Honor</span>
-              </div>
-            </div>
-
-            {/* 보유금 그리드 */}
-            <div className="grid grid-cols-4 gap-3">
-              {/* Invest */}
-              <div 
-                className="bg-blue-500/10 rounded-xl p-3 border border-blue-500/20 cursor-pointer hover:bg-blue-500/20 transition-colors"
-                onClick={handleSyncInvestBalance}
-              >
-                <div className="flex justify-between items-start">
-                  <p className="text-xs text-blue-400 mb-1">Invest</p>
-                  <RefreshCw className="h-3 w-3 text-blue-400" />
-                </div>
-                <p className="text-lg font-bold text-white">
-                  ₩{(investBalance || 0).toLocaleString()}
-                </p>
-              </div>
-
-              {/* oroplay */}
-              <div 
-                className="bg-green-500/10 rounded-xl p-3 border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors"
-                onClick={handleSyncOroplayBalance}
-              >
-                <div className="flex justify-between items-start">
-                  <p className="text-xs text-green-400 mb-1">oroplay</p>
-                  {isSyncingOroplay ? (
-                    <RefreshCw className="h-3 w-3 text-green-400 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3 w-3 text-green-400" />
-                  )}
-                </div>
-                <p className="text-lg font-bold text-white">
-                  ₩{(oroplayBalance || 0).toLocaleString()}
-                </p>
-              </div>
-
-              {/* Family */}
-              <div 
-                className="bg-purple-500/10 rounded-xl p-3 border border-purple-500/20 cursor-pointer hover:bg-purple-500/20 transition-colors"
-                onClick={handleSyncFamilyBalance}
-              >
-                <div className="flex justify-between items-start">
-                  <p className="text-xs text-purple-400 mb-1">Family</p>
-                  {isSyncingFamily ? (
-                    <RefreshCw className="h-3 w-3 text-purple-400 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3 w-3 text-purple-400" />
-                  )}
-                </div>
-                <p className="text-lg font-bold text-white">
-                  ₩{(familyapiBalance || 0).toLocaleString()}
-                </p>
-              </div>
-
-              {/* Honor */}
-              <div 
-                className="bg-amber-500/10 rounded-xl p-3 border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 transition-colors"
-                onClick={handleSyncHonorBalance}
-              >
-                <div className="flex justify-between items-start">
-                  <p className="text-xs text-amber-400 mb-1">Honor</p>
-                  {isSyncingHonor ? (
-                    <RefreshCw className="h-3 w-3 text-amber-400 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3 w-3 text-amber-400" />
-                  )}
-                </div>
-                <p className="text-lg font-bold text-white">
-                  ₩{(honorapiBalance || 0).toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            {/* 총 보유금 */}
-            <div className="mt-4 pt-3 border-t border-white/10">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-400">총 보유금</span>
-                <span className="text-xl font-bold text-cyan-400">
-                  ₩{(
-                    (investBalance || 0) +
-                    (oroplayBalance || 0) +
-                    (familyapiBalance || 0) +
-                    (honorapiBalance || 0)
-                  ).toLocaleString()}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 게임 동기화 결과 및 버튼 - Lv1 전용 */}
       {user.level === 1 && (
         <div className="rounded-2xl p-5 relative overflow-hidden backdrop-blur-sm border border-white/10 shadow-xl bg-gradient-to-br from-slate-800/90 via-slate-800/90 to-slate-900/90">
@@ -1716,12 +1640,7 @@ export function Dashboard({ user }: DashboardProps) {
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-slate-400">총 보유금</span>
                       <span className="text-xl font-bold text-cyan-400">
-                        ₩{(
-                          (partner.selected_apis?.includes('invest') ? partner.invest_balance : 0) +
-                          (partner.selected_apis?.includes('oroplay') ? partner.oroplay_balance : 0) +
-                          (partner.selected_apis?.includes('familyapi') ? partner.familyapi_balance : 0) +
-                          (partner.selected_apis?.includes('honorapi') ? partner.honorapi_balance : 0)
-                        ).toLocaleString()}
+                        ₩{(partner.balance || 0).toLocaleString()}
                       </span>
                     </div>
                   </div>
