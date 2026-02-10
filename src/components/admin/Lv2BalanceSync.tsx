@@ -509,7 +509,7 @@ export function Lv2BalanceSync() {
                 </div>
                 <div>
                   <h3 className="text-base font-semibold">Lv2 보유금 자동 동기화</h3>
-                  <p className="text-sm text-muted-foreground">4초마다 모든 Lv2 파트너의 OroPlay/HonorAPI 보유금을 자동 업데이트합니다</p>
+                  <p className="text-sm text-muted-foreground">4초마다 모든 Lv2 파트너의 보유금을 자동 업데이트합니다</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -565,7 +565,7 @@ export function Lv2BalanceSync() {
               <div className="mt-4 p-3 rounded-lg bg-green-500/10 border border-green-500/30">
                 <div className="flex items-center gap-2 text-sm text-green-400">
                   <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                  <span>자동 동기화가 실행 중입니다. 4초마다 모든 Lv2 파트너의 OroPlay/HonorAPI 보유금을 확인합니다.</span>
+                  <span>자동 동기화가 실행 중입니다. 4초마다 모든 Lv2 파트너의 보유금을 확인합니다.</span>
                 </div>
               </div>
             )}
