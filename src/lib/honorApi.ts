@@ -23,7 +23,7 @@ class HonorApiRateLimiter {
     
     if (timeSinceLastCall < this.minInterval) {
       const waitTime = this.minInterval - timeSinceLastCall;
-      console.log(`⏳ [HonorAPI Rate Limiter] ${waitTime}ms 대기 중...`);
+      //console.log(`⏳ [HonorAPI Rate Limiter] ${waitTime}ms 대기 중...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     
@@ -383,14 +383,14 @@ async function proxyCall<T = any>(
  * GET /my-info
  */
 export async function getAgentInfo(apiKey: string): Promise<AgentInfo> {
-  console.log('🔍 [HonorAPI] 에이전트 정보 조회 시작');
+  //console.log('🔍 [HonorAPI] 에이전트 정보 조회 시작');
   
   const result = await proxyCall<AgentInfo>({
     url: `${HONORAPI_BASE_URL}/my-info`,
     method: 'GET'
   }, apiKey);
 
-  console.log('✅ [HonorAPI] 에이전트 정보 조회 성공:', result);
+  //console.log('✅ [HonorAPI] 에이전트 정보 조회 성공:', result);
   return result;
 }
 
