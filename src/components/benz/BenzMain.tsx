@@ -51,25 +51,25 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
 
   // Fallback 데이터
   const FALLBACK_CASINO_PROVIDERS = [
-    { id: 1, name: 'Evolution', name_ko: '에볼루션', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evolution.jpg', status: 'visible' },
-    { id: 2, name: 'Pragmatic Play Live', name_ko: '프라그마틱 라이브', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticlive.jpg', status: 'visible' },
-    { id: 3, name: 'Microgaming', name_ko: '마이크로 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg', status: 'visible' },
-    { id: 4, name: 'Asia Gaming', name_ko: '아시아 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/asiagaming.jpg', status: 'visible' },
-    { id: 5, name: 'SA Gaming', name_ko: 'SA 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/sagaming.jpg', status: 'visible' },
-    { id: 6, name: 'Ezugi', name_ko: '이주기', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/ezugi.jpg', status: 'visible' },
-    { id: 7, name: 'Dream Gaming', name_ko: '드림 게이밍', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/dreamgaming.jpg', status: 'visible' },
-    { id: 8, name: 'Play Ace', name_ko: '플레이 에이스', type: 'casino', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg', status: 'visible' },
+    { id: 1, name: 'Evolution', name_ko: '에볼루션', type: 'casino', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Evolution.png', status: 'visible' },
+    { id: 2, name: 'Pragmatic Play Live', name_ko: '프라그마틱 라이브', type: 'casino', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Pragmatic-Play-Live.png', status: 'visible' },
+    { id: 3, name: 'Microgaming', name_ko: '마이크로 게이밍', type: 'casino', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Microgaming.png', status: 'visible' },
+    { id: 4, name: 'Asia Gaming', name_ko: '아시아 게이밍', type: 'casino', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Asia-Gaming.png', status: 'visible' },
+    { id: 5, name: 'SA Gaming', name_ko: 'SA 게이밍', type: 'casino', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/SA-Gaming.png', status: 'visible' },
+    { id: 6, name: 'Ezugi', name_ko: '이주기', type: 'casino', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Ezugi.png', status: 'visible' },
+    { id: 7, name: 'Dream Gaming', name_ko: '드림 게이밍', type: 'casino', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Dream-Gaming.png', status: 'visible' },
+    { id: 8, name: 'Play Ace', name_ko: '플레이 에이스', type: 'casino', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Play-Ace.png', status: 'visible' },
   ];
 
   const FALLBACK_SLOT_PROVIDERS = [
-    { id: 101, name: 'Pragmatic Play', name_ko: '프라그마틱 플레이', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticslot.jpg', status: 'visible' },
-    { id: 102, name: 'PG Soft', name_ko: 'PG 소프트', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pgsoft.jpg', status: 'visible' },
-    { id: 103, name: 'Habanero', name_ko: '하바네로', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/habanero.jpg', status: 'visible' },
-    { id: 104, name: 'Booongo', name_ko: '부운고', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/bng.jpg', status: 'visible' },
-    { id: 105, name: 'CQ9', name_ko: 'CQ9', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/cq9.jpg', status: 'visible' },
-    { id: 106, name: 'Evoplay', name_ko: '에보플레이', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evoplay.jpg', status: 'visible' },
-    { id: 107, name: 'Nolimit City', name_ko: '노리밋시티', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/nolimit.jpg', status: 'visible' },
-    { id: 108, name: 'Jingzibao', name_ko: '진지바오시', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/jinjibaoxi.jpg', status: 'visible' },
+    { id: 101, name: 'Pragmatic Play', name_ko: '프라그마틱 플레이', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Pragmatic-Slot.png', status: 'visible' },
+    { id: 102, name: 'PG Soft', name_ko: 'PG 소프트', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/PG-Soft.png', status: 'visible' },
+    { id: 103, name: 'Habanero', name_ko: '하바네로', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Habanero.png', status: 'visible' },
+    { id: 104, name: 'Booongo', name_ko: '부운고', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Booongo.png', status: 'visible' },
+    { id: 105, name: 'CQ9', name_ko: 'CQ9', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/CQ9.png', status: 'visible' },
+    { id: 106, name: 'Evoplay', name_ko: '에보플레이', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Evoplay.png', status: 'visible' },
+    { id: 107, name: 'Nolimit City', name_ko: '노리밋시티', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Nolimit-City.png', status: 'visible' },
+    { id: 108, name: 'Jingzibao', name_ko: '진지바오시', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Jingzibao.png', status: 'visible' },
   ];
 
   // 🆕 카지노 게임사 이름으로 logo_url 찾기
@@ -77,28 +77,28 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
     const name = (provider.name_ko || provider.name || '').toLowerCase();
     
     if (name.includes('evolution') || name.includes('에볼루션')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evolution.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Evolution.png';
     }
     if ((name.includes('pragmatic') || name.includes('프라그마틱')) && (name.includes('live') || name.includes('라이브'))) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticlive.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Pragmatic-Live.png';
     }
     if (name.includes('microgaming') || name.includes('마이크로')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/microgaming.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Microgaming.png';
     }
     if (name.includes('asia') || name.includes('아시아')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/asiagaming.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Asia-Gaming.png';
     }
     if (name.includes('sa gaming') || name.includes('sa게이밍') || name === 'sa') {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/sagaming.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/SA-Gaming.png';
     }
     if (name.includes('ezugi') || name.includes('이주기')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/ezugi.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Ezugi.png';
     }
     if (name.includes('dream') || name.includes('드림')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/dreamgaming.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/DreamGaming.png';
     }
     if (name.includes('playace') || name.includes('플레이') || name.includes('에이스')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/playace.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Play-Ace.png';
     }
     
     return provider.logo_url;
@@ -109,28 +109,28 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
     const name = (provider.name_ko || provider.name || '').toLowerCase();
     
     if ((name.includes('pragmatic') || name.includes('프라그마틱')) && (name.includes('slot') || name.includes('슬롯') || name.includes('play'))) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticslot.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Pragmatic-Slot.png';
     }
     if (name.includes('pg') || name.includes('pocket')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pgsoft.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/PGSoft.png';
     }
     if (name.includes('habanero') || name.includes('하바네로')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/habanero.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Habanero.png';
     }
     if (name.includes('booongo') || name.includes('bng') || name.includes('부운고')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/bng.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Booongo.png';
     }
     if (name.includes('cq9')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/cq9.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/CQ9.png';
     }
     if (name.includes('evoplay') || name.includes('에보플레이')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evoplay.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/EvoPlay.png';
     }
     if (name.includes('nolimit') || name.includes('노리밋')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/nolimit.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Nolimit-City.png';
     }
     if (name.includes('jing') || name.includes('진지') || name.includes('바오')) {
-      return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/jinjibaoxi.jpg';
+      return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Jingzibao.png';
     }
     
     return provider.logo_url;
@@ -1164,7 +1164,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
           <div className="relative text-left">
             {/* 배너 텍스트 이미지 */}
             <img
-              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Banner-Text.png?t=20241229"
+              src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Banner-Text.png?t=20241229"
               alt="LIVE CASINO"
               className="w-full h-auto object-contain max-w-[330px] md:max-w-[2000px]"
             />
@@ -1219,7 +1219,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         
         {/* Casino 게임 리스트 타이틀 이미지 - 배너 위에 겹쳐서 왼쪽 정렬 */}
         <img
-          src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Casino-game-list.png"
+          src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Casino-game-list.png"
           alt="Casino Game List"
           className="absolute z-20 w-[200px] md:w-auto top-[-35px] left-[18px] md:top-[-74px] md:left-[44px]"
         />
@@ -1254,7 +1254,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   {provider.status === 'maintenance' && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
                       <img
-                        src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Stop.png"
+                        src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Stop.png"
                         alt="점검중"
                         className="w-full h-full object-contain"
                       />
@@ -1282,7 +1282,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         
         {/* Slot 게임 리스트 타이틀 이미지 - 배너 위에 겹쳐서 왼쪽 정렬 */}
         <img
-          src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Slot-game-list.png"
+          src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Slot-game-list.png"
           alt="Slot Game List"
           className="absolute z-20 w-[200px] md:w-auto top-[-37px] left-[13px] md:top-[-74px] md:left-[44px]"          
         />
@@ -1318,7 +1318,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                   {provider.status === 'maintenance' && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
                       <img
-                        src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Stop.png"
+                        src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Stop.png"
                         alt="점검중"
                         className="w-full h-full object-contain"
                       />
@@ -1341,7 +1341,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/30 z-0"></div>
         
         <img
-          src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Gaming_bottom.png"
+          src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Gaming_bottom.png"
           alt="Partner Logos"
           className="hidden md:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-auto object-contain"
           style={{

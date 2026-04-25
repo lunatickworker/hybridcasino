@@ -111,7 +111,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                 className="w-full flex justify-center cursor-pointer"
               >
                 <ImageWithFallback
-                  src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/main%20logo.png"
+                  src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Benz%20logo.png"
                   alt="BENZ CASINO"
                   className="h-auto object-contain px-4"
                   style={{ width: '80%' }}
@@ -145,7 +145,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                       <div 
                         className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-0"
                         style={{
-                          backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu-bg.png)',
+                          backgroundImage: 'url(https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Menu-bg.png)',
                           backgroundSize: 'cover',
                           backgroundPosition: 'center',
                           backgroundRepeat: 'no-repeat',
@@ -157,7 +157,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                       <div 
                         className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                         style={{
-                          backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
+                          backgroundImage: 'url(https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Menu.png)',
                           backgroundSize: '100% 100%',
                           backgroundPosition: 'center',
                           backgroundRepeat: 'no-repeat',
@@ -227,7 +227,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                       <div 
                         className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-0"
                         style={{
-                          backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu-bg.png)',
+                          backgroundImage: 'url(https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Menu-bg.png)',
                           backgroundSize: 'cover',
                           backgroundPosition: 'center',
                           backgroundRepeat: 'no-repeat',
@@ -239,7 +239,7 @@ export function BenzSidebar({ user, currentRoute, onRouteChange }: BenzSidebarPr
                       <div 
                         className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                         style={{
-                          backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Menu.png)',
+                          backgroundImage: 'url(https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Menu.png)',
                           backgroundSize: '100% 100%',
                           backgroundPosition: 'center',
                           backgroundRepeat: 'no-repeat',

@@ -39,14 +39,14 @@ interface Game {
 }
 
 const FALLBACK_PROVIDERS = [
-  { id: 101, name: 'Pragmatic Play', name_ko: '프라그마틱 플레이', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticslot.jpg', status: 'visible' },
-  { id: 102, name: 'PG Soft', name_ko: 'PG 소프트', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pgsoft.jpg', status: 'visible' },
-  { id: 103, name: 'Habanero', name_ko: '하바네로', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/habanero.jpg', status: 'visible' },
-  { id: 104, name: 'Booongo', name_ko: '부운고', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/bng.jpg', status: 'visible' },
-  { id: 105, name: 'CQ9', name_ko: 'CQ9', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/cq9.jpg', status: 'visible' },
-  { id: 106, name: 'Evoplay', name_ko: '에보플레이', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evoplay.jpg', status: 'visible' },
-  { id: 107, name: 'Nolimit City', name_ko: '노리밋시티', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/nolimit.jpg', status: 'visible' },
-  { id: 108, name: 'Jingzibao', name_ko: '진지바오시', type: 'slot', logo_url: 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/jinjibaoxi.jpg', status: 'visible' },
+  { id: 101, name: 'Pragmatic Play', name_ko: '프라그마틱 플레이', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Pragmatic-Slot.png', status: 'visible' },
+  { id: 102, name: 'PG Soft', name_ko: 'PG 소프트', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/PG-Soft.png', status: 'visible' },
+  { id: 103, name: 'Habanero', name_ko: '하바네로', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Habanero.png', status: 'visible' },
+  { id: 104, name: 'Booongo', name_ko: '부운고', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Booongo.png', status: 'visible' },
+  { id: 105, name: 'CQ9', name_ko: 'CQ9', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/CQ9.png', status: 'visible' },
+  { id: 106, name: 'Evoplay', name_ko: '에보플레이', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Evoplay.png', status: 'visible' },
+  { id: 107, name: 'Nolimit City', name_ko: '노리밋시티', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Nolimit-City.png', status: 'visible' },
+  { id: 108, name: 'Jingzibao', name_ko: '진지바오시', type: 'slot', logo_url: 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Jin-Ji-Bao-Xi.png', status: 'visible' },
 ];
 
 // 게임사 이름으로 logo_url 찾기
@@ -55,35 +55,35 @@ const getLogoUrlByProviderName = (provider: GameProvider): string | undefined =>
   
   // Pragmatic Play Slot
   if ((name.includes('pragmatic') || name.includes('프라그마틱')) && (name.includes('slot') || name.includes('슬롯') || name.includes('play'))) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pragmaticslot.jpg';
+    return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Pragmatic-Slot.png';
   }
   // PG Soft
   if (name.includes('pg') || name.includes('pocket')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/pgsoft.jpg';
+    return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/PG-Soft.png';
   }
   // Habanero
   if (name.includes('habanero') || name.includes('하바네로')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/habanero.jpg';
+    return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Habanero.png';
   }
   // Booongo
   if (name.includes('booongo') || name.includes('bng') || name.includes('부운고')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/bng.jpg';
+    return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/BNG.png';
   }
   // CQ9
   if (name.includes('cq9')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/cq9.jpg';
+    return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/CQ9.png';
   }
   // Evoplay
   if (name.includes('evoplay') || name.includes('에보플레이')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/evoplay.jpg';
+    return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Evo-Play.png';
   }
   // Nolimit City
   if (name.includes('nolimit') || name.includes('노리밋')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/nolimit.jpg';
+    return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Nolimit-City.png';
   }
   // Jingzibao
   if (name.includes('jing') || name.includes('진지') || name.includes('바오')) {
-    return 'https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/jinjibaoxi.jpg';
+    return 'https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/gameprovider/Jin-Ji-Bao-Xi.png';
   }
   
   return provider.logo_url;
@@ -873,7 +873,7 @@ export function BenzSlot({ user, onRouteChange, refreshFlag }: BenzSlotProps) {
                   {provider.status === 'maintenance' && (
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
                       <img
-                        src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Stop.png"
+                        src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Stop.png"
                         alt="점검중"
                         className="w-full h-full object-contain"
                       />
@@ -985,7 +985,7 @@ export function BenzSlot({ user, onRouteChange, refreshFlag }: BenzSlotProps) {
                       zIndex: 50
                     }}>
                       <img
-                        src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/Stop.png"
+                        src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/Stop.png"
                         alt="점검중"
                         className="w-1/2 h-1/2 object-contain"
                       />
