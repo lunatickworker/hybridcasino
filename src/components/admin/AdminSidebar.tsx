@@ -447,9 +447,10 @@ export function AdminSidebar({ user, className, onNavigate, currentRoute }: Admi
       <div className="py-2 px-3 border-b border-slate-700/50 flex-shrink-0">
         <div className="flex items-center justify-center">
           <img 
-            src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/gms%20logo.png" 
+            src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/gms_logo_v1.png" 
             alt="GMS Logo"
-            className="w-[70%] h-auto object-contain"
+            className="w-[70%] object-contain"
+            style={{ height: '68px' }}  // 🆕 높이 조절 (조절 가능: 60px, 80px, 100px 등)
           />
         </div>
       </div>

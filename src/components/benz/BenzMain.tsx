@@ -1155,7 +1155,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       <section 
         className="relative w-auto bg-cover bg-center bg-no-repeat h-[250px] md:h-[500px]"
         style={{
-          backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-50-58.jpg?v=2)',
+          backgroundImage: 'url(https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/casino_background_1.png?v=2)',
           backgroundPosition: 'center center'
         }}
       >
@@ -1187,16 +1187,25 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
                 bottom: '19.6%',
                 width: '35.72%',
                 height: '14.8%',
-                background: 'transparent'
+                background: 'transparent',
+                overflow: 'visible'  // 🆕 이미지가 버튼 경계를 넘어가도록
               }}
               aria-label="Play Now"
             >
               {/* Hover 이미지 - 버튼 위에만 표시 */}
               {isHoveringBanner && (
                 <img
-                  src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benzicon/hover1.png"
+                  src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/play_now_hover.png"
                   alt="Play Now Hover"
-                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                  className="absolute pointer-events-none"
+                  style={{
+                    width: '100%',
+                    height: '190%',
+                    top: '52.5%',
+                    left: '50%',
+                    objectFit: 'contain',
+                    transform: 'translate(-50%, -50%) scaleX(1.26)'  // 🆕 가로만 5배 확대 (조절 가능: scaleX(3), scaleX(5) 등)
+                  }}
                 />
               )}
             </button>
@@ -1211,7 +1220,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       <section 
         className="relative w-full bg-cover bg-center bg-no-repeat py-8 md:py-16 min-h-[200px] md:min-h-[400px]"
         style={{
-          backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-51-03.jpg)',
+          backgroundImage: 'url(https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/live_casino_bg.png)',
           backgroundPosition: 'center center'
         }}
       >
@@ -1274,7 +1283,7 @@ export function BenzMain({ user, onRouteChange }: BenzMainProps) {
       <section 
         className="relative w-full bg-cover bg-center bg-no-repeat py-8 md:py-16 min-h-[200px] md:min-h-[400px]"
         style={{
-          backgroundImage: 'url(https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/benz/photo_2025-12-28_09-50-48.jpg)',
+          backgroundImage: 'url(https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/slot_game_bg.png)',
           backgroundPosition: 'center center'
         }}
       >

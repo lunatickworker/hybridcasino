@@ -207,7 +207,7 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
       {/* Background Logo */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none -z-10">
         <ImageWithFallback
-          src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/benzcasinologo%20(1).png"
+          src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/benzcasinologo%20(1).png"
           alt="BENZ CASINO Background"
           className="w-auto h-[40vh] md:h-[50vh] object-contain opacity-10"
           style={{
@@ -238,7 +238,7 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
           {/* Left Side - Game Image (모바일에서 숨김) */}
           <div className="hidden md:block md:w-1/2 relative overflow-hidden">
             <ImageWithFallback
-              src="https://wvipjxivfxuwaxvlveyv.supabase.co/storage/v1/object/public/user1/loginmodal.png"
+              src="https://iqkgwsdgxmxxvpydrlrm.supabase.co/storage/v1/object/public/casino/images/benz_login_v1.png"
               alt="Benz Casino"
               className="w-full h-full object-cover"
             />
@@ -255,7 +255,7 @@ export function BenzLoginModal({ isOpen, onClose, onLoginSuccess, onSwitchToSign
                   backgroundClip: 'text',
                   textShadow: '0 4px 12px rgba(193, 154, 107, 0.3)'
                 }}>
-                  Benz
+                  
                 </h2>
                 <p className="text-base" style={{
                   color: '#E6C9A8',
